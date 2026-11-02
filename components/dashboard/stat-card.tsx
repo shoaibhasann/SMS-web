@@ -1,0 +1,2 @@
+import {ArrowDownRight,ArrowUpRight} from "lucide-react";
+export function StatCard({label,value,trend}:{label:string;value:string;trend:string}){const down=trend.startsWith("-");return <div className="card p-5"><div className="text-sm muted">{label}</div><div className="mt-2 text-2xl font-extrabold tracking-tight">{value}</div><div className={`mt-2 flex items-center gap-1 text-xs font-semibold ${down?"text-red-500":"text-emerald-600"}`}>{down?<ArrowDownRight size={14}/>:<ArrowUpRight size={14}/>} {trend}</div></div>}
