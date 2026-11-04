@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronUp, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
   getCurrentTeacherAssignments,
@@ -63,6 +63,11 @@ function activityName(module: ActivityModule) {
 }
 
 export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityModule }) {
+  return <TeacherAcademicActivityView key={module} module={module} />;
+}
+
+function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
+  const loadVersion = useRef(0);
   const label = activityName(module);
   const [teacherId, setTeacherId] = useState("");
   const [teacherSchoolId, setTeacherSchoolId] = useState("");
@@ -73,11 +78,9 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
   const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYearOption[]>([]);
   const [classes, setClasses] = useState<SchoolOption[]>([]);
-  const [sections, setSections] = useState<SchoolOption[]>([]);
+  const [sectionResult, setSectionResult] = useState<{ classId: string; rows: SchoolOption[]; error: string } | null>(null);
   const [subjects, setSubjects] = useState<SchoolOption[]>([]);
-  const [sectionsLoading, setSectionsLoading] = useState(false);
-  const [sectionsError, setSectionsError] = useState("");
-  const [filterSections, setFilterSections] = useState<SchoolOption[]>([]);
+  const [historySectionResult, setHistorySectionResult] = useState<{ scope: string; rows: SchoolOption[] } | null>(null);
   const [entries, setEntries] = useState<SubmittedEntry[]>([]);
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedSectionId, setSelectedSectionId] = useState("");
@@ -97,6 +100,12 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
+  const sections = sectionResult?.classId === selectedClassId ? sectionResult.rows : [];
+  const sectionsLoading = Boolean(selectedClassId) && sectionResult?.classId !== selectedClassId;
+  const sectionsError = sectionResult?.classId === selectedClassId ? sectionResult.error : "";
+  const historySectionScope = `${teacherSchoolId}:${filterClass}`;
+  const filterSections = filterClass !== "all" && historySectionResult?.scope === historySectionScope ? historySectionResult.rows : [];
+
   const selectedEntry = entries.find((entry) => entry.activity.id === editingActivityId);
   const assignmentsForSelectedClass = assignments.filter((assignment) =>
     assignment.class_id === selectedClassId &&
@@ -107,10 +116,9 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
     assignment.subject_id === selectedSubjectId,
   );
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
+  const load = useCallback(() => {
+    const version = ++loadVersion.current;
+    const read = async () => {
       const currentTeacherId = await getCurrentTeacherId();
       if (!currentTeacherId) throw new Error("Teacher profile was not found for this login.");
 
@@ -158,6 +166,10 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
         })
         .sort((left, right) => right.log.log_date.localeCompare(left.log.log_date));
 
+      return { currentTeacherId, teacher, user, ownAssignments, yearRows, classRows, subjectRows, submitted };
+    };
+    return read().then(({ currentTeacherId, teacher, user, ownAssignments, yearRows, classRows, subjectRows, submitted }) => {
+      if (version !== loadVersion.current) return;
       setTeacherId(currentTeacherId);
       setTeacherSchoolId(teacher.school_id);
       setTeacherName(teacher.full_name || "Teacher");
@@ -172,28 +184,24 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
       setClasses(classRows ?? []);
       setSubjects(subjectRows ?? []);
       setEntries(submitted);
-    } catch (loadError) {
+    }).catch((loadError: unknown) => {
+      if (version !== loadVersion.current) return;
       logSupabaseError(`${label} workspace load failed`, loadError);
       setError(userError(loadError, `${label} could not be loaded. Please try again.`));
-    } finally {
-      setLoading(false);
-    }
+    }).finally(() => {
+      if (version === loadVersion.current) setLoading(false);
+    });
   }, [label, module]);
 
   useEffect(() => {
     void load();
+    return () => { loadVersion.current += 1; };
   }, [load]);
 
   useEffect(() => {
+    if (!selectedClassId) return;
     let active = true;
     const loadSections = async () => {
-      setSections([]);
-      setSectionsError("");
-      if (!selectedClassId) {
-        setSectionsLoading(false);
-        return;
-      }
-      setSectionsLoading(true);
       try {
         const { data, error: sectionError } = await createClient()
           .from("sections")
@@ -202,53 +210,43 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
           .order("name");
         if (sectionError) throw sectionError;
         if (active) {
-          setSections(data ?? []);
+          setSectionResult({ classId: selectedClassId, rows: data ?? [], error: "" });
           setSelectedSectionId((current) => data?.some((section) => section.id === current) ? current : "");
         }
       } catch (sectionLoadError) {
         if (active) {
           logSupabaseError(`${label} section load failed`, sectionLoadError);
-          setSectionsError("Error loading sections. Please try again.");
+          setSectionResult({ classId: selectedClassId, rows: [], error: "Error loading sections. Please try again." });
         }
-      } finally {
-        if (active) setSectionsLoading(false);
       }
     };
     void loadSections();
     return () => { active = false; };
-  }, [selectedClassId]);
+  }, [label, selectedClassId]);
 
   useEffect(() => {
+    if (filterClass === "all" || !teacherSchoolId) return;
     let active = true;
     const loadHistorySections = async () => {
-      if (filterClass === "all" || !teacherSchoolId) {
-        setFilterSections([]);
-        setFilterSection("all");
-        return;
-      }
       const { data, error: sectionError } = await createClient()
         .from("sections")
         .select("id,name")
         .eq("school_id", teacherSchoolId)
         .eq("class_id", filterClass)
         .order("name");
+      if (!active) return;
       if (sectionError) {
-        if (active) {
-          logSupabaseError(`${label} history section load failed`, sectionError);
-          setError("History filters could not be loaded. Please try again.");
-        }
+        logSupabaseError(`${label} history section load failed`, sectionError);
+        setError("History filters could not be loaded. Please try again.");
         return;
       }
-      if (active) {
-        setFilterSections(data ?? []);
-        setFilterSection("all");
-      }
+      setHistorySectionResult({ scope: historySectionScope, rows: data ?? [] });
     };
     void loadHistorySections();
     return () => { active = false; };
-  }, [filterClass, teacherSchoolId]);
+  }, [filterClass, historySectionScope, label, teacherSchoolId]);
 
-  const visibleEntries = useMemo(() => entries.filter(({ activity, log }) =>
+  const visibleEntries = useMemo(() => entries.filter(({ log }) =>
     (!filterDate || log.log_date === filterDate) &&
     (filterClass === "all" || log.class_id === filterClass) &&
     (filterSection === "all" || log.section_id === filterSection) &&
@@ -501,7 +499,6 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
     setSelectedClassId(assignment.class_id);
     setSelectedSectionId(assignment.section_id);
     setSelectedSubjectId(assignment.subject_id);
-    setSectionsError("");
     setError("");
   };
 
@@ -541,9 +538,7 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
               setSelectedClassId(event.target.value);
               setSelectedSectionId("");
               setSelectedSubjectId("");
-              setSections([]);
-              setSectionsError("");
-              setError("");
+                        setError("");
             }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading}>
               <option value="">{loading ? "Loading classes..." : "Select class"}</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
@@ -613,7 +608,7 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
         </div>
         <div className="grid gap-4 border-b border-[var(--border)] p-5 sm:grid-cols-2 lg:grid-cols-4">
           <label className="block text-sm font-semibold">Date<input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="field mt-2" /></label>
-          <label className="block text-sm font-semibold">Class<select value={filterClass} onChange={(event) => setFilterClass(event.target.value)} className="field mt-2"><option value="all">All Classes</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label className="block text-sm font-semibold">Class<select value={filterClass} onChange={(event) => { setFilterClass(event.target.value); setFilterSection("all"); }} className="field mt-2"><option value="all">All Classes</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Section<select value={filterSection} onChange={(event) => setFilterSection(event.target.value)} className="field mt-2" disabled={filterClass === "all"}><option value="all">All Sections</option>{filterSections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Subject<select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field mt-2"><option value="all">All Subjects</option>{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         </div>

@@ -2,7 +2,6 @@ export type AdminDemoModule =
   | "students"
   | "parents"
   | "teachers"
-  | "attendance"
   | "academics"
   | "admissions"
   | "timetable"
@@ -62,13 +61,6 @@ const transportAllocationSeed: AdminTransportAllocation[] = [
 ];
 
 const demoSeed: AdminDemoStorage = {
-  attendance: [
-    { id: "attendance-demo-1", date: "2026-11-02", className: "Class 6", section: "A", student: "Aarav Sharma", rollNo: "01", status: "Present" },
-    { id: "attendance-demo-2", date: "2026-11-02", className: "Class 6", section: "A", student: "Anaya Verma", rollNo: "02", status: "Absent" },
-    { id: "attendance-demo-3", date: "2026-11-02", className: "Class 6", section: "A", student: "Kabir Singh", rollNo: "03", status: "Leave" },
-    { id: "attendance-demo-4", date: "2026-11-02", className: "Class 5", section: "B", student: "Diya Kapoor", rollNo: "01", status: "Present" },
-    { id: "attendance-demo-5", date: "2026-11-02", className: "Class 5", section: "B", student: "Reyansh Das", rollNo: "02", status: "Holiday" },
-  ],
   academics: [
     { id: "year-demo-1", recordType: "Academic Year", name: "2026–27", startDate: "2026-04-01", endDate: "2027-03-31", current: true, status: "Active" },
     { id: "year-demo-2", recordType: "Academic Year", name: "2025–26", startDate: "2025-04-01", endDate: "2026-03-31", current: false, status: "Inactive" },

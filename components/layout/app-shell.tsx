@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as Icons from "lucide-react";
 import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules, roleLabels } from "@/lib/modules";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
@@ -18,24 +18,45 @@ export function AppShell({
 }) {
   const path = usePathname();
   const router = useRouter();
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
   const [open, setOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [userEmail, setUserEmail] = useState("");
+  const [logoutError, setLogoutError] = useState("");
+  const logoutPending = useRef(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setUserEmail(data.user?.email ?? "");
+    let active = true;
+    let identityVersion = 0;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      identityVersion += 1;
+      if (active) setUserEmail(session?.user.email ?? "");
     });
-  }, []);
+    const requestVersion = identityVersion;
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (active && identityVersion === requestVersion) setUserEmail(error ? "" : data.user?.email ?? "");
+    }, () => {
+      if (active && identityVersion === requestVersion) setUserEmail("");
+    });
+    return () => { active = false; subscription.unsubscribe(); };
+  }, [supabase]);
 
   async function handleLogout() {
-    if (signingOut) return;
-
+    if (logoutPending.current) return;
+    logoutPending.current = true;
     setSigningOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-    router.refresh();
+    setLogoutError("");
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      setLogoutError("Sign out failed. Please try again.");
+    } finally {
+      logoutPending.current = false;
+      setSigningOut(false);
+    }
   }
 
   const visibleModules = role === "teacher"
@@ -99,7 +120,7 @@ export function AppShell({
                 {visibleModules
                   .filter((m) => (role === "teacher" ? true : m.group === g))
                   .map((m) => {
-                    const C = (Icons as any)[m.icon] ?? Icons.Circle;
+                    const C = Icons[m.icon] ?? Icons.Circle;
 
                     return (
                       <Link
@@ -187,7 +208,10 @@ export function AppShell({
           </div>
         </header>
 
-        <div className="p-4 pb-24 sm:p-6 lg:p-8">{children}</div>
+        <div className="p-4 pb-24 sm:p-6 lg:p-8">
+          {logoutError && <p role="alert" className="mb-4 rounded-xl border border-red-500/30 p-3 text-sm text-red-600">{logoutError}</p>}
+          {children}
+        </div>
       </main>
 
       <nav className="fixed bottom-3 left-3 right-3 z-40 flex justify-around rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl lg:hidden">
@@ -199,7 +223,7 @@ export function AppShell({
           <span className="text-[10px]">Home</span>
         </Link>
         {mobileModules.map((module) => {
-          const Icon = (Icons as any)[module.icon] ?? Icons.Circle;
+          const Icon = Icons[module.icon] ?? Icons.Circle;
           return (
             <Link
               key={module.key}
@@ -232,4 +256,3 @@ export function AppShell({
     </div>
   );
 }
-    

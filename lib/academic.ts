@@ -80,6 +80,14 @@ export async function getCurrentTeacherId() {
   return data?.id ?? null;
 }
 
+type JoinedName = { name: string } | { name: string }[] | null;
+type AssignmentReadRow = Omit<TeachingAssignment, 'class_name' | 'section_name' | 'subject_name'> & {
+  classes: JoinedName; sections: JoinedName; subjects: JoinedName;
+};
+function joinedName(value: JoinedName, fallback: string) {
+  return (Array.isArray(value) ? value[0]?.name : value?.name) ?? fallback;
+}
+
 export async function getCurrentTeacherAssignments(): Promise<TeachingAssignment[]> {
   const supabase = createClient();
   const teacherId = await getCurrentTeacherId();
@@ -91,7 +99,7 @@ export async function getCurrentTeacherAssignments(): Promise<TeachingAssignment
     .eq('teacher_id', teacherId);
   if (error) throw error;
 
-  return (data ?? []).map((row: any) => ({
+  return ((data ?? []) as unknown as AssignmentReadRow[]).map((row) => ({
     id: row.id,
     teacher_id: row.teacher_id,
     class_id: row.class_id,
@@ -99,9 +107,9 @@ export async function getCurrentTeacherAssignments(): Promise<TeachingAssignment
     subject_id: row.subject_id,
     academic_year_id: row.academic_year_id,
     is_class_teacher: Boolean(row.is_class_teacher),
-    class_name: row.classes?.name ?? 'Class',
-    section_name: row.sections?.name ?? 'Section',
-    subject_name: row.subjects?.name ?? 'Subject',
+    class_name: joinedName(row.classes, 'Class'),
+    section_name: joinedName(row.sections, 'Section'),
+    subject_name: joinedName(row.subjects, 'Subject'),
   }));
 }
 

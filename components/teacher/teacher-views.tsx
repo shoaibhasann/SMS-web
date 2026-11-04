@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -37,6 +37,8 @@ type AssessmentMarkRecord = {
 };
 
 type AssessmentStudent = StudentRecord & { enrollment_id?: string };
+type MarkDraft = Record<string, { value: string; remarks: string }>;
+type AssessmentRoster = { scope: string; students: AssessmentStudent[]; marks: MarkDraft };
 type SchoolOption = { id: string; name: string };
 type AcademicYearOption = { id: string; name: string; is_current: boolean };
 type SchoolSectionOption = SchoolOption & { class_id: string };
@@ -89,6 +91,7 @@ function assessmentScopeLabel(assessment: AssessmentRecord, assignments: Teachin
 }
 
 function ExamScheduleView() {
+  const recordsVersion = useRef(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -104,8 +107,7 @@ function ExamScheduleView() {
   const [sectionsError, setSectionsError] = useState("");
   const [subjects, setSubjects] = useState<SchoolOption[]>([]);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState("");
-  const [students, setStudents] = useState<AssessmentStudent[]>([]);
-  const [marks, setMarks] = useState<Record<string, { value: string; remarks: string }>>({});
+  const [roster, setRoster] = useState<AssessmentRoster | null>(null);
   const [editingAssessmentId, setEditingAssessmentId] = useState("");
   const [expandedAssessmentId, setExpandedAssessmentId] = useState("");
   const [pendingDeleteAssessment, setPendingDeleteAssessment] = useState<AssessmentRecord | null>(null);
@@ -120,6 +122,17 @@ function ExamScheduleView() {
   const [description, setDescription] = useState("");
   const [assessmentStatus, setAssessmentStatus] = useState<AssessmentRecord["status"]>("scheduled");
   const selectedAssessment = records.find((assessment) => assessment.id === selectedAssessmentId);
+  const assessmentId = selectedAssessment?.id ?? "";
+  const assessmentClassId = selectedAssessment?.class_id ?? "";
+  const assessmentYearId = selectedAssessment?.academic_year_id ?? "";
+  const assessmentSectionId = selectedAssessment?.section_id ?? "";
+  const rosterScope = JSON.stringify([assessmentId, assessmentClassId, assessmentYearId, assessmentSectionId]);
+  const students = roster?.scope === rosterScope ? roster.students : [];
+  const marks = roster?.scope === rosterScope ? roster.marks : {};
+  const rosterLoading = Boolean(assessmentId) && roster?.scope !== rosterScope;
+  const setMarks = (update: (current: MarkDraft) => MarkDraft) => {
+    setRoster((current) => current?.scope === rosterScope ? { ...current, marks: update(current.marks) } : current);
+  };
   const assignmentsForSelectedClass = assignments.filter((assignment) =>
     assignment.class_id === selectedClassId &&
     assignment.academic_year_id === selectedAcademicYearId,
@@ -129,21 +142,19 @@ function ExamScheduleView() {
     assignment.subject_id === selectedSubjectId,
   );
 
-  const loadRecords = async () => {
+  const loadRecords = useCallback(async () => {
+    const version = ++recordsVersion.current;
     const [currentTeacherId, currentAssignments] = await Promise.all([
       getCurrentTeacherId(),
       getCurrentTeacherAssignments(),
     ]);
     if (!currentTeacherId) throw new Error("Teacher profile was not found for this login.");
-    setTeacherId(currentTeacherId);
-    setAssignments(currentAssignments);
     const { data: teacher, error: teacherError } = await createClient()
       .from("teachers")
       .select("school_id")
       .eq("id", currentTeacherId)
       .single();
     if (teacherError) throw teacherError;
-    setTeacherSchoolId(teacher.school_id);
     const [{ data: yearRows, error: yearError }, { data: classRows, error: classError }, { data: subjectRows, error: subjectError }] = await Promise.all([
       createClient().from("academic_years").select("id,name,is_current").eq("school_id", teacher.school_id).order("start_date", { ascending: false }),
       createClient().from("classes").select("id,name").eq("school_id", teacher.school_id).eq("is_active", true).order("sort_order"),
@@ -152,6 +163,16 @@ function ExamScheduleView() {
     if (yearError) throw yearError;
     if (classError) throw classError;
     if (subjectError) throw subjectError;
+    const { data, error: assessmentError } = await createClient()
+      .from("teacher_assessments")
+      .select("id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status")
+      .order("assessment_date", { ascending: false });
+    if (assessmentError) throw assessmentError;
+    const loaded = (data ?? []) as AssessmentRecord[];
+    if (version !== recordsVersion.current) return;
+    setTeacherId(currentTeacherId);
+    setAssignments(currentAssignments);
+    setTeacherSchoolId(teacher.school_id);
     const currentYear = yearRows?.find((year) => year.is_current) ?? null;
     setAcademicYears(yearRows ?? []);
     setCurrentAcademicYearId(currentYear?.id ?? "");
@@ -160,16 +181,9 @@ function ExamScheduleView() {
       : currentYear?.id || currentAssignments[0]?.academic_year_id || "");
     setClasses(classRows ?? []);
     setSubjects(subjectRows ?? []);
-    const { data, error: assessmentError } = await createClient()
-      .from("teacher_assessments")
-      .select("id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status")
-      .order("assessment_date", { ascending: false });
-    if (assessmentError) throw assessmentError;
-    const loaded = (data ?? []) as AssessmentRecord[];
     setRecords(loaded);
-    if (selectedAssessmentId && loaded.some((assessment) => assessment.id === selectedAssessmentId)) return;
-    setSelectedAssessmentId("");
-  };
+    setSelectedAssessmentId((selected) => loaded.some((assessment) => assessment.id === selected) ? selected : "");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -222,58 +236,55 @@ function ExamScheduleView() {
     void load();
     return () => {
       active = false;
+      recordsVersion.current += 1;
     };
-  }, []);
+  }, [loadRecords]);
 
   useEffect(() => {
+    if (!assessmentId) return;
     let active = true;
     const loadStudentsAndMarks = async () => {
-      if (!selectedAssessment) {
-        setStudents([]);
-        setMarks({});
-        return;
-      }
-      setLoading(true);
-      setError("");
       try {
         const supabase = createClient();
         let enrollmentQuery = supabase
           .from("enrollments")
           .select("student_id,section_id")
-          .eq("class_id", selectedAssessment.class_id)
-          .eq("academic_year_id", selectedAssessment.academic_year_id)
+          .eq("class_id", assessmentClassId)
+          .eq("academic_year_id", assessmentYearId)
           .eq("status", "active");
-        if (selectedAssessment.section_id) enrollmentQuery = enrollmentQuery.eq("section_id", selectedAssessment.section_id);
+        if (assessmentSectionId) enrollmentQuery = enrollmentQuery.eq("section_id", assessmentSectionId);
         const { data: enrollments, error: enrollmentError } = await enrollmentQuery;
         if (enrollmentError) throw enrollmentError;
         const studentIds = [...new Set((enrollments ?? []).map((enrollment) => enrollment.student_id))];
         const [{ data: studentRows, error: studentError }, { data: markRows, error: marksError }] = await Promise.all([
           studentIds.length
             ? supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no").in("id", studentIds).order("roll_no")
-            : Promise.resolve({ data: [], error: null }),
-          supabase.from("teacher_assessment_marks").select("id,assessment_id,student_id,marks_obtained,remarks").eq("assessment_id", selectedAssessment.id),
+            : { data: [], error: null },
+          supabase.from("teacher_assessment_marks").select("id,assessment_id,student_id,marks_obtained,remarks").eq("assessment_id", assessmentId),
         ]);
         if (studentError) throw studentError;
         if (marksError) throw marksError;
         const loadedMarks = (markRows ?? []) as AssessmentMarkRecord[];
         if (active) {
-          setStudents((studentRows ?? []) as AssessmentStudent[]);
-          setMarks(Object.fromEntries(loadedMarks.map((mark) => [
-            mark.student_id,
-            { value: String(mark.marks_obtained), remarks: mark.remarks ?? "" },
-          ])));
+          setRoster({
+            scope: rosterScope,
+            students: (studentRows ?? []) as AssessmentStudent[],
+            marks: Object.fromEntries(loadedMarks.map((mark) => [
+              mark.student_id,
+              { value: String(mark.marks_obtained), remarks: mark.remarks ?? "" },
+            ])),
+          });
         }
       } catch (loadError) {
-        if (active) setError(errorText(loadError, "Students and marks could not be loaded."));
-      } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setRoster({ scope: rosterScope, students: [], marks: {} });
+          setError(errorText(loadError, "Students and marks could not be loaded."));
+        }
       }
     };
     void loadStudentsAndMarks();
-    return () => {
-      active = false;
-    };
-  }, [selectedAssessmentId, records]);
+    return () => { active = false; };
+  }, [assessmentClassId, assessmentId, assessmentSectionId, assessmentYearId, rosterScope]);
 
   const resetAssessmentForm = () => {
     setEditingAssessmentId("");
@@ -664,7 +675,7 @@ function ExamScheduleView() {
                 </div>
                 {selectedAssessment.description && <p className="text-sm muted">{selectedAssessment.description}</p>}
                 {selectedAssessment.teacher_id !== teacherId && <p className="text-sm muted">This assessment belongs to another teacher. Marks are view-only.</p>}
-                {students.length === 0 ? <p className="text-sm muted">No enrolled students found for this class and section.</p> : (
+                {rosterLoading ? <p className="text-sm muted">Loading students and marks...</p> : students.length === 0 ? <p className="text-sm muted">No enrolled students found for this class and section.</p> : (
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[760px] text-left text-sm">
                       <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Marks", "Remarks"].map((heading) => <th key={heading} className="p-3">{heading}</th>)}</tr></thead>
@@ -731,7 +742,6 @@ function ResultFilter({
 function ResultReportView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
   const [yearNames, setYearNames] = useState<Record<string, string>>({});
   const [classes, setClasses] = useState<SchoolOption[]>([]);
@@ -817,7 +827,6 @@ function ResultReportView() {
           }];
         });
         if (active) {
-          setAssignments(currentAssignments);
           setClasses(classRows ?? []);
           setSections(sectionRows ?? []);
           setSubjects(subjectRows ?? []);
@@ -1056,7 +1065,7 @@ function FeeView() {
       </header>
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
       <section className="card overflow-x-auto">
-        {loading ? <p className="p-5 text-sm muted">Loading assigned students' fee status...</p> : rows.length === 0 ? (
+        {loading ? <p className="p-5 text-sm muted">Loading assigned students&apos; fee status...</p> : rows.length === 0 ? (
           <p className="p-5 text-sm muted">No records found.</p>
         ) : (
           <table className="w-full min-w-[850px] text-left text-sm">

@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { BookOpen, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { AdminDemoService, type AdminDemoRecord } from "@/lib/admin/admin-demo-service";
+import { useAdminDemoRecords } from "./admin-demo-workspace";
 
 type AcademicTab = "Academic Year" | "Class" | "Section" | "Subject";
 const tabs: AcademicTab[] = ["Academic Year", "Class", "Section", "Subject"];
@@ -14,17 +15,14 @@ const fields: Record<AcademicTab, { key: string; label: string; type?: string }[
 };
 
 export function AdminAcademicSetupWorkspace() {
-  const [records, setRecords] = useState<AdminDemoRecord[]>([]);
+  const [records, refreshRecords] = useAdminDemoRecords("academics");
   const [tab, setTab] = useState<AcademicTab>("Academic Year");
   const [editing, setEditing] = useState<AdminDemoRecord | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
   const [toast, setToast] = useState("");
 
-  function load() {
-    setRecords(AdminDemoService.load("academics"));
-  }
-  useEffect(load, []);
+  const load = refreshRecords;
 
   const visible = useMemo(() => records.filter((record) => record.recordType === tab), [records, tab]);
   function openForm(record?: AdminDemoRecord) {
@@ -45,7 +43,7 @@ export function AdminAcademicSetupWorkspace() {
         ...(tab === "Subject" ? { practical: false } : {}),
       }];
     AdminDemoService.save("academics", updated);
-    setRecords(updated);
+    refreshRecords();
     setModalOpen(false);
     setToast(editing ? `${tab} updated in demo data.` : `${tab} added to demo data.`);
   }
@@ -53,14 +51,14 @@ export function AdminAcademicSetupWorkspace() {
     if (!window.confirm(`Delete “${record.name}” from demo data?`)) return;
     const updated = records.filter((item) => item.id !== record.id);
     AdminDemoService.save("academics", updated);
-    setRecords(updated);
+    refreshRecords();
   }
   function makeCurrent(record: AdminDemoRecord) {
     const updated = records.map((item) => item.recordType === "Academic Year"
       ? { ...item, current: item.id === record.id, status: item.id === record.id ? "Active" : "Inactive" }
       : item);
     AdminDemoService.save("academics", updated);
-    setRecords(updated);
+    refreshRecords();
   }
 
   return (

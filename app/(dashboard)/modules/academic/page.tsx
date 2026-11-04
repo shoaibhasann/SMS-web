@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   BookOpen,
@@ -48,7 +48,8 @@ type Stream = {
 };
 
 export default function AcademicSetupPage() {
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
+  const loadVersion = useRef(0);
 
   const [schoolId, setSchoolId] = useState<string | null>(null);
   const [years, setYears] = useState<AcademicYear[]>([]);
@@ -66,96 +67,97 @@ export default function AcademicSetupPage() {
     practical: false,
   });
 
-  async function load() {
-    setLoading(true);
-    setMessage("");
+  const load = useCallback(() => {
+    const version = ++loadVersion.current;
+    const read = async () => {
+      const { data: auth } = await supabase.auth.getUser();
 
-    const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) {
+        throw new Error("Please login again.");
+      }
 
-    if (!auth.user) {
-      setMessage("Please login again.");
-      setLoading(false);
-      return;
-    }
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("school_id")
+        .eq("id", auth.user.id)
+        .single();
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("school_id")
-      .eq("id", auth.user.id)
-      .single();
+      if (profileError || !profile?.school_id) {
+        throw new Error(profileError?.message || "School is not linked to this account.");
+      }
 
-    if (profileError || !profile?.school_id) {
-      setMessage(
-        profileError?.message || "School is not linked to this account.",
-      );
-      setLoading(false);
-      return;
-    }
+      const [
+        yearsRes,
+        classesRes,
+        sectionsRes,
+        subjectsRes,
+        streamsRes,
+      ] = await Promise.all([
+        supabase
+          .from("academic_years")
+          .select("id,name,start_date,end_date,is_current")
+          .eq("school_id", profile.school_id)
+          .order("start_date", { ascending: false }),
 
-    setSchoolId(profile.school_id);
+        supabase
+          .from("classes")
+          .select("id,name,sort_order,is_active")
+          .eq("school_id", profile.school_id)
+          .order("sort_order"),
 
-    const [
-      yearsRes,
-      classesRes,
-      sectionsRes,
-      subjectsRes,
-      streamsRes,
-    ] = await Promise.all([
-      supabase
-        .from("academic_years")
-        .select("id,name,start_date,end_date,is_current")
-        .eq("school_id", profile.school_id)
-        .order("start_date", { ascending: false }),
+        supabase
+          .from("sections")
+          .select("id,class_id,name")
+          .eq("school_id", profile.school_id)
+          .order("name"),
 
-      supabase
-        .from("classes")
-        .select("id,name,sort_order,is_active")
-        .eq("school_id", profile.school_id)
-        .order("sort_order"),
+        supabase
+          .from("subjects")
+          .select(
+            "id,code,name,description,is_practical,is_active",
+          )
+          .eq("school_id", profile.school_id)
+          .order("name"),
 
-      supabase
-        .from("sections")
-        .select("id,class_id,name")
-        .eq("school_id", profile.school_id)
-        .order("name"),
+        supabase
+          .from("streams")
+          .select("id,name")
+          .eq("school_id", profile.school_id)
+          .order("name"),
+      ]);
 
-      supabase
-        .from("subjects")
-        .select(
-          "id,code,name,description,is_practical,is_active",
-        )
-        .eq("school_id", profile.school_id)
-        .order("name"),
-
-      supabase
-        .from("streams")
-        .select("id,name")
-        .eq("school_id", profile.school_id)
-        .order("name"),
-    ]);
-
-    const firstError =
+      return { schoolId: profile.school_id, yearsRes, classesRes, sectionsRes, subjectsRes, streamsRes };
+    };
+    return read().then(({ schoolId: loadedSchoolId, yearsRes, classesRes, sectionsRes, subjectsRes, streamsRes }) => {
+      if (version !== loadVersion.current) return;
+      setSchoolId(loadedSchoolId);
+      const firstError =
       yearsRes.error ||
       classesRes.error ||
       sectionsRes.error ||
       subjectsRes.error ||
       streamsRes.error;
 
-    if (firstError) {
+      if (firstError) {
       setMessage(firstError.message);
-    }
+      }
 
-    setYears(yearsRes.data ?? []);
-    setClasses(classesRes.data ?? []);
-    setSections(sectionsRes.data ?? []);
-    setSubjects(subjectsRes.data ?? []);
-    setStreams(streamsRes.data ?? []);
-    setLoading(false);
-  }
+      setYears(yearsRes.data ?? []);
+      setClasses(classesRes.data ?? []);
+      setSections(sectionsRes.data ?? []);
+      setSubjects(subjectsRes.data ?? []);
+      setStreams(streamsRes.data ?? []);
+    }).catch((error: unknown) => {
+      if (version === loadVersion.current) setMessage(error instanceof Error ? error.message : "Academic setup could not be loaded.");
+    }).finally(() => {
+      if (version === loadVersion.current) setLoading(false);
+    });
+  }, [supabase]);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+    return () => { loadVersion.current += 1; };
+  }, [load]);
 
   const sectionCounts = useMemo(() => {
     const counts = new Map<string, number>();

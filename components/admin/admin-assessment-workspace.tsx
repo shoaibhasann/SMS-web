@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { Download, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -62,7 +62,10 @@ function logError(context: string, error: unknown) {
 }
 
 export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }) {
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
+  const latestRequest = useRef(0);
+  const latestMarksRequest = useRef(0);
+  const mounted = useRef(true);
   const [schoolId, setSchoolId] = useState("");
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [marks, setMarks] = useState<AssessmentMark[]>([]);
@@ -100,111 +103,121 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
     [sections, form.class_id],
   );
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const { data: auth, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!auth.user) throw new Error("Please sign in again.");
+  const load = useCallback(() => {
+    const request = ++latestRequest.current;
+    const isCurrent = () => mounted.current && request === latestRequest.current;
+    return supabase.auth.getUser().then(async ({ data: auth, error: authError }) => {
+      try {
+        if (!isCurrent()) return;
+        setLoading(true);
+        setError("");
+        if (authError) throw authError;
+        if (!auth.user) throw new Error("Please sign in again.");
 
-      const { data: roleRows, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role,school_id")
-        .eq("user_id", auth.user.id);
-      if (roleError) throw roleError;
+        const { data: roleRows, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role,school_id")
+          .eq("user_id", auth.user.id);
+        if (roleError) throw roleError;
 
-      let resolvedSchoolId = (roleRows ?? []).find((row) =>
-        row.role === "school_admin" && row.school_id,
-      )?.school_id ?? "";
-      if (!resolvedSchoolId && (roleRows ?? []).some((row) => row.role === "super_admin")) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("school_id")
-          .eq("id", auth.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        resolvedSchoolId = profile?.school_id ?? "";
+        let resolvedSchoolId = (roleRows ?? []).find((row) =>
+          row.role === "school_admin" && row.school_id,
+        )?.school_id ?? "";
+        if (!resolvedSchoolId && (roleRows ?? []).some((row) => row.role === "super_admin")) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("school_id")
+            .eq("id", auth.user.id)
+            .maybeSingle();
+          if (profileError) throw profileError;
+          resolvedSchoolId = profile?.school_id ?? "";
+        }
+        if (!resolvedSchoolId) throw new Error("Choose a school-linked admin account to manage assessments.");
+
+        const [
+          yearResult,
+          classResult,
+          sectionResult,
+          subjectResult,
+          teacherResult,
+          assessmentResult,
+        ] = await Promise.all([
+          supabase.from("academic_years").select("id,name").eq("school_id", resolvedSchoolId).order("start_date", { ascending: false }),
+          supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("sort_order"),
+          supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
+          supabase.from("subjects").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("name"),
+          supabase.from("teachers").select("id,full_name").eq("school_id", resolvedSchoolId).order("full_name"),
+          supabase.from("teacher_assessments").select("id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status").eq("school_id", resolvedSchoolId).order("assessment_date", { ascending: false }),
+        ]);
+        const failed = [yearResult, classResult, sectionResult, subjectResult, teacherResult, assessmentResult].find((result) => result.error);
+        if (failed?.error) throw failed.error;
+
+        const yearRows = yearResult.data ?? [];
+        const classRows = classResult.data ?? [];
+        const sectionRows = sectionResult.data ?? [];
+        const subjectRows = subjectResult.data ?? [];
+        const teacherRows = teacherResult.data ?? [];
+        const assessmentRows = (assessmentResult.data ?? []) as Assessment[];
+        const assessmentIds = assessmentRows.map((row) => row.id);
+        let loadedMarks: AssessmentMark[] = [];
+        let loadedStudents: StudentOption[] = [];
+        if (assessmentIds.length) {
+          const { data: markRows, error: marksError } = await supabase
+            .from("teacher_assessment_marks")
+            .select("id,assessment_id,student_id,marks_obtained,remarks")
+            .in("assessment_id", assessmentIds);
+          if (marksError) throw marksError;
+          loadedMarks = (markRows ?? []) as AssessmentMark[];
+          const studentIds = [...new Set(loadedMarks.map((row) => row.student_id))];
+          if (studentIds.length) {
+            const { data: studentRows, error: studentsError } = await supabase
+              .from("students")
+              .select("id,first_name,middle_name,last_name,admission_no,roll_no")
+              .in("id", studentIds)
+              .eq("school_id", resolvedSchoolId);
+            if (studentsError) throw studentsError;
+            loadedStudents = (studentRows ?? []).map((student) => ({
+              id: student.id,
+              name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+              admission_no: student.admission_no,
+              roll_no: student.roll_no ?? null,
+            }));
+          }
+        }
+        if (!isCurrent()) return;
+        setSchoolId(resolvedSchoolId);
+        setYears(yearRows);
+        setClasses(classRows);
+        setSections(sectionRows);
+        setSubjects(subjectRows);
+        setTeachers(teacherRows.map((row) => ({ id: row.id, name: row.full_name ?? "Teacher" })));
+        setClassNames(Object.fromEntries(classRows.map((row) => [row.id, row.name])));
+        setSectionNames(Object.fromEntries(sectionRows.map((row) => [row.id, row.name])));
+        setSubjectNames(Object.fromEntries(subjectRows.map((row) => [row.id, row.name])));
+        setTeacherNames(Object.fromEntries(teacherRows.map((row) => [row.id, row.full_name ?? "Teacher"])));
+        setAssessments(assessmentRows);
+        setMarks(loadedMarks);
+        setStudents(loadedStudents);
+      } catch (loadError) {
+        if (!isCurrent()) return;
+        logError("Admin assessment data load failed", loadError);
+        setError("Assessment data could not be loaded. Please refresh or contact your administrator.");
+      } finally {
+        if (isCurrent()) setLoading(false);
       }
-      if (!resolvedSchoolId) throw new Error("Choose a school-linked admin account to manage assessments.");
-      setSchoolId(resolvedSchoolId);
-
-      const [
-        yearResult,
-        classResult,
-        sectionResult,
-        subjectResult,
-        teacherResult,
-        assessmentResult,
-      ] = await Promise.all([
-        supabase.from("academic_years").select("id,name").eq("school_id", resolvedSchoolId).order("start_date", { ascending: false }),
-        supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("sort_order"),
-        supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
-        supabase.from("subjects").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("name"),
-        supabase.from("teachers").select("id,full_name").eq("school_id", resolvedSchoolId).order("full_name"),
-        supabase.from("teacher_assessments").select("id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status").eq("school_id", resolvedSchoolId).order("assessment_date", { ascending: false }),
-      ]);
-      const failed = [yearResult, classResult, sectionResult, subjectResult, teacherResult, assessmentResult].find((result) => result.error);
-      if (failed?.error) throw failed.error;
-
-      const yearRows = yearResult.data ?? [];
-      const classRows = classResult.data ?? [];
-      const sectionRows = sectionResult.data ?? [];
-      const subjectRows = subjectResult.data ?? [];
-      const teacherRows = teacherResult.data ?? [];
-      const assessmentRows = (assessmentResult.data ?? []) as Assessment[];
-      setYears(yearRows);
-      setClasses(classRows);
-      setSections(sectionRows);
-      setSubjects(subjectRows);
-      setTeachers(teacherRows.map((row) => ({ id: row.id, name: row.full_name ?? "Teacher" })));
-      setClassNames(Object.fromEntries(classRows.map((row) => [row.id, row.name])));
-      setSectionNames(Object.fromEntries(sectionRows.map((row) => [row.id, row.name])));
-      setSubjectNames(Object.fromEntries(subjectRows.map((row) => [row.id, row.name])));
-      setTeacherNames(Object.fromEntries(teacherRows.map((row) => [row.id, row.full_name ?? "Teacher"])));
-      setAssessments(assessmentRows);
-
-      const assessmentIds = assessmentRows.map((row) => row.id);
-      if (!assessmentIds.length) {
-        setMarks([]);
-        setStudents([]);
-        return;
-      }
-      const { data: markRows, error: marksError } = await supabase
-        .from("teacher_assessment_marks")
-        .select("id,assessment_id,student_id,marks_obtained,remarks")
-        .in("assessment_id", assessmentIds);
-      if (marksError) throw marksError;
-      const loadedMarks = (markRows ?? []) as AssessmentMark[];
-      setMarks(loadedMarks);
-      const studentIds = [...new Set(loadedMarks.map((row) => row.student_id))];
-      if (!studentIds.length) {
-        setStudents([]);
-        return;
-      }
-      const { data: studentRows, error: studentsError } = await supabase
-        .from("students")
-        .select("id,first_name,middle_name,last_name,admission_no,roll_no")
-        .in("id", studentIds)
-        .eq("school_id", resolvedSchoolId);
-      if (studentsError) throw studentsError;
-      setStudents((studentRows ?? []).map((student) => ({
-        id: student.id,
-        name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-        admission_no: student.admission_no,
-        roll_no: student.roll_no ?? null,
-      })));
-    } catch (loadError) {
+    }, (loadError: unknown) => {
+      if (!isCurrent()) return;
       logError("Admin assessment data load failed", loadError);
       setError("Assessment data could not be loaded. Please refresh or contact your administrator.");
-    } finally {
       setLoading(false);
-    }
-  }
+    });
+  }, [supabase]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-  }, []);
+    return () => { mounted.current = false; latestRequest.current += 1; latestMarksRequest.current += 1; };
+  }, [load]);
 
   function startEdit(assessment: Assessment) {
     setEditingId(assessment.id);
@@ -225,6 +238,8 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   }
 
   async function openMarks(assessment: Assessment) {
+    const request = ++latestMarksRequest.current;
+    const isCurrent = () => mounted.current && request === latestMarksRequest.current;
     setMarkAssessment(assessment);
     setMarkLoading(true);
     setError("");
@@ -237,12 +252,14 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         .eq("status", "active");
       if (assessment.section_id) enrollmentQuery = enrollmentQuery.eq("section_id", assessment.section_id);
       const { data: enrollments, error: enrollmentError } = await enrollmentQuery;
+      if (!isCurrent()) return;
       if (enrollmentError) throw enrollmentError;
       const enrollmentRows = enrollments ?? [];
       const studentIds = [...new Set(enrollmentRows.map((row) => row.student_id))];
       const { data: studentRows, error: studentError } = studentIds.length
         ? await supabase.from("students").select("id,first_name,middle_name,last_name,admission_no,roll_no").eq("school_id", schoolId).in("id", studentIds)
         : { data: [], error: null };
+      if (!isCurrent()) return;
       if (studentError) throw studentError;
       const enrollmentRolls = new Map(enrollmentRows.map((row) => [row.student_id, row.roll_no]));
       const roster = (studentRows ?? []).map((student) => ({
@@ -255,11 +272,12 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
       setMarkRoster(roster);
       setMarkValues(Object.fromEntries(roster.map((student) => [student.id, existing.get(student.id) ?? ""])));
     } catch (marksLoadError) {
+      if (!isCurrent()) return;
       logError("Admin assessment marks roster load failed", marksLoadError);
       setError("The marks roster could not be loaded. Please try again.");
       setMarkAssessment(null);
     } finally {
-      setMarkLoading(false);
+      if (isCurrent()) setMarkLoading(false);
     }
   }
 
@@ -560,7 +578,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
               <h2 className="font-bold">Marks · {markAssessment.name}</h2>
               <p className="mt-1 text-sm muted">{markAssessment.maximum_marks} maximum marks · {markRoster.filter((student) => !markValues[student.id]).length} missing</p>
             </div>
-            <button type="button" onClick={() => setMarkAssessment(null)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Close</button>
+            <button type="button" onClick={() => { latestMarksRequest.current += 1; setMarkAssessment(null); }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Close</button>
           </div>
           {markLoading ? <p className="p-5 text-sm muted">Loading enrolled students…</p> : markRoster.length === 0 ? <p className="p-5 text-sm muted">No active students are enrolled in this assessment class.</p> : (
             <form onSubmit={saveMarks}>

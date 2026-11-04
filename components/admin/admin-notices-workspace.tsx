@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Megaphone, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -31,7 +31,9 @@ function logError(context: string, error: unknown) {
 }
 
 export function AdminNoticesWorkspace() {
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
+  const latestRequest = useRef(0);
+  const mounted = useRef(true);
   const [schoolId, setSchoolId] = useState("");
   const [userId, setUserId] = useState("");
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -50,57 +52,70 @@ export function AdminNoticesWorkspace() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const { data: auth, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!auth.user) throw new Error("Please sign in again.");
-      setUserId(auth.user.id);
+  const load = useCallback(() => {
+    const request = ++latestRequest.current;
+    const isCurrent = () => mounted.current && request === latestRequest.current;
+    return supabase.auth.getUser().then(async ({ data: auth, error: authError }) => {
+      try {
+        if (!isCurrent()) return;
+        setLoading(true);
+        setError("");
+        if (authError) throw authError;
+        if (!auth.user) throw new Error("Please sign in again.");
 
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role,school_id")
-        .eq("user_id", auth.user.id);
-      if (rolesError) throw rolesError;
+        const { data: roles, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("role,school_id")
+          .eq("user_id", auth.user.id);
+        if (rolesError) throw rolesError;
 
-      let resolvedSchoolId = (roles ?? []).find((row) =>
-        row.role === "school_admin" && row.school_id,
-      )?.school_id ?? "";
-      if (!resolvedSchoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("school_id")
-          .eq("id", auth.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        resolvedSchoolId = profile?.school_id ?? "";
+        let resolvedSchoolId = (roles ?? []).find((row) =>
+          row.role === "school_admin" && row.school_id,
+        )?.school_id ?? "";
+        if (!resolvedSchoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("school_id")
+            .eq("id", auth.user.id)
+            .maybeSingle();
+          if (profileError) throw profileError;
+          resolvedSchoolId = profile?.school_id ?? "";
+        }
+        if (!resolvedSchoolId) throw new Error("Choose a school-linked admin account to manage notices.");
+
+        const [noticeResult, classResult, sectionResult] = await Promise.all([
+          supabase.from("notices").select("id,title,content,published_at,created_at,audience").eq("school_id", resolvedSchoolId).order("created_at", { ascending: false }),
+          supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).order("sort_order"),
+          supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
+        ]);
+        const failed = noticeResult.error ?? classResult.error ?? sectionResult.error;
+        if (failed) throw failed;
+        if (!isCurrent()) return;
+        setUserId(auth.user.id);
+        setSchoolId(resolvedSchoolId);
+        setNotices((noticeResult.data ?? []) as Notice[]);
+        setClasses(classResult.data ?? []);
+        setSections(sectionResult.data ?? []);
+      } catch (loadError) {
+        if (!isCurrent()) return;
+        logError("Admin notices load failed", loadError);
+        setError("Notices could not be loaded. Please refresh or contact your administrator.");
+      } finally {
+        if (isCurrent()) setLoading(false);
       }
-      if (!resolvedSchoolId) throw new Error("Choose a school-linked admin account to manage notices.");
-      setSchoolId(resolvedSchoolId);
-
-      const [noticeResult, classResult, sectionResult] = await Promise.all([
-        supabase.from("notices").select("id,title,content,published_at,created_at,audience").eq("school_id", resolvedSchoolId).order("created_at", { ascending: false }),
-        supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).order("sort_order"),
-        supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
-      ]);
-      const failed = noticeResult.error ?? classResult.error ?? sectionResult.error;
-      if (failed) throw failed;
-      setNotices((noticeResult.data ?? []) as Notice[]);
-      setClasses(classResult.data ?? []);
-      setSections(sectionResult.data ?? []);
-    } catch (loadError) {
+    }, (loadError: unknown) => {
+      if (!isCurrent()) return;
       logError("Admin notices load failed", loadError);
       setError("Notices could not be loaded. Please refresh or contact your administrator.");
-    } finally {
       setLoading(false);
-    }
-  }
+    });
+  }, [supabase]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-  }, []);
+    return () => { mounted.current = false; latestRequest.current += 1; };
+  }, [load]);
 
   function beginEdit(notice: Notice) {
     setEditingId(notice.id);

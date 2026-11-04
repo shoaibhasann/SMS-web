@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+.env*
+!.env.example
+*.log
+.DS_Store
+next-env.d.ts
+supabase/.temp/
+.graphify_cache/
+graphify-out/
+*.tsbuildinfo
+coverage/
+.vitest/

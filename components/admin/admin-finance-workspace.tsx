@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { BadgeIndianRupee, Download, Eye, Printer, ReceiptText, RefreshCw, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { adminFinanceReportDemo } from "@/lib/admin/admin-dashboard-demo";
@@ -51,7 +51,9 @@ function money(value: number) {
 }
 
 export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "reports" }) {
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
+  const latestRequest = useRef(0);
+  const mounted = useRef(true);
   const [schoolId, setSchoolId] = useState("");
   const [currentYearId, setCurrentYearId] = useState("");
   const [fees, setFees] = useState<FeeRecord[]>([]);
@@ -77,97 +79,110 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
   const [financeStudent, setFinanceStudent] = useState("All");
   const [financeMonth, setFinanceMonth] = useState("");
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const { data: auth, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!auth.user) throw new Error("Please sign in again.");
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role,school_id")
-        .eq("user_id", auth.user.id);
-      if (rolesError) throw rolesError;
+  const load = useCallback(() => {
+    const request = ++latestRequest.current;
+    const isCurrent = () => mounted.current && request === latestRequest.current;
+    return supabase.auth.getUser().then(async ({ data: auth, error: authError }) => {
+      try {
+        if (!isCurrent()) return;
+        setLoading(true);
+        setError("");
+        if (authError) throw authError;
+        if (!auth.user) throw new Error("Please sign in again.");
+        const { data: roles, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("role,school_id")
+          .eq("user_id", auth.user.id);
+        if (rolesError) throw rolesError;
 
-      let schoolId = (roles ?? []).find((row) =>
-        row.role === "school_admin" && row.school_id,
-      )?.school_id ?? "";
-      if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("school_id")
-          .eq("id", auth.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        schoolId = profile?.school_id ?? "";
-      }
-      if (!schoolId) throw new Error("Choose a school-linked admin account to view finance records.");
-      setSchoolId(schoolId);
-
-      const [feeResult, paymentResult, structureResult, yearResult] = await Promise.all([
-        supabase.from("student_fees").select("id,student_id,fee_structure_id,amount,discount,late_fee,status,billing_period,due_date").eq("school_id", schoolId).order("created_at", { ascending: false }),
-        supabase.from("fee_payments").select("id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at").eq("school_id", schoolId).order("paid_at", { ascending: false }),
-        supabase.from("fee_structures").select("id,name,amount,frequency").eq("school_id", schoolId),
-        supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
-      ]);
-      const results = [
-        ["student_fees", feeResult],
-        ["fee_payments", paymentResult],
-        ["fee_structures", structureResult],
-        ["academic_years", yearResult],
-      ] as const;
-      for (const [table, result] of results) {
-        if (result.error) {
-          logError(`[Admin Finance] SELECT ${table} failed`, result.error);
-          throw result.error;
+        let schoolId = (roles ?? []).find((row) =>
+          row.role === "school_admin" && row.school_id,
+        )?.school_id ?? "";
+        if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("school_id")
+            .eq("id", auth.user.id)
+            .maybeSingle();
+          if (profileError) throw profileError;
+          schoolId = profile?.school_id ?? "";
         }
-      }
-      const feeRows = (feeResult.data ?? []) as FeeRecord[];
-      const paymentRows = (paymentResult.data ?? []) as PaymentRecord[];
-      const studentIds = [...new Set([...feeRows.map((row) => row.student_id), ...paymentRows.map((row) => row.student_id)])];
+        if (!schoolId) throw new Error("Choose a school-linked admin account to view finance records.");
 
-      const studentRows = [];
-      for (let offset = 0; offset < studentIds.length; offset += 500) {
-        const batch = studentIds.slice(offset, offset + 500);
-        const { data, error: studentError } = await supabase
-          .from("students")
-          .select("id,first_name,middle_name,last_name,admission_no")
-          .eq("school_id", schoolId)
-          .in("id", batch);
-        if (studentError) {
-          logError("[Admin Finance] SELECT students failed", studentError);
-          throw studentError;
+        const [feeResult, paymentResult, structureResult, yearResult] = await Promise.all([
+          supabase.from("student_fees").select("id,student_id,fee_structure_id,amount,discount,late_fee,status,billing_period,due_date").eq("school_id", schoolId).order("created_at", { ascending: false }),
+          supabase.from("fee_payments").select("id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at").eq("school_id", schoolId).order("paid_at", { ascending: false }),
+          supabase.from("fee_structures").select("id,name,amount,frequency").eq("school_id", schoolId),
+          supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
+        ]);
+        const results = [
+          ["student_fees", feeResult],
+          ["fee_payments", paymentResult],
+          ["fee_structures", structureResult],
+          ["academic_years", yearResult],
+        ] as const;
+        for (const [table, result] of results) {
+          if (result.error) {
+            logError(`[Admin Finance] SELECT ${table} failed`, result.error);
+            throw result.error;
+          }
         }
-        studentRows.push(...(data ?? []));
+        const feeRows = (feeResult.data ?? []) as FeeRecord[];
+        const paymentRows = (paymentResult.data ?? []) as PaymentRecord[];
+        const studentIds = [...new Set([...feeRows.map((row) => row.student_id), ...paymentRows.map((row) => row.student_id)])];
+
+        const studentRows = [];
+        for (let offset = 0; offset < studentIds.length; offset += 500) {
+          const batch = studentIds.slice(offset, offset + 500);
+          const { data, error: studentError } = await supabase
+            .from("students")
+            .select("id,first_name,middle_name,last_name,admission_no")
+            .eq("school_id", schoolId)
+            .in("id", batch);
+          if (studentError) {
+            logError("[Admin Finance] SELECT students failed", studentError);
+            throw studentError;
+          }
+          studentRows.push(...(data ?? []));
+        }
+
+        if (!isCurrent()) return;
+        setSchoolId(schoolId);
+        setFees(feeRows);
+        setPayments(paymentRows);
+        const loadedStructures = (structureResult.data ?? []) as FeeStructureRecord[];
+        setStructureRows(loadedStructures);
+        setCurrentYearId(yearResult.data?.id ?? "");
+        setStudents(Object.fromEntries(studentRows.map((student) => [
+          student.id,
+          {
+            id: student.id,
+            name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+            admission_no: student.admission_no,
+          },
+        ])));
+        setStructures(Object.fromEntries(loadedStructures.map((structure) => [structure.id, structure.name])));
+
+      } catch (loadError) {
+        if (!isCurrent()) return;
+        logError("Admin finance data load failed", loadError);
+        setError("Finance records could not be loaded. Please refresh or contact your administrator.");
+      } finally {
+        if (isCurrent()) setLoading(false);
       }
-
-      setFees(feeRows);
-      setPayments(paymentRows);
-      const loadedStructures = (structureResult.data ?? []) as FeeStructureRecord[];
-      setStructureRows(loadedStructures);
-      setCurrentYearId(yearResult.data?.id ?? "");
-      setStudents(Object.fromEntries(studentRows.map((student) => [
-        student.id,
-        {
-          id: student.id,
-          name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-          admission_no: student.admission_no,
-        },
-      ])));
-      setStructures(Object.fromEntries(loadedStructures.map((structure) => [structure.id, structure.name])));
-
-    } catch (loadError) {
+    }, (loadError: unknown) => {
+      if (!isCurrent()) return;
       logError("Admin finance data load failed", loadError);
       setError("Finance records could not be loaded. Please refresh or contact your administrator.");
-    } finally {
       setLoading(false);
-    }
-  }
+    });
+  }, [supabase]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-  }, []);
+    return () => { mounted.current = false; latestRequest.current += 1; };
+  }, [load]);
 
   const paidByFee = useMemo(() => {
     const totals = new Map<string, number>();

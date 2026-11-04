@@ -1,15 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { Eye, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import {
   AdminDemoService,
   adminAdmissionsDemoMetrics,
   type AdminDemoModule,
   type AdminDemoRecord,
-  type AdminInventoryMovement,
-  type AdminLibraryLoan,
-  type AdminTransportAllocation,
 } from "@/lib/admin/admin-demo-service";
 
 type Column = { key: string; label: string };
@@ -19,7 +16,6 @@ const configs: Record<AdminDemoModule, ModuleConfig> = {
   students: { title: "Students", description: "Student directory, class placement, and parent details.", columns: [{ key: "admissionNo", label: "Admission No." }, { key: "name", label: "Student" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "parent", label: "Parent" }, { key: "mobile", label: "Mobile" }, { key: "status", label: "Status" }] },
   parents: { title: "Parents", description: "Parent and guardian contacts with linked children.", columns: [{ key: "name", label: "Parent" }, { key: "relationship", label: "Relationship" }, { key: "mobile", label: "Mobile" }, { key: "email", label: "Email" }, { key: "children", label: "Children" }, { key: "status", label: "Status" }] },
   teachers: { title: "Teachers & Staff", description: "School staff profiles and academic assignments.", columns: [{ key: "employeeId", label: "Employee ID" }, { key: "name", label: "Name" }, { key: "designation", label: "Designation" }, { key: "department", label: "Department" }, { key: "mobile", label: "Mobile" }, { key: "assignments", label: "Assignments" }, { key: "status", label: "Status" }] },
-  attendance: { title: "Attendance", description: "School-wide attendance records.", columns: [{ key: "date", label: "Date" }, { key: "student", label: "Student" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "rollNo", label: "Roll No." }, { key: "status", label: "Status" }] },
   academics: { title: "Academics", description: "Academic years, classes, sections, and subjects.", columns: [] },
   admissions: { title: "Admissions", description: "Admission enquiries and application progress.", columns: [{ key: "applicationNo", label: "Application" }, { key: "studentName", label: "Student" }, { key: "parentName", label: "Parent" }, { key: "className", label: "Class" }, { key: "stage", label: "Stage" }, { key: "receivedOn", label: "Received" }, { key: "status", label: "Status" }] },
   timetable: { title: "Timetable", description: "Class and subject timetable entries.", columns: [{ key: "day", label: "Day" }, { key: "period", label: "Period" }, { key: "startTime", label: "Start" }, { key: "endTime", label: "End" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "subject", label: "Subject" }, { key: "teacher", label: "Teacher" }, { key: "room", label: "Room" }] },
@@ -41,9 +37,45 @@ const hiddenKeys = new Set(["id"]);
 const labelFor = (key: string) => key.replace(/([A-Z])/g, " $1").replace(/^./, (value) => value.toUpperCase());
 const text = (value: unknown) => value == null || value === "" ? "—" : String(value);
 
+const demoChangeEvent = "kids-corner-admin-demo:change";
+const serverDemoSnapshot = () => null;
+
+// localStorage is the source of truth. String snapshots stay referentially stable
+// and the server renders an empty list until the browser snapshot is available.
+function useDemoList<T>(key: string, read: () => T[]) {
+  const subscribe = useCallback((notify: () => void) => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === null || event.key === `kids-corner-admin-demo:${key}`) notify();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener(demoChangeEvent, notify);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(demoChangeEvent, notify);
+    };
+  }, [key]);
+  const getSnapshot = useCallback(() => {
+    try { return window.localStorage.getItem(`kids-corner-admin-demo:${key}`) ?? ""; }
+    catch { return ""; }
+  }, [key]);
+  const snapshot = useSyncExternalStore(subscribe, getSnapshot, serverDemoSnapshot);
+  const rows = useMemo(() => snapshot === null ? [] : read(), [snapshot, read]);
+  const refresh = useCallback(() => window.dispatchEvent(new Event(demoChangeEvent)), []);
+  return [rows, refresh] as const;
+}
+
+export function useAdminDemoRecords(module: AdminDemoModule) {
+  const read = useCallback(() => AdminDemoService.load(module), [module]);
+  return useDemoList(module, read);
+}
+
 export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
+  return <DemoWorkspace key={module} module={module} />;
+}
+
+function DemoWorkspace({ module }: { module: AdminDemoModule }) {
   const config = configs[module];
-  const [records, setRecords] = useState<AdminDemoRecord[]>([]);
+  const [records, refreshRecords] = useAdminDemoRecords(module);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [selected, setSelected] = useState<AdminDemoRecord | null>(null);
@@ -53,17 +85,16 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
   const [extraForm, setExtraForm] = useState<"loan" | "allocation" | "movement" | null>(null);
   const [extraValues, setExtraValues] = useState<Record<string, string>>({});
   const [toast, setToast] = useState("");
-  const [loans, setLoans] = useState<AdminLibraryLoan[]>([]);
-  const [allocations, setAllocations] = useState<AdminTransportAllocation[]>([]);
-  const [movements, setMovements] = useState<AdminInventoryMovement[]>([]);
+  const [loans, refreshLoans] = useDemoList("library-loans", AdminDemoService.loadLibraryLoans);
+  const [allocations, refreshAllocations] = useDemoList("transport-allocations", AdminDemoService.loadTransportAllocations);
+  const [movements, refreshMovements] = useDemoList("inventory-movements", AdminDemoService.loadInventoryMovements);
 
   const refresh = () => {
-    setRecords(AdminDemoService.load(module));
-    if (module === "library") setLoans(AdminDemoService.loadLibraryLoans());
-    if (module === "transport") setAllocations(AdminDemoService.loadTransportAllocations());
-    if (module === "inventory") setMovements(AdminDemoService.loadInventoryMovements());
+    refreshRecords();
+    refreshLoans();
+    refreshAllocations();
+    refreshMovements();
   };
-  useEffect(refresh, [module]);
 
   const columns = useMemo(() => {
     const configured = config.columns;
@@ -92,7 +123,7 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
       ? records.map((record) => record.id === editing.id ? { ...record, ...form } : record)
       : [...records, { id: `${module}-${Date.now()}`, ...form }];
     AdminDemoService.save(module, next);
-    setRecords(next);
+    refreshRecords();
     setEditing(null);
     setFormOpen(false);
     setToast(editing ? "Changes saved to demo data." : "Added to demo data.");
@@ -101,13 +132,13 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
     if (!window.confirm(`Delete “${text(record[columns[0]?.key])}” from this browser’s demo data?`)) return;
     const next = records.filter((item) => item.id !== record.id);
     AdminDemoService.save(module, next);
-    setRecords(next);
+    refreshRecords();
     if (selected?.id === record.id) setSelected(null);
   }
   function updateStatus(record: AdminDemoRecord, status: string) {
     const next = records.map((item) => item.id === record.id ? { ...item, status } : item);
     AdminDemoService.save(module, next);
-    setRecords(next);
+    refreshRecords();
   }
   function submitExtra(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -123,10 +154,10 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
         status: "Issued" as const,
       }];
       AdminDemoService.saveLibraryLoans(next);
-      setLoans(next);
+      refreshLoans();
       const books = records.map((record) => record.name === (extraValues.book ?? "") ? { ...record, available: Math.max(0, Number(record.available ?? 0) - 1), status: Number(record.available ?? 0) <= 1 ? "Issued" : record.status } : record);
       AdminDemoService.save(module, books);
-      setRecords(books);
+      refreshRecords();
     } else if (extraForm === "allocation") {
       const next = [...allocations, {
         id: `allocation-${Date.now()}`,
@@ -137,7 +168,7 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
         status: "Active" as const,
       }];
       AdminDemoService.saveTransportAllocations(next);
-      setAllocations(next);
+      refreshAllocations();
     } else if (extraForm === "movement") {
       const next = [...movements, {
         id: `movement-${Date.now()}`,
@@ -147,10 +178,10 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
         recordedOn: extraValues.recordedOn ?? new Date().toISOString().slice(0, 10),
       }];
       AdminDemoService.saveInventoryMovements(next);
-      setMovements(next);
+      refreshMovements();
       const updated = records.map((record) => record.name === (extraValues.item ?? "") ? { ...record, quantity: Math.max(0, Number(record.quantity ?? 0) + Number(extraValues.quantityChange || 0)) } : record);
       AdminDemoService.save(module, updated);
-      setRecords(updated);
+      refreshRecords();
     }
     setExtraForm(null);
     setExtraValues({});
@@ -183,14 +214,14 @@ export function AdminDemoWorkspace({ module }: { module: AdminDemoModule }) {
               {module === "admissions" && record.status === "Pending" && <><button type="button" onClick={() => updateStatus(record, "Approved")} className="rounded-lg px-2 text-xs font-semibold text-emerald-600">Approve</button><button type="button" onClick={() => updateStatus(record, "Rejected")} className="rounded-lg px-2 text-xs font-semibold text-red-600">Reject</button></>}
               {module === "leave" && record.status === "Pending" && <><button type="button" onClick={() => updateStatus(record, "Approved")} className="rounded-lg px-2 text-xs font-semibold text-emerald-600">Approve</button><button type="button" onClick={() => updateStatus(record, "Rejected")} className="rounded-lg px-2 text-xs font-semibold text-red-600">Reject</button></>}
               {module === "notifications" && record.status !== "Sent" && <button type="button" onClick={() => updateStatus(record, "Sent")} className="rounded-lg px-2 text-xs font-semibold text-blue-600">Send</button>}
-              {module === "reports" && <button type="button" onClick={() => { const next = records.map((item) => item.id === record.id ? { ...item, status: "Generated", generatedOn: new Date().toISOString().slice(0, 10) } : item); AdminDemoService.save(module, next); setRecords(next); }} className="rounded-lg px-2 text-xs font-semibold text-blue-600">Generate</button>}
+              {module === "reports" && <button type="button" onClick={() => { const next = records.map((item) => item.id === record.id ? { ...item, status: "Generated", generatedOn: new Date().toISOString().slice(0, 10) } : item); AdminDemoService.save(module, next); refreshRecords(); }} className="rounded-lg px-2 text-xs font-semibold text-blue-600">Generate</button>}
               <button type="button" onClick={() => remove(record)} aria-label="Delete record" className="rounded-lg p-2 text-red-600 hover:bg-red-500/10"><Trash2 size={15} /></button>
             </div></td>
           </tr>)}{!filtered.length && <tr><td className="p-6 text-center muted" colSpan={columns.length + 1}>No records match the selected filters.</td></tr>}</tbody>
         </table></div>
       </section>
 
-      {module === "library" && <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--border)] p-4"><h2 className="font-bold">Issue history</h2><button type="button" onClick={() => { setExtraForm("loan"); setExtraValues({ issuedOn: new Date().toISOString().slice(0, 10) }); }} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Issue book</button></div><div className="divide-y divide-[var(--border)]">{loans.map((loan) => <div key={loan.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><div><p className="font-semibold">{loan.student} · {loan.book}</p><p className="text-xs muted">Due {loan.dueDate} · Fine {loan.fine} · {loan.status}</p></div>{loan.status !== "Returned" && <button type="button" onClick={() => { const next = loans.map((item) => item.id === loan.id ? { ...item, status: "Returned" as const, fine: 0 } : item); AdminDemoService.saveLibraryLoans(next); setLoans(next); const books = records.map((record) => record.name === loan.book ? { ...record, available: Math.min(Number(record.quantity ?? 0), Number(record.available ?? 0) + 1), status: "Available" } : record); AdminDemoService.save(module, books); setRecords(books); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold">Mark returned</button>}</div>)}</div></section>}
+      {module === "library" && <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--border)] p-4"><h2 className="font-bold">Issue history</h2><button type="button" onClick={() => { setExtraForm("loan"); setExtraValues({ issuedOn: new Date().toISOString().slice(0, 10) }); }} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Issue book</button></div><div className="divide-y divide-[var(--border)]">{loans.map((loan) => <div key={loan.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><div><p className="font-semibold">{loan.student} · {loan.book}</p><p className="text-xs muted">Due {loan.dueDate} · Fine {loan.fine} · {loan.status}</p></div>{loan.status !== "Returned" && <button type="button" onClick={() => { const next = loans.map((item) => item.id === loan.id ? { ...item, status: "Returned" as const, fine: 0 } : item); AdminDemoService.saveLibraryLoans(next); refreshLoans(); const books = records.map((record) => record.name === loan.book ? { ...record, available: Math.min(Number(record.quantity ?? 0), Number(record.available ?? 0) + 1), status: "Available" } : record); AdminDemoService.save(module, books); refreshRecords(); }} className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-semibold">Mark returned</button>}</div>)}</div></section>}
       {module === "transport" && <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--border)] p-4"><h2 className="font-bold">Student route allocations</h2><button type="button" onClick={() => setExtraForm("allocation")} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Add allocation</button></div><div className="divide-y divide-[var(--border)]">{allocations.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 p-4 text-sm"><span>{item.student} · {item.className} · {item.route} · {item.stop}</span><span className="font-semibold">{item.status}</span></div>)}</div></section>}
       {module === "inventory" && <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-[var(--border)] p-4"><h2 className="font-bold">Stock movements</h2><button type="button" onClick={() => setExtraForm("movement")} className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white">Record movement</button></div><div className="divide-y divide-[var(--border)]">{movements.map((item) => <div key={item.id} className="p-4 text-sm">{item.item} · {item.quantityChange} · {item.reason} · {item.recordedOn}</div>)}</div></section>}
 

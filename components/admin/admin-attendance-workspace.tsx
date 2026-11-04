@@ -1,62 +1,147 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck, RefreshCw, Search } from "lucide-react";
-import { AdminDemoService, type AdminDemoRecord } from "@/lib/admin/admin-demo-service";
+import { useEffect, useState } from "react";
+import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
+import { createClient } from "@/lib/supabase/client";
 
-const statuses = ["Present", "Absent", "Leave", "Holiday"];
+type Client = ReturnType<typeof createClient>;
+type Access = Awaited<ReturnType<typeof loadAdminAttendanceAccess>>;
+type Setup = Awaited<ReturnType<typeof loadAdminAttendanceSetup>>;
+type LoadState<T> = { data: T; error?: never } | { data?: never; error: string };
+
+function loadError(error: unknown) {
+  return { error: error instanceof Error ? error.message : "Attendance could not be loaded. Try again." };
+}
 
 export function AdminAttendanceWorkspace() {
-  const [records, setRecords] = useState<AdminDemoRecord[]>([]);
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [classFilter, setClassFilter] = useState("All");
-  const [sectionFilter, setSectionFilter] = useState("All");
-  const [studentFilter, setStudentFilter] = useState("");
+  const [client] = useState(createClient);
+  const [access, setAccess] = useState<LoadState<Access>>();
+  const [accessAttempt, setAccessAttempt] = useState(0);
+  const [selectedSchool, setSelectedSchool] = useState("");
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
-    setRecords(AdminDemoService.load("attendance"));
-  }, []);
+    let active = true;
+    loadAdminAttendanceAccess(client).then(
+      (data) => { if (active) setAccess({ data }); },
+      (error: unknown) => { if (active) setAccess(loadError(error)); },
+    );
+    return () => { active = false; };
+  }, [client, accessAttempt]);
 
-  const classes = [...new Set(records.map((record) => String(record.className)))];
-  const sections = [...new Set(records.filter((record) => classFilter === "All" || record.className === classFilter).map((record) => String(record.section)))];
-  const filtered = useMemo(() => records.filter((record) =>
-    record.date === date &&
-    (classFilter === "All" || record.className === classFilter) &&
-    (sectionFilter === "All" || record.section === sectionFilter) &&
-    String(record.student).toLocaleLowerCase().includes(studentFilter.trim().toLocaleLowerCase()),
-  ), [records, date, classFilter, sectionFilter, studentFilter]);
-  const count = (status: string) => filtered.filter((record) => record.status === status).length;
-  const marked = filtered.filter((record) => statuses.slice(0, 3).includes(String(record.status))).length;
-  const rate = marked ? Math.round((count("Present") / marked) * 100) : 0;
+  const schools = access?.data?.schools ?? [];
+  const schoolId = selectedSchool || (schools.length === 1 ? schools[0].id : "");
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p><h1 className="mt-1 text-3xl font-black">Attendance</h1><p className="mt-2 text-sm muted">School-wide attendance preview with date, class, section, and student filters.</p></div>
-        <button type="button" onClick={() => setRecords(AdminDemoService.load("attendance"))} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16} /> Reset demo data</button>
+      <header>
+        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p>
+        <h1 className="mt-1 text-3xl font-black">Attendance</h1>
+        <p className="mt-2 text-sm muted">View and record attendance for a class and section in the current academic year.</p>
       </header>
-      <div className="rounded-xl border border-sky-300/50 bg-sky-500/5 px-4 py-3 text-xs leading-5 text-sky-800 dark:text-sky-200">Demo attendance preview: records shown here are local sample data. The existing Teacher Attendance register is unchanged.</div>
-      <section className="card grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <label className="space-y-1.5 text-sm font-medium">Date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="field" /></label>
-        <label className="space-y-1.5 text-sm font-medium">Class<select value={classFilter} onChange={(event) => { setClassFilter(event.target.value); setSectionFilter("All"); }} className="field"><option>All</option>{classes.map((value) => <option key={value}>{value}</option>)}</select></label>
-        <label className="space-y-1.5 text-sm font-medium">Section<select value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="field"><option>All</option>{sections.map((value) => <option key={value}>{value}</option>)}</select></label>
-        <label className="relative space-y-1.5 text-sm font-medium">Student<span className="relative block"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 muted" /><input value={studentFilter} onChange={(event) => setStudentFilter(event.target.value)} placeholder="Search student" className="field pl-9" /></span></label>
-      </section>
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {[
-          ["Present", count("Present")], ["Absent", count("Absent")], ["Leave", count("Leave")],
-          ["Holiday", count("Holiday")], ["Attendance", `${rate}%`],
-        ].map(([label, value]) => <article key={String(label)} className="card p-4"><p className="text-xs font-semibold muted">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></article>)}
-      </section>
-      <section className="card overflow-hidden">
-        <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="flex items-center gap-2 font-bold"><CalendarCheck size={18} />Attendance register</h2></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Roll No.</th><th className="p-3">Class</th><th className="p-3">Section</th><th className="p-3">Date</th><th className="p-3">Status</th></tr></thead>
-          <tbody className="divide-y divide-[var(--border)]">{filtered.map((record) => <tr key={record.id}><td className="p-3 font-semibold">{String(record.student)}</td><td className="p-3">{String(record.rollNo)}</td><td className="p-3">{String(record.className)}</td><td className="p-3">{String(record.section)}</td><td className="p-3">{String(record.date)}</td><td className="p-3"><span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold">{String(record.status)}</span></td></tr>)}
-            {!filtered.length && <tr><td className="p-6 text-center muted" colSpan={6}>No attendance entries match these filters.</td></tr>}
-          </tbody>
-        </table></div>
-      </section>
+      {!access ? <p role="status" className="text-sm muted">Checking attendance access…</p>
+        : !access.data ? (
+          <section className="card space-y-3 p-4">
+            <p role="alert" className="text-sm text-red-600">{access.error}</p>
+            <button type="button" className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm" onClick={() => {
+              setAccess(undefined);
+              setAccessAttempt((attempt) => attempt + 1);
+            }}>Retry access check</button>
+          </section>
+        ) : (
+          <>
+            <label className="card block space-y-2 p-4 text-sm font-semibold">
+              <span>School</span>
+              <select className="field" value={schoolId} disabled={locked || schools.length === 1}
+                onChange={(event) => setSelectedSchool(event.target.value)}>
+                <option value="">Select school</option>
+                {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+              </select>
+            </label>
+            {schoolId ? <SchoolAttendance key={schoolId} client={client} schoolId={schoolId}
+              userId={access.data.userId} locked={locked} onLockChange={setLocked} />
+              : <p className="text-sm muted">Select a school to open its register.</p>}
+          </>
+        )}
     </div>
+  );
+}
+
+function SchoolAttendance({ client, schoolId, userId, locked, onLockChange }: {
+  client: Client;
+  schoolId: string;
+  userId: string;
+  locked: boolean;
+  onLockChange: (locked: boolean) => void;
+}) {
+  const [setup, setSetup] = useState<LoadState<Setup>>();
+  const [setupAttempt, setSetupAttempt] = useState(0);
+  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedSection, setSelectedSection] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    loadAdminAttendanceSetup(client, schoolId).then(
+      (data) => { if (active) setSetup({ data }); },
+      (error: unknown) => { if (active) setSetup(loadError(error)); },
+    );
+    return () => { active = false; };
+  }, [client, schoolId, setupAttempt]);
+
+  if (!setup) return <p role="status" className="text-sm muted">Loading the school register setup…</p>;
+  if (!setup.data) return (
+    <section className="card space-y-3 p-4">
+      <p role="alert" className="text-sm text-red-600">{setup.error}</p>
+      <button type="button" className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm" onClick={() => {
+        setSetup(undefined);
+        setSetupAttempt((attempt) => attempt + 1);
+      }}>Retry school setup</button>
+    </section>
+  );
+
+  const { year, classes, sections } = setup.data;
+  const classId = selectedClass || (classes.length === 1 ? classes[0].id : "");
+  const classSections = sections.filter((section) => section.class_id === classId);
+  const sectionId = selectedSection || (classSections.length === 1 ? classSections[0].id : "");
+
+  return (
+    <>
+      <section className="card grid gap-4 p-4 sm:grid-cols-3">
+        <div className="space-y-2 text-sm">
+          <p className="font-semibold">Academic year</p>
+          <p>{year.name}</p>
+        </div>
+        <label className="space-y-2 text-sm font-semibold">
+          <span>Class</span>
+          <select className="field" value={classId} disabled={locked || !classes.length} onChange={(event) => {
+            setSelectedClass(event.target.value);
+            setSelectedSection("");
+          }}>
+            <option value="" disabled>Select class</option>
+            {classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+        <label className="space-y-2 text-sm font-semibold">
+          <span>Section</span>
+          <select className="field" value={sectionId} disabled={locked || !classSections.length}
+            onChange={(event) => setSelectedSection(event.target.value)}>
+            <option value="" disabled>Select section</option>
+            {classSections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
+      </section>
+      {classId && sectionId ? (
+        <section className="card space-y-4 p-4">
+          <h2 className="font-bold">Attendance register</h2>
+          <AttendanceEditor context={{ schoolId, academicYearId: year.id, classId, sectionId }}
+            userId={userId} onLockChange={onLockChange} studentSearch />
+        </section>
+      ) : (
+        <p className="text-sm muted">{!classes.length ? "Add a class and section in Academic Setup to open its register."
+          : classId && !classSections.length ? "This class has no sections."
+          : "Select a class and section to open its register."}</p>
+      )}
+    </>
   );
 }

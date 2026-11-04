@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpen, Save, Send, Users } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -40,7 +40,220 @@ function displayDate(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString();
 }
 
+type WorkspaceAbsence = { student: string; date: string; class_id: string; section_id: string };
+
+async function readAcademicWorkspace() {
+  const supabase = createClient();
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) throw authError;
+  if (!user) throw new Error("Please sign in to view academic work.");
+
+  const { data: roleRows, error: roleError } = await supabase
+    .from("user_roles")
+    .select("role, school_id")
+    .eq("user_id", user.id);
+  if (roleError) throw roleError;
+  const viewerRole = resolveUiRole(roleRows ?? []);
+  if (!viewerRole) throw new Error("No recognized role is assigned to this login.");
+  const roleRow = roleRows?.find((row) => toUiRole(row.role) === viewerRole);
+
+  let currentTeacherId = "";
+  let currentTeacherSchoolId = "";
+  let absences: WorkspaceAbsence[] = [];
+  let classScope: EligibleClass[] = [];
+  let loadedAssignments: TeachingAssignment[] = [];
+  let logFilters: Parameters<typeof loadAcademicLogs>[0] = {};
+  if (viewerRole === "teacher") {
+    const id = await getCurrentTeacherId();
+    if (!id) throw new Error("Teacher profile was not found for this login.");
+    currentTeacherId = id;
+    const { data: teacher, error: teacherError } = await supabase
+      .from("teachers")
+      .select("school_id")
+      .eq("id", id)
+      .single();
+    if (teacherError) throw teacherError;
+    currentTeacherSchoolId = teacher.school_id;
+    const ownAssignments = await getCurrentTeacherAssignments();
+    loadedAssignments = ownAssignments;
+    classScope = ownAssignments.map((assignment) => ({
+      class_id: assignment.class_id,
+      section_id: assignment.section_id,
+      academic_year_id: assignment.academic_year_id,
+    }));
+    logFilters = { teacherId: id };
+  } else if (viewerRole === "student") {
+    const { data: student, error: studentError } = await supabase
+      .from("students")
+      .select("id,first_name,middle_name,last_name")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+    if (studentError) throw studentError;
+    if (student) {
+      const { data: enrollments, error: enrollmentError } = await supabase
+        .from("enrollments")
+        .select("class_id, section_id, academic_year_id")
+        .eq("student_id", student.id)
+        .eq("status", "active")
+        .order("enrolled_at", { ascending: false });
+      if (enrollmentError) throw enrollmentError;
+      const studentName = [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ");
+      classScope = (enrollments ?? []).map((enrollment) => ({
+        ...enrollment,
+        student_id: student.id,
+        student_name: studentName,
+      })) as EligibleClass[];
+    }
+  } else if (viewerRole === "parent") {
+    const { data: parent, error: parentError } = await supabase
+      .from("parents")
+      .select("id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+    if (parentError) throw parentError;
+    if (parent) {
+      const { data: childLinks, error: linksError } = await supabase
+        .from("student_parents")
+        .select("student_id")
+        .eq("parent_id", parent.id);
+      if (linksError) throw linksError;
+      const childIds = (childLinks ?? []).map((link) => link.student_id);
+      if (childIds.length) {
+        const { data: children, error: childrenError } = await supabase
+          .from("students")
+          .select("id,first_name,middle_name,last_name")
+          .in("id", childIds);
+        if (childrenError) throw childrenError;
+        const childNames = new Map((children ?? []).map((child) => [
+          child.id,
+          [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(" "),
+        ]));
+        const { data: enrollments, error: enrollmentError } = await supabase
+          .from("enrollments")
+          .select("student_id, class_id, section_id, academic_year_id")
+          .in("student_id", childIds)
+          .eq("status", "active");
+        if (enrollmentError) throw enrollmentError;
+        classScope = (enrollments ?? []).map((enrollment) => ({
+          ...enrollment,
+          student_name: childNames.get(enrollment.student_id) ?? "Student",
+        })) as EligibleClass[];
+      }
+    }
+  } else {
+    logFilters = { schoolId: roleRow?.school_id ?? undefined };
+  }
+
+  if (classScope.length) {
+    logFilters = {
+      ...logFilters,
+      classIds: [...new Set(classScope.map((entry) => entry.class_id))],
+      status: viewerRole === "student" || viewerRole === "parent" ? "published" : undefined,
+    };
+  }
+  if ((viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
+    return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, assignments: loadedAssignments, logs: [], activities: [], labels: emptyLabels, absences: [] };
+  }
+
+  const loadedLogs = await loadAcademicLogs(logFilters);
+  const scopedLogs = classScope.length
+    ? loadedLogs.filter((log) => classScope.some((entry) =>
+      entry.class_id === log.class_id &&
+      entry.academic_year_id === log.academic_year_id &&
+      (!entry.section_id || !log.section_id || entry.section_id === log.section_id),
+    ))
+    : loadedLogs;
+  const loadedActivities = await loadAcademicActivities(scopedLogs.map((log) => log.id));
+  const classIds = [...new Set(scopedLogs.map((log) => log.class_id))];
+  const sectionIds = [...new Set(scopedLogs.map((log) => log.section_id).filter(Boolean))] as string[];
+  const subjectIds = [...new Set(scopedLogs.map((log) => log.subject_id))];
+  const teacherIds = [...new Set(scopedLogs.map((log) => log.teacher_id))];
+  const [classesResult, sectionsResult, subjectsResult, teachersResult] = await Promise.all([
+    classIds.length ? supabase.from("classes").select("id,name").in("id", classIds) : Promise.resolve({ data: [], error: null }),
+    sectionIds.length ? supabase.from("sections").select("id,name").in("id", sectionIds) : Promise.resolve({ data: [], error: null }),
+    subjectIds.length ? supabase.from("subjects").select("id,name").in("id", subjectIds) : Promise.resolve({ data: [], error: null }),
+    (viewerRole === "admin" || viewerRole === "principal" || viewerRole === "teacher") && teacherIds.length
+      ? supabase.from("teachers").select("id,employee_id,full_name").in("id", teacherIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (classesResult.error) throw classesResult.error;
+  if (sectionsResult.error) throw sectionsResult.error;
+  if (subjectsResult.error) throw subjectsResult.error;
+  if (teachersResult.error) throw teachersResult.error;
+  const labels: AcademicLabels = {
+    classes: Object.fromEntries((classesResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
+    sections: Object.fromEntries((sectionsResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
+    subjects: Object.fromEntries((subjectsResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
+    teachers: Object.fromEntries((teachersResult.data ?? []).map((row: { id: string; full_name: string | null; employee_id: string | null }) => [
+      row.id,
+      row.full_name || row.employee_id || row.id,
+    ])),
+  };
+
+  if (viewerRole === "teacher" && ownAssignmentsHaveSections(classScope)) {
+    const sectionIdsForTeacher = [...new Set(classScope.map((entry) => entry.section_id).filter(Boolean))] as string[];
+    const academicYearIds = [...new Set(classScope.map((entry) => entry.academic_year_id))];
+    const { data: attendanceRows, error: attendanceError } = await supabase
+      .from("attendance")
+      .select("student_id, attendance_date, section_id")
+      .in("section_id", sectionIdsForTeacher)
+      .in("academic_year_id", academicYearIds)
+      .eq("status", "absent")
+      .order("attendance_date", { ascending: false })
+      .limit(100);
+    if (attendanceError) throw attendanceError;
+    const rows = attendanceRows ?? [];
+    const studentIds = [...new Set(rows.map((row) => row.student_id))];
+    const { data: students, error: studentsError } = studentIds.length
+      ? await supabase.from("students").select("id,first_name,middle_name,last_name").in("id", studentIds)
+      : { data: [], error: null };
+    if (studentsError) throw studentsError;
+    const studentNames = new Map((students ?? []).map((student: { id: string; first_name: string; middle_name: string | null; last_name: string | null }) => [
+      student.id,
+      [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+    ]));
+    absences = rows.map((row) => ({
+      student: studentNames.get(row.student_id) ?? "Student",
+      date: row.attendance_date,
+      class_id: classScope.find((entry) => entry.section_id === row.section_id)?.class_id ?? "",
+      section_id: row.section_id,
+    }));
+  } else if (viewerRole === "student" || viewerRole === "parent") {
+    const studentIds = [...new Set(classScope.map((entry) => entry.student_id).filter(Boolean))] as string[];
+    const { data: attendanceRows, error: attendanceError } = studentIds.length
+      ? await supabase
+        .from("attendance")
+        .select("student_id, attendance_date, section_id, academic_year_id")
+        .in("student_id", studentIds)
+        .eq("status", "absent")
+        .order("attendance_date", { ascending: false })
+        .limit(100)
+      : { data: [], error: null };
+    if (attendanceError) throw attendanceError;
+    absences = (attendanceRows ?? []).flatMap((row) => {
+      const enrolled = classScope.find((entry) =>
+        entry.student_id === row.student_id &&
+        entry.academic_year_id === row.academic_year_id &&
+        entry.section_id === row.section_id,
+      );
+      return enrolled ? [{
+        student: enrolled.student_name ?? "Student",
+        date: row.attendance_date,
+        class_id: enrolled.class_id,
+        section_id: row.section_id,
+      }] : [];
+    });
+  }
+  return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, assignments: loadedAssignments, logs: scopedLogs, activities: loadedActivities, labels, absences };
+}
+
 export function AcademicWorkspace({ module }: { module: string }) {
+  return <AcademicWorkspaceView key={module} module={module} />;
+}
+
+function AcademicWorkspaceView({ module }: { module: string }) {
+  const loadVersion = useRef(0);
+  const appliedEdit = useRef<string | null>(null);
   const [role, setRole] = useState<UiRole | null>(null);
   const [teacherId, setTeacherId] = useState("");
   const [teacherSchoolId, setTeacherSchoolId] = useState("");
@@ -66,7 +279,7 @@ export function AcademicWorkspace({ module }: { module: string }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [absences, setAbsences] = useState<{ student: string; date: string; class_id: string; section_id: string }[]>([]);
+  const [absences, setAbsences] = useState<WorkspaceAbsence[]>([]);
 
   const selectedAssignment = useMemo(
     () => assignments.find((assignment) => assignment.id === selectedAssignmentId),
@@ -87,144 +300,26 @@ export function AcademicWorkspace({ module }: { module: string }) {
             ? "Study Material"
             : "What You Missed";
 
-  const loadWorkspace = useCallback(async () => {
-    setLoading(true);
-    setErrorMessage("");
-    try {
-      const supabase = createClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!user) throw new Error("Please sign in to view academic work.");
-
-      const { data: roleRows, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role, school_id")
-        .eq("user_id", user.id);
-      if (roleError) throw roleError;
-      const viewerRole = resolveUiRole(roleRows ?? []);
-      if (!viewerRole) throw new Error("No recognized role is assigned to this login.");
-      const roleRow = roleRows?.find((row) => toUiRole(row.role) === viewerRole);
-      setRole(viewerRole);
-
-      let classScope: EligibleClass[] = [];
-      let loadedAssignments: TeachingAssignment[] = [];
-      let logFilters: Parameters<typeof loadAcademicLogs>[0] = {};
-      if (viewerRole === "teacher") {
-        const id = await getCurrentTeacherId();
-        if (!id) throw new Error("Teacher profile was not found for this login.");
-        setTeacherId(id);
-        const { data: teacher, error: teacherError } = await supabase
-          .from("teachers")
-          .select("school_id")
-          .eq("id", id)
-          .single();
-        if (teacherError) throw teacherError;
-        setTeacherSchoolId(teacher.school_id);
-        const ownAssignments = await getCurrentTeacherAssignments();
-        loadedAssignments = ownAssignments;
-        setAssignments(ownAssignments);
-        classScope = ownAssignments.map((assignment) => ({
-          class_id: assignment.class_id,
-          section_id: assignment.section_id,
-          academic_year_id: assignment.academic_year_id,
-        }));
-        logFilters = { teacherId: id };
-        if (!selectedAssignmentId && ownAssignments[0]) {
-          setSelectedAssignmentId(ownAssignments[0].id);
-        }
-      } else if (viewerRole === "student") {
-        const { data: student, error: studentError } = await supabase
-          .from("students")
-          .select("id,first_name,middle_name,last_name")
-          .eq("profile_id", user.id)
-          .maybeSingle();
-        if (studentError) throw studentError;
-        if (student) {
-          const { data: enrollments, error: enrollmentError } = await supabase
-            .from("enrollments")
-            .select("class_id, section_id, academic_year_id")
-            .eq("student_id", student.id)
-            .eq("status", "active")
-            .order("enrolled_at", { ascending: false });
-          if (enrollmentError) throw enrollmentError;
-          const studentName = [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ");
-          classScope = (enrollments ?? []).map((enrollment) => ({
-            ...enrollment,
-            student_id: student.id,
-            student_name: studentName,
-          })) as EligibleClass[];
-        }
-      } else if (viewerRole === "parent") {
-        const { data: parent, error: parentError } = await supabase
-          .from("parents")
-          .select("id")
-          .eq("profile_id", user.id)
-          .maybeSingle();
-        if (parentError) throw parentError;
-        if (parent) {
-          const { data: childLinks, error: linksError } = await supabase
-            .from("student_parents")
-            .select("student_id")
-            .eq("parent_id", parent.id);
-          if (linksError) throw linksError;
-          const childIds = (childLinks ?? []).map((link) => link.student_id);
-          if (childIds.length) {
-            const { data: children, error: childrenError } = await supabase
-              .from("students")
-              .select("id,first_name,middle_name,last_name")
-              .in("id", childIds);
-            if (childrenError) throw childrenError;
-            const childNames = new Map((children ?? []).map((child) => [
-              child.id,
-              [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(" "),
-            ]));
-            const { data: enrollments, error: enrollmentError } = await supabase
-              .from("enrollments")
-              .select("student_id, class_id, section_id, academic_year_id")
-              .in("student_id", childIds)
-              .eq("status", "active");
-            if (enrollmentError) throw enrollmentError;
-            classScope = (enrollments ?? []).map((enrollment) => ({
-              ...enrollment,
-              student_name: childNames.get(enrollment.student_id) ?? "Student",
-            })) as EligibleClass[];
-          }
-        }
-      } else {
-        logFilters = { schoolId: roleRow?.school_id ?? undefined };
-      }
-
-      if (classScope.length) {
-        logFilters = {
-          ...logFilters,
-          classIds: [...new Set(classScope.map((entry) => entry.class_id))],
-          status: viewerRole === "student" || viewerRole === "parent" ? "published" : undefined,
-        };
-      }
-      if ((viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
-        setLogs([]);
-        setActivities([]);
-        setAbsences([]);
-        return;
-      }
-
-      const loadedLogs = await loadAcademicLogs(logFilters);
-      const scopedLogs = classScope.length
-        ? loadedLogs.filter((log) => classScope.some((entry) =>
-          entry.class_id === log.class_id &&
-          entry.academic_year_id === log.academic_year_id &&
-          (!entry.section_id || !log.section_id || entry.section_id === log.section_id),
-        ))
-        : loadedLogs;
-      setLogs(scopedLogs);
-      const loadedActivities = await loadAcademicActivities(scopedLogs.map((log) => log.id));
-      setActivities(loadedActivities);
+  const loadWorkspace = useCallback(() => {
+    const version = ++loadVersion.current;
+    return readAcademicWorkspace().then((loaded) => {
+      if (version !== loadVersion.current) return;
+      setRole(loaded.role);
+      setTeacherId(loaded.teacherId);
+      setTeacherSchoolId(loaded.schoolId);
+      setAssignments(loaded.assignments);
+      setSelectedAssignmentId((selected) => selected || loaded.assignments[0]?.id || "");
+      setLogs(loaded.logs);
+      setActivities(loaded.activities);
+      setLabels(loaded.labels);
+      setAbsences(loaded.absences);
       const requestedLogId = typeof window === "undefined"
         ? null
         : new URLSearchParams(window.location.search).get("edit");
-      if (viewerRole === "teacher" && module === "class-logs" && requestedLogId) {
-        const requestedLog = scopedLogs.find((log) => log.id === requestedLogId);
+      if (loaded.role === "teacher" && module === "class-logs" && requestedLogId && appliedEdit.current !== requestedLogId) {
+        const requestedLog = loaded.logs.find((log) => log.id === requestedLogId);
         if (requestedLog) {
+          appliedEdit.current = requestedLogId;
           setEditingLogId(requestedLog.id);
           setDate(requestedLog.log_date);
           setTopic(requestedLog.topic ?? "");
@@ -232,11 +327,11 @@ export function AcademicWorkspace({ module }: { module: string }) {
           setRemark(requestedLog.teacher_remark ?? "");
           setStatus(requestedLog.status);
           setActivityValues(Object.fromEntries(
-            loadedActivities
+            loaded.activities
               .filter((activity) => activity.class_log_id === requestedLog.id)
               .map((activity) => [activity.activity_type, activity.title]),
           ));
-          const assignment = loadedAssignments.find((item) =>
+          const assignment = loaded.assignments.find((item) =>
             item.class_id === requestedLog.class_id &&
             item.section_id === requestedLog.section_id &&
             item.subject_id === requestedLog.subject_id,
@@ -245,89 +340,8 @@ export function AcademicWorkspace({ module }: { module: string }) {
         }
       }
 
-      const classIds = [...new Set(scopedLogs.map((log) => log.class_id))];
-      const sectionIds = [...new Set(scopedLogs.map((log) => log.section_id).filter(Boolean))] as string[];
-      const subjectIds = [...new Set(scopedLogs.map((log) => log.subject_id))];
-      const teacherIds = [...new Set(scopedLogs.map((log) => log.teacher_id))];
-      const [classesResult, sectionsResult, subjectsResult, teachersResult] = await Promise.all([
-        classIds.length ? supabase.from("classes").select("id,name").in("id", classIds) : Promise.resolve({ data: [], error: null }),
-        sectionIds.length ? supabase.from("sections").select("id,name").in("id", sectionIds) : Promise.resolve({ data: [], error: null }),
-        subjectIds.length ? supabase.from("subjects").select("id,name").in("id", subjectIds) : Promise.resolve({ data: [], error: null }),
-        (viewerRole === "admin" || viewerRole === "principal" || viewerRole === "teacher") && teacherIds.length
-          ? supabase.from("teachers").select("id,employee_id,full_name").in("id", teacherIds)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-      if (classesResult.error) throw classesResult.error;
-      if (sectionsResult.error) throw sectionsResult.error;
-      if (subjectsResult.error) throw subjectsResult.error;
-      if (teachersResult.error) throw teachersResult.error;
-      setLabels({
-        classes: Object.fromEntries((classesResult.data ?? []).map((row: any) => [row.id, row.name])),
-        sections: Object.fromEntries((sectionsResult.data ?? []).map((row: any) => [row.id, row.name])),
-        subjects: Object.fromEntries((subjectsResult.data ?? []).map((row: any) => [row.id, row.name])),
-        teachers: Object.fromEntries((teachersResult.data ?? []).map((row: any) => [
-          row.id,
-          row.full_name || row.employee_id || row.id,
-        ])),
-      });
-
-      if (viewerRole === "teacher" && ownAssignmentsHaveSections(classScope)) {
-        const sectionIdsForTeacher = [...new Set(classScope.map((entry) => entry.section_id).filter(Boolean))] as string[];
-        const academicYearIds = [...new Set(classScope.map((entry) => entry.academic_year_id))];
-        const { data: attendanceRows, error: attendanceError } = await supabase
-          .from("attendance")
-          .select("student_id, attendance_date, section_id")
-          .in("section_id", sectionIdsForTeacher)
-          .in("academic_year_id", academicYearIds)
-          .eq("status", "absent")
-          .order("attendance_date", { ascending: false })
-          .limit(100);
-        if (attendanceError) throw attendanceError;
-        const rows = attendanceRows ?? [];
-        const studentIds = [...new Set(rows.map((row) => row.student_id))];
-        const { data: students, error: studentsError } = studentIds.length
-          ? await supabase.from("students").select("id,first_name,middle_name,last_name").in("id", studentIds)
-          : { data: [], error: null };
-        if (studentsError) throw studentsError;
-        const studentNames = new Map((students ?? []).map((student: any) => [
-          student.id,
-          [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-        ]));
-        setAbsences(rows.map((row) => ({
-          student: studentNames.get(row.student_id) ?? "Student",
-          date: row.attendance_date,
-          class_id: classScope.find((entry) => entry.section_id === row.section_id)?.class_id ?? "",
-          section_id: row.section_id,
-        })));
-      } else if (viewerRole === "student" || viewerRole === "parent") {
-        const studentIds = [...new Set(classScope.map((entry) => entry.student_id).filter(Boolean))] as string[];
-        const { data: attendanceRows, error: attendanceError } = studentIds.length
-          ? await supabase
-            .from("attendance")
-            .select("student_id, attendance_date, section_id, academic_year_id")
-            .in("student_id", studentIds)
-            .eq("status", "absent")
-            .order("attendance_date", { ascending: false })
-            .limit(100)
-          : { data: [], error: null };
-        if (attendanceError) throw attendanceError;
-        setAbsences((attendanceRows ?? []).flatMap((row) => {
-          const enrolled = classScope.find((entry) =>
-            entry.student_id === row.student_id &&
-            entry.academic_year_id === row.academic_year_id &&
-            entry.section_id === row.section_id,
-          );
-          return enrolled ? [{
-            student: enrolled.student_name ?? "Student",
-            date: row.attendance_date,
-            class_id: enrolled.class_id,
-            section_id: row.section_id,
-          }] : [];
-        }));
-      } else {
-        setAbsences([]);
-      }
-    } catch (error) {
+    }).catch((error: unknown) => {
+      if (version !== loadVersion.current) return;
       const errorFields = error && typeof error === "object"
         ? error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }
         : {};
@@ -345,13 +359,14 @@ export function AcademicWorkspace({ module }: { module: string }) {
             ? error.message
             : "Academic work could not be loaded.",
       );
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedAssignmentId, module]);
+    }).finally(() => {
+      if (version === loadVersion.current) setLoading(false);
+    });
+  }, [module]);
 
   useEffect(() => {
     void loadWorkspace();
+    return () => { loadVersion.current += 1; };
   }, [loadWorkspace]);
 
   const visibleActivities = useMemo(() => {
@@ -508,7 +523,7 @@ export function AcademicWorkspace({ module }: { module: string }) {
           </div>
           {isTeacher && (
             <Link href="/modules/teacher-assignments" className="inline-flex items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">
-              Manage Teaching Assignments <ArrowRight size={16} />
+              View Teaching Assignments <ArrowRight size={16} />
             </Link>
           )}
         </div>

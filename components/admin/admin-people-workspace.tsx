@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -29,138 +29,159 @@ function logError(context: string, error: unknown) {
 }
 
 export function AdminPeopleWorkspace({ mode }: { mode: Mode }) {
-  const supabase = createClient();
+  return <PeopleWorkspace key={mode} mode={mode} />;
+}
+
+function PeopleWorkspace({ mode }: { mode: Mode }) {
+  const [supabase] = useState(createClient);
+  const latestRequest = useRef(0);
+  const mounted = useRef(true);
   const [records, setRecords] = useState<PersonRecord[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const { data: auth, error: authError } = await supabase.auth.getUser();
-      if (authError) throw authError;
-      if (!auth.user) throw new Error("Please sign in again.");
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role,school_id")
-        .eq("user_id", auth.user.id);
-      if (rolesError) throw rolesError;
+  const load = useCallback(() => {
+    const request = ++latestRequest.current;
+    const isCurrent = () => mounted.current && request === latestRequest.current;
+    return supabase.auth.getUser().then(async ({ data: auth, error: authError }) => {
+      try {
+        if (!isCurrent()) return;
+        setLoading(true);
+        setError("");
+        if (authError) throw authError;
+        if (!auth.user) throw new Error("Please sign in again.");
+        const { data: roles, error: rolesError } = await supabase
+          .from("user_roles")
+          .select("role,school_id")
+          .eq("user_id", auth.user.id);
+        if (rolesError) throw rolesError;
 
-      let schoolId = (roles ?? []).find((row) =>
-        row.role === "school_admin" && row.school_id,
-      )?.school_id ?? "";
-      if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("school_id")
-          .eq("id", auth.user.id)
-          .maybeSingle();
-        if (profileError) throw profileError;
-        schoolId = profile?.school_id ?? "";
-      }
-      if (!schoolId) throw new Error("Choose a school-linked admin account to view school records.");
-
-      if (mode === "students") {
-        const { data: studentRows, error: studentError } = await supabase
-          .from("students")
-          .select("id,admission_no,first_name,middle_name,last_name,roll_no,status")
-          .eq("school_id", schoolId)
-          .order("first_name");
-        if (studentError) throw studentError;
-        setRecords((studentRows ?? []).map((student) => ({
-          id: student.id,
-          name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-          code: student.admission_no,
-          detail: student.status,
-          subdetail: student.roll_no ? `Roll no. ${student.roll_no}` : "",
-        })));
-        return;
-      }
-
-      if (mode === "teachers") {
-        const [{ data: teacherRows, error: teacherError }, { data: year, error: yearError }] = await Promise.all([
-          supabase.from("teachers").select("id,full_name,employee_id,designation,department,registered_mobile,qualification").eq("school_id", schoolId).order("full_name"),
-          supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
-        ]);
-        if (teacherError) throw teacherError;
-        if (yearError) throw yearError;
-        const teacherIds = (teacherRows ?? []).map((teacher) => teacher.id);
-        const { data: assignmentRows, error: assignmentError } = teacherIds.length
-          ? await supabase.from("teacher_subject_assignments").select("teacher_id,class_id,section_id,subject_id").eq("academic_year_id", year?.id ?? "").in("teacher_id", teacherIds)
-          : { data: [], error: null };
-        if (assignmentError) throw assignmentError;
-        const assignmentRecords = assignmentRows ?? [];
-        const classIds = [...new Set(assignmentRecords.map((row) => row.class_id))];
-        const sectionIds = [...new Set(assignmentRecords.map((row) => row.section_id).filter(Boolean))] as string[];
-        const subjectIds = [...new Set(assignmentRecords.map((row) => row.subject_id))];
-        const [classResult, sectionResult, subjectResult] = await Promise.all([
-          classIds.length ? supabase.from("classes").select("id,name").eq("school_id", schoolId).in("id", classIds) : Promise.resolve({ data: [], error: null }),
-          sectionIds.length ? supabase.from("sections").select("id,name").eq("school_id", schoolId).in("id", sectionIds) : Promise.resolve({ data: [], error: null }),
-          subjectIds.length ? supabase.from("subjects").select("id,name").eq("school_id", schoolId).in("id", subjectIds) : Promise.resolve({ data: [], error: null }),
-        ]);
-        const nameError = classResult.error ?? sectionResult.error ?? subjectResult.error;
-        if (nameError) throw nameError;
-        const classNames = new Map((classResult.data ?? []).map((row) => [row.id, row.name]));
-        const sectionNames = new Map((sectionResult.data ?? []).map((row) => [row.id, row.name]));
-        const subjectNames = new Map((subjectResult.data ?? []).map((row) => [row.id, row.name]));
-        const byTeacher = new Map<string, string[]>();
-        for (const assignment of assignmentRecords) {
-          const label = `${classNames.get(assignment.class_id) ?? "Class"} ${assignment.section_id ? sectionNames.get(assignment.section_id) ?? "" : ""} · ${subjectNames.get(assignment.subject_id) ?? "Subject"}`;
-          byTeacher.set(assignment.teacher_id, [...(byTeacher.get(assignment.teacher_id) ?? []), label]);
+        let schoolId = (roles ?? []).find((row) =>
+          row.role === "school_admin" && row.school_id,
+        )?.school_id ?? "";
+        if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
+          const { data: profile, error: profileError } = await supabase
+            .from("profiles")
+            .select("school_id")
+            .eq("id", auth.user.id)
+            .maybeSingle();
+          if (profileError) throw profileError;
+          schoolId = profile?.school_id ?? "";
         }
-        setRecords((teacherRows ?? []).map((teacher) => ({
-          id: teacher.id,
-          name: teacher.full_name || "Teacher",
-          code: teacher.employee_id || "",
-          detail: [teacher.designation, teacher.department].filter(Boolean).join(" · ") || teacher.qualification || "Staff",
-          subdetail: [...new Set(byTeacher.get(teacher.id) ?? [])].join(", ") || "No current-year assignments",
-        })));
-        return;
-      }
+        if (!schoolId) throw new Error("Choose a school-linked admin account to view school records.");
 
-      const [{ data: parentRows, error: parentError }, { data: studentRows, error: studentsError }] = await Promise.all([
-        supabase.from("parents").select("id").eq("school_id", schoolId),
-        supabase.from("students").select("id,first_name,middle_name,last_name").eq("school_id", schoolId),
-      ]);
-      if (parentError) throw parentError;
-      if (studentsError) throw studentsError;
-      const parentIds = (parentRows ?? []).map((parent) => parent.id);
-      const { data: linkRows, error: linksError } = parentIds.length
-        ? await supabase.from("student_parents").select("parent_id,student_id").in("parent_id", parentIds)
-        : { data: [], error: null };
-      if (linksError) throw linksError;
-      const childNames = new Map((studentRows ?? []).map((student) => [
-        student.id,
-        [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-      ]));
-      const linkedChildren = new Map<string, string[]>();
-      for (const link of linkRows ?? []) {
-        const childName = childNames.get(link.student_id);
-        if (childName) linkedChildren.set(link.parent_id, [...(linkedChildren.get(link.parent_id) ?? []), childName]);
+        if (mode === "students") {
+          const { data: studentRows, error: studentError } = await supabase
+            .from("students")
+            .select("id,admission_no,first_name,middle_name,last_name,roll_no,status")
+            .eq("school_id", schoolId)
+            .order("first_name");
+          if (studentError) throw studentError;
+          if (!isCurrent()) return;
+          setRecords((studentRows ?? []).map((student) => ({
+            id: student.id,
+            name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+            code: student.admission_no,
+            detail: student.status,
+            subdetail: student.roll_no ? `Roll no. ${student.roll_no}` : "",
+          })));
+          return;
+        }
+
+        if (mode === "teachers") {
+          const [{ data: teacherRows, error: teacherError }, { data: year, error: yearError }] = await Promise.all([
+            supabase.from("teachers").select("id,full_name,employee_id,designation,department,registered_mobile,qualification").eq("school_id", schoolId).order("full_name"),
+            supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
+          ]);
+          if (teacherError) throw teacherError;
+          if (yearError) throw yearError;
+          const teacherIds = (teacherRows ?? []).map((teacher) => teacher.id);
+          const { data: assignmentRows, error: assignmentError } = teacherIds.length && year?.id
+            ? await supabase.from("teacher_subject_assignments").select("teacher_id,class_id,section_id,subject_id").eq("academic_year_id", year.id).in("teacher_id", teacherIds)
+            : { data: [], error: null };
+          if (assignmentError) throw assignmentError;
+          const assignmentRecords = assignmentRows ?? [];
+          const classIds = [...new Set(assignmentRecords.map((row) => row.class_id))];
+          const sectionIds = [...new Set(assignmentRecords.map((row) => row.section_id).filter(Boolean))] as string[];
+          const subjectIds = [...new Set(assignmentRecords.map((row) => row.subject_id))];
+          const [classResult, sectionResult, subjectResult] = await Promise.all([
+            classIds.length ? supabase.from("classes").select("id,name").eq("school_id", schoolId).in("id", classIds) : Promise.resolve({ data: [], error: null }),
+            sectionIds.length ? supabase.from("sections").select("id,name").eq("school_id", schoolId).in("id", sectionIds) : Promise.resolve({ data: [], error: null }),
+            subjectIds.length ? supabase.from("subjects").select("id,name").eq("school_id", schoolId).in("id", subjectIds) : Promise.resolve({ data: [], error: null }),
+          ]);
+          const nameError = classResult.error ?? sectionResult.error ?? subjectResult.error;
+          if (nameError) throw nameError;
+          const classNames = new Map((classResult.data ?? []).map((row) => [row.id, row.name]));
+          const sectionNames = new Map((sectionResult.data ?? []).map((row) => [row.id, row.name]));
+          const subjectNames = new Map((subjectResult.data ?? []).map((row) => [row.id, row.name]));
+          const byTeacher = new Map<string, string[]>();
+          for (const assignment of assignmentRecords) {
+            const label = `${classNames.get(assignment.class_id) ?? "Class"} ${assignment.section_id ? sectionNames.get(assignment.section_id) ?? "" : ""} · ${subjectNames.get(assignment.subject_id) ?? "Subject"}`;
+            byTeacher.set(assignment.teacher_id, [...(byTeacher.get(assignment.teacher_id) ?? []), label]);
+          }
+          if (!isCurrent()) return;
+          setRecords((teacherRows ?? []).map((teacher) => ({
+            id: teacher.id,
+            name: teacher.full_name || "Teacher",
+            code: teacher.employee_id || "",
+            detail: [teacher.designation, teacher.department].filter(Boolean).join(" · ") || teacher.qualification || "Staff",
+            subdetail: [...new Set(byTeacher.get(teacher.id) ?? [])].join(", ") || "No current-year assignments",
+          })));
+          return;
+        }
+
+        const [{ data: parentRows, error: parentError }, { data: studentRows, error: studentsError }] = await Promise.all([
+          supabase.from("parents").select("id").eq("school_id", schoolId),
+          supabase.from("students").select("id,first_name,middle_name,last_name").eq("school_id", schoolId),
+        ]);
+        if (parentError) throw parentError;
+        if (studentsError) throw studentsError;
+        const parentIds = (parentRows ?? []).map((parent) => parent.id);
+        const { data: linkRows, error: linksError } = parentIds.length
+          ? await supabase.from("student_parents").select("parent_id,student_id").in("parent_id", parentIds)
+          : { data: [], error: null };
+        if (linksError) throw linksError;
+        const childNames = new Map((studentRows ?? []).map((student) => [
+          student.id,
+          [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+        ]));
+        const linkedChildren = new Map<string, string[]>();
+        for (const link of linkRows ?? []) {
+          const childName = childNames.get(link.student_id);
+          if (childName) linkedChildren.set(link.parent_id, [...(linkedChildren.get(link.parent_id) ?? []), childName]);
+        }
+        if (!isCurrent()) return;
+        setRecords((parentRows ?? []).map((parent) => {
+          const children = [...new Set(linkedChildren.get(parent.id) ?? [])];
+          return {
+            id: parent.id,
+            name: "Parent account",
+            code: "",
+            detail: `${children.length} linked ${children.length === 1 ? "student" : "students"}`,
+            subdetail: children.join(", "),
+          };
+        }));
+      } catch (loadError) {
+        if (!isCurrent()) return;
+        logError(`Admin ${mode} data load failed`, loadError);
+        setError("School records could not be loaded. Please refresh or contact your administrator.");
+      } finally {
+        if (isCurrent()) setLoading(false);
       }
-      setRecords((parentRows ?? []).map((parent) => {
-        const children = [...new Set(linkedChildren.get(parent.id) ?? [])];
-        return {
-          id: parent.id,
-          name: "Parent account",
-          code: "",
-          detail: `${children.length} linked ${children.length === 1 ? "student" : "students"}`,
-          subdetail: children.join(", "),
-        };
-      }));
-    } catch (loadError) {
+    }, (loadError: unknown) => {
+      if (!isCurrent()) return;
       logError(`Admin ${mode} data load failed`, loadError);
       setError("School records could not be loaded. Please refresh or contact your administrator.");
-    } finally {
       setLoading(false);
-    }
-  }
+    });
+  }, [supabase, mode]);
 
   useEffect(() => {
+    mounted.current = true;
     void load();
-  }, [mode]);
+    return () => { mounted.current = false; latestRequest.current += 1; };
+  }, [load]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLocaleLowerCase();

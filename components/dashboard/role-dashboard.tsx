@@ -7,13 +7,11 @@ import {
   BadgeIndianRupee,
   BookOpen,
   CalendarCheck,
-  CheckCircle2,
   ClipboardList,
   Clock3,
   FileText,
   GraduationCap,
   IndianRupee,
-  LogOut,
   NotebookPen,
   Plus,
   RefreshCw,
@@ -24,6 +22,16 @@ import {
 import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
+import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import {
+  loadFamilyAttendance,
+  loadFamilyStudents,
+  rememberFamilyChild,
+  restoreFamilyChild,
+  type FamilyAttendanceRow,
+  type FamilyStudent,
+} from "@/lib/attendance/family";
+import { attendanceLabels, schoolDate } from "@/lib/attendance/types";
 
 type Assignment = {
   id: string;
@@ -46,6 +54,45 @@ type StudentRow = {
   roll_no?: string | null;
   dob?: string | null;
   status: string;
+};
+
+type TeacherRow = { id: string; school_id: string; full_name: string | null };
+type NamedRow = { id: string; name: string };
+type NoticeRow = { id: string; title: string; content: string; published_at: string | null; created_at: string | null };
+type AcademicYearRow = NamedRow;
+type FeeStructureRow = NamedRow & { amount: number | string };
+type PaymentReceipt = {
+  receiptNo: string;
+  student: string;
+  admission: string | undefined;
+  fee: string;
+  amount: string;
+  method: string;
+  date: string;
+};
+type EnrollmentRow = {
+  class_id: string;
+  section_id: string | null;
+  academic_year_id: string;
+  roll_no: string | null;
+};
+type StudentFeeRow = {
+  id: string;
+  amount: number | string;
+  status: string;
+  billing_period: string | null;
+};
+type StudentDashboardData = {
+  student: FamilyStudent | null;
+  enrollment: EnrollmentRow | null;
+  attendance: FamilyAttendanceRow[];
+  attendanceError: boolean;
+  logs: LogRow[];
+  activities: ActivityRow[];
+  fees: StudentFeeRow[];
+};
+const emptyStudentDashboard: StudentDashboardData = {
+  student: null, enrollment: null, attendance: [], attendanceError: false, logs: [], activities: [], fees: [],
 };
 
 type LogRow = {
@@ -251,17 +298,17 @@ export function RoleDashboard({
   return (
     <AppShell role={role}>
       {role === "teacher" ? (
-        <TeacherDashboard schoolId={schoolId} userId={userId} />
+        <TeacherDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "finance" ? (
-        <FinanceDashboard schoolId={schoolId} userId={userId} />
+        <FinanceDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} />
       ) : role === "student" ? (
-        <StudentDashboard userId={userId} />
+        <StudentDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "parent" ? (
-        <ParentDashboard userId={userId} />
+        <ParentDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "reception" ? (
         <ReceptionDashboard />
       ) : (
-        <AdminDashboard schoolId={schoolId} />
+        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} />
       )}
     </AppShell>
   );
@@ -304,11 +351,11 @@ function Header({ role, subtitle }: { role: UiRole; subtitle: string }) {
   );
 }
 
-function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userId: string }) {
-  const supabase = createClient();
-  const [teacher, setTeacher] = useState<any>(null);
+function TeacherDashboard({ userId }: { userId: string }) {
+  const [supabase] = useState(createClient);
+  const [reloadVersion, setReloadVersion] = useState(0);
+  const [teacher, setTeacher] = useState<TeacherRow | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [students, setStudents] = useState<StudentRow[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [displayNames, setDisplayNames] = useState<TeacherDisplayNames>({ classes: {}, sections: {}, subjects: {} });
@@ -318,313 +365,263 @@ function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userI
   const [monthlyHomeworkCount, setMonthlyHomeworkCount] = useState<number | null>(null);
   const [upcomingAssessments, setUpcomingAssessments] = useState<TeacherAssessmentRow[]>([]);
   const [recentMarks, setRecentMarks] = useState<TeacherMarkActivity[]>([]);
-  const [teacherNotices, setTeacherNotices] = useState<any[]>([]);
+  const [teacherNotices, setTeacherNotices] = useState<NoticeRow[]>([]);
   const [classTeacherAssignments, setClassTeacherAssignments] = useState<Assignment[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState("");
-  const [attendanceDate, setAttendanceDate] = useState(dateToday());
-  const [attendance, setAttendance] = useState<Record<string, string>>({});
-  const [topic, setTopic] = useState("");
-  const [summary, setSummary] = useState("");
+  const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [noticeTitle, setNoticeTitle] = useState("");
   const [noticeContent, setNoticeContent] = useState("");
   const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
 
   const currentAssignment = useMemo(
     () => assignments.find((a) => a.id === selectedAssignment),
     [assignments, selectedAssignment]
   );
 
-  async function load() {
+  function refresh() {
     setBusy(true);
     setMessage("");
-    const { data: t } = await supabase.from("teachers").select("*").eq("profile_id", userId).maybeSingle();
-    if (!t) {
-      setMessage("Teacher profile is not linked to this Google account. Ask the school admin to create/link the teacher record.");
-      setBusy(false);
-      return;
-    }
-    setTeacher(t);
+    setReloadVersion((version) => version + 1);
+  }
 
-    const { data: currentYear } = t.school_id
-      ? await supabase.from("academic_years").select("id").eq("school_id", t.school_id).eq("is_current", true).maybeSingle()
-      : { data: null };
-    let assignmentQuery = supabase.from("teacher_subject_assignments").select("*").eq("teacher_id", t.id);
-    if (currentYear?.id) assignmentQuery = assignmentQuery.eq("academic_year_id", currentYear.id);
-    const { data: a } = await assignmentQuery;
-    const rows = (a ?? []) as Assignment[];
-    const classIds = [...new Set(rows.map((x) => x.class_id))];
-    const sectionIds = [...new Set(rows.map((x) => x.section_id).filter(Boolean))] as string[];
-    const subjectIds = [...new Set(rows.map((x) => x.subject_id))];
-
-    const [{ data: cs }, { data: ss }, { data: subs }] = await Promise.all([
-      classIds.length ? supabase.from("classes").select("id,name").in("id", classIds) : Promise.resolve({ data: [] as any[] }),
-      sectionIds.length ? supabase.from("sections").select("id,name").in("id", sectionIds) : Promise.resolve({ data: [] as any[] }),
-      subjectIds.length ? supabase.from("subjects").select("id,name").in("id", subjectIds) : Promise.resolve({ data: [] as any[] }),
-    ]);
-    const cmap = new Map((cs ?? []).map((x: any) => [x.id, x.name]));
-    const smap = new Map((ss ?? []).map((x: any) => [x.id, x.name]));
-    const submap = new Map((subs ?? []).map((x: any) => [x.id, x.name]));
-    const enriched = rows.map((x) => ({
-      ...x,
-      className: cmap.get(x.class_id) ?? "Class",
-      sectionName: x.section_id ? smap.get(x.section_id) ?? "Section" : "All Sections",
-      subjectName: submap.get(x.subject_id) ?? "Subject",
-    }));
-    setAssignments(enriched);
-    const classTeacherRows = enriched.filter((x) => x.is_class_teacher);
-    setClassTeacherAssignments(classTeacherRows);
-
-    // Prefer an assignment that actually has enrolled students. This prevents
-    // the teacher workspace from opening on an empty class when another
-    // assigned class already has students.
-    if (!selectedAssignment && enriched.length) {
-      let preferred = enriched[0];
-      for (const candidate of enriched) {
-        const { data: enrolled } = await supabase
-          .from("enrollments")
-          .select("student_id")
-          .eq("class_id", candidate.class_id)
-          .eq("academic_year_id", candidate.academic_year_id)
-          .eq("status", "active")
-          .limit(1);
-        const matchesSection = (enrolled ?? []).length > 0;
-        if (matchesSection) {
-          preferred = candidate;
-          break;
-        }
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      const today = schoolDate();
+      const { data: t } = await supabase.from("teachers").select("*").eq("profile_id", userId).returns<TeacherRow[]>().maybeSingle();
+      if (controller.signal.aborted) return;
+      if (!t) {
+        setMessage("Teacher profile is not linked to this Google account. Ask the school admin to create/link the teacher record.");
+        setBusy(false);
+        return;
       }
-      setSelectedAssignment(preferred.id);
-    }
+      setTeacher(t);
 
-    const { data: recentLogs } = await supabase
-      .from("class_logs")
-      .select("id,log_date,topic,summary,teacher_remark,class_id,section_id,subject_id,academic_year_id,status")
-      .eq("teacher_id", t.id)
-      .order("log_date", { ascending: false })
-      .limit(200);
-    const recentLogRows = (recentLogs ?? []) as LogRow[];
-    setLogs(recentLogRows);
+      const { data: currentYear, error: currentYearError } = t.school_id
+        ? await supabase.from("academic_years").select("id").eq("school_id", t.school_id).eq("is_current", true).maybeSingle()
+        : { data: null, error: null };
+      if (controller.signal.aborted) return;
+      if (currentYearError || !currentYear?.id) {
+        setMessage("Attendance is unavailable because the current academic year could not be verified. Ask the school administrator.");
+      }
+      const { data: a, error: assignmentError } = currentYear?.id && !currentYearError
+        ? await supabase.from("teacher_subject_assignments").select("*").eq("teacher_id", t.id).eq("academic_year_id", currentYear.id)
+        : { data: [], error: null };
+      if (controller.signal.aborted) return;
+      if (assignmentError) setMessage("Teacher assignments could not be loaded. Reload before recording attendance.");
+      const rows = (a ?? []) as Assignment[];
+      const classIds = [...new Set(rows.map((x) => x.class_id))];
+      const sectionIds = [...new Set(rows.map((x) => x.section_id).filter(Boolean))] as string[];
+      const subjectIds = [...new Set(rows.map((x) => x.subject_id))];
 
-    const logIds = recentLogRows.map((x) => x.id);
-    if (logIds.length) {
-      const { data: acts } = await supabase
-        .from("class_activities")
-        .select("id,class_log_id,activity_type,title,description,due_date")
-        .in("class_log_id", logIds)
-        .limit(500);
-      setActivities((acts ?? []) as ActivityRow[]);
-    } else {
-      setActivities([]);
-    }
+      const [{ data: cs }, { data: ss }, { data: subs }] = await Promise.all([
+        classIds.length ? supabase.from("classes").select("id,name").in("id", classIds).returns<NamedRow[]>() : Promise.resolve({ data: [] as NamedRow[] }),
+        sectionIds.length ? supabase.from("sections").select("id,name").in("id", sectionIds).returns<NamedRow[]>() : Promise.resolve({ data: [] as NamedRow[] }),
+        subjectIds.length ? supabase.from("subjects").select("id,name").in("id", subjectIds).returns<NamedRow[]>() : Promise.resolve({ data: [] as NamedRow[] }),
+      ]);
+      if (controller.signal.aborted) return;
+      const cmap = new Map((cs ?? []).map((x) => [x.id, x.name]));
+      const smap = new Map((ss ?? []).map((x) => [x.id, x.name]));
+      const submap = new Map((subs ?? []).map((x) => [x.id, x.name]));
+      const enriched = rows.map((x) => ({
+        ...x,
+        className: cmap.get(x.class_id) ?? "Class",
+        sectionName: x.section_id ? smap.get(x.section_id) ?? "Section" : "All Sections",
+        subjectName: submap.get(x.subject_id) ?? "Subject",
+      }));
+      setAssignments(enriched);
+      const classTeacherRows = enriched.filter((x) => x.is_class_teacher);
+      setClassTeacherAssignments(classTeacherRows);
 
-    const logClassIds = [...new Set(recentLogRows.map((log) => log.class_id))];
-    const logSectionIds = [...new Set(recentLogRows.map((log) => log.section_id).filter(Boolean))] as string[];
-    const logSubjectIds = [...new Set(recentLogRows.map((log) => log.subject_id))];
-    const [{ data: logClasses }, { data: logSections }, { data: logSubjects }] = await Promise.all([
-      logClassIds.length ? supabase.from("classes").select("id,name").in("id", logClassIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      logSectionIds.length ? supabase.from("sections").select("id,name").in("id", logSectionIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-      logSubjectIds.length ? supabase.from("subjects").select("id,name").in("id", logSubjectIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
-    ]);
-    setDisplayNames({
-      classes: Object.fromEntries((logClasses ?? []).map((row) => [row.id, row.name])),
-      sections: Object.fromEntries((logSections ?? []).map((row) => [row.id, row.name])),
-      subjects: Object.fromEntries((logSubjects ?? []).map((row) => [row.id, row.name])),
-    });
+      // Attendance belongs to the assigned class teacher, not an arbitrary subject.
+      const eligibleAssignments = classTeacherRows.filter((assignment) => assignment.section_id);
+      setSelectedAssignment((selected) => eligibleAssignments.some((assignment) => assignment.id === selected)
+        ? selected : eligibleAssignments[0]?.id ?? "");
 
-    const monthStart = `${dateToday().slice(0, 7)}-01`;
-    const { data: monthLogs, count: logCount, error: monthLogsError } = await supabase
-      .from("class_logs")
-      .select("id", { count: "exact" })
-      .eq("teacher_id", t.id)
-      .gte("log_date", monthStart)
-      .lte("log_date", dateToday());
-    if (monthLogsError) {
-      console.error("Teacher dashboard monthly academic logs could not be loaded", monthLogsError);
-      setMonthlyLogCount(null);
-      setMonthlyHomeworkCount(null);
-    } else {
-      setMonthlyLogCount(logCount ?? 0);
-      const monthLogIds = (monthLogs ?? []).map((log) => log.id);
-      if (monthLogIds.length) {
-        const { count: homeworkCount, error: homeworkCountError } = await supabase
+      const { data: recentLogs } = await supabase
+        .from("class_logs")
+        .select("id,log_date,topic,summary,teacher_remark,class_id,section_id,subject_id,academic_year_id,status")
+        .eq("teacher_id", t.id)
+        .order("log_date", { ascending: false })
+        .limit(200);
+      if (controller.signal.aborted) return;
+      const recentLogRows = (recentLogs ?? []) as LogRow[];
+      setLogs(recentLogRows);
+
+      const logIds = recentLogRows.map((x) => x.id);
+      if (logIds.length) {
+        const { data: acts } = await supabase
           .from("class_activities")
-          .select("id", { count: "exact", head: true })
-          .in("class_log_id", monthLogIds)
-          .eq("activity_type", "homework");
-        if (homeworkCountError) {
-          console.error("Teacher dashboard monthly homework could not be loaded", homeworkCountError);
-          setMonthlyHomeworkCount(null);
+          .select("id,class_log_id,activity_type,title,description,due_date")
+          .in("class_log_id", logIds)
+          .limit(500);
+        if (controller.signal.aborted) return;
+        setActivities((acts ?? []) as ActivityRow[]);
+      } else {
+        setActivities([]);
+      }
+
+      const logClassIds = [...new Set(recentLogRows.map((log) => log.class_id))];
+      const logSectionIds = [...new Set(recentLogRows.map((log) => log.section_id).filter(Boolean))] as string[];
+      const logSubjectIds = [...new Set(recentLogRows.map((log) => log.subject_id))];
+      const [{ data: logClasses }, { data: logSections }, { data: logSubjects }] = await Promise.all([
+        logClassIds.length ? supabase.from("classes").select("id,name").in("id", logClassIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        logSectionIds.length ? supabase.from("sections").select("id,name").in("id", logSectionIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+        logSubjectIds.length ? supabase.from("subjects").select("id,name").in("id", logSubjectIds) : Promise.resolve({ data: [] as { id: string; name: string }[] }),
+      ]);
+      if (controller.signal.aborted) return;
+      setDisplayNames({
+        classes: Object.fromEntries((logClasses ?? []).map((row) => [row.id, row.name])),
+        sections: Object.fromEntries((logSections ?? []).map((row) => [row.id, row.name])),
+        subjects: Object.fromEntries((logSubjects ?? []).map((row) => [row.id, row.name])),
+      });
+
+      const monthStart = `${today.slice(0, 7)}-01`;
+      const { data: monthLogs, count: logCount, error: monthLogsError } = await supabase
+        .from("class_logs")
+        .select("id", { count: "exact" })
+        .eq("teacher_id", t.id)
+        .gte("log_date", monthStart)
+        .lte("log_date", today);
+      if (controller.signal.aborted) return;
+      if (monthLogsError) {
+        console.error("Teacher dashboard monthly academic logs could not be loaded", monthLogsError);
+        setMonthlyLogCount(null);
+        setMonthlyHomeworkCount(null);
+      } else {
+        setMonthlyLogCount(logCount ?? 0);
+        const monthLogIds = (monthLogs ?? []).map((log) => log.id);
+        if (monthLogIds.length) {
+          const { count: homeworkCount, error: homeworkCountError } = await supabase
+            .from("class_activities")
+            .select("id", { count: "exact", head: true })
+            .in("class_log_id", monthLogIds)
+            .eq("activity_type", "homework");
+          if (controller.signal.aborted) return;
+          if (homeworkCountError) {
+            console.error("Teacher dashboard monthly homework could not be loaded", homeworkCountError);
+            setMonthlyHomeworkCount(null);
+          } else {
+            setMonthlyHomeworkCount(homeworkCount ?? 0);
+          }
         } else {
-          setMonthlyHomeworkCount(homeworkCount ?? 0);
+          setMonthlyHomeworkCount(0);
+        }
+      }
+
+      const assignedSectionIds = [...new Set(enriched.map((assignment) => assignment.section_id).filter(Boolean))] as string[];
+      const assignmentYearIds = [...new Set(enriched.map((assignment) => assignment.academic_year_id))];
+      setAttendanceOverviewUnavailable(false);
+      if (assignedSectionIds.length && assignmentYearIds.length) {
+        const { data: attendanceRows, error: attendanceError } = await supabase
+          .from("attendance")
+          .select("student_id,section_id,academic_year_id,attendance_date,status")
+          .eq("school_id", t.school_id)
+          .eq("marked_by", userId)
+          .eq("attendance_date", today)
+          .in("section_id", assignedSectionIds)
+          .in("academic_year_id", assignmentYearIds)
+          .limit(1000);
+        if (controller.signal.aborted) return;
+        if (attendanceError) {
+          console.error("Teacher dashboard attendance summary could not be loaded", attendanceError);
+          setTodayAttendanceRows([]);
+          setAttendanceOverviewUnavailable(true);
+        } else {
+          setTodayAttendanceRows((attendanceRows ?? []) as AttendanceOverviewRow[]);
         }
       } else {
-        setMonthlyHomeworkCount(0);
-      }
-    }
-
-    const assignedSectionIds = [...new Set(enriched.map((assignment) => assignment.section_id).filter(Boolean))] as string[];
-    const assignmentYearIds = [...new Set(enriched.map((assignment) => assignment.academic_year_id))];
-    setAttendanceOverviewUnavailable(false);
-    if (assignedSectionIds.length && assignmentYearIds.length) {
-      const { data: attendanceRows, error: attendanceError } = await supabase
-        .from("attendance")
-        .select("student_id,section_id,academic_year_id,attendance_date,status")
-        .eq("school_id", t.school_id)
-        .eq("marked_by", userId)
-        .eq("attendance_date", dateToday())
-        .in("section_id", assignedSectionIds)
-        .in("academic_year_id", assignmentYearIds)
-        .limit(1000);
-      if (attendanceError) {
-        console.error("Teacher dashboard attendance summary could not be loaded", attendanceError);
         setTodayAttendanceRows([]);
-        setAttendanceOverviewUnavailable(true);
-      } else {
-        setTodayAttendanceRows((attendanceRows ?? []) as AttendanceOverviewRow[]);
       }
-    } else {
-      setTodayAttendanceRows([]);
-    }
 
-    const { data: assessmentData, error: assessmentError } = await supabase
-      .from("teacher_assessments")
-      .select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id")
-      .eq("teacher_id", t.id)
-      .order("assessment_date", { ascending: false })
-      .limit(50);
-    if (assessmentError) {
-      setMessage(`Assessment data could not be loaded: ${assessmentError.message}`);
-      setUpcomingAssessments([]);
-      setRecentMarks([]);
-    } else {
-      const teacherAssessments = (assessmentData ?? []) as TeacherAssessmentRow[];
-      const today = dateToday();
-      const weekEndDate = new Date(`${today}T00:00:00.000Z`);
-      weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 7);
-      const weekEnd = weekEndDate.toISOString().slice(0, 10);
-      const { data: upcomingData, error: upcomingError } = await supabase
+      const { data: assessmentData, error: assessmentError } = await supabase
         .from("teacher_assessments")
         .select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id")
         .eq("teacher_id", t.id)
-        .gte("assessment_date", today)
-        .lte("assessment_date", weekEnd)
-        .order("assessment_date", { ascending: true })
+        .order("assessment_date", { ascending: false })
         .limit(50);
-      if (upcomingError) {
-        console.error("Teacher dashboard upcoming tests could not be loaded", upcomingError);
+      if (controller.signal.aborted) return;
+      if (assessmentError) {
+        setMessage(`Assessment data could not be loaded: ${assessmentError.message}`);
         setUpcomingAssessments([]);
-      } else {
-        setUpcomingAssessments((upcomingData ?? []) as TeacherAssessmentRow[]);
-      }
-      const assessmentIds = teacherAssessments.map((assessment) => assessment.id);
-      const { data: marksData, error: marksError } = assessmentIds.length
-        ? await supabase.from("teacher_assessment_marks")
-          .select("id,assessment_id,student_id,marks_obtained")
-          .in("assessment_id", assessmentIds)
-          .order("updated_at", { ascending: false })
-          .limit(10)
-        : { data: [], error: null };
-      if (marksError) {
-        setMessage(`Recent marks could not be loaded: ${marksError.message}`);
         setRecentMarks([]);
       } else {
-        const marksRows = marksData ?? [];
-        const markStudentIds = [...new Set(marksRows.map((mark) => mark.student_id))];
-        const { data: markStudents, error: markStudentsError } = markStudentIds.length
-          ? await supabase.from("students").select("id,first_name,middle_name,last_name").in("id", markStudentIds)
+        const teacherAssessments = (assessmentData ?? []) as TeacherAssessmentRow[];
+        const weekEndDate = new Date(`${today}T00:00:00.000Z`);
+        weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 7);
+        const weekEnd = weekEndDate.toISOString().slice(0, 10);
+        const { data: upcomingData, error: upcomingError } = await supabase
+          .from("teacher_assessments")
+          .select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id")
+          .eq("teacher_id", t.id)
+          .gte("assessment_date", today)
+          .lte("assessment_date", weekEnd)
+          .order("assessment_date", { ascending: true })
+          .limit(50);
+        if (controller.signal.aborted) return;
+        if (upcomingError) {
+          console.error("Teacher dashboard upcoming tests could not be loaded", upcomingError);
+          setUpcomingAssessments([]);
+        } else {
+          setUpcomingAssessments((upcomingData ?? []) as TeacherAssessmentRow[]);
+        }
+        const assessmentIds = teacherAssessments.map((assessment) => assessment.id);
+        const { data: marksData, error: marksError } = assessmentIds.length
+          ? await supabase.from("teacher_assessment_marks")
+            .select("id,assessment_id,student_id,marks_obtained")
+            .in("assessment_id", assessmentIds)
+            .order("updated_at", { ascending: false })
+            .limit(10)
           : { data: [], error: null };
-        if (markStudentsError) {
-          setMessage(`Recent marks could not be loaded: ${markStudentsError.message}`);
+        if (controller.signal.aborted) return;
+        if (marksError) {
+          setMessage(`Recent marks could not be loaded: ${marksError.message}`);
           setRecentMarks([]);
         } else {
-          const studentNames = new Map((markStudents ?? []).map((student) => [
-            student.id,
-            [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-          ]));
-          const assessmentsById = new Map(teacherAssessments.map((assessment) => [assessment.id, assessment]));
-          setRecentMarks(marksRows.flatMap((mark) => {
-            const assessment = assessmentsById.get(mark.assessment_id);
-            return assessment ? [{
-              id: mark.id,
-              assessmentName: assessment.name,
-              studentName: studentNames.get(mark.student_id) ?? "Student",
-              marks: Number(mark.marks_obtained),
-              maximum: Number(assessment.maximum_marks),
-            }] : [];
-          }));
+          const marksRows = marksData ?? [];
+          const markStudentIds = [...new Set(marksRows.map((mark) => mark.student_id))];
+          const { data: markStudents, error: markStudentsError } = markStudentIds.length
+            ? await supabase.from("students").select("id,first_name,middle_name,last_name").in("id", markStudentIds)
+            : { data: [], error: null };
+          if (controller.signal.aborted) return;
+          if (markStudentsError) {
+            setMessage(`Recent marks could not be loaded: ${markStudentsError.message}`);
+            setRecentMarks([]);
+          } else {
+            const studentNames = new Map((markStudents ?? []).map((student) => [
+              student.id,
+              [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+            ]));
+            const assessmentsById = new Map(teacherAssessments.map((assessment) => [assessment.id, assessment]));
+            setRecentMarks(marksRows.flatMap((mark) => {
+              const assessment = assessmentsById.get(mark.assessment_id);
+              return assessment ? [{
+                id: mark.id,
+                assessmentName: assessment.name,
+                studentName: studentNames.get(mark.student_id) ?? "Student",
+                marks: Number(mark.marks_obtained),
+                maximum: Number(assessment.maximum_marks),
+              }] : [];
+            }));
+          }
         }
       }
+
+      const { data: notices } = await supabase
+        .from("notices")
+        .select("id,title,content,published_at,created_at")
+        .eq("created_by", userId)
+        .order("created_at", { ascending: false })
+        .limit(20).returns<NoticeRow[]>();
+      if (controller.signal.aborted) return;
+      setTeacherNotices(notices ?? []);
+
+      setBusy(false);
     }
-
-    const { data: notices } = await supabase
-      .from("notices")
-      .select("id,title,content,published_at,created_at")
-      .eq("created_by", userId)
-      .order("created_at", { ascending: false })
-      .limit(20);
-    setTeacherNotices(notices ?? []);
-
-    setBusy(false);
-  }
-
-  async function loadStudents(assignment = currentAssignment) {
-    if (!assignment) return;
-    const { data, error } = await supabase
-      .from("enrollments")
-      .select("student_id,section_id")
-      .eq("class_id", assignment.class_id)
-      .eq("academic_year_id", assignment.academic_year_id)
-      .eq("status", "active")
-      .limit(200);
-    if (error) {
-      setStudents([]);
-      setMessage(`Student list could not be loaded: ${error.message}`);
-      return;
-    }
-    const ids = (data ?? [])
-      .filter((e: any) => !assignment.section_id || e.section_id === assignment.section_id)
-      .map((e: any) => e.student_id);
-    if (!ids.length) {
-      setStudents([]);
-      return;
-    }
-    const { data: st } = await supabase
-      .from("students")
-      .select("id,admission_no,first_name,middle_name,last_name,roll_no,dob,status")
-      .in("id", ids)
-      .order("roll_no");
-    setStudents((st ?? []) as StudentRow[]);
-  }
-
-  useEffect(() => {
-    load();
-  }, [userId]);
-
-  useEffect(() => {
-    if (currentAssignment) loadStudents(currentAssignment);
-  }, [selectedAssignment, assignments.length]);
-
-  async function saveAttendance() {
-    if (!teacher || !currentAssignment || !students.length) return;
-    if (!currentAssignment.is_class_teacher) {
-      setMessage("Only the assigned Class Teacher can mark attendance for this class/section.");
-      return;
-    }
-    setBusy(true);
-    const rows = students.map((s) => ({
-      school_id: teacher.school_id,
-      academic_year_id: currentAssignment.academic_year_id,
-      student_id: s.id,
-      section_id: currentAssignment.section_id,
-      attendance_date: attendanceDate,
-      status: (attendance[s.id] || "present") as "present" | "absent" | "late" | "half_day" | "leave",
-      marked_by: userId,
-    }));
-    const { error } = await supabase.from("attendance").upsert(rows, { onConflict: "student_id,attendance_date" });
-    setMessage(error ? error.message : `Attendance saved for ${students.length} students.`);
-    setBusy(false);
-  }
+    void load();
+    return () => controller.abort();
+  }, [supabase, userId, reloadVersion]);
 
   async function saveNotice() {
     if (!teacher || !noticeTitle.trim() || !noticeContent.trim()) return;
@@ -645,7 +642,7 @@ function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userI
     setBusy(false);
   }
 
-  const today = dateToday();
+  const today = schoolDate();
   const todayLogRows = logs.filter((log) => log.log_date === today);
   const myClassCount = new Set(assignments.map((assignment) => `${assignment.class_id}:${assignment.section_id ?? ""}`)).size;
   const absentAttendanceRows = todayAttendanceRows.filter((row) => row.status === "absent");
@@ -811,10 +808,12 @@ function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userI
               <label className="block text-sm font-semibold">Assigned class / subject
                 <select
                   value={selectedAssignment}
+                  disabled={attendanceLocked || busy}
                   onChange={(e) => setSelectedAssignment(e.target.value)}
                   className="field mt-2"
                 >
-                  {(classTeacherAssignments.length ? classTeacherAssignments : assignments).map((a) => (
+                  {!selectedAssignment && <option value="">No assigned class teacher section</option>}
+                  {classTeacherAssignments.filter((assignment) => assignment.section_id).map((a) => (
                     <option key={a.id} value={a.id}>{a.className} {a.sectionName} · {a.subjectName}</option>
                   ))}
                 </select>
@@ -832,33 +831,20 @@ function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userI
               </div>
             </div>
             <div>
-              <div className="flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <h3 className="font-semibold">Record attendance</h3>
-                  <p className="mt-1 text-xs muted">{students.length} students loaded. {currentAssignment?.is_class_teacher ? "You can mark attendance for this class." : "Attendance marking is available to the assigned Class Teacher."}</p>
-                </div>
-                <input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} className="field w-auto min-w-40" />
-              </div>
-              <div className="mt-3 max-h-72 overflow-auto rounded-xl border border-[var(--border)]">
-                {students.length ? students.map((s) => (
-                  <div key={s.id} className="flex items-center gap-3 border-b border-[var(--border)] p-3 last:border-0">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-semibold">{nameOf(s)}</div>
-                      <div className="text-xs muted">{s.admission_no} · Roll {s.roll_no || "—"}</div>
-                    </div>
-                    <select value={attendance[s.id] || "present"} onChange={(e) => setAttendance((p) => ({ ...p, [s.id]: e.target.value }))} className="field w-auto min-w-32">
-                      <option value="present">Present</option>
-                      <option value="absent">Absent</option>
-                      <option value="late">Late</option>
-                      <option value="half_day">Half Day</option>
-                      <option value="leave">Leave</option>
-                    </select>
-                  </div>
-                )) : <div className="p-5 text-sm muted">No enrolled students found for this class/section.</div>}
-              </div>
-              <button disabled={busy || !students.length || !currentAssignment?.is_class_teacher} onClick={saveAttendance} className="mt-3 inline-flex items-center gap-2 rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">
-                <CheckCircle2 size={17} /> Save Attendance
-              </button>
+              <h3 className="mb-3 font-semibold">Record attendance</h3>
+              <fieldset disabled={busy}>
+              <AttendanceEditor
+                context={teacher?.school_id && currentAssignment?.is_class_teacher && currentAssignment.section_id ? {
+                  schoolId: teacher.school_id,
+                  academicYearId: currentAssignment.academic_year_id,
+                  classId: currentAssignment.class_id,
+                  sectionId: currentAssignment.section_id,
+                } : null}
+                userId={userId}
+                onLockChange={setAttendanceLocked}
+                onSaved={refresh}
+              />
+              </fieldset>
             </div>
           </div>
         </div>
@@ -921,11 +907,20 @@ function TeacherDashboard({ schoolId, userId }: { schoolId: string | null; userI
   );
 }
 
-function FinanceDashboard({ schoolId, userId }: { schoolId: string | null; userId: string }) {
-  const supabase = createClient();
+async function loadFinanceDashboardData(supabase: ReturnType<typeof createClient>, schoolId: string | null) {
+  const [{ data: students }, { data: year }, { data: structures }] = await Promise.all([
+    supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no,dob,status").order("first_name").limit(500).returns<StudentRow[]>(),
+    schoolId ? supabase.from("academic_years").select("*").eq("school_id", schoolId).eq("is_current", true).returns<AcademicYearRow[]>().maybeSingle() : Promise.resolve({ data: null }),
+    schoolId ? supabase.from("fee_structures").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).returns<FeeStructureRow[]>() : Promise.resolve({ data: [] as FeeStructureRow[] }),
+  ]);
+  return { students: students ?? [], year, structures: structures ?? [] };
+}
+
+function FinanceDashboard({ schoolId }: { schoolId: string | null }) {
+  const [supabase] = useState(createClient);
   const [students, setStudents] = useState<StudentRow[]>([]);
-  const [year, setYear] = useState<any>(null);
-  const [structures, setStructures] = useState<any[]>([]);
+  const [year, setYear] = useState<AcademicYearRow | null>(null);
+  const [structures, setStructures] = useState<FeeStructureRow[]>([]);
   const [selectedStudent, setSelectedStudent] = useState("");
   const [selectedStructure, setSelectedStructure] = useState("");
   const [feeName, setFeeName] = useState("");
@@ -933,22 +928,20 @@ function FinanceDashboard({ schoolId, userId }: { schoolId: string | null; userI
   const [feeAmount, setFeeAmount] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [receipt, setReceipt] = useState<any>(null);
+  const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function load() {
-    const [{ data: st }, { data: ay }, { data: fs }] = await Promise.all([
-      supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no,dob,status").order("first_name").limit(500),
-      schoolId ? supabase.from("academic_years").select("*").eq("school_id", schoolId).eq("is_current", true).maybeSingle() : Promise.resolve({ data: null }),
-      schoolId ? supabase.from("fee_structures").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as any[] }),
-    ]);
-    setStudents((st ?? []) as StudentRow[]);
-    setYear(ay);
-    setStructures(fs ?? []);
-  }
-
-  useEffect(() => { load(); }, [schoolId]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadFinanceDashboardData(supabase, schoolId).then((data) => {
+      if (controller.signal.aborted) return;
+      setStudents(data.students);
+      setYear(data.year);
+      setStructures(data.structures);
+    });
+    return () => controller.abort();
+  }, [schoolId, supabase]);
 
   async function createStructure() {
     if (!schoolId || !year || !feeName.trim() || !feeAmount) return;
@@ -964,7 +957,10 @@ function FinanceDashboard({ schoolId, userId }: { schoolId: string | null; userI
     if (!error) {
       setFeeName("");
       setFeeAmount("");
-      await load();
+      const data = await loadFinanceDashboardData(supabase, schoolId);
+      setStudents(data.students);
+      setYear(data.year);
+      setStructures(data.structures);
     }
     setBusy(false);
   }
@@ -1097,69 +1093,111 @@ function FinanceDashboard({ schoolId, userId }: { schoolId: string | null; userI
   );
 }
 
-function StudentDashboard({ userId }: { userId: string }) {
-  const supabase = createClient();
-  const [student, setStudent] = useState<any>(null);
-  const [enrollment, setEnrollment] = useState<any>(null);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [logs, setLogs] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [fees, setFees] = useState<any[]>([]);
-  const [message, setMessage] = useState("");
+async function loadStudentDashboardData(
+  supabase: ReturnType<typeof createClient>,
+  student: FamilyStudent,
+  signal: AbortSignal,
+): Promise<StudentDashboardData | null> {
+  const [{ data: enrollment }, attendanceResult, { data: fees }] = await Promise.all([
+    supabase.from("enrollments").select("class_id,section_id,academic_year_id,roll_no").eq("student_id", student.id).eq("status", "active").order("enrolled_at", { ascending: false }).limit(1).returns<EnrollmentRow[]>().maybeSingle(),
+    loadFamilyAttendance(supabase, student),
+    supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date").eq("student_id", student.id).order("created_at", { ascending: false }).limit(30).returns<StudentFeeRow[]>(),
+  ]);
+  if (signal.aborted) return null;
 
-  async function load() {
-    const { data: s } = await supabase.from("students").select("*").eq("profile_id", userId).maybeSingle();
-    if (!s) {
-      setMessage("Student profile is not linked to this Google account.");
-      return;
-    }
-    setStudent(s);
-
-    const { data: e } = await supabase.from("enrollments").select("*").eq("student_id", s.id).eq("status", "active").order("enrolled_at", { ascending: false }).limit(1).maybeSingle();
-    setEnrollment(e);
-
-    const [{ data: at }, { data: sf }] = await Promise.all([
-      supabase.from("attendance").select("attendance_date,status,remarks,academic_year_id").eq("student_id", s.id).order("attendance_date", { ascending: false }).limit(60),
-      supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date").eq("student_id", s.id).order("created_at", { ascending: false }).limit(30),
-    ]);
-    setAttendance(at ?? []);
-    setFees(sf ?? []);
-
-    if (e) {
-      let logQuery = supabase.from("class_logs")
-        .select("id,log_date,topic,summary,subject_id,class_id,section_id,academic_year_id,teacher_remark,status")
-        .eq("class_id", e.class_id)
-        .eq("status", "published");
-      if (e.academic_year_id) logQuery = logQuery.eq("academic_year_id", e.academic_year_id);
-      logQuery = e.section_id
-        ? logQuery.or(`section_id.is.null,section_id.eq.${e.section_id}`)
-        : logQuery.is("section_id", null);
-      const { data: l } = await logQuery.order("log_date", { ascending: false }).limit(30);
-      setLogs(l ?? []);
-      const ids = (l ?? []).map((x: any) => x.id);
-      if (ids.length) {
-        const { data: a } = await supabase.from("class_activities").select("id,activity_type,title,description,due_date,class_log_id").in("class_log_id", ids).order("created_at", { ascending: false });
-        setActivities(a ?? []);
-      } else {
-        setActivities([]);
-      }
-    } else {
-      setLogs([]);
-      setActivities([]);
+  let logs: LogRow[] = [];
+  let activities: ActivityRow[] = [];
+  if (enrollment) {
+    let logQuery = supabase.from("class_logs")
+      .select("id,log_date,topic,summary,subject_id,class_id,section_id,academic_year_id,teacher_remark,status")
+      .eq("class_id", enrollment.class_id)
+      .eq("status", "published");
+    if (enrollment.academic_year_id) logQuery = logQuery.eq("academic_year_id", enrollment.academic_year_id);
+    logQuery = enrollment.section_id
+      ? logQuery.or(`section_id.is.null,section_id.eq.${enrollment.section_id}`)
+      : logQuery.is("section_id", null);
+    const { data } = await logQuery.order("log_date", { ascending: false }).limit(30).returns<LogRow[]>();
+    if (signal.aborted) return null;
+    logs = data ?? [];
+    const ids = logs.map((log) => log.id);
+    if (ids.length) {
+      const { data } = await supabase.from("class_activities").select("id,activity_type,title,description,due_date,class_log_id").in("class_log_id", ids).order("created_at", { ascending: false }).returns<ActivityRow[]>();
+      if (signal.aborted) return null;
+      activities = data ?? [];
     }
   }
+  return {
+    student, enrollment, attendance: attendanceResult.rows,
+    attendanceError: attendanceResult.error, fees: fees ?? [], logs, activities,
+  };
+}
 
-  useEffect(() => { load(); }, [userId]);
+function attendanceRate(rows: FamilyAttendanceRow[]) {
+  if (!rows.length) return "—";
+  const present = rows.filter((row) => row.status === "present" || row.status === "late").length;
+  return `${Math.round(present / rows.length * 100)}%`;
+}
 
-  const present = attendance.filter((x) => x.status === "present" || x.status === "late").length;
-  const attendancePct = attendance.length ? Math.round((present / attendance.length) * 100) : 0;
+function AttendanceHistory({ title, rows, error, loading }: {
+  title: string;
+  rows: FamilyAttendanceRow[];
+  error: boolean;
+  loading: boolean;
+}) {
+  return (
+    <Card title={title} icon={<CalendarCheck size={18} />}>
+      {loading ? <p role="status" className="text-sm muted">Loading attendance…</p>
+        : error ? <p role="alert" className="text-sm text-red-600">Attendance could not be loaded. Refresh to try again.</p>
+        : rows.length ? (
+          <ul className="space-y-2">
+            {rows.map((row) => (
+              <li key={row.attendance_date} className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] p-3 text-sm">
+                <time dateTime={row.attendance_date}>{displayDate(row.attendance_date)}</time>
+                <span className={row.status === "absent" ? "font-semibold text-red-600" : "font-semibold"}>
+                  {attendanceLabels[row.status] ?? row.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm muted">No attendance records available.</p>}
+    </Card>
+  );
+}
+
+function StudentDashboard({ userId }: { userId: string }) {
+  const [supabase] = useState(createClient);
+  const [data, setData] = useState<StudentDashboardData>(emptyStudentDashboard);
+  const { student, enrollment, attendance, attendanceError, logs, activities, fees } = data;
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const [student] = await loadFamilyStudents(supabase, "student", userId);
+        if (controller.signal.aborted) return;
+        if (!student) {
+          setMessage("No student profile is linked to this account.");
+          return;
+        }
+        const data = await loadStudentDashboardData(supabase, student, controller.signal);
+        if (data && !controller.signal.aborted) setData(data);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setMessage(error instanceof Error ? error.message : "Your student profile could not be loaded. Refresh to try again.");
+        }
+      }
+    }
+    void load();
+    return () => controller.abort();
+  }, [supabase, userId]);
 
   return (
     <div className="space-y-6">
       <Header role="student" subtitle="Your school work, attendance, homework, projects, study material, results and fees — read-only from the student account." />
       {message && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{message}</div>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Attendance" value={`${attendancePct}%`} tone="green" />
+        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
         <Stat label="Class Logs" value={logs.length} />
         <Stat label="Homework / Work" value={activities.length} tone="purple" />
         <Stat label="Fee Records" value={fees.length} tone="orange" />
@@ -1173,16 +1211,7 @@ function StudentDashboard({ userId }: { userId: string }) {
         </div>
       </Card>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Attendance History" icon={<CalendarCheck size={18} />}>
-          <div className="space-y-2">
-            {attendance.slice(0, 20).map((a) => (
-              <div key={a.attendance_date} className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] p-3 text-sm">
-                <span>{a.attendance_date}</span>
-                <span className={a.status === "present" ? "font-semibold text-emerald-600" : a.status === "absent" ? "font-semibold text-red-600" : "font-semibold text-orange-600"}>{a.status}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <AttendanceHistory title="Attendance History" rows={attendance.slice(0, 20)} error={attendanceError} loading={!student && !message} />
         <Card title="Today's Learning" icon={<BookOpen size={18} />}>
           <div className="space-y-2">
             {logs.filter((log) => log.log_date === dateToday()).map((log) => (
@@ -1242,91 +1271,65 @@ function StudentDashboard({ userId }: { userId: string }) {
 }
 
 function ParentDashboard({ userId }: { userId: string }) {
-  const supabase = createClient();
-  const [parent, setParent] = useState<any>(null);
-  const [children, setChildren] = useState<StudentRow[]>([]);
+  const [supabase] = useState(createClient);
+  const [children, setChildren] = useState<FamilyStudent[]>([]);
   const [selected, setSelected] = useState("");
-  const [child, setChild] = useState<any>(null);
-  const [attendance, setAttendance] = useState<any[]>([]);
-  const [enrollment, setEnrollment] = useState<any>(null);
-  const [logs, setLogs] = useState<any[]>([]);
-  const [activities, setActivities] = useState<any[]>([]);
-  const [fees, setFees] = useState<any[]>([]);
+  const [childData, setChildData] = useState<{ studentId: string; data: StudentDashboardData } | null>(null);
+  // A newly selected child starts with empty data until that child's request finishes.
+  const { student: child, attendance, attendanceError, enrollment, logs, activities, fees } =
+    childData?.studentId === selected ? childData.data : emptyStudentDashboard;
   const [message, setMessage] = useState("");
 
-  async function load() {
-    const { data: p } = await supabase.from("parents").select("*").eq("profile_id", userId).maybeSingle();
-    if (!p) {
-      setMessage("Parent profile is not linked to this Google account.");
-      return;
-    }
-    setParent(p);
-    const { data: links } = await supabase.from("student_parents").select("student_id").eq("parent_id", p.id);
-    const ids = (links ?? []).map((x: any) => x.student_id);
-    if (!ids.length) {
-      setMessage("No child is linked to this parent account yet.");
-      return;
-    }
-    const { data: st } = await supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no,dob,status").in("id", ids);
-    const list = (st ?? []) as StudentRow[];
-    setChildren(list);
-    if (!selected && list[0]) setSelected(list[0].id);
-  }
-
-  async function loadChild(studentId: string) {
-    if (!studentId || !children.some((student) => student.id === studentId)) return;
-    const { data: s } = await supabase.from("students").select("*").eq("id", studentId).maybeSingle();
-    setChild(s);
-    const { data: e } = await supabase.from("enrollments").select("*").eq("student_id", studentId).eq("status", "active").order("enrolled_at", { ascending: false }).limit(1).maybeSingle();
-    setEnrollment(e);
-    const [{ data: at }, { data: sf }] = await Promise.all([
-      supabase.from("attendance").select("attendance_date,status,remarks,academic_year_id").eq("student_id", studentId).order("attendance_date", { ascending: false }).limit(60),
-      supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date").eq("student_id", studentId).order("created_at", { ascending: false }).limit(30),
-    ]);
-    setAttendance(at ?? []);
-    setFees(sf ?? []);
-    if (e) {
-      let logQuery = supabase.from("class_logs")
-        .select("id,log_date,topic,summary,subject_id,class_id,section_id,academic_year_id,teacher_remark,status")
-        .eq("class_id", e.class_id)
-        .eq("status", "published");
-      if (e.academic_year_id) logQuery = logQuery.eq("academic_year_id", e.academic_year_id);
-      logQuery = e.section_id
-        ? logQuery.or(`section_id.is.null,section_id.eq.${e.section_id}`)
-        : logQuery.is("section_id", null);
-      const { data: l } = await logQuery.order("log_date", { ascending: false }).limit(30);
-      setLogs(l ?? []);
-      const ids = (l ?? []).map((x: any) => x.id);
-      if (ids.length) {
-        const { data: a } = await supabase.from("class_activities").select("id,activity_type,title,description,due_date,class_log_id").in("class_log_id", ids).order("created_at", { ascending: false });
-        setActivities(a ?? []);
-      } else {
-        setActivities([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const students = await loadFamilyStudents(supabase, "parent", userId);
+        if (controller.signal.aborted) return;
+        if (!students.length) {
+          setMessage("No child is linked to this parent account yet.");
+          return;
+        }
+        setChildren(students);
+        setSelected(restoreFamilyChild(userId, students));
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setMessage(error instanceof Error ? error.message : "Your parent profile could not be loaded. Refresh to try again.");
+        }
       }
-    } else {
-      setLogs([]);
-      setActivities([]);
     }
+    void load();
+    return () => controller.abort();
+  }, [supabase, userId]);
+
+  useEffect(() => {
+    const student = children.find((item) => item.id === selected);
+    if (!student) return;
+    const controller = new AbortController();
+    void loadStudentDashboardData(supabase, student, controller.signal).then((data) => {
+      if (data && !controller.signal.aborted) setChildData({ studentId: selected, data });
+    });
+    return () => controller.abort();
+  }, [children, selected, supabase]);
+
+  function selectChild(id: string) {
+    setChildData(null);
+    setSelected(id);
+    rememberFamilyChild(userId, id);
   }
-
-  useEffect(() => { load(); }, [userId]);
-  useEffect(() => { if (selected) loadChild(selected); }, [selected]);
-
-  const present = attendance.filter((x) => x.status === "present" || x.status === "late").length;
-  const pct = attendance.length ? Math.round((present / attendance.length) * 100) : 0;
 
   return (
     <div className="space-y-6">
       <Header role="parent" subtitle="Select your child to see class, section, roll number, attendance, academic work, homework, projects, study material and fee status." />
       {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{message}</div>}
       <Card title="Select Child" icon={<Users size={18} />}>
-        <select value={selected} onChange={(e) => setSelected(e.target.value)} className="field max-w-xl">
-          <option value="">Select child</option>
+        <select aria-label="Select child" value={selected} onChange={(e) => selectChild(e.target.value)} className="field max-w-xl" disabled={!children.length}>
+          <option value="" disabled>Select child</option>
           {children.map((s) => <option key={s.id} value={s.id}>{nameOf(s)} · {s.admission_no}</option>)}
         </select>
       </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Attendance" value={`${pct}%`} tone="green" />
+        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
         <Stat label="Academic Logs" value={logs.length} />
         <Stat label="Homework / Projects" value={activities.length} tone="purple" />
         <Stat label="Fee Records" value={fees.length} tone="orange" />
@@ -1341,9 +1344,7 @@ function ParentDashboard({ userId }: { userId: string }) {
         </div>
       </Card>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Attendance by Date" icon={<CalendarCheck size={18} />}>
-          <div className="space-y-2">{attendance.slice(0, 25).map((a) => <div key={a.attendance_date} className="flex justify-between rounded-xl bg-[var(--surface-2)] p-3 text-sm"><span>{a.attendance_date}</span><b className={a.status === "present" ? "text-emerald-600" : "text-red-600"}>{a.status}</b></div>)}</div>
-        </Card>
+        <AttendanceHistory title="Attendance by Date" rows={attendance.slice(0, 25)} error={attendanceError} loading={!child && !message} />
         <Card title="School Work / What Was Given" icon={<ClipboardList size={18} />}>
           <div className="space-y-2">{activities.slice(0, 25).map((a) => <div key={a.id} className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs font-bold uppercase text-blue-600">{a.activity_type}</div><div className="mt-1 text-sm font-semibold">{a.title}</div>{a.due_date && <div className="mt-1 text-xs muted">Due {a.due_date}</div>}</div>)}</div>
         </Card>
@@ -1373,18 +1374,20 @@ function ParentDashboard({ userId }: { userId: string }) {
 }
 
 function AdminDashboard({ schoolId }: { schoolId: string | null }) {
-  const supabase = createClient();
+  const [supabase] = useState(createClient);
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [overview, setOverview] = useState<AdminOverview>(emptyAdminOverview);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [dashboardLoading, setDashboardLoading] = useState(Boolean(schoolId));
   const [recentSchoolLogs, setRecentSchoolLogs] = useState<AdminOverviewLog[]>([]);
   const [recentSchoolActivities, setRecentSchoolActivities] = useState<AdminOverviewActivity[]>([]);
   const [upcomingSchoolAssessments, setUpcomingSchoolAssessments] = useState<AdminOverviewAssessment[]>([]);
   const [recentSchoolResults, setRecentSchoolResults] = useState<AdminOverviewResult[]>([]);
   const [schoolNotices, setSchoolNotices] = useState<{ id: string; title: string; content: string; created_at: string | null }[]>([]);
   const [schoolNames, setSchoolNames] = useState<TeacherDisplayNames>({ classes: {}, sections: {}, subjects: {} });
-  const [dashboardError, setDashboardError] = useState("");
+  const [dashboardError, setDashboardError] = useState(schoolId ? "" : "This admin account is not linked to a school.");
 
-  async function load() {
+  function refresh() {
+    if (!schoolId) return;
     setDashboardLoading(true);
     setDashboardError("");
     setOverview(emptyAdminOverview);
@@ -1394,196 +1397,204 @@ function AdminDashboard({ schoolId }: { schoolId: string | null }) {
     setRecentSchoolResults([]);
     setSchoolNotices([]);
     setSchoolNames({ classes: {}, sections: {}, subjects: {} });
-    if (!schoolId) {
-      setDashboardError("This admin account is not linked to a school.");
-      setDashboardLoading(false);
-      return;
-    }
-
-    const today = dateToday();
-    const todayStart = new Date(`${today}T00:00:00`).toISOString();
-    const tomorrowDate = new Date(`${today}T00:00:00`);
-    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowStart = tomorrowDate.toISOString();
-    const monthStartDate = new Date(`${today.slice(0, 7)}-01T00:00:00`);
-    const monthStart = monthStartDate.toISOString();
-    const weekEndDate = new Date(`${today}T00:00:00`);
-    weekEndDate.setDate(weekEndDate.getDate() + 7);
-    const weekEnd = weekEndDate.toISOString().slice(0, 10);
-
-    const sumCollection = async (start: string, end: string) => {
-      let total = 0;
-      for (let offset = 0; ; offset += 500) {
-        const { data, error } = await supabase
-          .from("fee_payments")
-          .select("amount")
-          .eq("school_id", schoolId)
-          .gte("paid_at", start)
-          .lt("paid_at", end)
-          .order("paid_at", { ascending: true })
-          .range(offset, offset + 499);
-        if (error) return { total: 0, error };
-        total += (data ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-        if ((data ?? []).length < 500) return { total, error: null };
-      }
-    };
-
-    const [
-      studentsResult,
-      teachersResult,
-      parentsResult,
-      classesResult,
-      sectionsResult,
-      attendanceResult,
-      absentResult,
-      todayLogsResult,
-      upcomingResult,
-      completedAssessmentsResult,
-      pendingFeesResult,
-      overdueFeesResult,
-      recentLogsResult,
-      noticesResult,
-      todayCollectionResult,
-      monthCollectionResult,
-    ] = await Promise.all([
-      supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      supabase.from("teachers").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      supabase.from("parents").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      supabase.from("classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      supabase.from("sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-      supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today),
-      supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today).eq("status", "absent"),
-      supabase.from("class_logs").select("id,teacher_id,class_id,section_id").eq("school_id", schoolId).eq("log_date", today),
-      supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
-      supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
-      supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid"),
-      supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid").lt("due_date", today),
-      supabase.from("class_logs").select("id,log_date,topic,class_id,section_id,subject_id,status").eq("school_id", schoolId).order("log_date", { ascending: false }).limit(10),
-      supabase.from("notices").select("id,title,content,created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(5),
-      sumCollection(todayStart, tomorrowStart),
-      sumCollection(monthStart, tomorrowStart),
-    ]);
-
-    const queryErrors = [
-      ["students", studentsResult.error],
-      ["teachers", teachersResult.error],
-      ["parents", parentsResult.error],
-      ["classes", classesResult.error],
-      ["sections", sectionsResult.error],
-      ["attendance today", attendanceResult.error],
-      ["absent students", absentResult.error],
-      ["today's class logs", todayLogsResult.error],
-      ["upcoming assessments", upcomingResult.error],
-      ["completed assessments", completedAssessmentsResult.error],
-      ["pending fees", pendingFeesResult.error],
-      ["overdue fees", overdueFeesResult.error],
-      ["recent academic logs", recentLogsResult.error],
-      ["notices", noticesResult.error],
-      ["today's fee payments", todayCollectionResult.error],
-      ["monthly fee payments", monthCollectionResult.error],
-    ] as const;
-    const failedQueries = queryErrors.filter(([, error]) => error);
-    for (const [queryName, error] of failedQueries) {
-      logAdminDashboardQueryError(queryName, error);
-    }
-    if (failedQueries.length) {
-      setDashboardError("Some dashboard data could not be loaded. Please refresh or contact your administrator.");
-    }
-
-    const logs = (recentLogsResult.error ? [] : recentLogsResult.data ?? []) as AdminOverviewLog[];
-    const todayLogs = todayLogsResult.data ?? [];
-    const upcoming = (upcomingResult.error ? [] : upcomingResult.data ?? []) as AdminOverviewAssessment[];
-    const completedAssessments = (completedAssessmentsResult.error ? [] : completedAssessmentsResult.data ?? []) as AdminOverviewAssessment[];
-    const teacherIdsWithActivity = new Set(todayLogs.map((log) => log.teacher_id).filter(Boolean));
-    setOverview({
-      students: studentsResult.error ? null : studentsResult.count ?? 0,
-      teachers: teachersResult.error ? null : teachersResult.count ?? 0,
-      parents: parentsResult.error ? null : parentsResult.count ?? 0,
-      classes: classesResult.error ? null : classesResult.count ?? 0,
-      sections: sectionsResult.error ? null : sectionsResult.count ?? 0,
-      attendanceToday: attendanceResult.error ? null : attendanceResult.count ?? 0,
-      absentToday: absentResult.error ? null : absentResult.count ?? 0,
-      activeTeachers: todayLogsResult.error ? null : teacherIdsWithActivity.size,
-      classesLoggedToday: todayLogsResult.error ? null : new Set(todayLogs.map((log) => `${log.class_id}:${log.section_id ?? ""}`)).size,
-      upcomingExams: upcomingResult.error ? null : upcomingResult.count ?? upcoming.length,
-      todayCollection: todayCollectionResult.error ? null : todayCollectionResult.total,
-      monthCollection: monthCollectionResult.error ? null : monthCollectionResult.total,
-      pendingFees: pendingFeesResult.error ? null : pendingFeesResult.count ?? 0,
-      overdueFees: overdueFeesResult.error ? null : overdueFeesResult.count ?? 0,
-    });
-    setRecentSchoolLogs(logs);
-    setUpcomingSchoolAssessments(upcoming);
-    setSchoolNotices(noticesResult.error ? [] : noticesResult.data ?? []);
-
-    const completedAssessmentIds = completedAssessments.map((assessment) => assessment.id);
-    if (completedAssessmentIds.length) {
-      const { data: marks, error: marksError } = await supabase
-        .from("teacher_assessment_marks")
-        .select("id,assessment_id,student_id,marks_obtained,updated_at")
-        .in("assessment_id", completedAssessmentIds)
-        .order("updated_at", { ascending: false })
-        .limit(10);
-      if (marksError) {
-        console.error("Admin dashboard recent results could not be loaded", marksError);
-        setDashboardError("Recent results could not be loaded.");
-      } else {
-        const studentIds = [...new Set((marks ?? []).map((mark) => mark.student_id))];
-        const { data: resultStudents, error: resultStudentsError } = studentIds.length
-          ? await supabase.from("students").select("id,first_name,middle_name,last_name").eq("school_id", schoolId).in("id", studentIds)
-          : { data: [], error: null };
-        if (resultStudentsError) {
-          console.error("Admin dashboard result student names could not be loaded", resultStudentsError);
-          setDashboardError("Recent results could not be loaded.");
-        } else {
-          const studentNames = new Map((resultStudents ?? []).map((student) => [
-            student.id,
-            [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-          ]));
-          const assessmentsById = new Map(completedAssessments.map((assessment) => [assessment.id, assessment]));
-          setRecentSchoolResults((marks ?? []).flatMap((mark) => {
-            const assessment = assessmentsById.get(mark.assessment_id);
-            if (!assessment) return [];
-            return [{
-              id: mark.id,
-              assessmentName: assessment.name,
-              studentName: studentNames.get(mark.student_id) ?? "Student",
-              marks: Number(mark.marks_obtained),
-              maximum: Number(assessment.maximum_marks),
-              classId: assessment.class_id,
-              sectionId: assessment.section_id,
-              subjectId: assessment.subject_id,
-            }];
-          }));
-        }
-      }
-    } else {
-      setRecentSchoolResults([]);
-    }
-
-    const logIds = logs.map((log) => log.id);
-    const [{ data: activities, error: activitiesError }, { data: classes, error: classesError }, { data: sections, error: sectionsError }, { data: subjects, error: subjectsError }] = await Promise.all([
-      logIds.length
-        ? supabase.from("class_activities").select("id,class_log_id,activity_type,title,due_date").in("class_log_id", logIds).order("created_at", { ascending: false }).limit(30)
-        : Promise.resolve({ data: [], error: null }),
-      supabase.from("classes").select("id,name").eq("school_id", schoolId),
-      supabase.from("sections").select("id,name").eq("school_id", schoolId),
-      supabase.from("subjects").select("id,name").eq("school_id", schoolId),
-    ]);
-    if (activitiesError || classesError || sectionsError || subjectsError) {
-      const error = activitiesError ?? classesError ?? sectionsError ?? subjectsError;
-      console.error("Admin dashboard activity labels could not be loaded", error);
-      setDashboardError("Some academic activity details could not be loaded.");
-    }
-    setRecentSchoolActivities((activities ?? []) as AdminOverviewActivity[]);
-    setSchoolNames({
-      classes: Object.fromEntries((classes ?? []).map((item) => [item.id, item.name])),
-      sections: Object.fromEntries((sections ?? []).map((item) => [item.id, item.name])),
-      subjects: Object.fromEntries((subjects ?? []).map((item) => [item.id, item.name])),
-    });
-    setDashboardLoading(false);
+    setReloadVersion((version) => version + 1);
   }
 
-  useEffect(() => { load(); }, [schoolId]);
+  useEffect(() => {
+    if (!schoolId) return;
+    const controller = new AbortController();
+    async function load() {
+
+      const today = dateToday();
+      const todayStart = new Date(`${today}T00:00:00`).toISOString();
+      const tomorrowDate = new Date(`${today}T00:00:00`);
+      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+      const tomorrowStart = tomorrowDate.toISOString();
+      const monthStartDate = new Date(`${today.slice(0, 7)}-01T00:00:00`);
+      const monthStart = monthStartDate.toISOString();
+      const weekEndDate = new Date(`${today}T00:00:00`);
+      weekEndDate.setDate(weekEndDate.getDate() + 7);
+      const weekEnd = weekEndDate.toISOString().slice(0, 10);
+
+      const sumCollection = async (start: string, end: string) => {
+        let total = 0;
+        for (let offset = 0; ; offset += 500) {
+          const { data, error } = await supabase
+            .from("fee_payments")
+            .select("amount")
+            .eq("school_id", schoolId)
+            .gte("paid_at", start)
+            .lt("paid_at", end)
+            .order("paid_at", { ascending: true })
+            .range(offset, offset + 499);
+          if (error) return { total: 0, error };
+          total += (data ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+          if ((data ?? []).length < 500) return { total, error: null };
+        }
+      };
+      if (controller.signal.aborted) return;
+
+      const [
+        studentsResult,
+        teachersResult,
+        parentsResult,
+        classesResult,
+        sectionsResult,
+        attendanceResult,
+        absentResult,
+        todayLogsResult,
+        upcomingResult,
+        completedAssessmentsResult,
+        pendingFeesResult,
+        overdueFeesResult,
+        recentLogsResult,
+        noticesResult,
+        todayCollectionResult,
+        monthCollectionResult,
+      ] = await Promise.all([
+        supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        supabase.from("teachers").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        supabase.from("parents").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        supabase.from("classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        supabase.from("sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
+        supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today),
+        supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today).eq("status", "absent"),
+        supabase.from("class_logs").select("id,teacher_id,class_id,section_id").eq("school_id", schoolId).eq("log_date", today),
+        supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
+        supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
+        supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid"),
+        supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid").lt("due_date", today),
+        supabase.from("class_logs").select("id,log_date,topic,class_id,section_id,subject_id,status").eq("school_id", schoolId).order("log_date", { ascending: false }).limit(10),
+        supabase.from("notices").select("id,title,content,created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(5),
+        sumCollection(todayStart, tomorrowStart),
+        sumCollection(monthStart, tomorrowStart),
+      ]);
+      if (controller.signal.aborted) return;
+
+      const queryErrors = [
+        ["students", studentsResult.error],
+        ["teachers", teachersResult.error],
+        ["parents", parentsResult.error],
+        ["classes", classesResult.error],
+        ["sections", sectionsResult.error],
+        ["attendance today", attendanceResult.error],
+        ["absent students", absentResult.error],
+        ["today's class logs", todayLogsResult.error],
+        ["upcoming assessments", upcomingResult.error],
+        ["completed assessments", completedAssessmentsResult.error],
+        ["pending fees", pendingFeesResult.error],
+        ["overdue fees", overdueFeesResult.error],
+        ["recent academic logs", recentLogsResult.error],
+        ["notices", noticesResult.error],
+        ["today's fee payments", todayCollectionResult.error],
+        ["monthly fee payments", monthCollectionResult.error],
+      ] as const;
+      const failedQueries = queryErrors.filter(([, error]) => error);
+      for (const [queryName, error] of failedQueries) {
+        logAdminDashboardQueryError(queryName, error);
+      }
+      if (failedQueries.length) {
+        setDashboardError("Some dashboard data could not be loaded. Please refresh or contact your administrator.");
+      }
+
+      const logs = (recentLogsResult.error ? [] : recentLogsResult.data ?? []) as AdminOverviewLog[];
+      const todayLogs = todayLogsResult.data ?? [];
+      const upcoming = (upcomingResult.error ? [] : upcomingResult.data ?? []) as AdminOverviewAssessment[];
+      const completedAssessments = (completedAssessmentsResult.error ? [] : completedAssessmentsResult.data ?? []) as AdminOverviewAssessment[];
+      const teacherIdsWithActivity = new Set(todayLogs.map((log) => log.teacher_id).filter(Boolean));
+      setOverview({
+        students: studentsResult.error ? null : studentsResult.count ?? 0,
+        teachers: teachersResult.error ? null : teachersResult.count ?? 0,
+        parents: parentsResult.error ? null : parentsResult.count ?? 0,
+        classes: classesResult.error ? null : classesResult.count ?? 0,
+        sections: sectionsResult.error ? null : sectionsResult.count ?? 0,
+        attendanceToday: attendanceResult.error ? null : attendanceResult.count ?? 0,
+        absentToday: absentResult.error ? null : absentResult.count ?? 0,
+        activeTeachers: todayLogsResult.error ? null : teacherIdsWithActivity.size,
+        classesLoggedToday: todayLogsResult.error ? null : new Set(todayLogs.map((log) => `${log.class_id}:${log.section_id ?? ""}`)).size,
+        upcomingExams: upcomingResult.error ? null : upcomingResult.count ?? upcoming.length,
+        todayCollection: todayCollectionResult.error ? null : todayCollectionResult.total,
+        monthCollection: monthCollectionResult.error ? null : monthCollectionResult.total,
+        pendingFees: pendingFeesResult.error ? null : pendingFeesResult.count ?? 0,
+        overdueFees: overdueFeesResult.error ? null : overdueFeesResult.count ?? 0,
+      });
+      setRecentSchoolLogs(logs);
+      setUpcomingSchoolAssessments(upcoming);
+      setSchoolNotices(noticesResult.error ? [] : noticesResult.data ?? []);
+
+      const completedAssessmentIds = completedAssessments.map((assessment) => assessment.id);
+      if (completedAssessmentIds.length) {
+        const { data: marks, error: marksError } = await supabase
+          .from("teacher_assessment_marks")
+          .select("id,assessment_id,student_id,marks_obtained,updated_at")
+          .in("assessment_id", completedAssessmentIds)
+          .order("updated_at", { ascending: false })
+          .limit(10);
+        if (controller.signal.aborted) return;
+        if (marksError) {
+          console.error("Admin dashboard recent results could not be loaded", marksError);
+          setDashboardError("Recent results could not be loaded.");
+        } else {
+          const studentIds = [...new Set((marks ?? []).map((mark) => mark.student_id))];
+          const { data: resultStudents, error: resultStudentsError } = studentIds.length
+            ? await supabase.from("students").select("id,first_name,middle_name,last_name").eq("school_id", schoolId).in("id", studentIds)
+            : { data: [], error: null };
+          if (controller.signal.aborted) return;
+          if (resultStudentsError) {
+            console.error("Admin dashboard result student names could not be loaded", resultStudentsError);
+            setDashboardError("Recent results could not be loaded.");
+          } else {
+            const studentNames = new Map((resultStudents ?? []).map((student) => [
+              student.id,
+              [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+            ]));
+            const assessmentsById = new Map(completedAssessments.map((assessment) => [assessment.id, assessment]));
+            setRecentSchoolResults((marks ?? []).flatMap((mark) => {
+              const assessment = assessmentsById.get(mark.assessment_id);
+              if (!assessment) return [];
+              return [{
+                id: mark.id,
+                assessmentName: assessment.name,
+                studentName: studentNames.get(mark.student_id) ?? "Student",
+                marks: Number(mark.marks_obtained),
+                maximum: Number(assessment.maximum_marks),
+                classId: assessment.class_id,
+                sectionId: assessment.section_id,
+                subjectId: assessment.subject_id,
+              }];
+            }));
+          }
+        }
+      } else {
+        setRecentSchoolResults([]);
+      }
+
+      const logIds = logs.map((log) => log.id);
+      const [{ data: activities, error: activitiesError }, { data: classes, error: classesError }, { data: sections, error: sectionsError }, { data: subjects, error: subjectsError }] = await Promise.all([
+        logIds.length
+          ? supabase.from("class_activities").select("id,class_log_id,activity_type,title,due_date").in("class_log_id", logIds).order("created_at", { ascending: false }).limit(30)
+          : Promise.resolve({ data: [], error: null }),
+        supabase.from("classes").select("id,name").eq("school_id", schoolId),
+        supabase.from("sections").select("id,name").eq("school_id", schoolId),
+        supabase.from("subjects").select("id,name").eq("school_id", schoolId),
+      ]);
+      if (controller.signal.aborted) return;
+      if (activitiesError || classesError || sectionsError || subjectsError) {
+        const error = activitiesError ?? classesError ?? sectionsError ?? subjectsError;
+        console.error("Admin dashboard activity labels could not be loaded", error);
+        setDashboardError("Some academic activity details could not be loaded.");
+      }
+      setRecentSchoolActivities((activities ?? []) as AdminOverviewActivity[]);
+      setSchoolNames({
+        classes: Object.fromEntries((classes ?? []).map((item) => [item.id, item.name])),
+        sections: Object.fromEntries((sections ?? []).map((item) => [item.id, item.name])),
+        subjects: Object.fromEntries((subjects ?? []).map((item) => [item.id, item.name])),
+      });
+      setDashboardLoading(false);
+    }
+    void load();
+    return () => controller.abort();
+  }, [schoolId, supabase, reloadVersion]);
 
   const formatMoney = (amount: number) => `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   const classLabel = (log: AdminOverviewLog) =>
@@ -1607,7 +1618,7 @@ function AdminDashboard({ schoolId }: { schoolId: string | null }) {
             <h1 className="mt-2 text-3xl font-black sm:text-4xl">School Admin Dashboard</h1>
             <p className="mt-2 text-sm text-white/80">Monitor your school&apos;s people, learning, attendance, and finances.</p>
           </div>
-          <button type="button" onClick={() => void load()} disabled={dashboardLoading} className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
+          <button type="button" onClick={refresh} disabled={dashboardLoading} className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
             <RefreshCw size={16} className={dashboardLoading ? "animate-spin" : ""} /> Refresh
           </button>
         </div>

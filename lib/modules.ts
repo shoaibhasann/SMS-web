@@ -14,6 +14,7 @@ export const modules = [
   { key: "missed-activities", label: "What You Missed", icon: "CircleAlert", group: "Academics" },
   { key: "attendance", label: "Attendance", icon: "CalendarCheck", group: "Academics" },
   { key: "academics", label: "Academics & Subjects", icon: "BookOpen", group: "Academics" },
+  { key: "teacher-assignments", label: "Teaching Assignments", icon: "GraduationCap", group: "Academics" },
   { key: "exams", label: "Exam / Marks", icon: "PencilRuler", group: "Assessment" },
   { key: "results", label: "Result Report", icon: "ChartNoAxesCombined", group: "Assessment" },
   { key: "timetable", label: "Timetable", icon: "CalendarClock", group: "Assessment" },
@@ -101,7 +102,7 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
 };
 
 export function canAccessModule(role: UiRole, moduleKey: string) {
-  if (moduleKey === "teacher-assignments") return role === "teacher" || role === "admin";
+  if (moduleKey === "teacher-assignments") return role === "teacher" || role === "admin" || role === "principal";
   if (moduleKey === "result-report") moduleKey = "results";
   return roleModuleKeys[role].includes(moduleKey);
 }
@@ -113,7 +114,7 @@ export function getVisibleModules(role: UiRole) {
 export function getAdminNavigationModules() {
   const adminOrder = [
     "students", "parents", "teachers", "admissions",
-    "attendance", "academics", "timetable",
+    "attendance", "academics", "teacher-assignments", "timetable",
     "exams", "results",
     "fees", "invoices", "finance-reports",
     "notices", "events", "notifications",
@@ -127,7 +128,7 @@ export function getAdminNavigationModules() {
 }
 
 export function getTeacherNavigationModules() {
-  const teacherOrder = roleModuleKeys.teacher.filter((key) => key !== "teacher-assignments");
+  const teacherOrder = roleModuleKeys.teacher;
   return teacherOrder
     .map((key) => modules.find((module) => module.key === key))
     .filter((module): module is (typeof modules)[number] => Boolean(module));
