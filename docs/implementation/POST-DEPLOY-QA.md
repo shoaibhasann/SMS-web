@@ -128,6 +128,8 @@ Deployed Preview checks passed for the imported roster, saved cashier close, ass
 
 ## Historical attendance, withdrawal and guardian access
 
+Use the [protected Vercel Preview](https://kids-corner-erp-frontend-pso2yvuzv-shoaibhasanns-projects.vercel.app/login), app revision `0dd074aa9e3b1bffc143e90da5b92afef71a95e2`, deployment `dpl_2rSaYRNy9NvrcKcvJPoSGyr47m68`. Sign in to Vercel first and use demo QA accounts.
+
 Use a disposable pupil and synthetic reasons in the demo school `ERP-QA-d767af40`. Keep Pilot One linked to the existing QA guardian so you can verify that removing a second child does not affect the first. Historical register tests above record earlier releases. In the new flow, save the current IST day directly and use an approval for any earlier date.
 
 - [ ] **GDN-03 · Link a second child.** As school admin, admit the disposable pupil in QA Class 6 / QA A and issue an invitation to the existing QA guardian. Accept as that guardian. Both pupils should appear in the child picker after refresh. Create a second pending invite for the same disposable pupil and account before withdrawal.
@@ -136,3 +138,5 @@ Use a disposable pupil and synthetic reasons in the demo school `ERP-QA-d767af40
 - [ ] **RST-03 · Withdraw with history.** As school admin, withdraw the disposable pupil from **Students** with a reason. Reload and confirm the pupil is absent from active roster and current-day Attendance. Check the saved withdrawal history. As the linked guardian, confirm previous attendance remains available while the relationship is still authorized. The pending invitation cannot be accepted after withdrawal.
 - [ ] **GDN-04 · Remove a withdrawn child's link.** As school admin, find the disposable pupil by admission number in **Guardian invitations** and remove the guardian relationship with a reason. Reload the admin workspace and verify the audit entry. Refresh the guardian's Attendance. Pilot One stays visible, and the disposable pupil is absent from the child picker and history. Reopen the pending link and verify that it cannot restore access.
 - [ ] **UX-06 · Use the new controls on phone and desktop.** At about 390 px and 1440 px, use the reason fields, Cancel and submit actions, status feedback and history. Check that dialog focus returns to its trigger on Cancel, review actions stay readable and the page does not scroll sideways.
+
+Automated Chromium against demo Supabase verified same-day save and reload, historical approval and rejection, guardian readback after approval, withdrawal with retained history, and guardian removal with Pilot One still linked. Deployed Preview checks verified both review outcomes, the withdrawn roster, the access-removal audit, teacher review restriction and the guardian’s scoped history after refresh at 390 px. The cases above remain open for manual QA. Live account-confirmation email remains in the founder checklist.
