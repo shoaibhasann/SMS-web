@@ -77,8 +77,8 @@ The deployed browser run verified invite creation and copying, student access de
 
 ### Founder email test
 
-1. Open the guardian Preview and sign in to Vercel. Use the QA school and synthetic pupil for this run. For the guardian, use an inbox you control that has never signed up in this ERP. Supabase's default mailer can send to existing project-team addresses. Use an inbox supported by the project's custom SMTP if configured. [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp)
-2. In Supabase Auth **URL Configuration**, confirm the redirect allowlist covers `https://kids-corner-erp-frontend-iidtbxhn9-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fguardian-invite`. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+1. Open the latest phase Preview below and sign in to Vercel. Use the QA school and synthetic pupil for this run. For the guardian, use an inbox you control that has never signed up in this ERP. Supabase's default mailer can send to existing project-team addresses. Use an inbox supported by the project's custom SMTP if configured. [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp)
+2. In Supabase Auth **URL Configuration**, confirm the redirect allowlist covers `https://kids-corner-erp-frontend-i38lmtc5r-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fguardian-invite`. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
 3. Complete **GUA-01**. In a separate browser profile that can open the Vercel Preview, open the copied link and choose **Create a guardian account** using that exact email address.
 4. Check that the confirmation email arrives. Open the confirmation link in the same browser profile where you created the account. Reopen the original guardian invite, sign in if prompted and select **Accept invitation**.
 5. Complete **GUA-02**. Mark **GUA-03** Pass only after the email reaches the inbox, confirmation works, attendance opens and refresh preserves the linked child. If blocked, record which step failed and what appeared. Keep passwords, invitation links and confirmation links out of the report.
@@ -95,6 +95,8 @@ Revoking a pending invitation stops that link from being used. Accepted guardian
 
 ## Phase QA fixture and school setup
 
+Use the [latest Vercel Preview](https://kids-corner-erp-frontend-i38lmtc5r-shoaibhasanns-projects.vercel.app/login), app revision `0eae34fa5fdc8cfdfb1e75c8384461962c408bda`, deployment `dpl_DcDVES3A77DGWGmRa672SyV3Jsgq`. Sign in to Vercel first, then use the ERP QA login.
+
 Use school `ERP-QA-d767af40` in the demo Supabase project. It has a school-scoped QA admin, academic year **2026–27 Phase QA**, **QA Class 6 / QA A**, and synthetic students Pilot One and Pilot Two. A QA student login is linked to Pilot One. Use the private local handoff for the admin, student and guardian accounts.
 
 - [ ] **SET-01 · Academic setup.** As the QA admin, open **Academics & Subjects**. Add a future year, a class, a section under that class and a subject. Reload and confirm all four records persist. The original current year should still be current.
@@ -108,4 +110,4 @@ Use school `ERP-QA-d767af40` in the demo Supabase project. It has a school-scope
 - [ ] **FEE-03 · Family receipt scope.** Sign in separately as the QA student and guardian. In **Invoices & Receipts**, check the two office receipts for Pilot One. Reload and confirm the same receipts appear. Pilot Two's receipt should remain hidden, and the page should have no payment controls.
 - [ ] **NOT-01 · Publish and check audience.** As the QA admin, save a Parents-only draft and publish a separate Parents-only notice. In **Notices & Circulars**, the guardian should see the publication but not the draft. The student should see neither. Unpublish the first notice and reload the guardian inbox, then republish and verify it returns.
 
-The school setup, attendance and guardian linking, fee and receipt, and notice cases above were exercised in local Chromium with hosted demo Supabase. The email inbox test still belongs to the founder run.
+The school setup, attendance and guardian linking, fee and receipt, and notice cases above were exercised in local Chromium with hosted demo Supabase. A separate deployed Preview run verified admin academic records, the admitted pupil, finance report totals, and the guardian's scoped receipts and notices. All 346 automated tests, lint, typecheck and build passed. The email inbox test still belongs to the founder run.
