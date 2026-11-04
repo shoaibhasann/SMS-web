@@ -5,6 +5,12 @@ import { isInvitationList, isIssuedInvitation, type IssuedInvitation, type Schoo
 export { invitationStatus } from "@/lib/invitations/model";
 export type GuardianInvitation = SchoolInvitation;
 
+export function guardianInvitationUrl(token: string, origin: string) {
+  const url = new URL("/guardian-invite", origin);
+  url.hash = new URLSearchParams({ token }).toString();
+  return url.href;
+}
+
 export async function listGuardianInvitations(client: SupabaseClient, schoolId: string, studentId: string) {
   const { data, error } = await client.rpc("list_guardian_invitations", {
     p_school_id: schoolId,

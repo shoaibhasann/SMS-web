@@ -45,3 +45,18 @@ export async function revokeTeacherInvitation(client: SupabaseClient, invitation
   if (error || typeof data !== "boolean") throw new Error("The invitation could not be revoked.");
   return data;
 }
+
+export type NonTeachingStaffRecord = {
+  id: string;
+  full_name: string | null;
+  employee_id: string;
+  designation: string | null;
+  department: string | null;
+};
+
+export function listNonTeachingStaff(client: SupabaseClient, schoolId: string) {
+  return readPages<NonTeachingStaffRecord>((from, to) => client.from("staff")
+    .select("id,full_name,employee_id,designation,department", { count: "exact" })
+    .eq("school_id", schoolId).order("full_name").order("id").range(from, to),
+  "Non-teaching staff could not be loaded");
+}

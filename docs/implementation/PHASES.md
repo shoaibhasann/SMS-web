@@ -238,7 +238,7 @@ The [founder answers](../product/FOUNDER-ANSWERS.md) define the commercial ERP s
 
 All three migrations are applied on the demo project. The automated suite passed 374 tests. Lint, TypeScript and production build checks passed. Chromium verified the combined workflow with hosted demo Supabase. The protected Preview at app revision `0dd074a` verified saved approvals, rejection, withdrawal and guardian removal, including the guardian’s scoped refresh at 390 px. The [combined QA checklist](POST-DEPLOY-QA.md#historical-attendance-withdrawal-and-guardian-access) records the URL and manual steps.
 
-Next, finish the remaining school setup imports. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
+Next, finish imports for classes, sections, subjects and assignments. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
 
 
 ## Same-school transfer and session promotion
@@ -250,3 +250,12 @@ A promotion stages one destination enrollment per pupil and academic year. Staff
 In **Academics & Subjects**, migration `20261104181845_activate_academic_year` checks readiness, requires an activation reason and switches the school to one current year in a transaction. Missing placements, invalid placements, open attendance corrections and dates outside the destination session block the switch. Earlier enrollment, marks, fee records and teacher assignments stay in their original sessions. Admin and principal can open earlier attendance registers read-only.
 
 Both migrations are applied to hosted demo Supabase. A dedicated synthetic school verified transfer, revision of a staged promotion, incomplete placement rejection, school-wide activation, student and guardian history and a teacher save in the new session after reload. The fixture calendar was advanced separately to test activation after the new session began. Protected Preview revision `7dc5375` verified the active roster, historical register and placement audit, teacher readback and both family roles after refresh. The [manual QA checklist](POST-DEPLOY-QA.md#same-school-transfer-and-session-promotion) records the scenarios.
+
+
+## Staff and guardian CSV imports
+
+**Teachers & Staff** imports teaching and non-teaching records with `employee_id,full_name,staff_type`. Migration `20261104185147_secure_staff_directory` scopes non-teaching directory reads to school managers and enables unlinked named records. Migration `20261104185149_import_school_staff` enforces a common case-insensitive employee ID across both directories, commits each batch in one transaction and records the reviewer, time and counts. A teacher can receive an invitation after import. Imported directory records start without login access.
+
+**Guardian invitations** previews `admission_number,guardian_email` against active pupils in the selected school's current session. Migration `20261104185151_import_guardian_csv` rejects unknown admissions, duplicate rows, existing links and pending invitations for the same pupil and email. Confirming a valid batch produces one private invitation link per row. A verified recipient must accept to create the relationship and receive guardian access. Exact retries from the same preview recover pending links. Individual invitation history remains available after reload.
+
+All three migrations are applied to hosted demo Supabase. Chromium verified mixed staff types, duplicate rejection, exact retry after a lost response, teacher invitation acceptance and correct student linkage for two separate verified guardians after refresh. All 405 automated tests passed. The [manual QA checklist](POST-DEPLOY-QA.md#staff-and-guardian-csv-imports) records the steps and fixture.

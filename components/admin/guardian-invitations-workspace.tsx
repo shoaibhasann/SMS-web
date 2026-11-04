@@ -8,6 +8,7 @@ import {
 } from "@/lib/attendance/repository";
 import { studentName, type AttendanceStudent } from "@/lib/attendance/types";
 import {
+  guardianInvitationUrl,
   invitationStatus,
   issueGuardianInvitation,
   listGuardianInvitations,
@@ -15,6 +16,7 @@ import {
   type GuardianInvitation,
 } from "@/lib/guardian-invitations/admin";
 import { GuardianAccessWorkspace } from "./guardian-access-workspace";
+import { GuardianInvitationImport } from "./guardian-invitation-import";
 import { createClient } from "@/lib/supabase/client";
 
 type Client = ReturnType<typeof createClient>;
@@ -84,7 +86,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
       <header>
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600 dark:text-blue-300">People</p>
         <h1 className="mt-1 text-3xl font-black">Guardian invitations</h1>
-        <p className="mt-2 text-sm muted">Invite a guardian to view attendance for one enrolled student.</p>
+        <p className="mt-2 text-sm muted">Invite guardians to view their linked students’ school records.</p>
       </header>
       {sessionChanged ? <p role="alert" className="text-sm text-red-600 dark:text-red-400">Your account changed. Refresh this page to check access again.</p>
         : !access ? <p role="status" className="text-sm muted">Checking invitation access…</p>
@@ -117,6 +119,7 @@ function SchoolInvitations({ client, schoolId, busy, onBusyChange }: LockProps &
   const [attempt, setAttempt] = useState(0);
   const [pickedClass, setPickedClass] = useState("");
   const [pickedSection, setPickedSection] = useState("");
+  const [importRevision, setImportRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -139,6 +142,8 @@ function SchoolInvitations({ client, schoolId, busy, onBusyChange }: LockProps &
   const sectionId = pickedSection || (classSections.length === 1 ? classSections[0].id : "");
   return (
     <>
+      <GuardianInvitationImport client={client} schoolId={schoolId} busy={busy} onBusyChange={onBusyChange}
+        onImported={() => setImportRevision((revision) => revision + 1)} />
       <section className="card grid gap-4 p-4 sm:grid-cols-3">
         <div className="space-y-2 text-sm">
           <p className="font-semibold">Academic year</p>
@@ -161,18 +166,19 @@ function SchoolInvitations({ client, schoolId, busy, onBusyChange }: LockProps &
       </section>
       {classId && sectionId ? (
         <RosterInvitations key={sectionId} client={client} schoolId={schoolId} yearId={year.id}
-          classId={classId} sectionId={sectionId} busy={busy} onBusyChange={onBusyChange} />
+          classId={classId} sectionId={sectionId} importRevision={importRevision} busy={busy} onBusyChange={onBusyChange} />
       ) : <p className="text-sm muted">Select a class and section with an active roster.</p>}
     </>
   );
 }
 
-function RosterInvitations({ client, schoolId, yearId, classId, sectionId, busy, onBusyChange }: LockProps & {
+function RosterInvitations({ client, schoolId, yearId, classId, sectionId, importRevision, busy, onBusyChange }: LockProps & {
   client: Client;
   schoolId: string;
   yearId: string;
   classId: string;
   sectionId: string;
+  importRevision: number;
 }) {
   const [roster, setRoster] = useState<Load<AttendanceStudent[]>>();
   const [attempt, setAttempt] = useState(0);
@@ -206,15 +212,16 @@ function RosterInvitations({ client, schoolId, yearId, classId, sectionId, busy,
         </label>
       </section>
       {student && <StudentInvitations key={student.id} client={client} schoolId={schoolId}
-        student={student} busy={busy} onBusyChange={onBusyChange} />}
+        student={student} importRevision={importRevision} busy={busy} onBusyChange={onBusyChange} />}
     </>
   );
 }
 
-function StudentInvitations({ client, schoolId, student, busy, onBusyChange }: LockProps & {
+function StudentInvitations({ client, schoolId, student, importRevision, busy, onBusyChange }: LockProps & {
   client: Client;
   schoolId: string;
   student: AttendanceStudent;
+  importRevision: number;
 }) {
   const [email, setEmail] = useState("");
   const [link, setLink] = useState<NewLink>();
@@ -240,7 +247,7 @@ function StudentInvitations({ client, schoolId, student, busy, onBusyChange }: L
       (error: unknown) => { if (current) setHistory(requestError(error)); },
     );
     return () => { current = false; };
-  }, [client, schoolId, studentId, attempt]);
+  }, [client, schoolId, studentId, attempt, importRevision]);
 
   function refresh() {
     setHistory(undefined);
@@ -259,9 +266,8 @@ function StudentInvitations({ client, schoolId, student, busy, onBusyChange }: L
     try {
       const result = await issueGuardianInvitation(client, schoolId, studentId, submittedEmail);
       if (!active.current) return;
-      const url = new URL("/guardian-invite", window.location.origin);
-      url.hash = new URLSearchParams({ token: result.token }).toString();
-      setLink({ id: result.id, url: url.href, email: submittedEmail, expiresAt: result.expires_at });
+      const url = guardianInvitationUrl(result.token, window.location.origin);
+      setLink({ id: result.id, url, email: submittedEmail, expiresAt: result.expires_at });
       setEmail("");
       setNotice({ text: "Invitation created. Copy the link and share it privately with the guardian." });
     } catch (error: unknown) {

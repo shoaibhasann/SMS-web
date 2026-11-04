@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { BadgeCheck, Clipboard, GraduationCap, Link2, UserRoundPlus } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { StaffCsvImport } from "@/components/admin/staff-csv-import";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { invitationStatus, type SchoolInvitation } from "@/lib/invitations/model";
 import { createClient } from "@/lib/supabase/client";
-import { createTeacherRecord, issueTeacherInvitation, listTeacherInvitations, listTeachers, revokeTeacherInvitation, type TeacherRecord } from "@/lib/teachers/directory";
+import { createTeacherRecord, issueTeacherInvitation, listNonTeachingStaff, listTeacherInvitations, listTeachers, revokeTeacherInvitation, type NonTeachingStaffRecord, type TeacherRecord } from "@/lib/teachers/directory";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -61,7 +62,7 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-white/80">People</p>
           <h1 className="text-2xl font-black sm:text-3xl">Teachers &amp; Staff</h1>
-          <p className="mt-1 text-sm text-white/85">Add teachers and invite them to link a verified school login.</p>
+          <p className="mt-1 text-sm text-white/85">Manage the school’s teachers and non-teaching staff. Teachers can link a verified school login by invitation.</p>
         </div>
       </header>
       {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload the page to check school access.</p>
@@ -87,21 +88,30 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
 function SchoolDirectory({ client, schoolId, busy, setBusy }: {
   client: Client; schoolId: string; busy: boolean; setBusy: (busy: boolean) => void;
 }) {
-  const [result, setResult] = useState<Result<TeacherRecord[]>>();
+  const [directory, setDirectory] = useState<{
+    version: number;
+    teachers: Result<TeacherRecord[]>;
+    staff: Result<NonTeachingStaffRecord[]>;
+  }>();
   const [version, setVersion] = useState(0);
   const [selectedId, setSelectedId] = useState("");
   const [fullName, setFullName] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [filter, setFilter] = useState("");
+  const [staffFilter, setStaffFilter] = useState("");
   const [feedback, setFeedback] = useState<Feedback>();
   const creating = useRef(false);
 
   useEffect(() => {
     let active = true;
-    listTeachers(client, schoolId).then(
-      (data) => { if (active) setResult({ data }); },
-      (error: unknown) => { if (active) setResult({ error: message(error, "The teacher directory could not be loaded.") }); },
-    );
+    void Promise.allSettled([listTeachers(client, schoolId), listNonTeachingStaff(client, schoolId)]).then(([teachers, staff]) => {
+      if (!active) return;
+      setDirectory({
+        version,
+        teachers: teachers.status === "fulfilled" ? { data: teachers.value } : { error: "The teacher directory could not be loaded." },
+        staff: staff.status === "fulfilled" ? { data: staff.value } : { error: "The staff directory could not be loaded." },
+      });
+    });
     return () => { active = false; };
   }, [client, schoolId, version]);
 
@@ -127,7 +137,17 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
     }
   }
 
+  const result = directory?.teachers;
+  const staffResult = directory?.staff;
   const teachers = result && "data" in result ? result.data : [];
+  const staff = staffResult && "data" in staffResult ? staffResult.data : [];
+  const existingEmployeeIds = directory?.version === version && result && "data" in result && staffResult && "data" in staffResult
+    ? [...teachers.map((person) => person.employee_id), ...staff.map((person) => person.employee_id)]
+    : undefined;
+  const staffSearch = staffFilter.trim().toLowerCase();
+  const visibleStaff = staff.filter((person) =>
+    `${person.full_name ?? ""} ${person.employee_id}`.toLowerCase().includes(staffSearch),
+  );
   const selected = teachers.find((teacher) => teacher.id === selectedId);
   const search = filter.trim().toLowerCase();
   const visibleTeachers = teachers.filter((teacher) =>
@@ -149,6 +169,12 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
         </button>
         {feedback && <p role={feedback.error ? "alert" : "status"} className="text-sm">{feedback.text}</p>}
       </form>
+      <StaffCsvImport client={client} schoolId={schoolId} existingEmployeeIds={existingEmployeeIds}
+        disabled={busy} refreshVersion={version} onBusyChange={setBusy} onImported={() => {
+          setFilter("");
+          setStaffFilter("");
+          setVersion((value) => value + 1);
+        }} />
       <div className="grid gap-5 xl:grid-cols-2">
         <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="teacher-list-heading">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -187,6 +213,27 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
               <p className="text-sm muted">Select a teacher to manage their invitation.</p>
             </section>}
       </div>
+      <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="staff-list-heading">
+        <h2 className="text-lg font-bold" id="staff-list-heading">Non-teaching staff directory</h2>
+        <label className={label}><span>Search staff</span><input className="field" type="search" value={staffFilter}
+          onChange={(event) => setStaffFilter(event.target.value)} /></label>
+        {!staffResult ? <p role="status" className="text-sm muted">Loading staff…</p>
+          : "error" in staffResult ? <p role="alert" className="text-sm">{staffResult.error}</p>
+          : !visibleStaff.length ? <p className="text-sm muted">{staffSearch ? "No matching staff." : "No non-teaching staff have been added to this school."}</p>
+          : <ul className="divide-y divide-[var(--border)]">
+              {visibleStaff.map((person) => (
+                <li key={person.id} className="flex flex-wrap items-center justify-between gap-2 break-words py-3 text-sm">
+                  <div className="min-w-0">
+                    <strong className="block">{person.full_name || person.employee_id}</strong>
+                    <span className="muted">{person.employee_id}</span>
+                  </div>
+                  {(person.designation || person.department) && <span className="muted">
+                    {[person.designation, person.department].filter(Boolean).join(" · ")}
+                  </span>}
+                </li>
+              ))}
+            </ul>}
+      </section>
     </>
   );
 }
