@@ -20,11 +20,9 @@ type Alert = {
 };
 type Inbox = { alerts: Alert[]; unread_count: number };
 
-describe("guardian absence alert read state", () => {
-  let db: Awaited<ReturnType<typeof createStaffScopeDatabase>>;
-
-  beforeAll(async () => {
-    db = await createStaffScopeDatabase({ includeGuardianInvitations: true });
+async function createReadStateDatabase() {
+  const db = await createStaffScopeDatabase({ includeGuardianInvitations: true });
+  try {
     const files = await readdir(migrations);
     async function apply(suffix: string) {
       const file = files.find((entry) => entry.endsWith(suffix));
@@ -53,6 +51,19 @@ describe("guardian absence alert read state", () => {
       from public.attendance mark where mark.id = a.attendance_id
     `);
     await apply("_guardian_absence_alert_read_state.sql");
+    await apply("_guardian_absence_alert_bulk_read.sql");
+    return db;
+  } catch (error) {
+    await db.close();
+    throw error;
+  }
+}
+
+describe("guardian absence alert read state", () => {
+  let db: Awaited<ReturnType<typeof createReadStateDatabase>>;
+
+  beforeAll(async () => {
+    db = await createReadStateDatabase();
   }, 30_000);
 
   afterAll(async () => { await db?.close(); });
@@ -141,5 +152,65 @@ describe("guardian absence alert read state", () => {
     expect(await mark(actor.parentA, afterCorrection.alerts[0].id)).toBeNull();
     expect(await inbox(actor.parentA)).toEqual({ alerts: [], unread_count: 0 });
     expect(await inbox(actor.outsider)).toEqual(secondGuardian);
+  });
+});
+
+describe("mark all guardian absence alerts read", () => {
+  let db: Awaited<ReturnType<typeof createReadStateDatabase>>;
+  const bulkSql = "select public.mark_all_guardian_absence_alerts_read()::int as changed";
+
+  beforeAll(async () => { db = await createReadStateDatabase(); }, 30_000);
+  afterAll(async () => { await db?.close(); });
+
+  async function inbox(user: string) {
+    const { rows: [{ inbox }] } = await asStaffActor<{ inbox: Inbox }>(db, user, inboxSql);
+    return inbox;
+  }
+
+  async function markAll(user: string) {
+    const { rows: [{ changed }] } = await asStaffActor<{ changed: number }>(db, user, bulkSql);
+    return changed;
+  }
+
+  it("marks the current guardian's full unread backlog and preserves the other guardian's inbox", async () => {
+    const original = await inbox(actor.parentA);
+    const otherGuardian = await inbox(actor.outsider);
+    const first = original.alerts[0];
+    const { rows: [{ read_at: firstReadAt }] } = await asStaffActor<{ read_at: string }>(db, actor.parentA, markSql, [first.id]);
+    const before = await inbox(actor.parentA);
+    expect(before.unread_count).toBe(31);
+    expect(before.alerts).toHaveLength(30);
+
+    await expect(asStaffActor(db, null, bulkSql, [], "anon")).rejects.toMatchObject({ code: "42501" });
+    expect(await markAll(actor.parentB)).toBe(0);
+    expect(await markAll(actor.adminA)).toBe(0);
+
+    await db.query("update public.profiles set is_active=false where id=$1", [actor.parentA]);
+    expect(await markAll(actor.parentA)).toBe(0);
+    await db.query("update public.profiles set is_active=true where id=$1", [actor.parentA]);
+    expect(await inbox(actor.parentA)).toEqual(before);
+
+    expect(await markAll(actor.parentA)).toBe(31);
+    const after = await inbox(actor.parentA);
+    expect(after.unread_count).toBe(0);
+    expect(after.alerts).toHaveLength(30);
+    expect(after.alerts.every(({ read_at }) => read_at !== null)).toBe(true);
+    expect(await markAll(actor.parentA)).toBe(0);
+    expect(await inbox(actor.parentA)).toEqual(after);
+    const { rows: [{ read_at: retriedReadAt }] } = await asStaffActor<{ read_at: string }>(db, actor.parentA, markSql, [first.id]);
+    expect(retriedReadAt).toBe(firstReadAt);
+    expect(await inbox(actor.outsider)).toEqual(otherGuardian);
+
+    await db.query("update public.attendance set status='present' where student_id=$1 and attendance_date=$2",
+      [A.student, otherGuardian.alerts[0].attendance_date]);
+    const { rows: [{ revoked }] } = await asStaffActor<{ revoked: boolean }>(db, actor.adminA,
+      "select public.revoke_guardian_access($1,$2,$3,$4) as revoked",
+      [actor.schoolA, A.student, A.parent, "Guardian bulk read QA"]);
+    expect(revoked).toBe(true);
+    expect(await markAll(actor.parentA)).toBe(0);
+    expect(await inbox(actor.parentA)).toEqual({ alerts: [], unread_count: 0 });
+    expect((await inbox(actor.outsider)).unread_count).toBe(31);
+    expect(await markAll(actor.outsider)).toBe(31);
+    expect((await inbox(actor.outsider)).unread_count).toBe(0);
   });
 });

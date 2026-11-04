@@ -264,3 +264,18 @@ Use a disposable pupil linked to two verified QA guardians. Sign in as the two g
 Protected Preview Chromium QA passed for `QA-READ-7de49d98-001` on 5 November 2026 IST. The admin saved Absent at 1440 px and both guardian inboxes at 390 px showed one unread alert. Marking the first guardian’s alert changed that count to zero while the second guardian still showed one. Hard reload and fresh browser sign-in preserved both states. Repeating the first action returned the original read time and alert ID. The second guardian’s browser action and overlapping API request returned the same saved time. Both accounts then showed zero unread after refresh. Other guardians’ IDs returned no read time, direct table writes were denied, and the original attendance mark was preserved. The database regression also verified 32 unread alerts counted across the 30-row list and stale IDs denied after correction or revocation.
 
 All 461 automated tests passed with `npm test -- --maxWorkers=4 --testTimeout=20000`. Lint, TypeScript and the Preview build passed.
+
+## Guardian Notifications filters and mark all as read
+
+Open the [protected Vercel Preview](https://kids-corner-erp-frontend-7gqm1n59u-shoaibhasanns-projects.vercel.app/login). Sign in to Vercel first. Revision `86ce43bd1ea4c2ea169e40e1f8c150cb2e1e562f`, deployment `dpl_88dd2kgvyafmmtMkrLNZUPCrjnby`. Use the private QA handoff for demo school `ERP-MOVE-QA-15c7ba80`.
+
+Use two verified QA guardians linked to the same two disposable pupils. Save both pupils as Absent in the school administrator’s Attendance register. Sign in as the two guardians in separate browser sessions.
+
+- [ ] **BULK-READ-01 · Check All and Unread.** In the first guardian’s **Notifications**, mark one alert as read individually. **All** shows both alerts with their saved states. Select **Unread** and check that it only shows the unread alert and that the count stays at one.
+- [ ] **BULK-READ-02 · Mark the remaining alerts.** From **Unread**, select **Mark all as read**. Confirm the unread count becomes zero, the Unread view is empty and the bulk button is disabled. Switch to **All** and check that both rows show Read.
+- [ ] **BULK-READ-03 · Verify account isolation and refresh.** Refresh the first guardian’s page and sign in again in a fresh browser. Check that both alerts still show Read. Refresh the second guardian’s page. Both of that guardian’s alerts should still be unread until they are marked on that account.
+- [ ] **BULK-READ-04 · Check retries and list limits.** Retry the bulk action from the same account and verify zero updates and unchanged read times. For an inbox with more than 30 unread alerts, check that the bulk action clears the full unread count, including alerts beyond the visible list.
+
+Protected Preview Chromium QA passed for `QA-BULKREAD-4d21c8aa-001` through `-003` on 5 November 2026 IST. The 1440 px admin register save created three unread alerts in each guardian inbox. At 390 px, one individual read gave the first guardian mixed states in All, and Unread hid that read row. The in-page refresh kept the selected filter. Mark all changed the two remaining unread alerts, emptied Unread and disabled the action at zero. All showed three read rows. Hard reload and fresh sign-in kept the first guardian at zero unread and the other at three. The original individual read time, the other guardian’s rows and the attendance rows stayed the same. A retry and an administrator without a guardian link each returned zero updates. The database test also cleared 31 unread alerts from a list displaying 30.
+
+All 465 automated tests passed with `npm test -- --maxWorkers=4 --testTimeout=20000`. Lint, TypeScript and the Preview build passed.

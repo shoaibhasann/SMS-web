@@ -303,3 +303,11 @@ Migration `20261104210215_guardian_absence_alert_read_state` is applied to hoste
 The guardian Notifications inbox shows the full unread count and lets the guardian mark each absence alert as read. Supabase saves the read time on that guardian’s own copy, so two guardians can read the same absence independently. Refresh and subsequent sign-ins use the saved state. Existing alerts start unread. Revoked and corrected alerts are excluded from the count. The inbox shows unread alerts first so older unread items become available as the first entries are read. The [manual QA checklist](POST-DEPLOY-QA.md#guardian-notifications-unread-count-and-mark-as-read) covers both accounts and permission checks.
 
 Protected Preview revision `6bf6414` passed the two-guardian flow after a real demo attendance save. Hard refresh and fresh sign-in preserved the independent states. Concurrent retries returned the original read time, and cross-recipient writes were denied.
+
+## Guardian notification filters and bulk read
+
+Migration `20261104210847_guardian_absence_alert_bulk_read` is applied to hosted demo Supabase.
+
+**All** shows the current inbox list and **Unread** filters it to unread alerts. **Mark all as read** updates the signed-in guardian’s eligible unread alerts in one database operation, including alerts beyond the visible list. The inbox reloads after the operation to show the saved count. Existing read times are preserved and the other guardian’s copies keep their own state. The [manual QA checklist](POST-DEPLOY-QA.md#guardian-notifications-filters-and-mark-all-as-read) covers both accounts, filtering and retries.
+
+Protected Preview revision `86ce43b` passed both filters and the bulk action after a real demo attendance save. Hard reload and fresh sign-in preserved each guardian’s count. The database regression covered bulk read across the 30-row list limit.

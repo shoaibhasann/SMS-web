@@ -7,6 +7,8 @@ const { rpc, abortSignal, markSignal, read, mark, onAuthStateChange } = vi.hoist
   rpc: vi.fn(), abortSignal: vi.fn(), markSignal: vi.fn(), read: vi.fn(), mark: vi.fn(), onAuthStateChange: vi.fn(),
 }));
 
+const bulkRpc = "mark_all_guardian_absence_alerts_read";
+
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({ rpc, auth: { onAuthStateChange } }),
 }));
@@ -22,7 +24,9 @@ const noAlerts = inbox([]);
 
 beforeEach(() => {
   vi.resetAllMocks();
-  rpc.mockImplementation((name) => ({ abortSignal: name === "mark_guardian_absence_alert_read" ? markSignal : abortSignal }));
+  rpc.mockImplementation((name) => ({
+    abortSignal: name === "mark_guardian_absence_alert_read" || name === bulkRpc ? markSignal : abortSignal,
+  }));
   abortSignal.mockReturnValue({ returns: read });
   markSignal.mockReturnValue({ returns: mark });
   onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
@@ -43,6 +47,8 @@ describe("guardian attendance alerts", () => {
     expect(alerts[0].querySelector("time")).toHaveAttribute("datetime", firstAlert.attendance_date);
     expect(alerts[1]).toHaveTextContent("Second pupil was marked absent.");
     expect(card.getByRole("link", { name: "View all alerts" })).toHaveAttribute("href", "/modules/notifications?view=guardian");
+    expect(card.queryByRole("group", { name: "Filter attendance alerts" })).not.toBeInTheDocument();
+    expect(card.queryByRole("button", { name: "Mark all as read" })).not.toBeInTheDocument();
     expect(rpc).toHaveBeenCalledExactlyOnceWith("list_guardian_absence_alerts");
   });
 
@@ -147,5 +153,75 @@ describe("guardian attendance alerts", () => {
     expect(await screen.findByText("0 unread")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("This alert is no longer available.");
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
+  });
+
+  it("filters the fetched inbox to unread alerts without changing the total or marking anything", async () => {
+    read.mockResolvedValue(inbox([firstAlert, { ...secondAlert, read_at: readAt }], 33));
+    const user = userEvent.setup();
+    render(<GuardianAttendanceAlerts userId="guardian" />);
+    expect(await screen.findAllByRole("listitem")).toHaveLength(2);
+    const all = screen.getByRole("button", { name: "All", pressed: true });
+    const unread = screen.getByRole("button", { name: "Unread", pressed: false });
+
+    await user.click(unread);
+    expect(unread).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("listitem")).toHaveTextContent("First pupil");
+    expect(screen.getByText("33 unread")).toBeInTheDocument();
+
+    await user.click(all);
+    expect(all).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(rpc).toHaveBeenCalledExactlyOnceWith("get_guardian_absence_inbox");
+  });
+
+  it("marks all via one scoped request and reloads the full count while keeping the selected filter", async () => {
+    read.mockResolvedValueOnce(inbox([firstAlert, secondAlert], 33))
+      .mockResolvedValue(inbox([{ ...firstAlert, read_at: readAt }, { ...secondAlert, read_at: readAt }]));
+    let finishMark!: (result: { data: number; error: null }) => void;
+    mark.mockImplementationOnce(() => new Promise((resolve) => { finishMark = resolve; }));
+    const user = userEvent.setup();
+    const { unmount } = render(<GuardianAttendanceAlerts userId="guardian" />);
+    expect(await screen.findByText("33 unread")).toBeInTheDocument();
+    const unread = screen.getByRole("button", { name: "Unread" });
+    await user.click(unread);
+    const bulk = screen.getByRole("button", { name: "Mark all as read" });
+    await user.click(bulk);
+    expect(bulk).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Mark as read: First pupil/ })).toBeDisabled();
+    expect(screen.getByText("33 unread")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith(bulkRpc);
+
+    await act(async () => finishMark({ data: 33, error: null }));
+    expect(await screen.findByText("0 unread")).toBeInTheDocument();
+    expect(unread).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("No unread attendance alerts.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Mark all as read" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "All" }));
+    expect(screen.getAllByText("Read", { exact: true })).toHaveLength(2);
+    unmount();
+    render(<GuardianAttendanceAlerts userId="guardian" />);
+    expect(await screen.findByText("0 unread")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All", pressed: true })).toBeInTheDocument();
+    expect(rpc.mock.calls.filter(([name]) => name === bulkRpc)).toHaveLength(1);
+  });
+
+  it("keeps the unread count after a failed bulk write and refreshes on a zero-change retry", async () => {
+    read.mockResolvedValueOnce(inbox([firstAlert])).mockResolvedValueOnce(inbox([secondAlert]));
+    mark.mockResolvedValueOnce({ data: null, error: { message: "request failed" } })
+      .mockResolvedValueOnce({ data: 0, error: null });
+    const user = userEvent.setup();
+    render(<GuardianAttendanceAlerts userId="guardian" />);
+    expect(await screen.findByText("1 unread")).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: "Mark all as read" });
+    await user.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not mark all alerts as read.");
+    expect(screen.getByText("1 unread")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("First pupil");
+
+    await user.click(button);
+    expect(await screen.findByRole("listitem")).toHaveTextContent("Second pupil");
+    expect(screen.getByText("1 unread")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
