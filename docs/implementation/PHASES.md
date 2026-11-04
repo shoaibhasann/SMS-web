@@ -238,7 +238,7 @@ The [founder answers](../product/FOUNDER-ANSWERS.md) define the commercial ERP s
 
 All three migrations are applied on the demo project. The automated suite passed 374 tests. Lint, TypeScript and production build checks passed. Chromium verified the combined workflow with hosted demo Supabase. The protected Preview at app revision `0dd074a` verified saved approvals, rejection, withdrawal and guardian removal, including the guardian’s scoped refresh at 390 px. The [combined QA checklist](POST-DEPLOY-QA.md#historical-attendance-withdrawal-and-guardian-access) records the URL and manual steps.
 
-Next, finish imports for classes, sections, subjects and assignments. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
+School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
 
 
 ## Same-school transfer and session promotion
@@ -259,3 +259,12 @@ Both migrations are applied to hosted demo Supabase. A dedicated synthetic schoo
 **Guardian invitations** previews `admission_number,guardian_email` against active pupils in the selected school's current session. Migration `20261104185151_import_guardian_csv` rejects unknown admissions, duplicate rows, existing links and pending invitations for the same pupil and email. Confirming a valid batch produces one private invitation link per row. A verified recipient must accept to create the relationship and receive guardian access. Exact retries from the same preview recover pending links. Individual invitation history remains available after reload.
 
 All three migrations are applied to hosted demo Supabase. Chromium verified mixed staff types, duplicate rejection, exact retry after a lost response, teacher invitation acceptance and correct student linkage for two separate verified guardians after refresh. Protected Preview revision `f4952e8` verified both staff lists and the import audit, duplicate rejection and the linked guardian’s attendance after refresh. All 405 automated tests, lint, TypeScript and build passed. The [manual QA checklist](POST-DEPLOY-QA.md#staff-and-guardian-csv-imports) records the steps and fixture.
+
+
+## Academic setup and teacher assignment CSV imports
+
+**Academics & Subjects** accepts separate templates for classes, sections and subjects. Migration `20261104192737_import_academic_setup_records` enforces case-insensitive class and subject names within the school, section names within each class, and nonblank subject codes within the school. Section preview resolves the exact active class, and confirmation rechecks the class identity. Each batch commits together and records the reviewer, timestamp and count.
+
+**Teaching Assignments** previews an exact school employee ID, active class, section under that class, active subject and class-teacher flag for the current academic year. Migration `20261104192702_import_teacher_assignment_csv` rejects missing or stale mappings, duplicate assignments and competing class-teacher duties. Confirming an import saves all rows together and records the assignment IDs. Retrying a confirmed request from the same preview returns the original result.
+
+Both migrations are applied to hosted demo Supabase. Browser QA verified duplicate previews, distinct same-named sections in two classes, and both class-teacher and subject-teacher assignments. The class and assignment imports recovered safely from interrupted responses. The linked teacher saved attendance for a pupil in the new class-teacher section and verified it after reload. The [manual QA checklist](POST-DEPLOY-QA.md#classes-sections-subjects-and-teaching-assignment-csv-imports) records the fixtures and test steps.

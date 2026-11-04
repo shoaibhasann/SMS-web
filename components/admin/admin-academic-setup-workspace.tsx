@@ -1,5 +1,6 @@
 "use client";
 
+import { AcademicSetupCsvImport } from "@/components/admin/academic-setup-csv-import";
 import { AcademicYearActivation } from "@/components/admin/academic-year-activation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { addAcademicSetupRecord, loadAcademicSetup, type AcademicSetup, type AcademicSetupDraft } from "@/lib/admin/academic-setup";
@@ -107,7 +108,7 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!setup || inFlight.current) return;
+    if (!setup || saving || inFlight.current) return;
     const form = event.currentTarget;
     const fields = new FormData(form);
     const value = (key: string) => String(fields.get(key) ?? "");
@@ -170,6 +171,13 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
         }} className="text-sm font-semibold text-blue-600">Refresh records</button>
       </div>
       {notice && <p role={notice.error ? "alert" : "status"} className={`text-sm ${notice.error ? "text-red-600" : "text-emerald-600"}`}>{notice.text}</p>}
+      {selectedTab.key !== "years" && (
+        <AcademicSetupCsvImport key={selectedTab.key} client={client} schoolId={schoolId} kind={selectedTab.key}
+          setup={setup} disabled={saving} refreshVersion={attempt} onBusyChange={setSaving} onImported={() => {
+            setNotice(undefined);
+            setAttempt((count) => count + 1);
+          }} />
+      )}
       {!setup ? (!notice?.error && <p role="status" className="text-sm muted">Loading school records…</p>) : (
         <>
           <h2 className="font-bold">{selectedTab.label}</h2>

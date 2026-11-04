@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAssignmentImportRepository } from "./import";
 
 export type AssignmentSchool = { id: string; name: string; canManage: boolean; teacherId: string | null };
 export type AssignmentAccess = { userId: string; schools: AssignmentSchool[] };
@@ -13,7 +14,7 @@ export type AssignmentData = {
   year: AssignmentOption; teachers: AssignmentOption[]; classes: AssignmentOption[];
   sections: AssignmentSection[]; subjects: AssignmentOption[]; rows: TeachingAssignmentRow[];
 };
-export interface TeachingAssignmentRepository {
+export interface TeachingAssignmentRepository extends ReturnType<typeof createAssignmentImportRepository> {
   access(): Promise<AssignmentAccess>;
   load(school: AssignmentSchool): Promise<AssignmentData>;
   save(schoolId: string, yearId: string, draft: TeachingAssignmentDraft, previous: TeachingAssignmentRow | null): Promise<void>;
@@ -73,6 +74,8 @@ export function createTeachingAssignmentRepository(client: SupabaseClient): Teac
   }
 
   return {
+    ...createAssignmentImportRepository(client),
+
     async access() {
       const { user, roles } = await identity();
       const global = roles.some((row) => row.role === "super_admin");

@@ -73,6 +73,7 @@ export async function addAcademicSetupRecord(client: SupabaseClient, schoolId: s
   if (result.error?.code === "23505") {
     throw new Error(draft.kind === "years"
       ? "This year name or current year is already in use. Refresh and check the school’s years."
+      : draft.kind === "subjects" ? "A subject with this name or code already exists here."
       : "A record with this name already exists here.");
   }
   if (result.error) throw new Error("The record could not be saved. Check your school access and try again.");

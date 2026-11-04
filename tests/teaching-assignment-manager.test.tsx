@@ -13,7 +13,11 @@ const data: AssignmentData = { year: { id: "year", name: "2026" }, teachers: [{ 
 };
 const access: AssignmentAccess = { userId: "user", schools: [{ id: "a", name: "School A", canManage: true, teacherId: null }] };
 function repository(value: AssignmentAccess = access): TeachingAssignmentRepository {
-  return { access: vi.fn().mockResolvedValue(value), load: vi.fn().mockResolvedValue(data), save: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined) };
+  return {
+    access: vi.fn().mockResolvedValue(value), load: vi.fn().mockResolvedValue(data),
+    save: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined),
+    previewImport: vi.fn(), confirmImport: vi.fn(),
+  };
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 async function fill(user: ReturnType<typeof userEvent.setup>) {
@@ -32,6 +36,7 @@ describe("teacher assignments are read-only", () => {
     expect(screen.queryByRole("button", { name: /Add Assignment|Edit|Remove/i })).not.toBeInTheDocument();
     expect(screen.getByText(/administrator or principal manages/)).toBeInTheDocument();
     expect(repo.save).not.toHaveBeenCalled(); expect(repo.remove).not.toHaveBeenCalled();
+    expect(screen.queryByText("Import teaching assignments from CSV")).not.toBeInTheDocument();
   });
   it("gives an unassigned teacher a clear administrator handoff", async () => {
     const repo = repository({ userId: "user", schools: [{ ...access.schools[0], canManage: false, teacherId: "teacher" }] });

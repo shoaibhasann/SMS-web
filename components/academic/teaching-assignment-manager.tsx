@@ -6,6 +6,7 @@ import {
   createTeachingAssignmentRepository, type AssignmentAccess, type AssignmentData,
   type TeachingAssignmentDraft, type TeachingAssignmentRepository, type TeachingAssignmentRow,
 } from "@/lib/assignments/repository";
+import { TeachingAssignmentImport } from "./teaching-assignment-import";
 
 const emptyDraft: TeachingAssignmentDraft = { teacher_id: "", class_id: "", section_id: "", subject_id: "", is_class_teacher: false };
 const panel = "rounded-2xl border border-slate-800 bg-[#0f172a] p-6 text-slate-200";
@@ -160,6 +161,17 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
               </fieldset>
             </form>}
         </section>}
+        {school.canManage && (
+          <TeachingAssignmentImport key={`${school.id}:${data.year.id}`} repository={repository} schoolId={school.id} year={data.year}
+            disabled={busy || dirty || pendingRemoval !== null}
+            onBusyChange={(value) => { inFlight.current = value; setBusy(value); }}
+            onImported={(count) => {
+              setSearch("");
+              setTeacherFilter("");
+              setMessage({ error: false, text: `${count} teaching assignment${count === 1 ? "" : "s"} imported.` });
+              setDataVersion((value) => value + 1);
+            }} />
+        )}
         <section className={panel}>
           <h2 className="text-lg font-semibold text-white">{school.canManage ? "All Teaching Assignments" : "My Teaching Assignments"}</h2>
           <div className="mt-4 flex flex-wrap gap-4">
