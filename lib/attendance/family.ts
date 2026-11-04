@@ -19,6 +19,7 @@ export type FamilyAttendanceRow = {
 };
 
 export const guardianAttendancePath = "/modules/attendance?view=guardian";
+export const guardianNotificationsPath = "/modules/notifications?view=guardian";
 
 const studentColumns = "id,school_id,admission_no,first_name,middle_name,last_name,roll_no,status";
 

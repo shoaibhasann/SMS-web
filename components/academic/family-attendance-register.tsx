@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { guardianContactPath } from "@/lib/auth/redirect";
+import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -65,6 +66,7 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
         {role === "parent" && <Link href={guardianContactPath}
           className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">Guardian contact settings</Link>}
       </header>
+      {role === "parent" && <GuardianAttendanceAlerts key={userId} userId={userId} summary />}
       {error ? (
         <section className="card space-y-3 p-4">
           <p role="alert" className="text-sm text-red-600">{error}</p>

@@ -8,7 +8,7 @@ import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModul
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 import type { UiRole } from "@/lib/auth/roles";
-import { guardianAttendancePath } from "@/lib/attendance/family";
+import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
 
 type ModuleItem = Pick<ReturnType<typeof getVisibleModules>[number], "key" | "label" | "icon"> & { group: string };
 
@@ -28,7 +28,9 @@ const activeLink = "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950/70 d
 const idleLink = "muted hover:bg-[var(--surface-2)]";
 
 function moduleHref(role: UiRole, key: string) {
-  return role === "parent" && key === "attendance" ? guardianAttendancePath : `/modules/${key}`;
+  if (role === "parent" && key === "attendance") return guardianAttendancePath;
+  if (role === "parent" && key === "notifications") return guardianNotificationsPath;
+  return `/modules/${key}`;
 }
 
 function Brand() {

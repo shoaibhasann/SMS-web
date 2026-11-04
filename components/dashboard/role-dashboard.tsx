@@ -23,6 +23,7 @@ import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
+import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
 import {
   guardianAttendancePath,
   loadFamilyAttendance,
@@ -1144,6 +1145,7 @@ function ParentDashboard({ userId }: { userId: string }) {
   return (
     <div className="space-y-6">
       <Header role="parent" subtitle="Select your child to see class, section, roll number, attendance, academic work, homework, projects, study material and fee status." />
+      <GuardianAttendanceAlerts key={userId} userId={userId} summary />
       {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{message}</div>}
       <Card title="Select Child" icon={<Users size={18} />}>
         <select aria-label="Select child" value={selected} onChange={(e) => selectChild(e.target.value)} className="field max-w-xl" disabled={!children.length}>
