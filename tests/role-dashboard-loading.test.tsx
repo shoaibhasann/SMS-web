@@ -8,7 +8,14 @@ import { createClient } from "../lib/supabase/client";
 
 const { from, client } = vi.hoisted(() => {
   const from = vi.fn();
-  return { from, client: { from } };
+  return {
+    from,
+    client: {
+      from,
+      rpc: () => ({ abortSignal: () => ({ returns: async () => ({ data: [], error: null }) }) }),
+      auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
+    },
+  };
 });
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));

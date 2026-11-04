@@ -4,7 +4,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FamilyAttendanceRegister } from "../components/academic/family-attendance-register";
 import { loadFamilyAttendance, loadFamilyStudents, type FamilyStudent } from "../lib/attendance/family";
 
-const { client } = vi.hoisted(() => ({ client: { from: vi.fn() } }));
+const { client } = vi.hoisted(() => ({
+  client: {
+    from: vi.fn(),
+    rpc: () => ({ abortSignal: () => ({ returns: async () => ({ data: [], error: null }) }) }),
+    auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } }) },
+  },
+}));
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/lib/attendance/family", async (importOriginal) => ({

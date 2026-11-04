@@ -287,3 +287,11 @@ School administrators can find a pupil by admission number, remove one guardian 
 Attendance records belong to the student. The access check uses the live relationship, so revocation cuts off the selected pupil’s history for that guardian and keeps siblings accessible through their own links. Acceptance makes the original attendance history visible again. The [manual QA checklist](POST-DEPLOY-QA.md#revoke-and-re-invite-a-guardian-for-one-child) covers the administrator, guardian and permission checks.
 
 Protected Preview revision `f320566` passed the admin revoke, link replacement and guardian acceptance flow. Live Supabase checks confirmed that the selected pupil became inaccessible to the removed guardian and that the other guardian and sibling remained authorized. After acceptance, both attendance histories matched the original rows and IDs. The browser verified the restored relationship after refresh.
+
+## In-app absence alerts
+
+Migration `20261104203041_guardian_absence_alerts` is applied to hosted demo Supabase.
+
+An attendance save that records Absent creates an in-app alert for each current linked guardian. The attendance change and alert creation commit together. A repeat save of the same status keeps one alert per guardian and attendance record. The guardian feed checks the live child relationship and saved attendance status before showing the alert. The guardian Dashboard and Attendance show recent alerts. Notifications shows up to 30. The feed starts with new absence saves after the migration, and existing attendance history remains available through Attendance. The [manual QA checklist](POST-DEPLOY-QA.md#in-app-absence-alerts-for-guardians) covers save, retry, revocation and correction.
+
+Protected Preview revision `4d06f4c` passed a live attendance save, same-status retry, guardian revocation, correction and re-invitation against hosted demo Supabase. The guardian views agreed with direct API reads after refresh, and the original attendance row and sibling access were preserved.
