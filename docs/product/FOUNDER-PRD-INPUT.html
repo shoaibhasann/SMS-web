@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>School ERP | Founder input</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f5f4ee;
+      --paper: #fffefa;
+      --ink: #192826;
+      --muted: #465a55;
+      --line: #d4dcd2;
+      --dark: #112d29;
+      --green: #1d604c;
+      --mint: #ddeddf;
+      --gold: #f3e9cd;
+      --focus: #82590e;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-padding-top: 1rem; }
+    body { margin: 0; background: var(--page); color: var(--ink); font: 1rem/1.57 system-ui, sans-serif; }
+    .wrap { width: min(66rem, 100% - 2rem); margin-inline: auto; }
+    header { background: var(--dark); color: #f9fbf6; padding-block: clamp(2rem, 6vw, 4.25rem); border-bottom: 5px solid #aac9ac; }
+    .kicker { font-size: .79rem; font-weight: 750; letter-spacing: .13em; text-transform: uppercase; margin: 0 0 .8rem; }
+    header .kicker { color: #c6dfca; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { font: 600 clamp(2.35rem, 6vw, 4.1rem)/1.06 Georgia, serif; letter-spacing: -.035em; max-width: 15ch; }
+    header .intro { margin-block: 1.1rem 1.25rem; max-width: 65ch; color: #d6e5d9; }
+    h2 { font: 600 clamp(1.6rem, 3.4vw, 2.35rem)/1.13 Georgia, serif; letter-spacing: -.025em; }
+    h3 { font-size: 1.1rem; line-height: 1.35; }
+    main { padding-block: 2rem 3rem; }
+    section + section { margin-top: 2rem; }
+    .section-note { color: var(--muted); max-width: 76ch; margin-top: .6rem; }
+    .evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .85rem; margin-top: 1rem; }
+    .evidence article, .scope, .question, .export { background: var(--paper); border: 1px solid var(--line); border-radius: .85rem; }
+    .evidence article { padding: 1.05rem; }
+    .evidence h3 { margin: .65rem 0 .35rem; }
+    .evidence p, .scope li { color: var(--muted); }
+    .tag { display: inline-block; padding: .2rem .55rem; border-radius: .35rem; background: var(--mint); color: #174936; font-size: .78rem; font-weight: 740; }
+    .tag.pending { background: var(--gold); color: #5e4413; }
+    .tag.demo { background: #e7eeef; color: #304d52; }
+    .scope { margin-top: 1rem; padding: clamp(1rem, 3vw, 1.5rem); }
+    .scope h3 { margin-top: .55rem; }
+    .scope p { margin-top: .45rem; }
+    .scope ul, .scope ol { padding-inline-start: 1.25rem; margin-bottom: 0; }
+    .scope ol li + li { margin-top: .42rem; }
+    .decisions-head { display: flex; align-items: end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+    #progress { color: var(--green); font-size: .9rem; font-weight: 750; }
+    .group { margin-top: 1.35rem; }
+    .group > h3 { color: var(--green); font-size: .8rem; letter-spacing: .105em; text-transform: uppercase; margin-bottom: .55rem; }
+    .question { display: grid; grid-template-columns: 2.3rem minmax(0, 1fr); gap: .7rem; padding: clamp(.8rem, 3vw, 1.25rem); }
+    .question + .question { margin-top: .65rem; }
+    .number { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .45rem; background: var(--mint); color: #174936; font-size: .84rem; font-weight: 760; }
+    .prompt { color: var(--muted); margin-top: .42rem; }
+    label { display: block; font-size: .91rem; font-weight: 700; margin: .8rem 0 .3rem; }
+    textarea, select {
+      width: 100%; max-width: 100%; border: 1px solid #91a49a; border-radius: .45rem;
+      background: #fff; color: var(--ink); padding: .65rem .72rem; font: inherit; min-height: 2.75rem;
+    }
+    textarea { display: block; resize: vertical; min-height: 5.4rem; }
+    select { max-width: 32rem; }
+    a, button, summary { cursor: pointer; }
+    a { color: inherit; }
+    a:focus-visible, button:focus-visible, summary:focus-visible, textarea:focus-visible, select:focus-visible {
+      outline: 3px solid var(--focus); outline-offset: 3px;
+    }
+    header a:focus-visible { outline-color: #f5cf7c; }
+    .actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: .9rem; }
+    .button {
+      display: inline-flex; align-items: center; justify-content: center; min-height: 2.75rem;
+      padding: .55rem .9rem; border: 1px solid var(--green); border-radius: .48rem;
+      background: var(--green); color: white; font: 720 .95rem/1.25 system-ui, sans-serif; text-decoration: none;
+    }
+    .button:hover { background: #164c3b; }
+    .button.secondary { background: var(--paper); color: var(--green); }
+    .button.secondary:hover { background: var(--mint); }
+    header .button { background: #e2eee1; color: var(--dark); border-color: #e2eee1; }
+    header .button:hover { background: #c5ddc4; }
+    .export { padding: clamp(1rem, 3vw, 1.5rem); }
+    #export-status { color: var(--green); min-height: 1.55em; margin-top: .55rem; }
+    details { margin-top: .45rem; }
+    summary { color: var(--green); font-weight: 700; min-height: 2.75rem; padding-block: .55rem; }
+    #markdown { min-height: 12rem; font-family: ui-monospace, monospace; }
+    .print-answer { display: none; }
+    footer { border-top: 1px solid var(--line); padding: 1rem 0 2rem; color: var(--muted); font-size: .87rem; }
+    @media (max-width: 45rem) {
+      .evidence { grid-template-columns: 1fr; }
+      .question { grid-template-columns: 1.8rem minmax(0, 1fr); gap: .52rem; }
+      .number { width: 1.65rem; height: 1.65rem; font-size: .75rem; }
+    }
+    @media print {
+      @page { margin: 15mm; }
+      body, header, .evidence article, .scope, .question { background: #fff; color: #111; }
+      body { font-size: 10.5pt; }
+      .wrap { width: 100%; }
+      header { padding: 0 0 .8rem; border-bottom: 1px solid #aaa; }
+      header .kicker, header .intro, .section-note, .prompt { color: #333; }
+      h1 { font-size: 26pt; max-width: none; }
+      h2 { font-size: 17pt; }
+      main { padding: .9rem 0 0; }
+      section + section { margin-top: 1rem; }
+      .evidence { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .scope, .evidence article { padding: .65rem; }
+      .group { margin-top: .75rem; }
+      .group > h3, h2 { break-after: avoid; }
+      .question { break-inside: avoid; padding: .55rem; }
+      .question + .question { margin-top: .3rem; }
+      .button, .export, #progress, .question label, .question textarea, .question select { display: none; }
+      .print-answer { display: block; white-space: pre-wrap; overflow-wrap: anywhere; margin-top: .4rem; padding: .35rem 0 0; border-top: 1px solid #ccc; }
+      footer { padding: .5rem 0 0; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <p class="kicker">Kids Corner ERP · Founder worksheet · 4 November 2026</p>
+      <h1>Decisions for the first school pilot</h1>
+      <p class="intro">We’ll use your answers to write the PRD and agree what the first school can use. Short answers are fine. If something is open, write “Undecided” and name who can decide.</p>
+      <a class="button" href="#decisions">Answer 10 questions</a>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section aria-labelledby="current">
+      <h2 id="current">Where the product stands</h2>
+      <div class="evidence">
+        <article>
+          <span class="tag">Verified with demo data</span>
+          <h3>Attendance</h3>
+          <p>In the local app connected to the hosted demo database, an assigned class teacher and a school admin saved, corrected and reloaded marks. A student saw their own history. A parent switched between linked children and could not see an unrelated pupil’s marks.</p>
+        </article>
+        <article>
+          <span class="tag pending">Implemented in part</span>
+          <h3>Assignments, fees and academics</h3>
+          <p>Admins and principals have an assignment screen and teachers can view their own assignments. Fee and receipt screens, classwork, homework and marks have database connections. Fee reconciliation and the full academic publishing and results workflows still need work and acceptance tests.</p>
+        </article>
+        <article>
+          <span class="tag demo">Demo or pending</span>
+          <h3>Getting a school started</h3>
+          <p>People and academic setup include browser demo screens. QA accounts and guardian links were prepared for testing. A school still needs a way to bring in its roster and invite guardians. Preview sign-off has its own checklist.</p>
+        </article>
+      </div>
+
+      <div class="scope">
+        <span class="tag pending">Proposal for your decision</span>
+        <h3>One school, one roster, one complete attendance workflow</h3>
+        <p>Target a Delhi NCR private school with 300–1,500 students. A pilot school is still to be confirmed. Set up a small set of sections and approved staff, then run daily attendance and guardian history through real school days. Add guardian invitations and the minimum roster setup needed for that pilot.</p>
+        <ul>
+          <li>Suggested pilot test: 10 school days, at least 90% of section registers submitted by the school’s cutoff, and zero wrong-child or wrong-school access in permission tests.</li>
+          <li>Suggested deferrals: fee posting and online payments, term report cards, outbound messaging, transport, library, payroll and inventory. Agree any exception before development.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="scope" aria-labelledby="roadmap">
+      <span class="tag pending">Proposed sequence</span>
+      <h2 id="roadmap">What we would build in each phase</h2>
+      <ol>
+        <li><strong>Stabilise the existing app.</strong> Verify attendance and role access in Preview. Close the permission and data integrity issues that block the selected workflow.</li>
+        <li><strong>Set up the first school.</strong> Store real classes, sections, enrolments and staff assignments. Import the pilot roster and verify the guardian invitation and access removal flow.</li>
+        <li><strong>Complete one paid office workflow.</strong> If the school prioritises fees, start with one fee cycle covering opening dues, partial payments, receipts, approved reversals and day closing.</li>
+        <li><strong>Finish daily school workflows.</strong> Prioritise guardian attendance and receipt history, notices and homework. Scope approved marks, report cards and year rollover separately.</li>
+        <li><strong>Expand when schools ask and will pay.</strong> Evaluate admissions, transport, library, payroll, inventory and integrations against repeated demand and support cost.</li>
+      </ol>
+      <p>Choose the first workflow and what to defer below. The PRD will reflect the pilot school’s actual process and the founder’s decisions.</p>
+    </section>
+
+    <section aria-labelledby="decisions">
+      <div class="decisions-head">
+        <h2 id="decisions" tabindex="-1">Founder decisions</h2>
+        <p id="progress">0 of 10 answered</p>
+      </div>
+      <p class="section-note">Use role names and approximate counts. Leave out pupil records, contact lists and login details. Answers stay in this open tab until you export them. Save an export before closing or refreshing.</p>
+
+      <div class="group" role="group" aria-labelledby="school-group">
+        <h3 id="school-group">School and outcome</h3>
+        <article class="question" data-question aria-labelledby="q1-title">
+          <span class="number" aria-hidden="true">01</span>
+          <div>
+            <h3 id="q1-title">Who is the first school, and who can approve a pilot?</h3>
+            <p class="prompt" id="q1-prompt">A named school if confirmed, otherwise the target profile. Include city, approximate enrolment, grades or sections to start with, and the school role that owns the decision. Is there a school ready to try it?</p>
+            <label for="q1">Your answer</label>
+            <textarea id="q1" data-answer aria-describedby="q1-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q2-title">
+          <span class="number" aria-hidden="true">02</span>
+          <div>
+            <h3 id="q2-title">Which recurring task costs the school the most time or causes the most mistakes?</h3>
+            <p class="prompt" id="q2-prompt">Describe one recent example. Who did the work, what did they use, how often does it happen, and what time, rework or missed follow-up could we measure today?</p>
+            <label for="q2">Your answer</label>
+            <textarea id="q2" data-answer aria-describedby="q2-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q3-title">
+          <span class="number" aria-hidden="true">03</span>
+          <div>
+            <h3 id="q3-title">What is the one workflow the pilot must deliver?</h3>
+            <p class="prompt" id="q3-prompt">Choose one. Name the last step that must work, what would make the school pay, and one feature you agree to defer.</p>
+            <label for="q3-choice">Pilot workflow</label>
+            <select id="q3-choice" data-answer data-label="Pilot workflow" aria-describedby="q3-prompt">
+              <option value="">Choose a workflow</option>
+              <option>Daily attendance and guardian history</option>
+              <option>Fee collection, receipts and day closing</option>
+              <option>One academic workflow</option>
+              <option>Another workflow</option>
+              <option>Undecided</option>
+            </select>
+            <label for="q3">Outcome and deferral</label>
+            <textarea id="q3" data-answer data-label="Outcome and deferral" aria-describedby="q3-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="group" role="group" aria-labelledby="operation-group">
+        <h3 id="operation-group">Access and daily operation</h3>
+        <article class="question" data-question aria-labelledby="q4-title">
+          <span class="number" aria-hidden="true">04</span>
+          <div>
+            <h3 id="q4-title">Who uses the pilot, and what may each role change?</h3>
+            <p class="prompt" id="q4-prompt">Who assigns class teachers, who marks attendance, who covers an absent teacher, and who approves corrections? Confirm whether guardians, students, principal or office staff need their own accounts on day one.</p>
+            <label for="q4">Your answer</label>
+            <textarea id="q4" data-answer aria-describedby="q4-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q5-title">
+          <span class="number" aria-hidden="true">05</span>
+          <div>
+            <h3 id="q5-title">How will we get the roster into the system and keep it current?</h3>
+            <p class="prompt" id="q5-prompt">Identify the source file or system, required columns, who checks duplicates, and who handles mid-term admissions, transfers and section changes. Is a reviewed one-time import enough for the pilot?</p>
+            <label for="q5">Your answer</label>
+            <textarea id="q5" data-answer aria-describedby="q5-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q6-title">
+          <span class="number" aria-hidden="true">06</span>
+          <div>
+            <h3 id="q6-title">How should a guardian get or lose access to a child?</h3>
+            <p class="prompt" id="q6-prompt">Choose how the school verifies the relationship and hands over an invitation. Decide how to handle siblings, multiple guardians, expired invitations, lost access and removals. Who at the school owns these cases?</p>
+            <label for="q6">Your answer</label>
+            <textarea id="q6" data-answer aria-describedby="q6-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q7-title">
+          <span class="number" aria-hidden="true">07</span>
+          <div>
+            <h3 id="q7-title">What are the school’s attendance rules?</h3>
+            <p class="prompt" id="q7-prompt">Confirm daily or period-wise marking, cutoff time, required statuses and how missing marks are treated. How far back can staff correct marks? Who approves a correction, and what reason or record must be kept?</p>
+            <label for="q7">Your answer</label>
+            <textarea id="q7" data-answer aria-describedby="q7-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q8-title">
+          <span class="number" aria-hidden="true">08</span>
+          <div>
+            <h3 id="q8-title">What do families need to see or receive?</h3>
+            <p class="prompt" id="q8-prompt">Specify history length, language, whether reasons are visible and whether viewing in the portal is enough. If alerts are required, name one event, channel and sender, plus who handles failed delivery and replies.</p>
+            <label for="q8">Your answer</label>
+            <textarea id="q8" data-answer aria-describedby="q8-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="group" role="group" aria-labelledby="launch-group">
+        <h3 id="launch-group">Next investment and launch</h3>
+        <article class="question" data-question aria-labelledby="q9-title">
+          <span class="number" aria-hidden="true">09</span>
+          <div>
+            <h3 id="q9-title">What should come immediately after the pilot?</h3>
+            <p class="prompt" id="q9-prompt">For fees, choose one cycle from opening dues through instalments, receipts and reconciliation. For academics, choose one handoff, such as teacher homework to guardian view or approved marks to a report card. Name the owner and what stays out of scope.</p>
+            <label for="q9-choice">Next priority</label>
+            <select id="q9-choice" data-answer data-label="Next priority" aria-describedby="q9-prompt">
+              <option value="">Choose a priority</option>
+              <option>Fees</option>
+              <option>Academics</option>
+              <option>Improve the pilot workflow first</option>
+              <option>Another priority</option>
+              <option>Undecided</option>
+            </select>
+            <label for="q9">Workflow and owner</label>
+            <textarea id="q9" data-answer data-label="Workflow and owner" aria-describedby="q9-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+        <article class="question" data-question aria-labelledby="q10-title">
+          <span class="number" aria-hidden="true">10</span>
+          <div>
+            <h3 id="q10-title">What earns sign-off, and who gives it?</h3>
+            <p class="prompt" id="q10-prompt">Confirm or replace the proposed attendance targets. Specify the pilot window, one baseline and target, a stop condition, who signs off on the deployed preview, and who handles training and support. Who can approve a paid rollout, what would they pay for, and what budget or date constraints do they have?</p>
+            <label for="q10">Your answer</label>
+            <textarea id="q10" data-answer aria-describedby="q10-prompt" rows="3"></textarea>
+            <p class="print-answer">Undecided</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="export" aria-labelledby="export-title">
+      <h2 id="export-title">Return your answers</h2>
+      <p class="section-note">Download the Markdown file or copy the answers into a message to Shoaib. Blank questions export as “Undecided”.</p>
+      <div class="actions">
+        <button class="button" id="download" type="button">Download answers (.md)</button>
+        <button class="button secondary" id="copy" type="button">Copy answers</button>
+      </div>
+      <p id="export-status" role="status"></p>
+      <details id="preview">
+        <summary>Review Markdown</summary>
+        <label for="markdown">Markdown export</label>
+        <textarea id="markdown" readonly rows="10"></textarea>
+      </details>
+      <noscript><p>JavaScript is needed for the answer export. Open this file in a browser with JavaScript enabled.</p></noscript>
+    </section>
+  </main>
+  <footer><p class="wrap">Kids Corner ERP · Founder input for the pilot PRD</p></footer>
+
+  <script>
+    (() => {
+      const questions = [...document.querySelectorAll("[data-question]")];
+      const progress = document.getElementById("progress");
+      const preview = document.getElementById("preview");
+      const markdown = document.getElementById("markdown");
+      const status = document.getElementById("export-status");
+      let downloadUrl;
+
+      function refreshAnswers() {
+        let answered = 0;
+        const sections = questions.map((question, index) => {
+          const title = question.querySelector("h3").textContent.trim();
+          const values = [...question.querySelectorAll("[data-answer]")].flatMap((field) => {
+            const value = field.value.trim();
+            if (!value) return [];
+            return [field.dataset.label ? field.dataset.label + "\n" + value : value];
+          });
+          if (values.length) answered += 1;
+          const answer = values.join("\n\n") || "Undecided";
+          question.querySelector(".print-answer").textContent = answer;
+          return "## " + (index + 1) + ". " + title + "\n\n" + answer;
+        });
+        progress.textContent = answered + " of " + questions.length + " answered";
+        markdown.value = "# Kids Corner ERP founder input\n\n" + sections.join("\n\n") + "\n";
+        return markdown.value;
+      }
+
+      document.getElementById("decisions").closest("section").addEventListener("input", () => {
+        refreshAnswers();
+        status.textContent = "";
+      });
+      document.getElementById("download").addEventListener("click", () => {
+        if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+        downloadUrl = URL.createObjectURL(new Blob([refreshAnswers()], { type: "text/markdown;charset=utf-8" }));
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = "kids-corner-founder-answers.md";
+        document.body.append(link);
+        link.click();
+        link.remove();
+        status.textContent = "Markdown download started.";
+      });
+      document.getElementById("copy").addEventListener("click", async () => {
+        const value = refreshAnswers();
+        try {
+          await navigator.clipboard.writeText(value);
+          status.textContent = "Answers copied.";
+        } catch {
+          preview.open = true;
+          markdown.focus();
+          markdown.select();
+          status.textContent = "The answers are selected below. Use your device’s Copy command.";
+        }
+      });
+      window.addEventListener("pagehide", () => {
+        if (downloadUrl) URL.revokeObjectURL(downloadUrl);
+      });
+      window.addEventListener("beforeprint", refreshAnswers);
+      refreshAnswers();
+    })();
+  </script>
+</body>
+</html>

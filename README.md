@@ -4,6 +4,8 @@ Next.js / React / TypeScript frontend backed by Supabase Auth and PostgreSQL. Ex
 
 See the [implementation phases](docs/implementation/PHASES.md) and the [manual Vercel QA checklist](docs/implementation/POST-DEPLOY-QA.md).
 
+The [founder worksheet](docs/product/FOUNDER-PRD-INPUT.html) captures pilot scope, roadmap priorities and sign-off decisions for the PRD. Open it in a browser and export the answers as Markdown.
+
 ## Local setup
 
 Use Node 22.13+ in the 22.x line, Node 24, or Node 26+. The tested environment is Node 22.22.2. Run commands from this inner application folder.
@@ -30,7 +32,7 @@ npm run build
 
 `npm run test:watch` runs Vitest in watch mode. `npm test` includes local database tests, and `test:db` runs only those. The latest local checkpoint has 301 passing tests, plus passing lint, TypeScript and production build checks. The automated tests use local fixtures and mocked provider boundaries.
 
-Browser QA used the local frontend with hosted demo Supabase and four seeded accounts. Teacher and admin save/reload and student and parent attendance readback passed. Manual testing of a Vercel deployment is pending. [Post-deploy QA checklist](docs/implementation/POST-DEPLOY-QA.md)
+Browser QA used the local frontend with hosted demo Supabase and four seeded accounts. Teacher and admin save/reload and student and parent attendance readback passed. The attendance Preview is deployed and ready for manual testing. Its URL and revision are in the [post-deploy QA checklist](docs/implementation/POST-DEPLOY-QA.md).
 
 ## Attendance flow
 

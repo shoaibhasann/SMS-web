@@ -6,12 +6,14 @@ Use this checklist on the deployed ERP before inviting a school to use it. Start
 
 | Field | Value |
 | --- | --- |
-| Preview deployment URL | |
-| Commit SHA or deployment ID | |
+| Preview deployment URL | [Open Preview](https://kids-corner-erp-frontend-3icyvjq85-shoaibhasanns-projects.vercel.app/login) |
+| Commit SHA or deployment ID | `8564d8f3ee507c76293abbb9db8d0b37f398b60a` · `dpl_9Z6rC7sTCm4UfM4c7GAUEB8UAMQX` |
 | Tester and date (IST) | |
 | Browser, device and viewport | |
-| Supabase test project | |
+| Supabase test project | Kids Corner School ERP demo · `bjecfuixgqgyohttrdfr` |
 | Result | Pending Preview QA |
+
+The 4 November deployment is Ready. The deployed ERP login returned HTTP 200 and a signed-out dashboard request redirected to login. Attendance and UI results for this deployment are pending your manual checks.
 
 For the person deploying, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for Preview to the demo project that contains the QA school. Deploy the revision you want to test after setting the variables. [Vercel environment variables](https://vercel.com/docs/environment-variables)
 
