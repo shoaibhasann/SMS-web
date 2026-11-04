@@ -238,4 +238,15 @@ The [founder answers](../product/FOUNDER-ANSWERS.md) define the commercial ERP s
 
 All three migrations are applied on the demo project. The automated suite passed 374 tests. Lint, TypeScript and production build checks passed. Chromium verified the combined workflow with hosted demo Supabase. The protected Preview at app revision `0dd074a` verified saved approvals, rejection, withdrawal and guardian removal, including the guardian’s scoped refresh at 390 px. The [combined QA checklist](POST-DEPLOY-QA.md#historical-attendance-withdrawal-and-guardian-access) records the URL and manual steps.
 
-Next, finish roster transfer and promotion rules and remaining school setup imports. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
+Next, finish the remaining school setup imports. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.
+
+
+## Same-school transfer and session promotion
+
+School Admin and Principal can move a pupil between classes or sections from Students. Migration `20261104181843_change_roster_placement` preserves the student and enrollment IDs, retains original attendance placement by date and writes a private reason and actor history. The transfer takes effect before attendance is marked on the current IST day. Prior attendance remains visible by date, and the existing demand, balance and receipts retain their original records.
+
+A promotion stages one destination enrollment per pupil and academic year. Staff can revise the destination with another audited reason before activation. Staged enrollment is visible to school office roles and does not grant family or teacher access to destination records. Withdrawal cancels a staged promotion. The outgoing active placement remains in use until the year switch.
+
+In **Academics & Subjects**, migration `20261104181845_activate_academic_year` checks readiness, requires an activation reason and switches the school to one current year in a transaction. Missing placements, invalid placements, open attendance corrections and dates outside the destination session block the switch. Earlier enrollment, marks, fee records and teacher assignments stay in their original sessions. Admin and principal can open earlier attendance registers read-only.
+
+Both migrations are applied to hosted demo Supabase. A dedicated synthetic school verified transfer, revision of a staged promotion, incomplete placement rejection, school-wide activation, student and guardian history and a teacher save in the new session after reload. The fixture calendar was advanced separately to test activation after the new session began. The [manual QA checklist](POST-DEPLOY-QA.md#same-school-transfer-and-session-promotion) records the scenarios.

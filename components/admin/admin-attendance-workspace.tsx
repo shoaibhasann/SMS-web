@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
+import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 
 type Client = ReturnType<typeof createClient>;
@@ -41,7 +42,7 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
       <header>
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p>
         <h1 className="mt-1 text-3xl font-black">Attendance</h1>
-        <p className="mt-2 text-sm muted">View and record attendance for a class and section in the current academic year.</p>
+        <p className="mt-2 text-sm muted">Record current attendance or view saved registers from earlier academic years.</p>
       </header>
       {!access ? <p role="status" className="text-sm muted">Checking attendance access…</p>
         : !access.data ? (
@@ -87,12 +88,13 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
 }) {
   const [setup, setSetup] = useState<LoadState<Setup>>();
   const [setupAttempt, setSetupAttempt] = useState(0);
+  const [selectedYear, setSelectedYear] = useState("");
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
 
   useEffect(() => {
     let active = true;
-    loadAdminAttendanceSetup(client, schoolId).then(
+    loadAdminAttendanceSetup(client, schoolId, { includePastYears: true }).then(
       (data) => { if (active) setSetup({ data }); },
       (error: unknown) => { if (active) setSetup(loadError(error)); },
     );
@@ -110,7 +112,10 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
     </section>
   );
 
-  const { year, classes, sections } = setup.data;
+  const { year: currentYear, years, classes, sections } = setup.data;
+  const today = schoolDate();
+  const availableYears = years.filter((year) => year.is_current || year.start_date <= today);
+  const year = availableYears.find((item) => item.id === selectedYear) ?? currentYear;
   const classId = selectedClass || (classes.length === 1 ? classes[0].id : "");
   const classSections = sections.filter((section) => section.class_id === classId);
   const sectionId = selectedSection || (classSections.length === 1 ? classSections[0].id : "");
@@ -118,10 +123,13 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
   return (
     <>
       <section className="card grid gap-4 p-4 sm:grid-cols-3">
-        <div className="space-y-2 text-sm">
-          <p className="font-semibold">Academic year</p>
-          <p>{year.name}</p>
-        </div>
+        <label className="space-y-2 text-sm font-semibold">
+          <span>Academic year</span>
+          <select className="field" value={year.id} disabled={locked || availableYears.length === 1}
+            onChange={(event) => setSelectedYear(event.target.value)}>
+            {availableYears.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+        </label>
         <label className="space-y-2 text-sm font-semibold">
           <span>Class</span>
           <select className="field" value={classId} disabled={locked || !classes.length} onChange={(event) => {
@@ -141,11 +149,12 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
           </select>
         </label>
       </section>
-      {classId && sectionId ? (
+      {year.start_date > today ? <p className="text-sm muted">This academic year begins on {year.start_date}.</p> : classId && sectionId ? (
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">Attendance register</h2>
           <AttendanceEditor context={{ schoolId, academicYearId: year.id, classId, sectionId }}
-            userId={userId} onLockChange={onLockChange} studentSearch reviewOnlyHistory rosterVersion={reviewRevision} />
+            userId={userId} onLockChange={onLockChange} studentSearch reviewOnlyHistory rosterVersion={reviewRevision}
+            dateLimits={{ start: year.start_date, end: year.end_date }} readOnly={!year.is_current} />
         </section>
       ) : (
         <p className="text-sm muted">{!classes.length ? "Add a class and section in Academic Setup to open its register."

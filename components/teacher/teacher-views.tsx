@@ -982,7 +982,7 @@ function FeeView() {
     let active = true;
     const load = async () => {
       try {
-        const assignments = await getCurrentTeacherAssignments();
+        const assignments = await getCurrentTeacherAssignments({ currentYearOnly: true });
         if (!assignments.length) {
           if (active) setRows([]);
           return;
@@ -1133,7 +1133,7 @@ function ProfileView() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!user) throw new Error("Please sign in to view your profile.");
-        const ownAssignments = await getCurrentTeacherAssignments();
+        const ownAssignments = await getCurrentTeacherAssignments({ currentYearOnly: true });
         const { data, error: profileError } = await supabase
           .from("teachers")
           .select("full_name,employee_id,designation,department,joining_date,qualification,registered_mobile")

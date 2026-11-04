@@ -45,7 +45,8 @@ function student(id: string) {
 
 function academicResult(query: ReadQuery): QueryResult {
   const id = String(query.filters.student_id ?? "");
-  if (query.table === "enrollments") return result({ class_id: `class-${id}`, section_id: null, academic_year_id: "year", roll_no: id });
+  if (query.table === "enrollments") return result({ class_id: `class-${id}`, section_id: null,
+    academic_year_id: "year", roll_no: id, classes: { name: `Class ${id}` }, sections: { name: `Section ${id}` } });
   if (query.table === "attendance") return result([{ attendance_date: "2026-11-02", academic_year_id: "year", status: "present", remarks: null }]);
   if (query.table === "student_fees") return result([]);
   if (query.table === "class_logs") {
@@ -161,6 +162,8 @@ describe("student and parent attendance", () => {
 
     const attendanceCard = attendanceHistory(title);
     await attendanceCard.findByText("Half Day");
+    expect(screen.getByText(`Class ${studentId}`)).toBeInTheDocument();
+    expect(screen.getByText(`Section ${studentId}`)).toBeInTheDocument();
     expect(queries.find((query) => query.table === "attendance")?.filters).toMatchObject({ school_id: "school", student_id: studentId });
     expect(attendanceCard.getAllByRole("listitem")).toHaveLength(history.length);
     for (const { label, attendance_date } of history) {
@@ -170,6 +173,39 @@ describe("student and parent attendance", () => {
     }
     expect(attendanceCard.queryByText("Absent")).not.toBeInTheDocument();
     expect(attendanceCard.queryByText("Leave")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { role: "student", userId: "student-user", pupil: "current", title: "Attendance History" },
+    { role: "parent", userId: "parent-user", pupil: "a", title: "Attendance by Date" },
+  ] as const)("keeps prior attendance and fees visible to a $role without a current placement", async ({ role, userId, pupil, title }) => {
+    resolveQuery = (query) => {
+      if (query.table === "enrollments") {
+        return query.filters["academic_years.is_current"] ? result(null)
+          : result({ class_id: "previous-class", section_id: "previous-section", academic_year_id: "old-year", roll_no: "old-roll" });
+      }
+      if (query.table === "attendance") return result([
+        { attendance_date: "2026-03-02", academic_year_id: "old-year", status: "late" },
+      ]);
+      if (query.table === "student_fees") return result([
+        { id: "old-demand", amount: 600, discount: 0, late_fee: 0, status: "paid", billing_period: "2026-03", due_date: "2026-03-08" },
+      ]);
+      if (role === "parent") return parentResolver(query);
+      if (query.table === "students") return result({ ...student(pupil), roll_no: "legacy-roll" });
+      return academicResult(query);
+    };
+
+    render(<RoleDashboard role={role} schoolId="school" userId={userId} />);
+    await attendanceHistory(title).findByText("Late");
+    expect(screen.getByText("2026-03")).toBeInTheDocument();
+    expect(screen.queryByText("old-roll")).not.toBeInTheDocument();
+    expect(screen.queryByText("legacy-roll")).not.toBeInTheDocument();
+    expect(queries.find((query) => query.table === "enrollments")).toMatchObject({
+      columns: expect.stringContaining("academic_years!inner"),
+      filters: { student_id: pupil, status: "active", "academic_years.school_id": "school", "academic_years.is_current": true },
+    });
+    expect(queries.find((query) => query.table === "student_fees")?.filters).toEqual({ school_id: "school", student_id: pupil });
+    expect(queries.some((query) => query.table === "class_logs")).toBe(false);
   });
 
   it.each([

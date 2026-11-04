@@ -48,9 +48,10 @@ beforeEach(() => {
     ],
     schools: [{ id: "north", name: "North School" }, { id: "south", name: "South School" }],
     academic_years: [
-      { id: "north-year", school_id: "north", name: "2026–27", is_current: true },
-      { id: "north-old-year", school_id: "north", name: "2025–26", is_current: false },
-      { id: "south-year", school_id: "south", name: "2027–28", is_current: true },
+      { id: "north-year", school_id: "north", name: "2026–27", is_current: true, start_date: "2026-04-01", end_date: "2027-03-31" },
+      { id: "north-old-year", school_id: "north", name: "2025–26", is_current: false, start_date: "2025-04-01", end_date: "2026-03-31" },
+      { id: "north-staged-year", school_id: "north", name: "2098–99", is_current: false, start_date: "2098-04-01", end_date: "2099-03-31" },
+      { id: "south-year", school_id: "south", name: "2026–27", is_current: true, start_date: "2026-04-01", end_date: "2027-03-31" },
     ],
     classes: [
       { id: "north-six", school_id: "north", name: "Class 6" },
@@ -98,12 +99,28 @@ describe("AdminAttendanceWorkspace", () => {
     expect(school).toHaveValue("north");
     expect(school).toBeDisabled();
     expect(within(school).queryByRole("option", { name: "South School" })).not.toBeInTheDocument();
-    expect(screen.getByText("2026–27")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Academic year" })).toHaveValue("north-year");
     expect(editor).toHaveBeenLastCalledWith(expect.objectContaining({
       context: northContext,
       userId: adminId,
       studentSearch: true,
     }));
+  });
+
+  it("opens a prior session read-only and keeps the staged future session out of the register", async () => {
+    const user = userEvent.setup();
+    render(<AdminAttendanceWorkspace />);
+
+    const years = await screen.findByRole("combobox", { name: "Academic year" });
+    expect(within(years).queryByRole("option", { name: "2098–99" })).not.toBeInTheDocument();
+    await user.selectOptions(years, "north-old-year");
+    expect(editor).toHaveBeenLastCalledWith(expect.objectContaining({
+      context: { ...northContext, academicYearId: "north-old-year" },
+      dateLimits: { start: "2025-04-01", end: "2026-03-31" },
+      readOnly: true,
+    }));
+    await user.selectOptions(years, "north-year");
+    expect(editor).toHaveBeenLastCalledWith(expect.objectContaining({ context: northContext, readOnly: false }));
   });
 
   it("waits for explicit school selection before opening a register for an administrator of multiple schools", async () => {
@@ -147,6 +164,7 @@ describe("AdminAttendanceWorkspace", () => {
 
     await user.click(screen.getByRole("button", { name: "Edit attendance" }));
     expect(school).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Academic year" })).toBeDisabled();
     expect(classPicker).toBeDisabled();
     expect(section).toBeDisabled();
     expect(editor).toHaveBeenLastCalledWith(expect.objectContaining({

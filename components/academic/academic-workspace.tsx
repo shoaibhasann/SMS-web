@@ -74,7 +74,7 @@ async function readAcademicWorkspace() {
       .single();
     if (teacherError) throw teacherError;
     currentTeacherSchoolId = teacher.school_id;
-    const ownAssignments = await getCurrentTeacherAssignments();
+    const ownAssignments = await getCurrentTeacherAssignments({ currentYearOnly: true });
     loadedAssignments = ownAssignments;
     classScope = ownAssignments.map((assignment) => ({
       class_id: assignment.class_id,
@@ -151,7 +151,7 @@ async function readAcademicWorkspace() {
       status: viewerRole === "student" || viewerRole === "parent" ? "published" : undefined,
     };
   }
-  if ((viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
+  if ((viewerRole === "teacher" || viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
     return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, assignments: loadedAssignments, logs: [], activities: [], labels: emptyLabels, absences: [] };
   }
 

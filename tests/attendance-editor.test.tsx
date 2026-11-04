@@ -113,6 +113,33 @@ async function loaded() {
 }
 
 describe("AttendanceEditor", () => {
+  it("opens an earlier session at its last date and keeps its attendance read-only", async () => {
+    const { repository: currentDay } = persistedRepository();
+    const requestCorrection = vi.fn<NonNullable<AttendanceRepository["requestCorrection"]>>();
+    const repository = { ...currentDay, requestCorrection };
+    const dateLimits = { start: "2025-04-01", end: "2026-03-31" };
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} dateLimits={dateLimits} readOnly />);
+    await loaded();
+
+    const date = screen.getByLabelText("Attendance date");
+    expect(date).toHaveValue(dateLimits.end);
+    expect(date).toHaveAttribute("min", dateLimits.start);
+    expect(date).toHaveAttribute("max", dateLimits.end);
+    expect(repository.load).toHaveBeenLastCalledWith(context, dateLimits.end);
+    expect(attendance("Aarav")).toHaveValue("absent");
+    expect(attendance("Aarav")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /Save Attendance|Request correction|Mark holiday/ })).not.toBeInTheDocument();
+
+    fireEvent.change(date, { target: { value: "2025-03-31" } });
+    expect(date).toHaveValue(dateLimits.end);
+    expect(repository.load).toHaveBeenCalledTimes(1);
+    fireEvent.change(date, { target: { value: dateLimits.start } });
+    await loaded();
+    expect(repository.load).toHaveBeenLastCalledWith(context, dateLimits.start);
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(requestCorrection).not.toHaveBeenCalled();
+  });
+
   it("submits one historical correction with a reason and reuses the request ID after an interrupted response", async () => {
     const user = userEvent.setup();
     const { repository: currentDay } = persistedRepository();

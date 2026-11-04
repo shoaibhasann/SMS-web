@@ -1,10 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { createAttendanceRepository } from "../lib/attendance/repository";
+import { createAttendanceRepository, loadEnrolledStudents } from "../lib/attendance/repository";
 import type { AttendanceChange, AttendanceContext, AttendanceEntry, AttendanceStatus } from "../lib/attendance/types";
 
 type Row = Record<string, unknown>;
-type Table = "students" | "enrollments" | "attendance";
+type Table = "students" | "enrollments" | "attendance" | "register";
 type Filter = { column: string; operator: "eq" | "in" | "is"; value: unknown };
 type Query = {
   table: Table;
@@ -21,7 +21,8 @@ type DbError = { message: string; code?: string };
 
 /** A small in-memory PostgREST fake: query filters actually control reads and writes. */
 class FakeDatabase {
-  rows: Record<Table, Row[]> = { students: [], enrollments: [], attendance: [] };
+  rows: Record<Exclude<Table, "register">, Row[]> = { students: [], enrollments: [], attendance: [] };
+  historicalRosters = new Map<string, Row[]>();
   calls: Query[] = [];
   cap = Infinity;
   failure?: (query: Query) => DbError | null;
@@ -30,7 +31,15 @@ class FakeDatabase {
   maximumActiveWrites = 0;
 
   client() {
-    return { from: (table: Table) => new FakeQuery(this, table) } as unknown as SupabaseClient;
+    return {
+      from: (table: Table) => new FakeQuery(this, table),
+      rpc: (name: string, args: Row, options: { count: string }) => {
+        if (name !== "list_attendance_register_students") throw new Error(`Unexpected RPC ${name}`);
+        const query = new FakeQuery(this, "register");
+        query.query.payload = args;
+        return query.select("id,first_name,middle_name,last_name,admission_no,roll_no", options);
+      },
+    } as unknown as SupabaseClient;
   }
 
   async execute(query: Query) {
@@ -47,13 +56,13 @@ class FakeDatabase {
       const matches = (row: Row) => query.filters.every(({ column, operator, value }) =>
         operator === "in" ? (value as unknown[]).includes(row[column]) : row[column] === value,
       );
-      let rows = this.rows[query.table].filter(matches);
+      let rows = (query.table === "register" ? this.registerRows(query.payload!) : this.rows[query.table]).filter(matches);
       if (query.action === "insert") {
         const payload = structuredClone(query.payload!);
         if (this.rows.attendance.some((row) => row.student_id === payload.student_id && row.attendance_date === payload.attendance_date)) {
           return { data: null, error: { message: "Duplicate student/date", code: "23505" }, count: null };
         }
-        this.rows[query.table].push(payload);
+        this.rows.attendance.push(payload);
         rows = [payload];
       } else if (query.action === "update") {
         for (const row of rows) Object.assign(row, query.payload);
@@ -73,6 +82,18 @@ class FakeDatabase {
     } finally {
       if (writing) this.activeWrites--;
     }
+  }
+
+  registerRows(args: Row): Row[] {
+    const key = `${args.p_section_id}/${args.p_day}`;
+    const historical = this.historicalRosters.get(key);
+    if (historical) return historical;
+    return this.rows.enrollments.flatMap((enrollment) => {
+      if (enrollment.academic_year_id !== args.p_year_id || enrollment.class_id !== args.p_class_id ||
+        enrollment.section_id !== args.p_section_id || enrollment.status !== "active") return [];
+      const student = this.rows.students.find((row) => row.id === enrollment.student_id && row.school_id === args.p_school_id);
+      return student ? [{ ...student, roll_no: enrollment.roll_no ?? student.roll_no }] : [];
+    });
   }
 }
 
@@ -138,7 +159,7 @@ describe("attendance repository load", () => {
     expect(db.calls.flatMap((query) => query.filters).some((filter) => filter.column === "marked_by")).toBe(false);
   });
 
-  it("paginates enrollments, chunked students and attendance even below the requested server row cap", async () => {
+  it("paginates the scoped roster and attendance even below the requested server row cap", async () => {
     const db = new FakeDatabase();
     db.cap = 37;
     for (let index = 0; index < 407; index++) {
@@ -155,12 +176,13 @@ describe("attendance repository load", () => {
     expect(snapshot.students).toHaveLength(407);
     expect(Object.keys(snapshot.entries)).toHaveLength(407);
     expect(snapshot.students[406].roll_no).toBe("407");
-    expect(db.calls.filter((query) => query.table === "enrollments")).toHaveLength(11);
+    expect(db.calls.filter((query) => query.table === "register")).toHaveLength(11);
     expect(db.calls.filter((query) => query.table === "attendance")).toHaveLength(11);
     expect(db.calls.every((query) => query.order)).toBe(true);
-    expect(db.calls.filter((query) => query.table === "students").every((query) =>
-      query.filters.some((filter) => filter.column === "school_id" && filter.value === context.schoolId),
-    )).toBe(true);
+    for (const { payload } of db.calls.filter((query) => query.table === "register")) {
+      expect(payload).toEqual({ p_school_id: context.schoolId, p_year_id: context.academicYearId,
+        p_class_id: context.classId, p_section_id: context.sectionId, p_day: date });
+    }
   });
 
   it("filters active year/class/section enrollment and uses enrollment roll numbers", async () => {
@@ -179,7 +201,7 @@ describe("attendance repository load", () => {
     addStudent(db, "pupil");
     if (mode === "missing") db.rows.students = [];
     else db.rows.students[0].school_id = "school-b";
-    await expect(createAttendanceRepository(db.client()).load(context, date)).rejects.toThrow("Some enrolled students could not be accessed");
+    await expect(loadEnrolledStudents(db.client(), context)).rejects.toThrow("Some enrolled students could not be accessed");
     expect(writes(db)).toEqual([]);
   });
 
@@ -194,7 +216,7 @@ describe("attendance repository load", () => {
     expect(writes(db)).toEqual([]);
   });
 
-  it.each(["enrollments", "students", "attendance"] as Table[])("throws instead of treating %s errors as an empty register", async (table) => {
+  it.each(["register", "attendance"] as Table[])("throws instead of treating %s errors as an empty register", async (table) => {
     const db = new FakeDatabase();
     addStudent(db, "pupil");
     db.failure = (query) => query.table === table ? { message: "Network unavailable" } : null;
@@ -206,9 +228,31 @@ describe("attendance repository load", () => {
     db.cap = 1;
     addStudent(db, "1"); addStudent(db, "2");
     db.beforeExecute = async (query) => {
-      if (query.table === "enrollments" && query.from > 0) db.rows.enrollments.pop();
+      if (query.table === "register" && query.from > 0) db.rows.enrollments.pop();
     };
     await expect(createAttendanceRepository(db.client()).load(context, date)).rejects.toThrow("records changed while loading");
+  });
+
+  it("loads a transferred pupil's old mark in the original section and only lists the pupil in the new current section", async () => {
+    const db = new FakeDatabase();
+    addStudent(db, "pupil", "12");
+    const oldMark = addEntry(db, "pupil", "late", "Recorded before transfer");
+    const newContext = { ...context, sectionId: "destination" };
+    const transferDay = "2026-11-03";
+    db.historicalRosters.set(`${context.sectionId}/${date}`, [{ ...db.rows.students[0], roll_no: "12" }]);
+    db.historicalRosters.set(`${newContext.sectionId}/${date}`, []);
+    db.rows.enrollments[0].section_id = newContext.sectionId;
+    db.rows.enrollments[0].roll_no = "8";
+    const repository = createAttendanceRepository(db.client());
+
+    const oldSnapshot = await repository.load(context, date);
+    expect(oldSnapshot.students[0].roll_no).toBe("12");
+    expect(oldSnapshot.entries.pupil).toEqual(oldMark);
+    expect(await repository.load(newContext, date)).toEqual({ students: [], entries: {} });
+    expect(await repository.load(context, transferDay)).toEqual({ students: [], entries: {} });
+    const destination = await repository.load(newContext, transferDay);
+    expect(destination.students[0].roll_no).toBe("8");
+    expect(destination.entries).toEqual({});
   });
 });
 

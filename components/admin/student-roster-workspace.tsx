@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { StudentPlacementDialog, StudentPlacementHistory } from "@/components/admin/student-roster-placements";
 import { StudentRosterImport } from "@/components/admin/student-roster-import";
 import { StudentWithdrawalDialog, StudentWithdrawalHistory } from "@/components/admin/student-roster-withdrawals";
 import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAccess } from "@/lib/attendance/repository";
@@ -12,6 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 type Setup = Awaited<ReturnType<typeof loadAdminAttendanceSetup>>;
+type RosterStudent = Awaited<ReturnType<typeof loadEnrolledStudents>>[number];
 type Load<T> = { data: T; error?: never } | { data?: never; error: string };
 type SaveState = { message: string; error?: boolean };
 
@@ -58,7 +60,7 @@ export function StudentRosterWorkspace({ userId }: { userId: string }) {
       <header>
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">People</p>
         <h1 className="mt-1 text-3xl font-black">Students</h1>
-        <p className="mt-2 text-sm muted">Admit a student to a class and section in the current academic year.</p>
+        <p className="mt-2 text-sm muted">Admit students and manage their class, section and academic year.</p>
       </header>
       {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload this page to check access again.</p>
         : !access ? <p role="status" className="text-sm muted">Checking school access…</p>
@@ -92,7 +94,7 @@ function SchoolRoster({ client, schoolId, busy, onBusyChange }: {
 
   useEffect(() => {
     let active = true;
-    loadAdminAttendanceSetup(client, schoolId, { activeClassesOnly: true }).then(
+    loadAdminAttendanceSetup(client, schoolId, { activeClassesOnly: true, includePastYears: true }).then(
       (data) => { if (active) setSetup({ data }); },
       (error: unknown) => { if (active) setSetup(readError(error)); },
     );
@@ -134,31 +136,33 @@ function SchoolRoster({ client, schoolId, busy, onBusyChange }: {
         </label>
       </div>
       {classId && sectionId
-        ? <SectionRoster key={sectionId} client={client} schoolId={schoolId} academicYearId={year.id}
-            classId={classId} sectionId={sectionId} busy={busy} onBusyChange={onBusyChange} />
+        ? <SectionRoster key={`${year.id}:${sectionId}`} client={client} schoolId={schoolId} academicYearId={year.id}
+            classId={classId} sectionId={sectionId} setup={setup.data} busy={busy} onBusyChange={onBusyChange} />
         : <p className="text-sm muted">Choose an active class and section to continue.</p>}
     </>
   );
 }
 
-function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, busy, onBusyChange }: AttendanceContext & {
+function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, setup, busy, onBusyChange }: AttendanceContext & {
   client: Client;
+  setup: Setup;
   busy: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const [roster, setRoster] = useState<Load<AttendanceStudent[]>>();
+  const [roster, setRoster] = useState<Load<RosterStudent[]>>();
   const [refresh, setRefresh] = useState(0);
   const [admissionNumber, setAdmissionNumber] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [status, setStatus] = useState<SaveState>();
   const [withdrawalStudent, setWithdrawalStudent] = useState<AttendanceStudent>();
-  const [withdrawalNotice, setWithdrawalNotice] = useState("");
+  const [rosterNotice, setRosterNotice] = useState("");
+  const [placementStudent, setPlacementStudent] = useState<RosterStudent>();
   const saveInFlight = useRef(false);
 
   useEffect(() => {
     let active = true;
-    loadEnrolledStudents(client, { schoolId, academicYearId, classId, sectionId }, { activeStudentsOnly: true }).then(
+    loadEnrolledStudents(client, { schoolId, academicYearId, classId, sectionId }, { activeStudentsOnly: true, enrollmentRollOnly: true }).then(
       (data) => { if (active) setRoster({ data }); },
       (error: unknown) => { if (active) setRoster(readError(error)); },
     );
@@ -231,7 +235,7 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
           <h2 className="text-lg font-bold">Current class roster</h2>
           <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
         </div>
-        {withdrawalNotice && <p role="status" className="text-sm">{withdrawalNotice}</p>}
+        {rosterNotice && <p role="status" className="text-sm">{rosterNotice}</p>}
         {!roster ? <p role="status" className="text-sm muted">Loading roster…</p>
           : !roster.data ? <p role="alert" className="text-sm">{roster.error}</p>
           : !roster.data.length ? <p className="text-sm muted">No active students are enrolled in this section.</p>
@@ -242,9 +246,14 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
                   <p className="font-semibold">{studentName(student)}</p>
                   <p className="muted">{student.admission_no}</p>
                 </div>
-                <button type="button" disabled={busy} aria-label={`Withdraw ${studentName(student)}`}
-                  onClick={() => { setWithdrawalNotice(""); setWithdrawalStudent(student); }}
-                  className={`${button} text-red-700 dark:text-red-400`}>Withdraw</button>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={busy} aria-label={`Change placement for ${studentName(student)}`}
+                    onClick={() => { setRosterNotice(""); setPlacementStudent(student); }}
+                    className={button}>Change placement</button>
+                  <button type="button" disabled={busy} aria-label={`Withdraw ${studentName(student)}`}
+                    onClick={() => { setRosterNotice(""); setWithdrawalStudent(student); }}
+                    className={`${button} text-red-700 dark:text-red-400`}>Withdraw</button>
+                </div>
               </li>)}
             </ul>}
         <Link href="/modules/guardian-invitations" className="inline-block text-sm font-semibold text-blue-600 dark:text-blue-400">
@@ -252,10 +261,24 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
         </Link>
       </section>
       <StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }} revision={refresh} />
+      <StudentPlacementHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
+        years={setup.years.filter((year) => year.start_date <= setup.year.start_date)} revision={refresh} />
+      {placementStudent && (
+        <StudentPlacementDialog client={client} source={{ schoolId, academicYearId, classId, sectionId }}
+          currentYear={setup.year} years={setup.years} classes={setup.classes} sections={setup.sections} student={placementStudent}
+          onClose={() => setPlacementStudent(undefined)} onBusyChange={onBusyChange}
+          onPlaced={(kind) => {
+            const name = studentName(placementStudent);
+            setRosterNotice(kind === "move"
+              ? `${name} moved to the destination roster.`
+              : `Promotion prepared for ${name}. Use Change placement to revise it before the destination year is activated.`);
+            reloadRoster();
+          }} />
+      )}
       {withdrawalStudent && (
         <StudentWithdrawalDialog client={client} context={{ schoolId, academicYearId, classId, sectionId }} student={withdrawalStudent}
           onClose={() => setWithdrawalStudent(undefined)} onBusyChange={onBusyChange}
-          onWithdrawn={() => { setWithdrawalNotice(`${studentName(withdrawalStudent)} was withdrawn.`); reloadRoster(); }} />
+          onWithdrawn={() => { setRosterNotice(`${studentName(withdrawalStudent)} was withdrawn.`); reloadRoster(); }} />
       )}
     </>
   );

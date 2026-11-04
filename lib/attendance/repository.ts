@@ -92,6 +92,7 @@ export async function readPages<T>(
 
 type RegisterOption = { id: string; name: string };
 type RegisterSection = RegisterOption & { class_id: string };
+type RegisterYear = RegisterOption & { start_date: string; end_date: string; is_current: boolean };
 
 export function loadAdminAttendanceAccess(client: SupabaseClient, principal = false) {
   return loadSchoolManagementAccess(client, "attendance", [principal ? "principal" : "school_admin"]);
@@ -126,12 +127,15 @@ export async function loadSchoolManagementAccess(
 export async function loadAdminAttendanceSetup(
   client: SupabaseClient,
   schoolId: string,
-  options: { activeClassesOnly?: boolean } = {},
+  options: { activeClassesOnly?: boolean; includePastYears?: boolean } = {},
 ) {
   const [years, classes, sections] = await Promise.all([
-    readPages<RegisterOption>((from, to) => client.from("academic_years")
-      .select("id,name", { count: "exact" }).eq("school_id", schoolId).eq("is_current", true)
-      .order("id").range(from, to), "The current academic year could not be loaded"),
+    readPages<RegisterYear>((from, to) => {
+      const query = client.from("academic_years")
+        .select("id,name,start_date,end_date,is_current", { count: "exact" }).eq("school_id", schoolId);
+      return (options.includePastYears ? query : query.eq("is_current", true))
+        .order("start_date", { ascending: false }).order("id").range(from, to);
+    }, "Academic years could not be loaded"),
     readPages<RegisterOption>((from, to) => {
       const query = client.from("classes")
         .select("id,name", { count: "exact" }).eq("school_id", schoolId).order("name").order("id");
@@ -141,14 +145,15 @@ export async function loadAdminAttendanceSetup(
       .select("id,name,class_id", { count: "exact" }).eq("school_id", schoolId)
       .order("name").order("id").range(from, to), "Sections could not be loaded"),
   ]);
-  if (years.length !== 1) throw new Error("Set exactly one current academic year for this school to open its register.");
-  return { year: years[0], classes, sections };
+  const currentYears = years.filter((year) => year.is_current);
+  if (currentYears.length !== 1) throw new Error("Set exactly one current academic year for this school to open its register.");
+  return { year: currentYears[0], years, classes, sections };
 }
 
 export async function loadEnrolledStudents(
   client: SupabaseClient,
   context: AttendanceContext,
-  options: { activeStudentsOnly?: boolean } = {},
+  options: { activeStudentsOnly?: boolean; enrollmentRollOnly?: boolean } = {},
 ) {
   const enrollments = await readPages<EnrollmentRow>((from, to) => client
     .from("enrollments")
@@ -193,12 +198,17 @@ export async function loadEnrolledStudents(
   const students = studentIds.flatMap((id) => {
     const { status, ...student } = studentById.get(id)!;
     if (options.activeStudentsOnly && status !== "active") return [];
-    return [{ ...student, roll_no: enrollmentByStudent.get(id)!.roll_no ?? student.roll_no ?? null }];
+    const enrollment = enrollmentByStudent.get(id)!;
+    const rollNumber = enrollment.roll_no ?? (options.enrollmentRollOnly ? null : student.roll_no ?? null);
+    return [{ ...student, enrollment_id: enrollment.id, roll_no: rollNumber }];
   });
-  students.sort((left, right) => String(left.roll_no ?? "").localeCompare(
+  return students.sort(compareRosterStudents);
+}
+
+function compareRosterStudents(left: AttendanceStudent, right: AttendanceStudent) {
+  return String(left.roll_no ?? "").localeCompare(
     String(right.roll_no ?? ""), undefined, { numeric: true, sensitivity: "base" },
-  ) || left.first_name.localeCompare(right.first_name) || left.id.localeCompare(right.id));
-  return students;
+  ) || left.first_name.localeCompare(right.first_name) || left.id.localeCompare(right.id);
 }
 
 /**
@@ -210,17 +220,32 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
   return {
     async load(context: AttendanceContext, date: string): Promise<AttendanceSnapshot> {
       validateScope(context, date);
-      const students = await loadEnrolledStudents(client, context);
-
-      const attendanceRows = await readPages<AttendanceEntry>((from, to) => client
-        .from("attendance")
-        .select(ENTRY_COLUMNS, { count: "exact" })
-        .eq("school_id", context.schoolId)
-        .eq("academic_year_id", context.academicYearId)
-        .eq("section_id", context.sectionId)
-        .eq("attendance_date", date)
-        .order("student_id", { ascending: true })
-        .range(from, to), "Saved attendance could not be loaded");
+      const [students, attendanceRows] = await Promise.all([
+        readPages<AttendanceStudent>((from, to) => client.rpc("list_attendance_register_students", {
+          p_school_id: context.schoolId,
+          p_year_id: context.academicYearId,
+          p_class_id: context.classId,
+          p_section_id: context.sectionId,
+          p_day: date,
+        }, { count: "exact" }).order("id").range(from, to), "Student enrollments could not be loaded"),
+        readPages<AttendanceEntry>((from, to) => client
+          .from("attendance")
+          .select(ENTRY_COLUMNS, { count: "exact" })
+          .eq("school_id", context.schoolId)
+          .eq("academic_year_id", context.academicYearId)
+          .eq("section_id", context.sectionId)
+          .eq("attendance_date", date)
+          .order("student_id", { ascending: true })
+          .range(from, to), "Saved attendance could not be loaded"),
+      ]);
+      const studentIds = new Set<string>();
+      for (const student of students) {
+        if (!student || typeof student.id !== "string" || !student.id || studentIds.has(student.id) ||
+          typeof student.first_name !== "string" || typeof student.admission_no !== "string") {
+          throw new Error("The class roster contains an incomplete or duplicate student. Contact your administrator.");
+        }
+        studentIds.add(student.id);
+      }
       const entries: Record<string, AttendanceEntry> = {};
       for (const value of attendanceRows) {
         const entry = validateEntry(value);
@@ -230,7 +255,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         entries[entry.student_id] = entry;
       }
 
-      return { students, entries };
+      return { students: students.sort(compareRosterStudents), entries };
     },
 
     async save(

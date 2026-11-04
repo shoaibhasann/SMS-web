@@ -65,6 +65,8 @@ type EnrollmentRow = {
   section_id: string | null;
   academic_year_id: string;
   roll_no: string | null;
+  classes: { name: string } | null;
+  sections: { name: string } | null;
 };
 type StudentFeeRow = {
   id: string;
@@ -913,9 +915,14 @@ async function loadStudentDashboardData(
   signal: AbortSignal,
 ): Promise<StudentDashboardData | null> {
   const [{ data: enrollment }, attendanceResult, { data: fees }] = await Promise.all([
-    supabase.from("enrollments").select("class_id,section_id,academic_year_id,roll_no").eq("student_id", student.id).eq("status", "active").order("enrolled_at", { ascending: false }).limit(1).returns<EnrollmentRow[]>().maybeSingle(),
+    supabase.from("enrollments").select("class_id,section_id,academic_year_id,roll_no,classes(name),sections(name),academic_years!inner(is_current)")
+      .eq("student_id", student.id).eq("status", "active")
+      .eq("academic_years.school_id", student.school_id).eq("academic_years.is_current", true)
+      .returns<EnrollmentRow[]>().maybeSingle(),
     loadFamilyAttendance(supabase, student),
-    supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date").eq("student_id", student.id).order("created_at", { ascending: false }).limit(30).returns<StudentFeeRow[]>(),
+    supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date")
+      .eq("school_id", student.school_id).eq("student_id", student.id)
+      .order("created_at", { ascending: false }).limit(30).returns<StudentFeeRow[]>(),
   ]);
   if (signal.aborted) return null;
 
@@ -1017,10 +1024,12 @@ function StudentDashboard({ userId }: { userId: string }) {
         <Stat label="Fee Records" value={fees.length} tone="orange" />
       </div>
       <Card title="My Profile & Class" icon={<UserRound size={18} />}>
-        <div className="grid gap-3 sm:grid-cols-4 text-sm">
+        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <div><div className="text-xs muted">Name</div><div className="mt-1 font-bold">{student ? nameOf(student) : "—"}</div></div>
           <div><div className="text-xs muted">Admission No.</div><div className="mt-1 font-bold">{student?.admission_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? student?.roll_no ?? "—"}</div></div>
+          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? "—"}</div></div>
+          <div><div className="text-xs muted">Class</div><div className="mt-1 font-bold">{enrollment?.classes?.name ?? "—"}</div></div>
+          <div><div className="text-xs muted">Section</div><div className="mt-1 font-bold">{enrollment?.sections?.name ?? "—"}</div></div>
           <div><div className="text-xs muted">Status</div><div className="mt-1 font-bold">{student?.status ?? "—"}</div></div>
         </div>
       </Card>
@@ -1152,9 +1161,9 @@ function ParentDashboard({ userId }: { userId: string }) {
         <div className="grid gap-3 sm:grid-cols-5 text-sm">
           <div><div className="text-xs muted">Name</div><div className="mt-1 font-bold">{child ? nameOf(child) : "—"}</div></div>
           <div><div className="text-xs muted">Admission</div><div className="mt-1 font-bold">{child?.admission_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? child?.roll_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Class ID</div><div className="mt-1 font-bold">{enrollment?.class_id?.slice(0, 8) ?? "—"}</div></div>
-          <div><div className="text-xs muted">Section ID</div><div className="mt-1 font-bold">{enrollment?.section_id?.slice(0, 8) ?? "—"}</div></div>
+          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? "—"}</div></div>
+          <div><div className="text-xs muted">Class</div><div className="mt-1 font-bold">{enrollment?.classes?.name ?? "—"}</div></div>
+          <div><div className="text-xs muted">Section</div><div className="mt-1 font-bold">{enrollment?.sections?.name ?? "—"}</div></div>
         </div>
       </Card>
       <div className="grid gap-6 lg:grid-cols-2">

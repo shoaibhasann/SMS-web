@@ -88,15 +88,17 @@ function joinedName(value: JoinedName, fallback: string) {
   return (Array.isArray(value) ? value[0]?.name : value?.name) ?? fallback;
 }
 
-export async function getCurrentTeacherAssignments(): Promise<TeachingAssignment[]> {
+export async function getCurrentTeacherAssignments({ currentYearOnly = false } = {}): Promise<TeachingAssignment[]> {
   const supabase = createClient();
   const teacherId = await getCurrentTeacherId();
   if (!teacherId) return [];
 
-  const { data, error } = await supabase
+  const columns = 'id, teacher_id, class_id, section_id, subject_id, academic_year_id, is_class_teacher, classes(name), sections(name), subjects(name)';
+  const query = supabase
     .from('teacher_subject_assignments')
-    .select('id, teacher_id, class_id, section_id, subject_id, academic_year_id, is_class_teacher, classes(name), sections(name), subjects(name)')
+    .select(currentYearOnly ? `${columns}, academic_years!inner(is_current)` : columns)
     .eq('teacher_id', teacherId);
+  const { data, error } = await (currentYearOnly ? query.eq('academic_years.is_current', true) : query);
   if (error) throw error;
 
   return ((data ?? []) as unknown as AssignmentReadRow[]).map((row) => ({

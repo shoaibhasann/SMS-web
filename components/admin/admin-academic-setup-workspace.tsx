@@ -1,5 +1,6 @@
 "use client";
 
+import { AcademicYearActivation } from "@/components/admin/academic-year-activation";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { addAcademicSetupRecord, loadAcademicSetup, type AcademicSetup, type AcademicSetupDraft } from "@/lib/admin/academic-setup";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
@@ -151,6 +152,7 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
   }
 
   const rows = setup?.[selectedTab.key] ?? [];
+  const current = setup?.years.find((year) => year.is_current);
   return (
     <section className="card space-y-4 p-4 sm:p-6" aria-label="School academic setup">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -186,6 +188,14 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
               ))}
             </ul>
           ) : <p className="text-sm muted">No records yet.</p>}
+          {selectedTab.key === "years" && current && (
+            <AcademicYearActivation key={current.id} client={client} schoolId={schoolId} current={current}
+              years={setup.years} saving={saving} setSaving={setSaving} onActivated={() => {
+                setNotice({ text: "The next academic year is now active." });
+                setSetup(undefined);
+                setAttempt((count) => count + 1);
+              }} />
+          )}
           {selectedTab.key === "sections" && !activeClasses.length
             ? <p className="text-sm muted">Add a class first to create a section.</p>
             : (
