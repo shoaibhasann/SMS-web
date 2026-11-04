@@ -77,8 +77,8 @@ The deployed browser run verified invite creation and copying, student access de
 
 ### Founder email test
 
-1. Open the latest phase Preview below and sign in to Vercel. Use the QA school and synthetic pupil for this run. For the guardian, use an inbox you control that has never signed up in this ERP. Supabase's default mailer can send to existing project-team addresses. Use an inbox supported by the project's custom SMTP if configured. [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp)
-2. In Supabase Auth **URL Configuration**, confirm the redirect allowlist covers `https://kids-corner-erp-frontend-i38lmtc5r-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fguardian-invite`. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+1. Open the current release Preview below and sign in to Vercel. Use the QA school and synthetic pupil for this run. For the guardian, use an inbox you control that has never signed up in this ERP. Supabase's default mailer can send to existing project-team addresses. Use an inbox supported by the project's custom SMTP if configured. [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp)
+2. In Supabase Auth **URL Configuration**, confirm the redirect allowlist covers `https://kids-corner-erp-frontend-bn2r07l11-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fguardian-invite`. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
 3. Complete **GUA-01**. In a separate browser profile that can open the Vercel Preview, open the copied link and choose **Create a guardian account** using that exact email address.
 4. Check that the confirmation email arrives. Open the confirmation link in the same browser profile where you created the account. Reopen the original guardian invite, sign in if prompted and select **Accept invitation**.
 5. Complete **GUA-02**. Mark **GUA-03** Pass only after the email reaches the inbox, confirmation works, attendance opens and refresh preserves the linked child. If blocked, record which step failed and what appeared. Keep passwords, invitation links and confirmation links out of the report.
@@ -95,7 +95,7 @@ Revoking a pending invitation stops that link from being used. Accepted guardian
 
 ## Phase QA fixture and school setup
 
-Use the [latest Vercel Preview](https://kids-corner-erp-frontend-i38lmtc5r-shoaibhasanns-projects.vercel.app/login), app revision `0eae34fa5fdc8cfdfb1e75c8384461962c408bda`, deployment `dpl_DcDVES3A77DGWGmRa672SyV3Jsgq`. Sign in to Vercel first, then use the ERP QA login.
+The [school workflow Preview](https://kids-corner-erp-frontend-i38lmtc5r-shoaibhasanns-projects.vercel.app/login) covered app revision `0eae34fa5fdc8cfdfb1e75c8384461962c408bda`, deployment `dpl_DcDVES3A77DGWGmRa672SyV3Jsgq`.
 
 Use school `ERP-QA-d767af40` in the demo Supabase project. It has a school-scoped QA admin, academic year **2026–27 Phase QA**, **QA Class 6 / QA A**, and synthetic students Pilot One and Pilot Two. A QA student login is linked to Pilot One. Use the private local handoff for the admin, student and guardian accounts.
 
@@ -114,8 +114,14 @@ The school setup, attendance and guardian linking, fee and receipt, and notice c
 
 ## Teacher onboarding, CSV import, cashier close and workspace navigation
 
+Use the [current release Preview](https://kids-corner-erp-frontend-bn2r07l11-shoaibhasanns-projects.vercel.app/login), app revision `fdbd24a896ebad7e560d33ec356037697378ca26`, deployment `dpl_HC9otgYvgsC1GTpUsp7R1fNoYqjh`. Sign in to Vercel first, then use the ERP QA account.
+
 - [ ] **CSV-01 · Import and reload.** In **Students**, choose QA Class 6 / QA A and open **Import students from CSV**. Download the template, add two new admission numbers and preview both rows before importing. Reload and confirm both pupils appear. Try a file with one new admission and one existing number. Confirm the entire batch is rejected and the new row is absent.
 - [ ] **CLOSE-01 · Check the saved close.** In **Finance Reports → Cashier day close**, choose 31 October 2026 IST. Expect a closed record with ₹200 recorded cash, ₹190 counted cash, one receipt and a −₹10 variance with its note. Refresh and confirm the values persist. For a new close, use a separate historical QA date with synthetic receipts.
 - [ ] **NAV-01 · Page finder and mobile menu.** On desktop, open **Find a page** with Ctrl+K or Cmd+K. Search for a page and open it with Enter. On a 390 px viewport, open **More**, press Escape and verify focus returns to the trigger. Sign in as the guardian and check that page search offers Attendance and Receipts while excluding Finance Reports.
 - [ ] **STAFF-01 · Invite and assign a teacher.** In **Teachers & Staff**, create a synthetic employee record with a new employee ID. Create an invitation for the exact verified teacher email and use it to link the account. Verify the directory shows Linked after reload. As admin, assign the teacher to QA Class 6 / QA A. The teacher should see their assigned attendance roster on reload and be denied direct access to Finance Reports.
 - [ ] **STAFF-02 · Check invitation boundaries.** Reissue a pending teacher invitation and confirm the original link fails. Try the latest link with a different verified account and check that acceptance fails. Open the accepted link again and check it cannot be reused. Use an approved fresh inbox for the founder's actual email confirmation run.
+
+For teacher email confirmation on this Preview, allow `https://kids-corner-erp-frontend-bn2r07l11-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fteacher-invite` in Supabase Auth URL Configuration. The teacher browser run used a pre-confirmed QA account. Fresh-account email delivery is pending founder QA. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+
+Deployed Preview checks passed for the imported roster, saved cashier close, assigned teacher attendance, teacher denial from Finance Reports, and the guardian's mobile receipts and role-filtered page finder. All 363 automated tests, lint, typecheck and build passed.
