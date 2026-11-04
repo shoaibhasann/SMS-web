@@ -34,6 +34,7 @@ export async function issueGuardianInvitation(
   if (error) {
     if (error.code === "42501") throw new Error("This student is outside your invitation access. Refresh and check the school and student.");
     if (error.code === "22023") throw new Error("Enter the guardian’s full email address.");
+    if (error.code === "55000") throw new Error("A school administrator must re-invite this guardian from Manage linked guardians.");
     if (error.code === "P0001") throw new Error("The student needs an active enrollment in the current academic year. Refresh the roster and check the enrollment.");
     throw new Error("The invitation could not be created. Try again.");
   }
@@ -66,11 +67,22 @@ type GuardianAccessEvent = {
   guardian_name: string | null;
 };
 
+type ReinvitableGuardian = {
+  revocation_id: string;
+  parent_id: string;
+  name: string | null;
+  email: string;
+  relationship: string | null;
+  pending_invitation_id: string | null;
+  pending_expires_at: string | null;
+};
+
 export type GuardianAccess = {
   student_id: string;
   student_name: string;
   admission_no: string;
   guardians: LinkedGuardian[];
+  reinvitable_guardians: ReinvitableGuardian[];
   events: GuardianAccessEvent[];
 };
 
@@ -80,10 +92,11 @@ export async function lookupGuardianAccess(client: SupabaseClient, schoolId: str
     p_admission_no: admissionNo,
   });
   if (error?.code === "42501") throw new Error("Only a school administrator for this school can view guardian access.");
-  if (error || (data !== null && (!Array.isArray(data?.guardians) || !Array.isArray(data?.events)))) {
+  if (error || (data !== null && (!Array.isArray(data?.guardians) || !Array.isArray(data?.events)
+    || (data.reinvitable_guardians !== undefined && !Array.isArray(data.reinvitable_guardians))))) {
     throw new Error("Guardian access could not be loaded. Search again.");
   }
-  return data;
+  return data === null ? null : { ...data, reinvitable_guardians: data.reinvitable_guardians ?? [] };
 }
 
 export async function revokeGuardianAccess(
@@ -99,4 +112,23 @@ export async function revokeGuardianAccess(
   if (error?.code === "22023") throw new Error("Enter a reason between 5 and 500 characters.");
   if (error || typeof data !== "boolean") throw new Error("Guardian access could not be removed. Search again and check the link.");
   return data;
+}
+
+export async function reinviteGuardianAccess(
+  client: SupabaseClient, schoolId: string, studentId: string, revocationId: string,
+): Promise<IssuedInvitation & { email: string }> {
+  const { data, error } = await client.rpc("reinvite_guardian_access", {
+    p_school_id: schoolId,
+    p_student_id: studentId,
+    p_revocation_id: revocationId,
+  });
+  if (error?.code === "42501") throw new Error("You do not have permission to re-invite this guardian.");
+  if (error?.code === "22023") throw new Error("This guardian needs an active account with a verified email before you can re-invite them.");
+  if (error?.code === "55000") throw new Error("This guardian’s access changed. Find the student again before re-inviting.");
+  if (error?.code === "P0001") throw new Error("Re-inviting requires an active enrollment in the current academic year.");
+  const email: unknown = data?.email;
+  if (error || !isIssuedInvitation(data) || typeof email !== "string") {
+    throw new Error("The re-invitation link could not be created. Find the student again and check their access.");
+  }
+  return { ...data, email };
 }

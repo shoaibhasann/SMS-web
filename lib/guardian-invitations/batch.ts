@@ -91,6 +91,9 @@ export async function importGuardianInvitations(
   }
   if (error?.code === "23505") throw new Error("This import request changed. Preview the file again before creating invitations.");
   if (error?.code === "55000") {
+    if (error.message.startsWith("A school administrator must re-invite this guardian")) {
+      throw new Error("A school administrator must re-invite this guardian from Manage linked guardians.");
+    }
     throw new Error("The import finished, and at least one link is no longer available. Review the individual invitation histories.");
   }
   if (error || data?.request_id !== request.requestId || !Array.isArray(data?.invitations) || data.invitations.length !== rows.length) {

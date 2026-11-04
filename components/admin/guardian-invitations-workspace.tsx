@@ -54,6 +54,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [school, setSchool] = useState("");
   const [busy, setBusy] = useState(false);
+  const [accessRevision, setAccessRevision] = useState(0);
   const [sessionChanged, setSessionChanged] = useState(false);
 
   useEffect(() => {
@@ -106,15 +107,21 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
           </section>
           {schoolId ? <>
             {canManageLinkedAccess && <GuardianAccessWorkspace key={`guardian-access:${schoolId}`} client={client}
-              schoolId={schoolId} busy={busy} onBusyChange={setBusy} />}
-            <SchoolInvitations key={schoolId} client={client} schoolId={schoolId} busy={busy} onBusyChange={setBusy} />
+              schoolId={schoolId} busy={busy} onBusyChange={setBusy}
+              onInvitationsChanged={() => setAccessRevision((revision) => revision + 1)} />}
+            <SchoolInvitations key={schoolId} client={client} schoolId={schoolId} busy={busy}
+              onBusyChange={setBusy} accessRevision={accessRevision} />
           </> : <p className="text-sm muted">Select a school to find an enrolled student.</p>}
         </>}
     </div>
   );
 }
 
-function SchoolInvitations({ client, schoolId, busy, onBusyChange }: LockProps & { client: Client; schoolId: string }) {
+function SchoolInvitations({ client, schoolId, busy, onBusyChange, accessRevision }: LockProps & {
+  client: Client;
+  schoolId: string;
+  accessRevision: number;
+}) {
   const [setup, setSetup] = useState<Load<Setup>>();
   const [attempt, setAttempt] = useState(0);
   const [pickedClass, setPickedClass] = useState("");
@@ -166,19 +173,20 @@ function SchoolInvitations({ client, schoolId, busy, onBusyChange }: LockProps &
       </section>
       {classId && sectionId ? (
         <RosterInvitations key={sectionId} client={client} schoolId={schoolId} yearId={year.id}
-          classId={classId} sectionId={sectionId} importRevision={importRevision} busy={busy} onBusyChange={onBusyChange} />
+          classId={classId} sectionId={sectionId} historyRevision={importRevision + accessRevision}
+          busy={busy} onBusyChange={onBusyChange} />
       ) : <p className="text-sm muted">Select a class and section with an active roster.</p>}
     </>
   );
 }
 
-function RosterInvitations({ client, schoolId, yearId, classId, sectionId, importRevision, busy, onBusyChange }: LockProps & {
+function RosterInvitations({ client, schoolId, yearId, classId, sectionId, historyRevision, busy, onBusyChange }: LockProps & {
   client: Client;
   schoolId: string;
   yearId: string;
   classId: string;
   sectionId: string;
-  importRevision: number;
+  historyRevision: number;
 }) {
   const [roster, setRoster] = useState<Load<AttendanceStudent[]>>();
   const [attempt, setAttempt] = useState(0);
@@ -212,16 +220,16 @@ function RosterInvitations({ client, schoolId, yearId, classId, sectionId, impor
         </label>
       </section>
       {student && <StudentInvitations key={student.id} client={client} schoolId={schoolId}
-        student={student} importRevision={importRevision} busy={busy} onBusyChange={onBusyChange} />}
+        student={student} historyRevision={historyRevision} busy={busy} onBusyChange={onBusyChange} />}
     </>
   );
 }
 
-function StudentInvitations({ client, schoolId, student, importRevision, busy, onBusyChange }: LockProps & {
+function StudentInvitations({ client, schoolId, student, historyRevision, busy, onBusyChange }: LockProps & {
   client: Client;
   schoolId: string;
   student: AttendanceStudent;
-  importRevision: number;
+  historyRevision: number;
 }) {
   const [email, setEmail] = useState("");
   const [link, setLink] = useState<NewLink>();
@@ -247,7 +255,7 @@ function StudentInvitations({ client, schoolId, student, importRevision, busy, o
       (error: unknown) => { if (current) setHistory(requestError(error)); },
     );
     return () => { current = false; };
-  }, [client, schoolId, studentId, attempt, importRevision]);
+  }, [client, schoolId, studentId, attempt, historyRevision]);
 
   function refresh() {
     setHistory(undefined);
