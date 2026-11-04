@@ -180,7 +180,9 @@ Protected Preview readback passed for the staff directories and audit, duplicate
 
 ## Classes, sections, subjects and teaching assignment CSV imports
 
-Use synthetic school `ERP-MOVE-QA-15c7ba80` and the private QA handoff. Sign in as school admin. Download each template from its import panel. For a fresh write run, use unused names and subject codes and a verified QA teacher who has no current class-teacher duty.
+Use the [protected Vercel Preview](https://kids-corner-erp-frontend-m877yra2m-shoaibhasanns-projects.vercel.app/login), revision `9a488c2121b4eebf63a644bad9866ae3b0a3181e`, deployment `dpl_FxGWGmpQJnnT4QrFRj285G3kDGFE`. Sign in to Vercel first.
+
+Use synthetic school `ERP-MOVE-QA-15c7ba80` and the private QA handoff. Sign in as school admin. Download each template from its import panel. Each file accepts up to 50 data rows and 64 KB in UTF-8. For a fresh write run, use unused names and subject codes and a verified QA teacher who has no current class-teacher duty.
 
 - [ ] **ACAD-CSV-01 · Classes.** In **Academics & Subjects → Classes**, open **Import classes from CSV** and upload `name,sort_order`. Add two names that differ only in case or use an existing class name. Verify the duplicate is flagged before confirmation. Import two unique classes and reload to check their names and order.
 - [ ] **ACAD-CSV-02 · Sections.** In **Sections**, use `class_name,name` to give the two new classes the same section name. Verify that preview shows the right class for each row. Try an unknown class and repeat one class and section pair to verify rejection. Import the valid file and check that each class has its own section after reload.
@@ -188,3 +190,10 @@ Use synthetic school `ERP-MOVE-QA-15c7ba80` and the private QA handoff. Sign in 
 - [ ] **ASG-CSV-01 · Preview assignments.** In **Teaching Assignments → Import teaching assignments from CSV**, use `employee_id,class_name,section_name,subject_name,is_class_teacher`. Review the resolved teacher name and the exact class, section and subject in the current academic year. Use `true` or `false` for class-teacher duty. Try an unknown section, repeated assignment and an existing class-teacher duty. Verify each invalid batch stays blocked.
 - [ ] **ASG-CSV-02 · Save and verify access.** Import one class-teacher and one subject-teacher row for the linked QA teacher. Use the shared section name under different classes and distinct subjects. Reload the assignment list and verify both rows. Admit a synthetic pupil to the class-teacher section, sign in as that teacher, and save and reload attendance. The unrelated pupil remains outside that register.
 - [ ] **ACAD-CSV-UX · Retry and scope.** In a disposable QA run, interrupt a confirmed import response and retry from the same preview. Confirm each row is saved once. Preview the assignment batch with an admin from another school and verify denial. At 390 px, check that preview tables scroll within their containers.
+
+
+Hosted demo browser QA created two classes, a distinct same-named section under each class, and two subjects with their assigned codes. It blocked case-variant duplicate class names and subject codes and rejected an unknown parent class. The class batch saved once after an interrupted response and retry.
+
+The assignment batch correctly mapped one class-teacher and one subject-teacher row for the linked QA teacher. It rejected an unknown section, repeated tuple, existing class-teacher duty and cross-school preview. A lost-response retry produced one audit receipt and two assignments. The teacher saved Present for the pupil in the imported class-teacher section and verified it after refresh. The unrelated pupil remained outside their register and API reads.
+
+Protected Preview readback passed for the class import history, mapped sections, subject code, existing duplicate checks and the teacher's saved attendance at 390 px. All 421 automated tests, lint, TypeScript and the build passed. The checkboxes above are for your independent run.
