@@ -295,3 +295,11 @@ Migration `20261104203041_guardian_absence_alerts` is applied to hosted demo Sup
 An attendance save that records Absent creates an in-app alert for each current linked guardian. The attendance change and alert creation commit together. A repeat save of the same status keeps one alert per guardian and attendance record. The guardian feed checks the live child relationship and saved attendance status before showing the alert. The guardian Dashboard and Attendance show recent alerts. Notifications shows up to 30. The feed starts with new absence saves after the migration, and existing attendance history remains available through Attendance. The [manual QA checklist](POST-DEPLOY-QA.md#in-app-absence-alerts-for-guardians) covers save, retry, revocation and correction.
 
 Protected Preview revision `4d06f4c` passed a live attendance save, same-status retry, guardian revocation, correction and re-invitation against hosted demo Supabase. The guardian views agreed with direct API reads after refresh, and the original attendance row and sibling access were preserved.
+
+## Guardian notification read state
+
+Migration `20261104210215_guardian_absence_alert_read_state` is applied to hosted demo Supabase.
+
+The guardian Notifications inbox shows the full unread count and lets the guardian mark each absence alert as read. Supabase saves the read time on that guardian’s own copy, so two guardians can read the same absence independently. Refresh and subsequent sign-ins use the saved state. Existing alerts start unread. Revoked and corrected alerts are excluded from the count. The inbox shows unread alerts first so older unread items become available as the first entries are read. The [manual QA checklist](POST-DEPLOY-QA.md#guardian-notifications-unread-count-and-mark-as-read) covers both accounts and permission checks.
+
+Protected Preview revision `6bf6414` passed the two-guardian flow after a real demo attendance save. Hard refresh and fresh sign-in preserved the independent states. Concurrent retries returned the original read time, and cross-recipient writes were denied.
