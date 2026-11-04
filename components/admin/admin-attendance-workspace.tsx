@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,21 +15,23 @@ function loadError(error: unknown) {
   return { error: error instanceof Error ? error.message : "Attendance could not be loaded. Try again." };
 }
 
-export function AdminAttendanceWorkspace() {
+export function AdminAttendanceWorkspace({ principal = false }: { principal?: boolean }) {
   const [client] = useState(createClient);
   const [access, setAccess] = useState<LoadState<Access>>();
   const [accessAttempt, setAccessAttempt] = useState(0);
   const [selectedSchool, setSelectedSchool] = useState("");
   const [locked, setLocked] = useState(false);
+  const [showCorrections, setShowCorrections] = useState(false);
+  const [reviewRevision, setReviewRevision] = useState(0);
 
   useEffect(() => {
     let active = true;
-    loadAdminAttendanceAccess(client).then(
+    loadAdminAttendanceAccess(client, principal).then(
       (data) => { if (active) setAccess({ data }); },
       (error: unknown) => { if (active) setAccess(loadError(error)); },
     );
     return () => { active = false; };
-  }, [client, accessAttempt]);
+  }, [client, principal, accessAttempt]);
 
   const schools = access?.data?.schools ?? [];
   const schoolId = selectedSchool || (schools.length === 1 ? schools[0].id : "");
@@ -59,8 +62,14 @@ export function AdminAttendanceWorkspace() {
                 {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
               </select>
             </label>
-            {schoolId ? <SchoolAttendance key={schoolId} client={client} schoolId={schoolId}
-              userId={access.data.userId} locked={locked} onLockChange={setLocked} />
+            {schoolId ? <>
+              <button type="button" aria-expanded={showCorrections} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold"
+                onClick={() => setShowCorrections((value) => !value)}>{showCorrections ? "Hide attendance corrections" : "Review attendance corrections"}</button>
+              {showCorrections && <AttendanceCorrectionQueue key={schoolId} client={client} schoolId={schoolId}
+                userId={access.data.userId} disabled={locked} onReviewed={() => setReviewRevision((value) => value + 1)} />}
+              <SchoolAttendance key={schoolId} client={client} schoolId={schoolId}
+                userId={access.data.userId} locked={locked} onLockChange={setLocked} reviewRevision={reviewRevision} />
+            </>
               : <p className="text-sm muted">Select a school to open its register.</p>}
           </>
         )}
@@ -68,12 +77,13 @@ export function AdminAttendanceWorkspace() {
   );
 }
 
-function SchoolAttendance({ client, schoolId, userId, locked, onLockChange }: {
+function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, reviewRevision }: {
   client: Client;
   schoolId: string;
   userId: string;
   locked: boolean;
   onLockChange: (locked: boolean) => void;
+  reviewRevision: number;
 }) {
   const [setup, setSetup] = useState<LoadState<Setup>>();
   const [setupAttempt, setSetupAttempt] = useState(0);
@@ -135,7 +145,7 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange }: {
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">Attendance register</h2>
           <AttendanceEditor context={{ schoolId, academicYearId: year.id, classId, sectionId }}
-            userId={userId} onLockChange={onLockChange} studentSearch />
+            userId={userId} onLockChange={onLockChange} studentSearch reviewOnlyHistory rosterVersion={reviewRevision} />
         </section>
       ) : (
         <p className="text-sm muted">{!classes.length ? "Add a class and section in Academic Setup to open its register."

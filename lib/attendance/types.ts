@@ -35,6 +35,8 @@ export type AttendanceStudent = {
 };
 
 export type AttendanceEntry = {
+  id?: string;
+  revision?: number;
   student_id: string;
   status: AttendanceStatus;
   remarks: string | null;
@@ -64,6 +66,13 @@ export interface AttendanceRepository {
     userId: string,
     changes: AttendanceChange[],
   ): Promise<AttendanceSaveResult>;
+  requestCorrection?(
+    context: AttendanceContext,
+    date: string,
+    change: AttendanceChange,
+    reason: string,
+    requestId: string,
+  ): Promise<void>;
 }
 
 export function attendanceContextKey(context: AttendanceContext): string {

@@ -14,6 +14,7 @@ import {
   revokeGuardianInvitation,
   type GuardianInvitation,
 } from "@/lib/guardian-invitations/admin";
+import { GuardianAccessWorkspace } from "./guardian-access-workspace";
 import { createClient } from "@/lib/supabase/client";
 
 type Client = ReturnType<typeof createClient>;
@@ -76,6 +77,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
 
   const schools = access?.data?.schools ?? [];
   const schoolId = school || (schools.length === 1 ? schools[0].id : "");
+  const canManageLinkedAccess = access?.data?.schoolAdminIds.includes(schoolId);
 
   return (
     <div className="space-y-6">
@@ -100,8 +102,11 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
               </select>
             </label>
           </section>
-          {schoolId ? <SchoolInvitations key={schoolId} client={client} schoolId={schoolId} busy={busy} onBusyChange={setBusy} />
-            : <p className="text-sm muted">Select a school to find an enrolled student.</p>}
+          {schoolId ? <>
+            {canManageLinkedAccess && <GuardianAccessWorkspace key={`guardian-access:${schoolId}`} client={client}
+              schoolId={schoolId} busy={busy} onBusyChange={setBusy} />}
+            <SchoolInvitations key={schoolId} client={client} schoolId={schoolId} busy={busy} onBusyChange={setBusy} />
+          </> : <p className="text-sm muted">Select a school to find an enrolled student.</p>}
         </>}
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { createClient } from "@/lib/supabase/client";
 import type { AttendanceContext } from "@/lib/attendance/types";
 
@@ -19,6 +20,8 @@ export function TeacherAttendanceRegister() {
   const [loadError, setLoadError] = useState("");
   const [attendanceLocked, setAttendanceLocked] = useState(true);
   const [rosterVersion, setRosterVersion] = useState(0);
+  const [showRequests, setShowRequests] = useState(false);
+  const [requestRevision, setRequestRevision] = useState(0);
   const [registrationOpen, setRegistrationOpen] = useState(false);
   const [studentName, setStudentName] = useState("");
   const [registering, setRegistering] = useState(false);
@@ -111,9 +114,18 @@ export function TeacherAttendanceRegister() {
       <div className="card p-5">
         {registering && <p role="status" className="mb-3 text-sm">Registering student…</p>}
         <fieldset disabled={registering}>
-          <AttendanceEditor context={register.context} userId={register.userId} rosterVersion={rosterVersion} onLockChange={setAttendanceLocked} />
+          <AttendanceEditor context={register.context} userId={register.userId} rosterVersion={rosterVersion}
+            onLockChange={setAttendanceLocked} onCorrectionRequested={() => {
+              setRequestRevision((value) => value + 1);
+              setShowRequests(true);
+            }} />
         </fieldset>
       </div>
+      <button type="button" aria-expanded={showRequests} onClick={() => setShowRequests((value) => !value)} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold">
+        {showRequests ? "Hide my correction requests" : "Show my correction requests"}
+      </button>
+      {showRequests && <AttendanceCorrectionQueue client={client} schoolId={register.context.schoolId}
+        userId={register.userId} own revision={requestRevision} />}
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { StudentRosterImport } from "@/components/admin/student-roster-import";
+import { StudentWithdrawalDialog, StudentWithdrawalHistory } from "@/components/admin/student-roster-withdrawals";
 import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName, type AttendanceContext, type AttendanceStudent } from "@/lib/attendance/types";
 import { admitRosterStudent } from "@/lib/students/roster";
@@ -151,6 +152,8 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [status, setStatus] = useState<SaveState>();
+  const [withdrawalStudent, setWithdrawalStudent] = useState<AttendanceStudent>();
+  const [withdrawalNotice, setWithdrawalNotice] = useState("");
   const saveInFlight = useRef(false);
 
   useEffect(() => {
@@ -228,20 +231,32 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
           <h2 className="text-lg font-bold">Current class roster</h2>
           <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
         </div>
+        {withdrawalNotice && <p role="status" className="text-sm">{withdrawalNotice}</p>}
         {!roster ? <p role="status" className="text-sm muted">Loading roster…</p>
           : !roster.data ? <p role="alert" className="text-sm">{roster.error}</p>
           : !roster.data.length ? <p className="text-sm muted">No active students are enrolled in this section.</p>
           : <ul className="divide-y divide-[var(--border)]">
               {roster.data.map((student) => <li key={student.id}
-                className="flex flex-wrap justify-between gap-x-4 gap-y-1 break-words py-3 text-sm">
-                <span className="font-semibold">{studentName(student)}</span>
-                <span className="muted">{student.admission_no}</span>
+                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 break-words py-3 text-sm">
+                <div>
+                  <p className="font-semibold">{studentName(student)}</p>
+                  <p className="muted">{student.admission_no}</p>
+                </div>
+                <button type="button" disabled={busy} aria-label={`Withdraw ${studentName(student)}`}
+                  onClick={() => { setWithdrawalNotice(""); setWithdrawalStudent(student); }}
+                  className={`${button} text-red-700 dark:text-red-400`}>Withdraw</button>
               </li>)}
             </ul>}
         <Link href="/modules/guardian-invitations" className="inline-block text-sm font-semibold text-blue-600 dark:text-blue-400">
           Open guardian invitations
         </Link>
       </section>
+      <StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }} revision={refresh} />
+      {withdrawalStudent && (
+        <StudentWithdrawalDialog client={client} context={{ schoolId, academicYearId, classId, sectionId }} student={withdrawalStudent}
+          onClose={() => setWithdrawalStudent(undefined)} onBusyChange={onBusyChange}
+          onWithdrawn={() => { setWithdrawalNotice(`${studentName(withdrawalStudent)} was withdrawn.`); reloadRoster(); }} />
+      )}
     </>
   );
 }

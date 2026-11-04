@@ -23,7 +23,9 @@ type Props = {
   rosterVersion?: number;
   onLockChange?: (locked: boolean) => void;
   onSaved?: () => void;
+  onCorrectionRequested?: () => void;
   studentSearch?: boolean;
+  reviewOnlyHistory?: boolean;
 };
 
 type LoadState = {
@@ -57,7 +59,9 @@ function ScopedAttendanceEditor({
   rosterVersion = 0,
   onLockChange,
   onSaved,
+  onCorrectionRequested,
   studentSearch = false,
+  reviewOnlyHistory = false,
 }: Props & { context: AttendanceContext }) {
   const [defaultRepository] = useState(() =>
     suppliedRepository ?? createAttendanceRepository(createClient()),
@@ -69,8 +73,10 @@ function ScopedAttendanceEditor({
   const [draft, setDraft] = useState<Record<string, AttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
   const [search, setSearch] = useState("");
   const savingRef = useRef(false);
+  const correctionRequest = useRef<{ key: string; id: string } | null>(null);
   const aliveRef = useRef(true);
   const loadGenerationRef = useRef(0);
   const { schoolId, academicYearId, classId, sectionId } = context;
@@ -78,6 +84,10 @@ function ScopedAttendanceEditor({
   const requestKey = JSON.stringify([contextKey, date, revision, rosterVersion]);
   const snapshot = loaded?.key === requestKey ? loaded.snapshot : null;
   const ready = snapshot !== null;
+  const today = schoolDate();
+  const historical = date < today;
+  const requestHistorical = historical && !reviewOnlyHistory && Boolean(repository.requestCorrection);
+  const canEdit = date === today || requestHistorical;
   const students = snapshot?.students ?? [];
   const dirtyIds = Object.keys(draft).filter(
     (id) => draft[id] !== snapshot?.entries[id]?.status,
@@ -125,14 +135,16 @@ function ScopedAttendanceEditor({
   }, [dirty]);
 
   function selectDate(value: string) {
-    if (!value || savingRef.current || dirty) return;
+    if (!value || value > today || savingRef.current || dirty) return;
     setDraft({});
+    setCorrectionReason("");
+    correctionRequest.current = null;
     setMessage("");
     setDate(value);
   }
 
   function mark(studentId: string, status: AttendanceStatus) {
-    if (!ready || savingRef.current) return;
+    if (!ready || !canEdit || savingRef.current || (historical && dirty && !dirtyIds.includes(studentId))) return;
     setMessage("");
     setDraft((previous) => {
       const next = { ...previous };
@@ -143,7 +155,7 @@ function ScopedAttendanceEditor({
   }
 
   function markUnmarkedPresent() {
-    if (!snapshot || savingRef.current) return;
+    if (!snapshot || historical || savingRef.current) return;
     const next = { ...draft };
     for (const student of students) {
       if (!next[student.id] && !snapshot.entries[student.id]) next[student.id] = "present";
@@ -153,7 +165,7 @@ function ScopedAttendanceEditor({
   }
 
   function markHoliday() {
-    if (!snapshot || savingRef.current) return;
+    if (!snapshot || historical || savingRef.current) return;
     const next: Record<string, AttendanceStatus> = {};
     for (const student of students) {
       if (snapshot.entries[student.id]?.status !== "holiday") next[student.id] = "holiday";
@@ -163,7 +175,8 @@ function ScopedAttendanceEditor({
   }
 
   async function save() {
-    if (!snapshot || !dirty || savingRef.current) return;
+    if (!snapshot || !dirty || !canEdit || savingRef.current) return;
+    if (historical && (dirtyIds.length !== 1 || !correctionReason.trim() || !repository.requestCorrection)) return;
     savingRef.current = true;
     const loadGeneration = loadGenerationRef.current;
     setSaving(true);
@@ -174,6 +187,19 @@ function ScopedAttendanceEditor({
       expected: snapshot.entries[studentId] ?? null,
     }));
     try {
+      if (historical && repository.requestCorrection) {
+        const reason = correctionReason.trim();
+        const key = JSON.stringify([date, changes[0], reason]);
+        if (correctionRequest.current?.key !== key) correctionRequest.current = { key, id: crypto.randomUUID() };
+        await repository.requestCorrection(context, date, changes[0], reason, correctionRequest.current.id);
+        if (!aliveRef.current) return;
+        correctionRequest.current = null;
+        setDraft({});
+        setCorrectionReason("");
+        setMessage("Correction requested. The saved attendance stays in place until a reviewer approves it.");
+        onCorrectionRequested?.();
+        return;
+      }
       const result = await repository.save(context, date, userId, changes);
       if (!aliveRef.current) return;
       if (loadGeneration !== loadGenerationRef.current) {
@@ -209,6 +235,8 @@ function ScopedAttendanceEditor({
   function reload() {
     if (savingRef.current) return;
     setDraft({});
+    setCorrectionReason("");
+    correctionRequest.current = null;
     setMessage("");
     setRevision((value) => value + 1);
   }
@@ -224,17 +252,21 @@ function ScopedAttendanceEditor({
     <section className="space-y-3" aria-label="Attendance editor" aria-busy={!ready && !loadError || saving}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <label className="text-sm font-semibold">Attendance date
-          <input aria-label="Attendance date" type="date" value={date} disabled={saving || dirty} onChange={(event) => selectDate(event.target.value)} className="field mt-2 w-auto" />
+          <input aria-label="Attendance date" type="date" max={today} value={date} disabled={saving || dirty} onChange={(event) => selectDate(event.target.value)} className="field mt-2 w-auto" />
         </label>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={markUnmarkedPresent} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark unmarked present</button>
-          <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>
+          {!historical && <>
+            <button type="button" onClick={markUnmarkedPresent} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark unmarked present</button>
+            <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>
+          </>}
           <button type="button" onClick={reload} disabled={saving} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">{dirty ? "Discard changes and reload" : "Reload register"}</button>
         </div>
       </div>
       {loadError ? <p role="alert" className="text-sm text-red-600">{loadError} Saving is disabled until the register loads successfully.</p> : !ready ? <p role="status" className="text-sm muted">Loading attendance register…</p> : (
         <>
-          <p className="text-xs muted">{students.length} students · {marked} marked · {students.length - marked} unmarked. Only changed records are saved.</p>
+          <p className="text-xs muted">{students.length} students · {marked} marked · {students.length - marked} unmarked. {historical
+            ? requestHistorical ? "For past dates, request one pupil’s correction at a time." : "Past attendance changes through the correction review."
+            : "Only changed records are saved."}</p>
           {studentSearch && students.length > 0 && (
             <label className="block max-w-sm space-y-2 text-sm font-semibold">
               <span>Find student</span>
@@ -249,7 +281,7 @@ function ScopedAttendanceEditor({
                   <p className="truncate text-sm font-semibold">{studentName(student)}</p>
                   <p className="text-xs muted">{student.admission_no} · Roll {student.roll_no || "—"}</p>
                 </div>
-                <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
+                <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving || !canEdit || (historical && dirty && !dirtyIds.includes(student.id))} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
                   <option value="" disabled>Unmarked</option>
                   {attendanceStatuses.map((status) => <option key={status} value={status}>{attendanceLabels[status]}</option>)}
                 </select>
@@ -258,8 +290,14 @@ function ScopedAttendanceEditor({
           </div>
         </>
       )}
-      {dirty && <p className="text-xs muted">{dirtyIds.length} unsaved change{dirtyIds.length === 1 ? "" : "s"}. Save or discard before changing the date or class.</p>}
-      <button type="button" disabled={!ready || saving || !dirty || !students.length} onClick={save} className="rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">{saving ? "Saving attendance…" : "Save Attendance"}</button>
+      {dirty && <p className="text-xs muted">{dirtyIds.length} unsaved change{dirtyIds.length === 1 ? "" : "s"}. {historical ? "Request or discard before changing the date or class." : "Save or discard before changing the date or class."}</p>}
+      {requestHistorical && dirty && <label className="block max-w-lg space-y-1.5 text-sm font-semibold">
+        <span>Correction reason</span>
+        <textarea className="field" rows={2} value={correctionReason} maxLength={500} required disabled={saving} onChange={(event) => setCorrectionReason(event.target.value)} />
+      </label>}
+      {canEdit && <button type="button" disabled={!ready || saving || !dirty || !students.length || (historical && !correctionReason.trim())} onClick={save} className="rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">
+        {historical ? saving ? "Submitting correction…" : "Request correction" : saving ? "Saving attendance…" : "Save Attendance"}
+      </button>}
       {message && <p role="status" className="text-sm" aria-live="polite">{message}</p>}
     </section>
   );

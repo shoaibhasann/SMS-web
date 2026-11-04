@@ -1,0 +1,90 @@
+# Kids Corner ERP product requirements
+
+4 November 2026 · Founder-aligned scope · Commercial sign-off pending
+
+[Founder answers](FOUNDER-ANSWERS.md) · [Build and verification log](../implementation/PHASES.md) · [Manual QA checklist](../implementation/POST-DEPLOY-QA.md)
+
+## Product and customer
+
+Build a complete school ERP for private schools in Firozabad and nearby cities, serving roughly 300–1,500 students from Playway through Grade 12. The first school is open. School management, the principal or the director can approve an optional 10-day evaluation after the product is ready. Real school data requires approved onboarding and a school agreement on handling and retention.
+
+The first operational problem is daily attendance recorded on paper or spreadsheets. Staff reconcile missing submissions, handle changes manually and follow up with parents. Before an evaluation, measure staff minutes spent on attendance, delayed submissions, corrections and missed follow-ups. Agree targets and record the same measures during the evaluation. Baselines and targets are open.
+
+## Roles and authority
+
+| Role | Allowed scope |
+|---|---|
+| Platform Super Admin | Provision schools, manage subscriptions and platform configuration. Scope support access to a school and audit sensitive access. |
+| School Admin | Manage its school, users, permissions, roster and verified guardian relationships. Review sensitive changes within school scope. |
+| Principal | Lead academics, run school reports, assign class coverage and review restricted academic changes. |
+| Accountant | Configure fee structures, raise demands, collect fees, issue receipts and manage dues and finance reports within the school. |
+| Teacher | Work with assigned classes and subjects. Request historical corrections with a reason. School Admin or Principal can assign a substitute. |
+| Guardian | Read approved data for verified linked children and submit supported requests. School policy determines access after withdrawal. |
+| Student | Read their own permitted records and published work. |
+| Department staff | Work within granted module permissions and school scope, including transport, library, HR and inventory when enabled. |
+
+Check role, school, assignment and ownership at the database boundary. Audit permission changes, sensitive writes and reviews. A requester cannot approve their own restricted change. Admin controls and links reflect permissions, and direct API requests must enforce the same boundaries.
+
+## Functional requirements
+
+| ID | Requirement | Acceptance |
+|---|---|---|
+| SET-01 | Provision a school and complete onboarding from academic session, classes, sections and subjects through staff, assignments, roster and guardian invitations. | A new school completes setup with realistic demo records. Another school's data is absent from lists and direct requests. |
+| RST-01 | Admit, edit, transfer, change section, withdraw and promote students across sessions with a unique school-specific student ID and admission number and preserved historical records. | After transfer, section change, promotion or withdrawal, prior attendance and finance records still identify the original pupil and session. Only the active enrollment appears in the new register. Roster changes retain actor, reason and time where applicable. |
+| RST-02 | Import Excel and CSV for students, guardians, staff, classes, sections, subjects and assignments. Provide templates, field mapping, preview, validation, duplicate detection, row errors and import audit history. A reviewed initial bulk import is acceptable. | Invalid relationships and duplicate identifiers are caught before commit. An authorized admin reviews the preview and can reconcile imported records and errors. Retrying the same import does not duplicate records. |
+| GDN-01 | Verify a guardian against school admission records and invite through registered mobile or email with OTP or another approved verification method. Support multiple guardians per child, sibling links, per-guardian permissions, expiry, resend, account recovery and reverification after contact changes. | A wrong or unverified account cannot claim the link. Verified access is limited to the intended child and the approved permissions for that guardian. Reissue and expiry invalidate older pending links. |
+| GDN-02 | Revoke or change a child's guardian access immediately with an audit trail. Keep any independently authorized sibling or guardian links. Apply school policy on withdrawal. | Revoked data is absent on the next authenticated read and pending credentials issued before revocation cannot restore the link. Other relationships remain intact. |
+| ATT-01 | Support daily and configurable period attendance, Present, Absent, Late, Half Day and On Leave. Keep Holiday where applicable and show missing submissions as Unmarked. Configure cutoff and overdue alerts per school. | Daily marks and separate period marks persist after refresh. After the configured cutoff, the admin dashboard flags missing submissions as Pending. Unmarked pupils remain unmarked. |
+| ATT-02 | Require assigned teachers to request historical changes with a reason. School Admin or Principal reviews with a reason. Keep original and new values, requester, approver and timestamps. Make correction permissions and windows school-configurable. | A direct historical write and self-approval are denied. An approved change appears in family views. Rejected and stale requests leave attendance intact. |
+| ATT-03 | Report daily and monthly attendance by student, class and school, including rates and late summaries. | A reviewer can reconcile a selected reporting period with the underlying register. Confirm how holidays, leave and half-days count before release. |
+| FIN-01 | Run fee structures, demands, payment allocation, receipts, approved adjustments and reversals, dues, day close and reconciled reports. | Run an approved sample fee cycle from opening balances through collection, settlement and close. A payment retry produces one receipt and the balance and cash report reconcile. |
+| ACD-01 | Support homework, classwork, timetable, exams, marks, published report cards, attendance-linked academic views and school reporting. | Staff can work only in assigned scope. Students and linked guardians see published items, never unpublished marks or another pupil's report. |
+| FAM-01 | Provide parent and student portals with profiles, attendance and monthly history, homework, classwork, timetable, exams, marks, report cards, fees and receipts, leave and request status, and school updates. Support Hindi and English and linked-child switching. | A guardian with siblings can switch child and reload without mixing data. A guardian can submit leave and see the decision after review. Key family tasks remain usable in English and Hindi on phone, tablet and desktop. |
+| NTF-01 | Provide in-app and mobile push for absent or late attendance, homework, fee events, exams, published results, announcements and leave updates. Include school trigger settings, recipient preferences, unread state, history and delivery state. Admin and teacher notifications follow their role. Teachers can send updates to permitted classes. | An opted-in eligible recipient receives each enabled event in their chosen channels. Publication retries do not duplicate events. WhatsApp, SMS and operational email are later integrations. |
+| OPS-01 | Cover transport, library, HR/payroll and inventory in the complete commercial ERP scope. Define and test each module's permissions, records and daily tasks before listing it in a package. | Each department module passes its seeded end-to-end checks before commercial release. Founder confirms which modules ship in each package before publishing pricing. |
+| PLT-01 | Provide deployment, monitoring, backup and tested restore, subscriptions, guided onboarding, demo data, documentation and support handoff. | A clean environment can be restored and a new school onboarded. Demo accounts and data are isolated from real school records. |
+
+## Build sequence
+
+This sequence is an implementation decision. Commercial scope and sign-off are governed by the founder answers.
+
+1. **Close daily-operation gaps.** Build audited historical attendance review, linked-child access removal and student withdrawal. Preserve existing save and read paths. Start with the current IST day for routine attendance editing and route earlier dates through review. Per-school cutoffs, correction windows and period attendance remain separate work.
+2. **Finish onboarding and school access.** Add the remaining imports, roster transfers and promotions, guardian recovery and contact reverification, substitute coverage and permission management. Verify a new school setup from provisioning through daily operations.
+3. **Finish office and academic flows.** Reconcile a full fee cycle. Verify timetable, learning work, exams, marks, report card publication and school reporting one flow at a time.
+4. **Finish family and operational modules.** Complete bilingual family UX, in-app and push delivery, transport, library, HR/payroll and inventory. Verify each advertised module under real role boundaries using demo data.
+5. **Prove commercial readiness.** Finish platform subscriptions, backup restore, monitoring, onboarding and demo. Founder signs off on advertised scope, pricing and go-to-market readiness before school outreach. Management can then approve an optional evaluation.
+
+Current demo evidence covers attendance across roles, guardian invitation and seeded acceptance, academic setup, admission, student CSV import, teacher allocation, single-pupil fee collection and receipts, cashier close and targeted notices. Confirmation inbox delivery remains a manual check. See the implementation log for the precise verified paths and gaps.
+
+## Release and sign-off
+
+- Verify all advertised workflows end to end with seeded roles and live database permissions. Include wrong-school access, removed guardians, concurrent changes, retries and refreshes.
+- Complete onboarding, imports, attendance, fees, admissions, academics, reports, dashboards and family delivery with working data. Check touch, keyboard, focus, contrast and error recovery on desktop, tablet and phone.
+- Verify advertised workflows with the production database using isolated synthetic records. Demonstrate production deployment, monitoring, backups and restoration. Resolve critical security, integrity and release defects.
+- Prepare realistic demo data, the sales walkthrough, training, documentation and onboarding handoff. Development and QA own evidence. The founder approves release, pricing and sales. Implementation staff train the school.
+- Price subscriptions by student strength, enabled modules and support level. Package boundaries and amounts remain open. Quote custom school integrations separately.
+
+## Open decisions
+
+| Decision | Needed from |
+|---|---|
+| First school, approved data scope, process baseline and trial success targets | Founder and school management before evaluation |
+| School calendar, attendance period rules, cutoff, correction window, rate formulas and retention | School Admin and Principal before configuration |
+| Guardian proof, approved auth provider and channel, phone changes, recovery and post-withdrawal access policy | Founder and School Admin before onboarding |
+| Fees, opening balances, adjustments, receipts and report-card formats | School office and academic lead before acceptance |
+| Base modules, add-ons, subscription brackets, operational ownership and launch date | Founder before release |
+
+## Founder answer traceability
+
+| Answer | Applied to |
+|---|---|
+| 1 · First school and pilot approval | Product and customer |
+| 2 · Staff time and attendance errors | Product and customer, ATT-01 through ATT-03 |
+| 3 · Complete ERP and onboarding | SET-01 and functional requirements |
+| 4 · Role authority and substitutes | Roles and authority, ATT-02 |
+| 5 · Roster and import | RST-01, RST-02 |
+| 6 · Guardian access | GDN-01, GDN-02 |
+| 7 · Attendance rules | ATT-01 through ATT-03 |
+| 8 · Family portal and notifications | FAM-01, NTF-01 |
+| 9 · Commercial scope and readiness | OPS-01, PLT-01 and Release and sign-off |
+| 10 · Founder approval and subscriptions | Build sequence and Release and sign-off |

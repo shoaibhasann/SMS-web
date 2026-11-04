@@ -113,6 +113,39 @@ async function loaded() {
 }
 
 describe("AttendanceEditor", () => {
+  it("submits one historical correction with a reason and reuses the request ID after an interrupted response", async () => {
+    const user = userEvent.setup();
+    const { repository: currentDay } = persistedRepository();
+    const requestCorrection = vi.fn<NonNullable<AttendanceRepository["requestCorrection"]>>()
+      .mockRejectedValueOnce(new Error("Connection interrupted."))
+      .mockResolvedValue(undefined);
+    const repository = { ...currentDay, requestCorrection };
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
+    await loaded();
+
+    const pastDay = schoolDate(new Date(Date.now() - 86_400_000));
+    fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: pastDay } });
+    await loaded();
+    await user.selectOptions(attendance("Aarav"), "late");
+    expect(attendance("Anaya")).toBeDisabled();
+    const submit = screen.getByRole("button", { name: "Request correction" });
+    expect(submit).toBeDisabled();
+    await user.type(screen.getByLabelText("Correction reason"), "Gate register confirms late arrival.");
+    await user.click(submit);
+    await screen.findByText(/Connection interrupted/);
+    await user.click(submit);
+    await screen.findByText(/Correction requested/);
+
+    expect(requestCorrection.mock.calls).toHaveLength(2);
+    expect(requestCorrection.mock.calls[0]).toEqual(requestCorrection.mock.calls[1]);
+    expect(requestCorrection.mock.calls[0].slice(0, 4)).toEqual([
+      context, pastDay, { studentId: "a", status: "late", expected: { student_id: "a", status: "absent", remarks: "Guardian informed" } },
+      "Gate register confirms late arrival.",
+    ]);
+    expect(attendance("Aarav")).toHaveValue("absent");
+    expect(currentDay.save).not.toHaveBeenCalled();
+  });
+
   it("loads saved absence/holiday and leaves missing rows explicitly unmarked without writing", async () => {
     const { repository, read } = persistedRepository();
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);

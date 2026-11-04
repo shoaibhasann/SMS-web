@@ -2,6 +2,8 @@
 
 Updated 4 November 2026. Implement each operational flow, verify its permissions and failure cases, then advance.
 
+The [founder-aligned PRD](../product/PRD.md) defines commercial scope and sign-off. This log tracks the implementation and verification of individual flows.
+
 ## Phase 1: repair existing code — in progress
 
 ### First tested slice: teacher attendance and auth callback
@@ -222,6 +224,18 @@ Migration `20261104113103_secure_notice_audiences` applies role, school, class a
 
 The workspace has role-specific mobile shortcuts, a full menu and a keyboard page finder. Desktop and mobile navigation identify the active page. The page finder searches only links available to the current role. Chromium at 390 px verified menu focus, Escape dismissal and full receipt numbers without viewport overflow. The desktop keyboard shortcut opened the selected finance page, and guardian search excluded that page.
 
-## Phase 5: expansion from repeat paid demand
+## Phase 5: department modules and commercial readiness
 
-Introduce requested admissions, transport, library, inventory, payroll and integrations when support cost and demand justify them. Keep acceptance gates explicit.
+Finish transport, library, HR/payroll and inventory with explicit role and workflow acceptance checks. Finalize advertised packages with the founder. Verify subscription administration, demo and onboarding, production monitoring and backup restoration before commercial sign-off.
+
+## Founder-aligned daily operations slice
+
+The [founder answers](../product/FOUNDER-ANSWERS.md) define the commercial ERP scope, target school profile and sign-off. The [PRD](../product/PRD.md) maps all ten answers to requirements and acceptance criteria. The first school's configuration and commercial package decisions remain open.
+
+- **Historical attendance** · Migration `20261104163647_govern_attendance_corrections` keeps direct saves on the current IST day. Assigned teachers request one pupil's historical change with a reason. School Admin or Principal reviews with a reason. Approval compares the saved revision and writes the new value and audit together. Direct historical writes, deletes by school accounts, stale approvals and self-review are blocked. Accountants and reception staff retain reads under existing policies. The current-year register and active enrollment limit requests and approvals.
+- **Student withdrawal** · Migration `20261104163648_withdraw_roster_enrollment` changes the current enrollment and records the reason, actor and timestamp in one transaction. The pupil leaves the active roster. Attendance and fee history remain available to authorized users. Pending invitations cannot be accepted for the withdrawn enrollment.
+- **Guardian access removal** · Migration `20261104163536_revoke_guardian_access` lets the School Admin find a pupil by admission number, including after withdrawal. It revokes one relationship, invalidates older matching invitations and records the action. Other links remain authorized. Existing accepted links remain active after withdrawal until the school removes them. The access log records changes from this migration onward.
+
+All three migrations are applied on the demo project. The automated suite passed 374 tests. Lint, TypeScript and production build checks passed. Use the [combined QA checklist](POST-DEPLOY-QA.md#historical-attendance-withdrawal-and-guardian-access) to verify the workflows with demo accounts.
+
+Next, finish roster transfer and promotion rules and remaining school setup imports. School-specific attendance windows, period attendance, substitute coverage and guardian recovery are separate flows in the PRD.

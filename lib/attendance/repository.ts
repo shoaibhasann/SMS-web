@@ -13,7 +13,7 @@ import type {
 const PAGE_SIZE = 200;
 const STUDENT_CHUNK_SIZE = 100;
 const SAVE_CONCURRENCY = 4;
-const ENTRY_COLUMNS = "student_id,status,remarks";
+const ENTRY_COLUMNS = "id,student_id,status,remarks,revision";
 const statuses = new Set<string>(attendanceStatuses);
 
 type PageResult<T> = {
@@ -49,7 +49,9 @@ function validateEntry(value: unknown): AttendanceEntry {
     (row.remarks !== null && typeof row.remarks !== "string")) {
     throw new Error("Attendance contains an unsupported or incomplete record. Refresh or contact your administrator.");
   }
-  return { student_id: row.student_id, status: row.status, remarks: row.remarks } as AttendanceEntry;
+  const version = typeof row.id === "string" && Number.isSafeInteger(row.revision)
+    ? { id: row.id, revision: row.revision } : {};
+  return { ...version, student_id: row.student_id, status: row.status, remarks: row.remarks } as AttendanceEntry;
 }
 
 /**
@@ -91,8 +93,8 @@ export async function readPages<T>(
 type RegisterOption = { id: string; name: string };
 type RegisterSection = RegisterOption & { class_id: string };
 
-export function loadAdminAttendanceAccess(client: SupabaseClient) {
-  return loadSchoolManagementAccess(client, "attendance", ["school_admin"]);
+export function loadAdminAttendanceAccess(client: SupabaseClient, principal = false) {
+  return loadSchoolManagementAccess(client, "attendance", [principal ? "principal" : "school_admin"]);
 }
 
 export async function loadSchoolManagementAccess(
@@ -117,7 +119,8 @@ export async function loadSchoolManagementAccess(
     return (globalAdmin ? query : query.in("id", schoolIds)).range(from, to);
   }, "Schools could not be loaded");
   if (!schools.length) throw new Error("No authorized schools were found.");
-  return { userId: user.id, schools };
+  const schoolAdminIds = roles.flatMap(({ role, school_id }) => role === "school_admin" && school_id ? [school_id] : []);
+  return { userId: user.id, schools, schoolAdminIds };
 }
 
 export async function loadAdminAttendanceSetup(
@@ -199,11 +202,9 @@ export async function loadEnrolledStudents(
 }
 
 /**
- * Uses only the existing attendance/enrollment/student columns. RLS remains
- * authoritative and must be verified against the deployed base schema.
- * Per-row compare-and-set catches changes to status/remarks since load; it is
- * not a multi-row transaction and cannot detect an ABA change without a server
- * version column. New-row races rely on the existing student/date unique key.
+ * The daily guard and RLS enforce register scope. The loaded revision detects
+ * intervening writes, and the existing student/date key prevents duplicate
+ * new marks. Today's batch remains a per-pupil save.
  */
 export function createAttendanceRepository(client: SupabaseClient): AttendanceRepository {
   return {
@@ -312,6 +313,9 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
             .eq("attendance_date", date)
             .eq("status", expected.status);
           query = expected.remarks === null ? query.is("remarks", null) : query.eq("remarks", expected.remarks);
+          if (expected.id && expected.revision !== undefined) {
+            query = query.eq("id", expected.id).eq("revision", expected.revision);
+          }
           result = await query.select(ENTRY_COLUMNS);
         } else {
           result = await client.from("attendance").insert({
@@ -358,6 +362,27 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         saved: results.flatMap((result) => "saved" in result ? [result.saved] : []),
         failures: results.flatMap((result) => "saved" in result ? [] : [result]),
       };
+    },
+
+    async requestCorrection(context, date, change, reason, requestId) {
+      validateScope(context, date);
+      if (change.expected && (!change.expected.id || change.expected.revision === undefined)) {
+        throw new Error("Reload this attendance register before submitting a correction.");
+      }
+      const { data, error } = await client.rpc("request_attendance_correction", {
+        p_school_id: context.schoolId,
+        p_year_id: context.academicYearId,
+        p_section_id: context.sectionId,
+        p_student_id: change.studentId,
+        p_day: date,
+        p_expected_id: change.expected?.id ?? null,
+        p_expected_revision: change.expected?.revision ?? null,
+        p_status: change.status,
+        p_reason: reason.trim(),
+        p_request_id: requestId,
+      });
+      if (error) throw new Error(messageOf(error));
+      if (data !== requestId) throw new Error("The correction could not be confirmed. Retry the same request.");
     },
   };
 }

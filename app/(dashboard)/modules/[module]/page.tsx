@@ -115,8 +115,8 @@ function ModuleContent() {
   }
 
   if (moduleName === "attendance") {
-    if (access.role === "admin") {
-      return <AppShell role="admin"><AdminAttendanceWorkspace /></AppShell>;
+    if (access.role === "admin" || access.role === "principal") {
+      return <AppShell role={access.role}><AdminAttendanceWorkspace key={`${access.userId}:${access.role}`} principal={access.role === "principal"} /></AppShell>;
     }
     if (access.role === "teacher") {
       return <AppShell role="teacher"><TeacherAttendanceRegister /></AppShell>;

@@ -117,6 +117,7 @@ describe("guardian invitation administration", () => {
     expect(await screen.findByRole("main", { name: "principal" })).toBeInTheDocument();
     const school = await screen.findByRole("combobox", { name: "School" });
     expect(school).toHaveValue("north");
+    expect(screen.queryByRole("heading", { name: "Manage linked guardians" })).not.toBeInTheDocument();
     expect(within(school).queryByRole("option", { name: "South School" })).not.toBeInTheDocument();
     const student = await screen.findByRole("combobox", { name: "Student" });
     expect(within(student).getAllByRole("option").map((item) => item.textContent)).toEqual([
@@ -143,6 +144,60 @@ describe("guardian invitation administration", () => {
     expect(rpc).toHaveBeenCalledWith("revoke_guardian_invitation", { p_invitation_id: "invite-one" });
     expect(await screen.findByText(/Revoked · Expires/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Invitation link" })).not.toBeInTheDocument();
+  });
+
+  it("shows linked access only for the selected school admin membership and requires a confirmed reason", async () => {
+    const user = userEvent.setup();
+    rows.user_roles[1].role = "school_admin";
+    let removed = false;
+    const reason = "School received updated consent.";
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === "lookup_guardian_access") {
+        return { data: {
+          student_id: "three", student_name: "Former Pupil", admission_no: "QA-003",
+          guardians: removed ? [] : [{
+            parent_id: "parent-one", name: "QA Guardian", email: guardianEmail, relationship: "guardian", has_account: true,
+          }],
+          events: removed ? [{
+            id: "event-one", action: "revoked", reason, occurred_at: "2026-11-04T12:00:00Z",
+            actor_name: "QA Admin", guardian_name: "QA Guardian",
+          }] : [],
+        }, error: null };
+      }
+      if (fn === "revoke_guardian_access") {
+        removed = true;
+        return { data: true, error: null };
+      }
+      throw new Error(`Unexpected RPC ${fn}`);
+    });
+
+    render(<ModulePage />);
+    const school = await screen.findByRole("combobox", { name: "School" });
+    await user.selectOptions(school, "north");
+    expect(screen.queryByRole("heading", { name: "Manage linked guardians" })).not.toBeInTheDocument();
+    await user.selectOptions(school, "south");
+    await user.type(screen.getByRole("textbox", { name: "Admission number" }), "  QA-003  ");
+    await user.click(screen.getByRole("button", { name: "Find student" }));
+    expect(rpc).toHaveBeenCalledWith("lookup_guardian_access", { p_school_id: "south", p_admission_no: "QA-003" });
+    expect(await screen.findByRole("heading", { name: "Former Pupil" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: `Remove access for ${guardianEmail}` }));
+    const confirmation = screen.getByRole("button", { name: "Confirm removal" });
+    expect(confirmation).toBeDisabled();
+    await user.type(screen.getByRole("textbox", { name: "Reason for removal" }), reason);
+    await user.click(confirmation);
+    expect(rpc).toHaveBeenCalledWith("revoke_guardian_access", {
+      p_school_id: "south", p_student_id: "three", p_parent_id: "parent-one", p_reason: reason,
+    });
+    expect(rpc).not.toHaveBeenCalledWith("revoke_guardian_invitation", expect.anything());
+    expect(await screen.findByText("Guardian access removed.")).toBeInTheDocument();
+    expect(await screen.findByText("This student has no linked guardians.")).toBeInTheDocument();
+    await user.click(screen.getByText("Recent access history"));
+    expect(screen.getByText("Access removed · QA Guardian")).toBeVisible();
+    expect(screen.getByText(reason)).toBeVisible();
+
+    await user.selectOptions(school, "north");
+    expect(screen.queryByText("Former Pupil")).not.toBeInTheDocument();
   });
 
   it("suppresses a second submission and clears the scoped view on sign-out", async () => {
