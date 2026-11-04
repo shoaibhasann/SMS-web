@@ -200,6 +200,60 @@ describe("guardian invitation administration", () => {
     expect(screen.queryByText("Former Pupil")).not.toBeInTheDocument();
   });
 
+  it("creates and replaces a re-invitation for the same removed link, with no editable email", async () => {
+    const user = userEvent.setup();
+    rows.user_roles[0].role = "school_admin";
+    const newerEmail = "verified@example.test";
+    const replacement = { id: "replacement", token: "b".repeat(64), expires_at: "2099-11-07T13:00:00Z", email: newerEmail };
+    let issued: (typeof invite & { email: string }) | undefined;
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === "lookup_guardian_access") {
+        return { data: {
+          student_id: "one", student_name: "Pupil One", admission_no: "QA-001", guardians: [], events: [],
+          reinvitable_guardians: [{
+            revocation_id: "removal-one", parent_id: "parent-one", name: "QA Guardian", relationship: "mother",
+            email: issued?.email ?? guardianEmail, pending_invitation_id: issued?.id ?? null,
+            pending_expires_at: issued?.expires_at ?? null,
+          }],
+        }, error: null };
+      }
+      if (fn === "reinvite_guardian_access") {
+        issued = issued ? replacement : { ...invite, email: guardianEmail };
+        return { data: issued, error: null };
+      }
+      throw new Error(`Unexpected RPC ${fn}`);
+    });
+    render(<GuardianInvitationsWorkspace userId={actorId} />);
+    await user.type(await screen.findByRole("textbox", { name: "Admission number" }), "QA-001");
+    await user.click(screen.getByRole("button", { name: "Find student" }));
+    const removedAccess = within(await screen.findByRole("region", { name: "Removed guardian access" }));
+    await user.click(removedAccess.getByRole("button", { name: "Re-invite guardian" }));
+    expect(removedAccess.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(rpc).not.toHaveBeenCalledWith("reinvite_guardian_access", expect.anything());
+
+    await user.click(removedAccess.getByRole("button", { name: "Create re-invite link" }));
+    expect(rpc).toHaveBeenCalledWith("reinvite_guardian_access", {
+      p_school_id: "north", p_student_id: "one", p_revocation_id: "removal-one",
+    });
+    const firstUrl = `${window.location.origin}/guardian-invite#token=${token}`;
+    expect(await removedAccess.findByRole("textbox", { name: "Re-invitation link" })).toHaveValue(firstUrl);
+    await user.click(removedAccess.getByRole("button", { name: "Copy re-invite link" }));
+    expect(await navigator.clipboard.readText()).toBe(firstUrl);
+    expect(screen.getByText("This student has no linked guardians.")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Find student" }));
+    const pendingAccess = within(await screen.findByRole("region", { name: "Removed guardian access" }));
+    expect(pendingAccess.queryByRole("textbox", { name: "Re-invitation link" })).not.toBeInTheDocument();
+    await user.click(pendingAccess.getByRole("button", { name: "Replace invite link" }));
+    expect(pendingAccess.getByText("Creating a replacement invalidates the previous pending link.")).toBeVisible();
+    await user.click(pendingAccess.getByRole("button", { name: "Create re-invite link" }));
+    expect(await pendingAccess.findByRole("textbox", { name: "Re-invitation link" })).toHaveValue(
+      `${window.location.origin}/guardian-invite#token=${replacement.token}`,
+    );
+    expect(pendingAccess.getByText(`For ${newerEmail}.`, { exact: false })).toBeVisible();
+    expect(rpc).not.toHaveBeenCalledWith("issue_guardian_invitation", expect.anything());
+  });
+
   it("suppresses a second submission and clears the scoped view on sign-out", async () => {
     const user = userEvent.setup();
     let finishIssue!: (value: { data: typeof invite; error: null }) => void;

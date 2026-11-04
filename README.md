@@ -30,7 +30,7 @@ npm run lint
 npm run build
 ```
 
-`npm run test:watch` runs Vitest in watch mode. `npm test` includes local database tests, and `test:db` runs only those. The latest local checkpoint has 449 passing tests, plus passing lint, TypeScript and production build checks. The automated tests use local fixtures and mocked provider boundaries.
+`npm run test:watch` runs Vitest in watch mode. `npm test` includes local database tests, and `test:db` runs only those. The latest local checkpoint has 450 passing tests, plus passing lint, TypeScript and production build checks. The automated tests use local fixtures and mocked provider boundaries.
 
 Browser QA used the local frontend with hosted demo Supabase and four seeded accounts. Teacher and admin save/reload and student and parent attendance readback passed. The attendance Preview is deployed and ready for manual testing. Its URL and revision are in the [post-deploy QA checklist](docs/implementation/POST-DEPLOY-QA.md).
 
