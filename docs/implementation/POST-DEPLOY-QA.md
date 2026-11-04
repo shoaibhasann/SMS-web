@@ -143,6 +143,8 @@ Automated Chromium against demo Supabase verified same-day save and reload, hist
 
 ## Same-school transfer and session promotion
 
+Use the [protected Vercel Preview](https://kids-corner-erp-frontend-alhgfo11v-shoaibhasanns-projects.vercel.app/login), revision `7dc5375081986869539bfaa2e78657d12ca84adc`, deployment `dpl_DQ7Likct5SZLdC3DFVrMuQhF5Lc5`. Sign in to Vercel, then use the private QA handoff for school `ERP-MOVE-QA-15c7ba80`.
+
 Use the separate synthetic placement QA school for this run. The existing placement fixture has a completed transfer and activation and can be used to check readback. For another full write run, use a disposable QA school with two active pupils, two sections in the current session and a later nonoverlapping session. Use a pupil with an older mark and a fee demand with a paid receipt. A transfer takes effect on the current IST day, before marking the pupil for that day.
 
 - [ ] **MOVE-01 · Transfer and reload.** In **Students**, select the source class and section. Open **Change placement** for the pupil. Confirm that Cancel returns keyboard focus. Select the current academic year and a different class or section, review the destination, enter a reason and confirm. Reload both rosters. Expect the same admission number in the destination only, a cleared roll number, and the change under **Placement history** for the source section.
@@ -152,3 +154,8 @@ Use the separate synthetic placement QA school for this run. The existing placem
 - [ ] **PROM-03 · Switch sessions.** During the destination session in IST, enter the activation reason and confirm the switch. Reload. Exactly one academic year shows Current and the pupils are in their confirmed destinations. Verify a teacher can be assigned for the new session without removing their old assignment. Mark current-day attendance and refresh.
 - [ ] **HIST-01 · Preserve attendance and fees.** As office admin, select the earlier year, source section and date in **Attendance**. Verify the original mark and read-only controls. Sign in separately as student and linked guardian. Refresh **Attendance** and **Invoices & Receipts** and compare the original date, status, receipt number and amount. Check the earlier demand and remaining balance in the office fee view.
 - [ ] **UX-07 · Mobile and role boundaries.** At 390 px and desktop widths, check destination selects, readiness counts, focus and error feedback. Try placement or activation using a teacher, student, guardian or an admin from another school. The server should reject the action.
+
+
+Automated browser QA against hosted demo Supabase moved **QA Placement Pupil** from Grade 6 QA A to QA B, prepared and revised the promotion, blocked activation while a second pupil was unplaced, and activated the Grade 7 roster. The synthetic school calendar was advanced between the transfer and activation tests to exercise both date boundaries. The original **2 November 2026 Late** mark stayed in Grade 6 QA A. The **₹1,000** demand, **₹325** receipt and **₹675** outstanding stayed visible after reload. The previous teacher could read the original mark and could save and reload **Present** in the new session once reassigned.
+
+Protected Preview readback passed for the new roster, prior register, prior-session placement audit, teacher save history, and student and guardian attendance and receipts after refresh. The 390 px checks found no horizontal page overflow. All 388 automated tests, lint, TypeScript and the build passed. The checkboxes above are for your independent run.
