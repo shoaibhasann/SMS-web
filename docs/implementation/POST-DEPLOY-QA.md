@@ -66,9 +66,22 @@ Use a deployment that includes the guardian invitation changes. Record its URL, 
 
 | Field | Value |
 | --- | --- |
-| Preview deployment URL and revision | |
-| Tester, date (IST), device and browser | |
-| Result | Pending manual Preview QA |
+| Preview deployment URL | [Open guardian Preview](https://kids-corner-erp-frontend-iidtbxhn9-shoaibhasanns-projects.vercel.app/login) |
+| Revision and deployment ID | [`16500f1d05526d90fd45b88c9d6694e782ddafc2`](https://github.com/shoaibhasann/kids-corner-erp-frontend/commit/16500f1d05526d90fd45b88c9d6694e782ddafc2) · `dpl_CABe7hFPY6dR27mZpQKsP1dAmGer` |
+| Automated Preview run | 4 November 2026 IST · Chromium · 1440 px admin and 390 px guardian |
+| Automated result | Pass with a fresh, pre-confirmed QA account. Real signup email delivery is pending founder QA. |
+| Founder name, date (IST), device and browser | |
+| Founder result | Pending |
+
+The deployed browser run verified invite creation and copying, student access denial, wrong account rejection, replacement and revocation, one successful acceptance from two tabs, replay rejection and read-only history after refresh. Supabase returned records for the linked child and denied attendance writes. These results use the existing demo roster.
+
+### Founder email test
+
+1. Open the guardian Preview and sign in to Vercel. Use the QA school and synthetic pupil for this run. For the guardian, use an inbox you control that has never signed up in this ERP. Supabase's default mailer can send to existing project-team addresses. Use an inbox supported by the project's custom SMTP if configured. [Supabase email delivery](https://supabase.com/docs/guides/auth/auth-smtp)
+2. In Supabase Auth **URL Configuration**, confirm the redirect allowlist covers `https://kids-corner-erp-frontend-iidtbxhn9-shoaibhasanns-projects.vercel.app/auth/callback?next=%2Fguardian-invite`. [Supabase redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+3. Complete **GUA-01**. In a separate browser profile that can open the Vercel Preview, open the copied link and choose **Create a guardian account** using that exact email address.
+4. Check that the confirmation email arrives. Open the confirmation link in the same browser profile where you created the account. Reopen the original guardian invite, sign in if prompted and select **Accept invitation**.
+5. Complete **GUA-02**. Mark **GUA-03** Pass only after the email reaches the inbox, confirmation works, attendance opens and refresh preserves the linked child. If blocked, record which step failed and what appeared. Keep passwords, invitation links and confirmation links out of the report.
 
 - [ ] **GUA-01 · Invite one enrolled child.** As a QA school admin or principal, open **People → Guardian invitations**. Choose the QA school, QA Class 6, QA A and Student One. Enter the guardian's exact email and create the invite. Expect a copyable link and a Pending entry with a 72-hour expiry. Refresh and confirm the history is still Pending. Keep invite links out of screenshots and bug reports.
 - [ ] **GUA-02 · Sign in and link.** In a separate browser session, open the invite. Sign in with the invited account and accept. Expect Student One's read-only attendance history, including Late on 3 and 4 November. Refresh and confirm the history persists. Two and Three should be absent from this account's child list. Reload the admin's invitation history and expect Accepted.
