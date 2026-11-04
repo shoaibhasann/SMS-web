@@ -162,6 +162,8 @@ Protected Preview readback passed for the new roster, prior register, prior-sess
 
 ## Staff and guardian CSV imports
 
+Open the [protected Vercel Preview](https://kids-corner-erp-frontend-7zd4zksw4-shoaibhasanns-projects.vercel.app/login). Revision `f4952e83be2b12dd0b2e752df9e56b8ede30ae0b`, deployment `dpl_Dodo4JfqMBv5z6y1NMuPKhPb7eFD`. Sign in to Vercel, then open the ERP with your QA account.
+
 Use the synthetic school `ERP-MOVE-QA-15c7ba80` and the private QA handoff. Sign in as the school admin. Both templates accept UTF-8 CSV files of up to 50 rows and 64 KB. Use fresh employee IDs and verified synthetic guardian accounts for a new write run. The completed fixture can be used to check existing duplicates and readback.
 
 - [ ] **STAFF-CSV-01 · Preview and reject duplicates.** Open **Teachers & Staff → Import staff from CSV** and download the template. Use columns `employee_id,full_name,staff_type` with type `teacher` or `staff`. Add the same employee ID twice with different case and staff types. Both rows should be flagged. Try a new file using an ID already in the other directory and confirm that import stays disabled.
@@ -170,3 +172,8 @@ Use the synthetic school `ERP-MOVE-QA-15c7ba80` and the private QA handoff. Sign
 - [ ] **GDN-CSV-02 · Confirm and deliver.** Preview two pupils with separate verified synthetic recipient emails. Compare each matched name, admission number and email. Confirm the batch. Copy each link privately before leaving the page. Upload the same file again and verify the pending invitations are flagged as duplicates.
 - [ ] **GDN-CSV-03 · Verify access boundaries.** Attempt acceptance with the other recipient's account. Then accept each link using its intended verified account. Refresh **Attendance** and confirm each guardian sees only the matched pupil's history. Reupload the same file and check that linked pairs are blocked. An admin from another school must be denied when attempting to preview the batch for this school.
 - [ ] **CSV-UX-01 · Recover from a lost response.** In a disposable QA run, interrupt the response after confirm. Retry from the same preview. Verify the teacher and staff records are each saved once and the guardian links are recovered while still pending. At 390 px and desktop widths, check labels, focus and that the preview table scrolls within its region.
+
+
+Hosted demo browser QA imported one teacher and one non-teaching staff record. Both appeared once after a simulated lost response and retry. The imported teacher accepted a separate invitation and opened the teacher dashboard. Guardian CSV preview matched two different admission numbers, blocked unknown and duplicate rows, and recovered both pending links after the same retry test. The wrong recipient and an admin from another school were denied. After acceptance and refresh, the first guardian saw only the first pupil's original Late mark and the second guardian saw only the second pupil's Absent mark.
+
+Protected Preview readback passed for the staff directories and audit, duplicate checks in both import screens, and the second guardian's attendance at 390 px. All 405 automated tests, lint, TypeScript and the build passed. The browser used preverified synthetic accounts to exercise invitation acceptance. The checkboxes above are for your independent run.
