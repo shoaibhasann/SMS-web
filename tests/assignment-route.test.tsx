@@ -5,8 +5,12 @@ import ModulePage from "../app/(dashboard)/modules/[module]/page";
 
 const { getUser, readRoles } = vi.hoisted(() => ({ getUser: vi.fn(), readRoles: vi.fn() }));
 
+let currentModule: string;
+let searchParams: URLSearchParams;
+
 vi.mock("next/navigation", () => ({
-  useParams: () => ({ module: "teacher-assignments" }),
+  useParams: () => ({ module: currentModule }),
+  useSearchParams: () => searchParams,
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("@/lib/supabase/client", () => ({
@@ -24,8 +28,19 @@ vi.mock("@/components/academic/teaching-assignment-manager", () => ({
   TeachingAssignmentManager: () => <section aria-label="Teaching assignment workspace" />,
 }));
 
+vi.mock("@/components/academic/family-attendance-register", () => ({
+  FamilyAttendanceRegister: ({ role, initialChildId }: { role: string; initialChildId?: string }) => (
+    <section aria-label="Family attendance register">{role} {initialChildId}</section>
+  ),
+}));
+vi.mock("@/components/academic/teacher-attendance-register", () => ({
+  TeacherAttendanceRegister: () => <section aria-label="Teacher attendance register" />,
+}));
+
 beforeEach(() => {
   vi.clearAllMocks();
+  currentModule = "teacher-assignments";
+  searchParams = new URLSearchParams();
   getUser.mockResolvedValue({ data: { user: { id: "actor" } }, error: null });
   readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
 });
@@ -55,5 +70,48 @@ describe("teaching assignment route", () => {
     render(<ModulePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Role lookup unavailable");
     expect(screen.queryByRole("region", { name: "Teaching assignment workspace" })).not.toBeInTheDocument();
+  });
+});
+
+describe("guardian attendance route", () => {
+  beforeEach(() => {
+    currentModule = "attendance";
+  });
+
+  it("opens guardian attendance for a parent who is also a teacher", async () => {
+    searchParams.set("view", "guardian");
+    searchParams.set("child", "requested-child");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+
+    render(<ModulePage />);
+    const register = await screen.findByRole("region", { name: "Family attendance register" });
+    expect(register).toHaveTextContent("parent requested-child");
+    expect(screen.getByRole("main", { name: "parent shell" })).toContainElement(register);
+    expect(screen.queryByRole("region", { name: "Teacher attendance register" })).not.toBeInTheDocument();
+  });
+
+  it("requires a verified parent role for the guardian view", async () => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
+
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the main staff role when the parent role is returned first", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "accountant" }], error: null });
+
+    render(<ModulePage />);
+    expect(await screen.findByRole("main", { name: "finance shell" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the teacher register as the default for the same mixed-role account", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Teacher attendance register" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
   });
 });

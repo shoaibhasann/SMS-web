@@ -154,6 +154,16 @@ The same QA accounts verified both **3 and 4 November 2026 IST** records after a
 
 Replace demo people/academic masters with durable students, guardians, staff, enrollments, invitations and imports. Test onboarding across roles before expanding features.
 
+### Guardian invitations for the attendance pilot
+
+School admins and principals can issue or revoke a guardian invitation for one active pupil in the school's current-year roster. They copy the link and share it with the guardian. The link expires after 72 hours, and reissuing it invalidates the previous pending link for the same pupil and email.
+
+The guardian signs in with the invited, confirmed email and accepts the link. Supabase links the child and grants the parent role in a single transaction. The app opens the linked child's read-only attendance. Existing roles and same-school sibling links are preserved. Accounts with roles or a parent profile at a different school need a separate onboarding path.
+
+The demo project has migration `20261104105130_guardian_invitations` applied. It keeps invitation hashes in a private schema, replaces guardian code and phone activation, and removes broad school access from parent-only memberships. Scoped family reads remain available. The migration also enforces same-school attendance and study material reads.
+
+Local Chromium against hosted demo Supabase verified invite creation and copy, wrong-account rejection, reissue, revocation, concurrent acceptance, replay rejection and attendance readback after refresh. API checks confirmed one guardian profile, one parent role and one link for the fresh QA account, no attendance writes, and no access to the other pupils' marks. The existing QA parent still sees both linked children. Expiry, wrong-school requests, and rollback on a failed write are covered by database regression tests. New-account confirmation UI is covered by tests. The full suite passed 333 tests with three workers and a 15-second per-test timeout. ESLint, TypeScript and the production build passed. Live confirmation email delivery and manual Vercel QA remain pending. [Guardian invitation checklist](POST-DEPLOY-QA.md#guardian-invitation-qa)
+
 ## Phase 3: one sellable office workflow
 
 Finish fee demands, allocations, approved adjustments/reversals, receipts, day closing, dues and chosen message channels. Verify against approved opening balances and one fee cycle.

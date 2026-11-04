@@ -19,6 +19,7 @@ export function resolveUiRole(roleRows: readonly { role: string }[]): UiRole | n
   return roles.find((role) => role === "admin")
     ?? roles.find((role) => role === "principal")
     ?? roles.find((role) => role === "teacher")
+    ?? roles.find((role) => role !== "parent")
     ?? roles[0]
     ?? null;
 }

@@ -42,6 +42,19 @@ beforeEach(() => {
 });
 
 describe("FamilyAttendanceRegister", () => {
+  it.each([
+    ["pupil-two", pupilTwo],
+    ["unlinked-pupil", pupilOne],
+  ])("selects a requested child only if already linked (%s)", async (initialChildId, expected) => {
+    loadStudents.mockResolvedValue([pupilOne, pupilTwo]);
+    loadHistory.mockResolvedValue(history("late"));
+
+    render(<FamilyAttendanceRegister role="parent" userId="guardian" initialChildId={initialChildId} />);
+    expect(await screen.findByRole("combobox", { name: "Select child" })).toHaveValue(expected.id);
+    await screen.findByRole("table", { name: "Attendance history" });
+    expect(loadHistory).toHaveBeenCalledExactlyOnceWith(client, expected, { offset: 0, limit: 30 });
+  });
+
   it("keeps a student's history scoped to their linked pupil across the 30-record page boundary", async () => {
     const user = userEvent.setup();
     const firstPage: History = {

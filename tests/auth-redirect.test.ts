@@ -103,6 +103,17 @@ describe("auth callback", () => {
     },
   );
 
+  it("returns to the guardian invitation instructions after successful email confirmation", async () => {
+    const response = await GET(request({ code: "signup", next: "/guardian-invite" }));
+    expect(response.headers.get("location")).toBe("https://school.example/guardian-invite");
+  });
+
+  it("keeps guardian instructions available when the confirmation link opens without its verifier", async () => {
+    exchangeCodeForSession.mockResolvedValue({ data: { session: null }, error: { message: "Missing PKCE verifier" } });
+    const response = await GET(request({ code: "signup", next: "/guardian-invite" }));
+    expect(response.headers.get("location")).toBe("https://school.example/guardian-invite");
+  });
+
   it("retains password recovery destination after successful exchange", async () => {
     const response = await GET(request({ code: "recovery", next: "/update-password" }));
     expect(response.headers.get("location")).toBe("https://school.example/update-password");

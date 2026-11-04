@@ -8,12 +8,12 @@ Use this checklist on the deployed ERP before inviting a school to use it. Start
 | --- | --- |
 | Preview deployment URL | [Open Preview](https://kids-corner-erp-frontend-3icyvjq85-shoaibhasanns-projects.vercel.app/login) |
 | Commit SHA or deployment ID | `8564d8f3ee507c76293abbb9db8d0b37f398b60a` · `dpl_9Z6rC7sTCm4UfM4c7GAUEB8UAMQX` |
-| Tester and date (IST) | |
+| Tester and date (IST) | Shoaib · 4 November 2026 |
 | Browser, device and viewport | |
 | Supabase test project | Kids Corner School ERP demo · `bjecfuixgqgyohttrdfr` |
-| Result | Pending Preview QA |
+| Result | Pass · attendance QA reported by Shoaib |
 
-The 4 November deployment is Ready. The deployed ERP login returned HTTP 200 and a signed-out dashboard request redirected to login. Attendance and UI results for this deployment are pending your manual checks.
+Shoaib confirmed the attendance QA pass on the Preview above. Individual case results and device details were not provided. Keep the run below as a regression checklist for future deployments.
 
 For the person deploying, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for Preview to the demo project that contains the QA school. Deploy the revision you want to test after setting the variables. [Vercel environment variables](https://vercel.com/docs/environment-variables)
 
@@ -60,8 +60,22 @@ Record `Pass`, `Fail` or `Blocked` for the deployment above. Add one row per fai
 
 For the next Preview, record its URL and revision with the new results. Keep past runs and notes. When a feature or UI change lands, add its test ID, steps and expected result here and leave it pending until Shoaib checks the deployed version. Keep automated and local verification in the [implementation log](PHASES.md).
 
-## Next feature after Preview QA
+## Guardian invitation QA
 
-Build guardian onboarding for one enrolled student. The school admin issues an expiring invitation for that student. Accepting the invitation links the guardian to the student and opens the verified attendance history. Test an expired invitation, a second use, a wrong-school attempt and a duplicate submit. Current QA guardians were linked directly, so the onboarding flow needs its own acceptance cases.
+Use a deployment that includes the guardian invitation changes. Record its URL, revision, device and test date separately from the attendance run above. Use the demo project and an account with the same verified email used in the invitation. The original fixture parent already has two children linked, so use a fresh guardian account to test first-time linking.
 
-The first Preview checklist covers the attendance slice. Use the [implementation phases](PHASES.md) to see which other modules are still being repaired.
+| Field | Value |
+| --- | --- |
+| Preview deployment URL and revision | |
+| Tester, date (IST), device and browser | |
+| Result | Pending manual Preview QA |
+
+- [ ] **GUA-01 · Invite one enrolled child.** As a QA school admin or principal, open **People → Guardian invitations**. Choose the QA school, QA Class 6, QA A and Student One. Enter the guardian's exact email and create the invite. Expect a copyable link and a Pending entry with a 72-hour expiry. Refresh and confirm the history is still Pending. Keep invite links out of screenshots and bug reports.
+- [ ] **GUA-02 · Sign in and link.** In a separate browser session, open the invite. Sign in with the invited account and accept. Expect Student One's read-only attendance history, including Late on 3 and 4 November. Refresh and confirm the history persists. Two and Three should be absent from this account's child list. Reload the admin's invitation history and expect Accepted.
+- [ ] **GUA-03 · New account email confirmation.** Use a fresh inbox you control. Create an account from the invite, confirm the email, then reopen the original invite and sign in if prompted. Accept and verify the same attendance flow. Use a Preview with Supabase email delivery and the deployment's `/auth/callback` redirect configured. Record Blocked if the confirmation email cannot be delivered.
+- [ ] **GUA-04 · Wrong email and school.** Open a pending invite while signed in as a different QA account. Acceptance should fail and leave the invite Pending for the intended account. As a teacher or student, open `/modules/guardian-invitations` directly and check that access is denied. If another demo school is available, verify its administrator cannot create or revoke an invite for the first school.
+- [ ] **GUA-05 · Reissue, revoke and expire.** Reissue a pending invite for the same student and email and try the older link. It should fail. Revoke a pending invite in the admin history and confirm its link fails. Use a fixture expired by QA setup to verify expiry. Keep the original accepted test link for the replay check.
+- [ ] **GUA-06 · Replay and duplicate submit.** Open a valid invite in two tabs with the invited account. Submit acceptance from both and expect one success. Open the used link again and confirm it cannot create a second link. The already linked child remains visible in attendance after refresh.
+- [ ] **GUA-07 · Mobile and keyboard.** At about 390 px, navigate school, class, section, student and email with a keyboard and copy the link. On the invite page, check signed-out, signing-in, signed-in and error states. Confirm that link creation, acceptance and revocation show feedback and disable their controls while pending.
+
+Revoking a pending invitation stops that link from being used. Accepted guardian links are managed separately. See the [implementation phases](PHASES.md) for automated and browser verification.

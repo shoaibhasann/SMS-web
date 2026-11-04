@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import {
+  guardianAttendancePath,
   loadFamilyAttendance,
   loadFamilyStudents,
   rememberFamilyChild,
@@ -290,13 +291,22 @@ export function RoleDashboard({
   role,
   schoolId,
   userId,
+  hasGuardianRole,
 }: {
   role: UiRole;
   schoolId: string | null;
   userId: string;
+  hasGuardianRole?: boolean;
 }) {
   return (
     <AppShell role={role}>
+      {hasGuardianRole && role !== "parent" && (
+        <Link href={guardianAttendancePath}
+          className="mb-5 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold">
+          <CalendarCheck size={18} aria-hidden="true" />
+          View guardian attendance
+        </Link>
+      )}
       {role === "teacher" ? (
         <TeacherDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "finance" ? (

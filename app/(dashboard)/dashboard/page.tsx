@@ -38,5 +38,6 @@ export default async function DashboardPage() {
       ?? roles.find((row) => toUiRole(row.role) === role)
     : roles.find((row) => toUiRole(row.role) === role);
 
-  return <RoleDashboard role={role} schoolId={roleRow?.school_id ?? null} userId={user.id} />;
+  return <RoleDashboard role={role} schoolId={roleRow?.school_id ?? null} userId={user.id}
+    hasGuardianRole={roles.some((row) => row.role === "parent")} />;
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { canAccessModule } from "@/lib/modules";
@@ -15,6 +15,7 @@ import { AdminNoticesWorkspace } from "@/components/admin/admin-notices-workspac
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
 import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-workspace";
+import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { AdminDemoWorkspace } from "@/components/admin/admin-demo-workspace";
 import type { AdminDemoModule } from "@/lib/admin/admin-demo-service";
 import { TeacherAttendanceRegister } from "@/components/academic/teacher-attendance-register";
@@ -23,11 +24,23 @@ import { TeachingAssignmentManager } from "@/components/academic/teaching-assign
 
 const supabase = createClient();
 
+function ModuleLoading() {
+  return <main className="min-h-screen bg-[var(--bg)] p-6 text-sm muted">Checking module access...</main>;
+}
+
 export default function ModulePage() {
+  return <Suspense fallback={<ModuleLoading />}><ModuleContent /></Suspense>;
+}
+
+function ModuleContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const moduleName = String(params?.module || "");
+  const guardianView = moduleName === "attendance" && searchParams.get("view") === "guardian";
+  const initialChildId = guardianView ? searchParams.get("child") ?? undefined : undefined;
+  const accessKey = guardianView ? "attendance?view=guardian" : moduleName;
   const [access, setAccess] = useState<{
-    moduleName: string;
+    key: string;
     role: UiRole | null;
     userId: string | null;
     error: string | null;
@@ -40,7 +53,7 @@ export default function ModulePage() {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!user) {
-          if (active) setAccess({ moduleName, role: null, userId: null, error: "Please sign in to access this module." });
+          if (active) setAccess({ key: accessKey, role: null, userId: null, error: "Please sign in to access this module." });
           return;
         }
 
@@ -49,16 +62,21 @@ export default function ModulePage() {
           .select("role")
           .eq("user_id", user.id);
         if (roleError) throw roleError;
-        const role = resolveUiRole(roleRows ?? []);
+        const roles = roleRows ?? [];
+        const role = guardianView
+          ? roles.some((row) => row.role === "parent") ? "parent" : null
+          : resolveUiRole(roles);
         if (active) setAccess({
-          moduleName,
+          key: accessKey,
           role,
           userId: user.id,
-          error: role ? null : "No recognized role is assigned to this login.",
+          error: role ? null : guardianView
+            ? "Guardian attendance requires a linked guardian account."
+            : "No recognized role is assigned to this login.",
         });
       } catch (error) {
         if (active) setAccess({
-          moduleName,
+          key: accessKey,
           role: null,
           userId: null,
           error: error instanceof Error ? error.message : "Your access could not be verified.",
@@ -70,11 +88,9 @@ export default function ModulePage() {
     return () => {
       active = false;
     };
-  }, [moduleName]);
+  }, [accessKey, guardianView]);
 
-  if (!access || access.moduleName !== moduleName) {
-    return <main className="min-h-screen bg-[var(--bg)] p-6 text-sm muted">Checking module access...</main>;
-  }
+  if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
     return (
       <main className="min-h-screen bg-[var(--bg)] p-6">
@@ -104,7 +120,8 @@ export default function ModulePage() {
     if (access.role === "student" || access.role === "parent") {
       return (
         <AppShell role={access.role}>
-          <FamilyAttendanceRegister key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
+          <FamilyAttendanceRegister key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId}
+            initialChildId={initialChildId} />
         </AppShell>
       );
     }
@@ -153,6 +170,14 @@ export default function ModulePage() {
 
   if (access.role === "admin" && moduleName === "finance-reports") {
     return <AppShell role="admin"><AdminFinanceWorkspace mode="reports" /></AppShell>;
+  }
+
+  if (moduleName === "guardian-invitations" && (access.role === "admin" || access.role === "principal")) {
+    return (
+      <AppShell role={access.role}>
+        <GuardianInvitationsWorkspace key={access.userId} userId={access.userId} />
+      </AppShell>
+    );
   }
 
   if (access.role === "admin" && [

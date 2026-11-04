@@ -8,6 +8,7 @@ import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModul
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { createClient } from "@/lib/supabase/client";
 import type { UiRole } from "@/lib/auth/roles";
+import { guardianAttendancePath } from "@/lib/attendance/family";
 
 export function AppShell({
   children,
@@ -125,7 +126,7 @@ export function AppShell({
                     return (
                       <Link
                         key={m.key}
-                        href={`/modules/${m.key}`}
+                        href={role === "parent" && m.key === "attendance" ? guardianAttendancePath : `/modules/${m.key}`}
                         className={`mb-1 flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm ${
                           path?.includes(`/modules/${m.key}`)
                             ? "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300"
@@ -227,7 +228,7 @@ export function AppShell({
           return (
             <Link
               key={module.key}
-              href={`/modules/${module.key}`}
+              href={role === "parent" && module.key === "attendance" ? guardianAttendancePath : `/modules/${module.key}`}
               className="grid place-items-center gap-1 rounded-xl px-3 py-2 muted"
             >
               <Icon size={18} />

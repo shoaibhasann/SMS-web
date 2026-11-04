@@ -18,6 +18,8 @@ export type FamilyAttendanceRow = {
   status: AttendanceStatus;
 };
 
+export const guardianAttendancePath = "/modules/attendance?view=guardian";
+
 const studentColumns = "id,school_id,admission_no,first_name,middle_name,last_name,roll_no,status";
 
 export async function loadFamilyStudents(
@@ -76,6 +78,11 @@ export function restoreFamilyChild(userId: string, students: readonly FamilyStud
   return students.find((student) => student.id === previous)?.id ?? students[0]?.id ?? "";
 }
 
-export function rememberFamilyChild(userId: string, childId: string): void {
-  try { sessionStorage.setItem(familyChildKey(userId), childId); } catch { /* Selection still works for this page. */ }
+export function rememberFamilyChild(userId: string, childId: string): boolean {
+  try {
+    sessionStorage.setItem(familyChildKey(userId), childId);
+    return true;
+  } catch {
+    return false;
+  }
 }

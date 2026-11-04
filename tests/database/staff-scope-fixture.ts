@@ -1,5 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { readRoleHardeningSql } from "./role-fixture";
 
 type Column = { name: string; type: string; not_null: boolean; default: string | null; identity: string; generated: string };
@@ -172,11 +173,13 @@ async function seed(db: PGlite) {
  * applied first, mirroring the user-confirmed deployment sequence.
  */
 export async function createStaffScopeDatabase({
-  applyMigration = true, includeTeachingRpcs = false, applyGovernance = false,
-}: { applyMigration?: boolean; includeTeachingRpcs?: boolean; applyGovernance?: boolean } = {}) {
+  applyMigration = true, includeTeachingRpcs = false, applyGovernance = false, includeGuardianInvitations = false,
+}: {
+  applyMigration?: boolean; includeTeachingRpcs?: boolean; applyGovernance?: boolean; includeGuardianInvitations?: boolean;
+} = {}) {
   if (applyGovernance && !applyMigration) throw new Error("Teaching governance requires the staff-school-scope patch first.");
   const snapshot: Snapshot = JSON.parse(await readFile(new URL("../../supabase/schema-snapshots/2026-11-02/schema-metadata.json", import.meta.url), "utf8"));
-  const db = new PGlite();
+  const db = new PGlite({ extensions: includeGuardianInvitations ? { pgcrypto } : {} });
   try {
     await db.exec(`
       create role anon nologin; create role authenticated nologin; create role service_role nologin bypassrls;
@@ -186,6 +189,14 @@ export async function createStaffScopeDatabase({
         $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
       grant usage on schema auth to anon, authenticated, service_role;
     `);
+    if (includeGuardianInvitations) {
+      await db.exec(`
+        create schema extensions;
+        create extension pgcrypto with schema extensions;
+        alter table auth.users add column email text, add column email_confirmed_at timestamptz,
+          add column is_anonymous boolean not null default false, add column banned_until timestamptz;
+      `);
+    }
     for (const schema of snapshot.schemas) {
       await db.exec(`revoke all on schema ${identifier(schema.name)} from public, anon, authenticated, service_role`);
       for (const grant of aclEntries(schema.acl)) {
@@ -226,6 +237,7 @@ export async function createStaffScopeDatabase({
       publicHelpers.add("register_student_for_class_teacher");
       publicHelpers.add("update_my_teacher_phone");
     }
+    if (includeGuardianInvitations) publicHelpers.add("activate_parent");
     const routines = snapshot.routines.filter((routine) => routine.schema === "app_private" || routine.schema === "public" && publicHelpers.has(routine.name));
     // SQL-language helper bodies are validated at CREATE time, so create their
     // named dependencies first rather than replacing bodies with fake booleans.

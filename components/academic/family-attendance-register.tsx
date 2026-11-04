@@ -20,7 +20,11 @@ type FamilyRole = "student" | "parent";
 type Client = ReturnType<typeof createClient>;
 type History = Awaited<ReturnType<typeof loadFamilyAttendance>>;
 
-export function FamilyAttendanceRegister({ role, userId }: { role: FamilyRole; userId: string }) {
+export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
+  role: FamilyRole;
+  userId: string;
+  initialChildId?: string;
+}) {
   const [client] = useState(createClient);
   const [students, setStudents] = useState<FamilyStudent[]>();
   const [selectedId, setSelectedId] = useState("");
@@ -33,12 +37,15 @@ export function FamilyAttendanceRegister({ role, userId }: { role: FamilyRole; u
     loadFamilyStudents(client, role, userId).then((linked) => {
       if (!active) return;
       setStudents(linked);
-      setSelectedId(role === "parent" ? restoreFamilyChild(userId, linked) : linked[0]?.id ?? "");
+      const requestedChild = linked.find((item) => item.id === initialChildId);
+      setSelectedId(role === "parent"
+        ? requestedChild?.id ?? restoreFamilyChild(userId, linked)
+        : linked[0]?.id ?? "");
     }, (reason: unknown) => {
       if (active) setError(reason instanceof Error ? reason.message : "Attendance access could not be loaded.");
     });
     return () => { active = false; };
-  }, [attempt, client, role, userId]);
+  }, [attempt, client, initialChildId, role, userId]);
 
   function selectChild(id: string) {
     if (!students?.some((item) => item.id === id)) return;

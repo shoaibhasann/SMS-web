@@ -3,6 +3,7 @@ import type { UiRole } from "@/lib/auth/roles";
 export const modules = [
   { key: "students", label: "Students", icon: "Users", group: "People" },
   { key: "parents", label: "Parents", icon: "HeartHandshake", group: "People" },
+  { key: "guardian-invitations", label: "Guardian invitations", icon: "MailPlus", group: "People" },
   { key: "teachers", label: "Teachers & Staff", icon: "GraduationCap", group: "People" },
   { key: "admissions", label: "Admissions", icon: "ClipboardPlus", group: "People" },
   { key: "class-logs", label: "Academic Log", icon: "NotebookPen", group: "Academics" },
@@ -113,7 +114,7 @@ export function getVisibleModules(role: UiRole) {
 
 export function getAdminNavigationModules() {
   const adminOrder = [
-    "students", "parents", "teachers", "admissions",
+    "students", "parents", "teachers", "admissions", "guardian-invitations",
     "attendance", "academics", "teacher-assignments", "timetable",
     "exams", "results",
     "fees", "invoices", "finance-reports",

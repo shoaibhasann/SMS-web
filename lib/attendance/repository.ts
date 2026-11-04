@@ -22,7 +22,7 @@ type PageResult<T> = {
   count?: number | null;
 };
 type EnrollmentRow = { id: string; student_id: string; roll_no: string | null };
-type StudentRow = AttendanceStudent;
+type StudentRow = AttendanceStudent & { status?: string };
 
 function messageOf(error: unknown): string {
   if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
@@ -91,18 +91,26 @@ async function readPages<T>(
 type RegisterOption = { id: string; name: string };
 type RegisterSection = RegisterOption & { class_id: string };
 
-export async function loadAdminAttendanceAccess(client: SupabaseClient) {
+export function loadAdminAttendanceAccess(client: SupabaseClient) {
+  return loadSchoolManagementAccess(client, "attendance", ["school_admin"]);
+}
+
+export async function loadSchoolManagementAccess(
+  client: SupabaseClient,
+  task: string,
+  schoolRoles: readonly string[],
+) {
   const { data: { user }, error } = await client.auth.getUser();
-  if (error || !user) throw new Error("Sign in again to manage attendance.");
+  if (error || !user) throw new Error(`Sign in again to manage ${task}.`);
 
   const roles = await readPages<{ role: string; school_id: string | null }>((from, to) => client
     .from("user_roles").select("role,school_id", { count: "exact" })
     .eq("user_id", user.id).order("id").range(from, to), "School permissions could not be loaded");
   const globalAdmin = roles.some((row) => row.role === "super_admin" && row.school_id === null);
   const schoolIds = [...new Set(roles.flatMap((row) =>
-    row.role === "school_admin" && row.school_id ? [row.school_id] : [],
+    schoolRoles.includes(row.role) && row.school_id ? [row.school_id] : [],
   ))];
-  if (!globalAdmin && !schoolIds.length) throw new Error("A school administrator role is required to manage attendance.");
+  if (!globalAdmin && !schoolIds.length) throw new Error(`A school administrator role is required to manage ${task}.`);
 
   const schools = await readPages<RegisterOption>((from, to) => {
     const query = client.from("schools").select("id,name", { count: "exact" }).order("name").order("id");
@@ -128,6 +136,62 @@ export async function loadAdminAttendanceSetup(client: SupabaseClient, schoolId:
   return { year: years[0], classes, sections };
 }
 
+export async function loadEnrolledStudents(
+  client: SupabaseClient,
+  context: AttendanceContext,
+  options: { activeStudentsOnly?: boolean } = {},
+) {
+  const enrollments = await readPages<EnrollmentRow>((from, to) => client
+    .from("enrollments")
+    .select("id,student_id,roll_no", { count: "exact" })
+    .eq("academic_year_id", context.academicYearId)
+    .eq("class_id", context.classId)
+    .eq("section_id", context.sectionId)
+    .eq("status", "active")
+    .order("id", { ascending: true })
+    .range(from, to), "Student enrollments could not be loaded");
+
+  const enrollmentByStudent = new Map<string, EnrollmentRow>();
+  for (const enrollment of enrollments) {
+    if (!enrollment.student_id || enrollmentByStudent.has(enrollment.student_id)) {
+      throw new Error("The class roster contains an incomplete or duplicate enrollment. Contact your administrator.");
+    }
+    enrollmentByStudent.set(enrollment.student_id, enrollment);
+  }
+  const studentIds = [...enrollmentByStudent.keys()];
+  const studentById = new Map<string, StudentRow>();
+  for (let offset = 0; offset < studentIds.length; offset += STUDENT_CHUNK_SIZE) {
+    const ids = studentIds.slice(offset, offset + STUDENT_CHUNK_SIZE);
+    const studentRows = await readPages<StudentRow>((from, to) => client
+      .from("students")
+      .select("id,first_name,middle_name,last_name,admission_no,roll_no,status", { count: "exact" })
+      .eq("school_id", context.schoolId)
+      .in("id", ids)
+      .order("id", { ascending: true })
+      .range(from, to), "Student details could not be loaded");
+    for (const row of studentRows) {
+      if (!ids.includes(row.id) || studentById.has(row.id) ||
+        typeof row.first_name !== "string" || typeof row.admission_no !== "string") {
+        throw new Error("The class roster contains an unreadable student. Contact your administrator.");
+      }
+      studentById.set(row.id, row);
+    }
+  }
+  if (studentIds.some((id) => !studentById.has(id))) {
+    throw new Error("Some enrolled students could not be accessed. Refresh or contact your administrator.");
+  }
+
+  const students = studentIds.flatMap((id) => {
+    const { status, ...student } = studentById.get(id)!;
+    if (options.activeStudentsOnly && status !== "active") return [];
+    return [{ ...student, roll_no: enrollmentByStudent.get(id)!.roll_no ?? student.roll_no ?? null }];
+  });
+  students.sort((left, right) => String(left.roll_no ?? "").localeCompare(
+    String(right.roll_no ?? ""), undefined, { numeric: true, sensitivity: "base" },
+  ) || left.first_name.localeCompare(right.first_name) || left.id.localeCompare(right.id));
+  return students;
+}
+
 /**
  * Uses only the existing attendance/enrollment/student columns. RLS remains
  * authoritative and must be verified against the deployed base schema.
@@ -139,45 +203,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
   return {
     async load(context: AttendanceContext, date: string): Promise<AttendanceSnapshot> {
       validateScope(context, date);
-      const enrollments = await readPages<EnrollmentRow>((from, to) => client
-        .from("enrollments")
-        .select("id,student_id,roll_no", { count: "exact" })
-        .eq("academic_year_id", context.academicYearId)
-        .eq("class_id", context.classId)
-        .eq("section_id", context.sectionId)
-        .eq("status", "active")
-        .order("id", { ascending: true })
-        .range(from, to), "Student enrollments could not be loaded");
-
-      const enrollmentByStudent = new Map<string, EnrollmentRow>();
-      for (const enrollment of enrollments) {
-        if (!enrollment.student_id || enrollmentByStudent.has(enrollment.student_id)) {
-          throw new Error("The class roster contains an incomplete or duplicate enrollment. Contact your administrator.");
-        }
-        enrollmentByStudent.set(enrollment.student_id, enrollment);
-      }
-      const studentIds = [...enrollmentByStudent.keys()];
-      const studentById = new Map<string, StudentRow>();
-      for (let offset = 0; offset < studentIds.length; offset += STUDENT_CHUNK_SIZE) {
-        const ids = studentIds.slice(offset, offset + STUDENT_CHUNK_SIZE);
-        const studentRows = await readPages<StudentRow>((from, to) => client
-          .from("students")
-          .select("id,first_name,middle_name,last_name,admission_no,roll_no", { count: "exact" })
-          .eq("school_id", context.schoolId)
-          .in("id", ids)
-          .order("id", { ascending: true })
-          .range(from, to), "Student details could not be loaded");
-        for (const row of studentRows) {
-          if (!ids.includes(row.id) || studentById.has(row.id) ||
-            typeof row.first_name !== "string" || typeof row.admission_no !== "string") {
-            throw new Error("The class roster contains an unreadable student. Contact your administrator.");
-          }
-          studentById.set(row.id, row);
-        }
-      }
-      if (studentIds.some((id) => !studentById.has(id))) {
-        throw new Error("Some enrolled students could not be accessed. Refresh or contact your administrator before marking attendance.");
-      }
+      const students = await loadEnrolledStudents(client, context);
 
       const attendanceRows = await readPages<AttendanceEntry>((from, to) => client
         .from("attendance")
@@ -197,13 +223,6 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         entries[entry.student_id] = entry;
       }
 
-      const students = studentIds.map((id) => {
-        const student = studentById.get(id)!;
-        return { ...student, roll_no: enrollmentByStudent.get(id)!.roll_no ?? student.roll_no ?? null };
-      });
-      students.sort((left, right) => String(left.roll_no ?? "").localeCompare(
-        String(right.roll_no ?? ""), undefined, { numeric: true, sensitivity: "base" },
-      ) || left.first_name.localeCompare(right.first_name) || left.id.localeCompare(right.id));
       return { students, entries };
     },
 
