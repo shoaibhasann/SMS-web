@@ -57,10 +57,11 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
     "results",
     "attendance",
     "fees",
+    "notices",
     "profile",
     "teacher-assignments",
   ],
-  finance: ["students", "fees", "invoices", "finance-reports", "reports"],
+  finance: ["students", "fees", "invoices", "finance-reports", "notices", "reports"],
   reception: ["students", "parents", "admissions", "notices", "events", "documents"],
   student: [
     "attendance",

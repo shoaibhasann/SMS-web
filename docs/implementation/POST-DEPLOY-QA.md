@@ -92,3 +92,20 @@ The deployed browser run verified invite creation and copying, student access de
 - [ ] **GUA-07 · Mobile and keyboard.** At about 390 px, navigate school, class, section, student and email with a keyboard and copy the link. On the invite page, check signed-out, signing-in, signed-in and error states. Confirm that link creation, acceptance and revocation show feedback and disable their controls while pending.
 
 Revoking a pending invitation stops that link from being used. Accepted guardian links are managed separately. See the [implementation phases](PHASES.md) for automated and browser verification.
+
+## Phase QA fixture and school setup
+
+Use school `ERP-QA-d767af40` in the demo Supabase project. It has a school-scoped QA admin, academic year **2026–27 Phase QA**, **QA Class 6 / QA A**, and synthetic students Pilot One and Pilot Two. A QA student login is linked to Pilot One. Use the private local handoff for the admin, student and guardian accounts.
+
+- [ ] **SET-01 · Academic setup.** As the QA admin, open **Academics & Subjects**. Add a future year, a class, a section under that class and a subject. Reload and confirm all four records persist. The original current year should still be current.
+- [ ] **SET-02 · Enroll a student.** Open **People → Students**. Pick QA Class 6 / QA A and enter a unique QA admission number and name. Admit the student, reload and find the student in the class roster. Reusing the same number should fail without adding another row.
+- [ ] **SET-03 · Verify linked workflows.** Open Attendance and Guardian Invitations for the same class and section. Both should include the new student. Sign in as the QA student and check that the account can only read its own records.
+
+## Office and family QA
+
+- [ ] **FEE-01 · Issue a monthly demand.** As the QA admin, open **Finance → Fee**. Use QA Tuition and an unused month in the current year for Pilot One. The amount should come from the ₹1,000 structure. Repeating the same demand with the same due date should keep one record.
+- [ ] **FEE-02 · Collect and reconcile.** Record a ₹300 cash payment, reload and check ₹700 outstanding. Record ₹700 with a synthetic UPI reference and check that the demand shows Paid and the balance is ₹0. Open both receipts in **Invoices & Receipts**. Compare receipts and the remaining school balance with **Finance Reports**. Existing QA payments can affect the school totals.
+- [ ] **FEE-03 · Family receipt scope.** Sign in separately as the QA student and guardian. In **Invoices & Receipts**, check the two office receipts for Pilot One. Reload and confirm the same receipts appear. Pilot Two's receipt should remain hidden, and the page should have no payment controls.
+- [ ] **NOT-01 · Publish and check audience.** As the QA admin, save a Parents-only draft and publish a separate Parents-only notice. In **Notices & Circulars**, the guardian should see the publication but not the draft. The student should see neither. Unpublish the first notice and reload the guardian inbox, then republish and verify it returns.
+
+The school setup, attendance and guardian linking, fee and receipt, and notice cases above were exercised in local Chromium with hosted demo Supabase. The email inbox test still belongs to the founder run.

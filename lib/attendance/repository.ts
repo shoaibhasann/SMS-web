@@ -57,7 +57,7 @@ function validateEntry(value: unknown): AttendanceEntry {
  * masquerading as the end of a register. This is not a database snapshot;
  * concurrent roster changes detected through changing counts fail closed.
  */
-async function readPages<T>(
+export async function readPages<T>(
   query: (from: number, to: number) => PromiseLike<PageResult<T>>,
   description: string,
 ): Promise<T[]> {
@@ -120,14 +120,20 @@ export async function loadSchoolManagementAccess(
   return { userId: user.id, schools };
 }
 
-export async function loadAdminAttendanceSetup(client: SupabaseClient, schoolId: string) {
+export async function loadAdminAttendanceSetup(
+  client: SupabaseClient,
+  schoolId: string,
+  options: { activeClassesOnly?: boolean } = {},
+) {
   const [years, classes, sections] = await Promise.all([
     readPages<RegisterOption>((from, to) => client.from("academic_years")
       .select("id,name", { count: "exact" }).eq("school_id", schoolId).eq("is_current", true)
       .order("id").range(from, to), "The current academic year could not be loaded"),
-    readPages<RegisterOption>((from, to) => client.from("classes")
-      .select("id,name", { count: "exact" }).eq("school_id", schoolId)
-      .order("name").order("id").range(from, to), "Classes could not be loaded"),
+    readPages<RegisterOption>((from, to) => {
+      const query = client.from("classes")
+        .select("id,name", { count: "exact" }).eq("school_id", schoolId).order("name").order("id");
+      return (options.activeClassesOnly ? query.eq("is_active", true) : query).range(from, to);
+    }, "Classes could not be loaded"),
     readPages<RegisterSection>((from, to) => client.from("sections")
       .select("id,name,class_id", { count: "exact" }).eq("school_id", schoolId)
       .order("name").order("id").range(from, to), "Sections could not be loaded"),

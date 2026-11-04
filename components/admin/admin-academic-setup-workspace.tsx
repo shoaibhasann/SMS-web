@@ -1,80 +1,229 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { BookOpen, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { AdminDemoService, type AdminDemoRecord } from "@/lib/admin/admin-demo-service";
-import { useAdminDemoRecords } from "./admin-demo-workspace";
+import { type FormEvent, useEffect, useRef, useState } from "react";
+import { addAcademicSetupRecord, loadAcademicSetup, type AcademicSetup, type AcademicSetupDraft } from "@/lib/admin/academic-setup";
+import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
+import { createClient } from "@/lib/supabase/client";
 
-type AcademicTab = "Academic Year" | "Class" | "Section" | "Subject";
-const tabs: AcademicTab[] = ["Academic Year", "Class", "Section", "Subject"];
-const fields: Record<AcademicTab, { key: string; label: string; type?: string }[]> = {
-  "Academic Year": [{ key: "name", label: "Academic Year" }, { key: "startDate", label: "Start Date", type: "date" }, { key: "endDate", label: "End Date", type: "date" }],
-  Class: [{ key: "name", label: "Class Name" }, { key: "sortOrder", label: "Display Order", type: "number" }],
-  Section: [{ key: "name", label: "Section Name" }, { key: "className", label: "Class" }],
-  Subject: [{ key: "name", label: "Subject Name" }, { key: "code", label: "Subject Code" }],
-};
+const tabs = [
+  { key: "years", label: "Academic years", name: "academic year" },
+  { key: "classes", label: "Classes", name: "class" },
+  { key: "sections", label: "Sections", name: "section" },
+  { key: "subjects", label: "Subjects", name: "subject" },
+] as const;
 
-export function AdminAcademicSetupWorkspace() {
-  const [records, refreshRecords] = useAdminDemoRecords("academics");
-  const [tab, setTab] = useState<AcademicTab>("Academic Year");
-  const [editing, setEditing] = useState<AdminDemoRecord | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [toast, setToast] = useState("");
+type Client = ReturnType<typeof createClient>;
+type SchoolAccess = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 
-  const load = refreshRecords;
+export function AdminAcademicSetupWorkspace({ userId }: { userId: string }) {
+  const [client] = useState(createClient);
+  const [access, setAccess] = useState<SchoolAccess>();
+  const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
+  const [chosenSchool, setChosenSchool] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [sessionChanged, setSessionChanged] = useState(false);
 
-  const visible = useMemo(() => records.filter((record) => record.recordType === tab), [records, tab]);
-  function openForm(record?: AdminDemoRecord) {
-    setEditing(record ?? null);
-    setForm(Object.fromEntries(fields[tab].map(({ key }) => [key, record ? String(record[key] ?? "") : ""])));
-    setModalOpen(true);
-  }
-  function save(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const updated = editing
-      ? records.map((record) => record.id === editing.id ? { ...record, ...form } : record)
-      : [...records, {
-        id: `${tab.toLowerCase().replaceAll(" ", "-")}-demo-${Date.now()}`,
-        recordType: tab,
-        ...form,
-        status: "Active",
-        ...(tab === "Academic Year" ? { current: false } : {}),
-        ...(tab === "Subject" ? { practical: false } : {}),
-      }];
-    AdminDemoService.save("academics", updated);
-    refreshRecords();
-    setModalOpen(false);
-    setToast(editing ? `${tab} updated in demo data.` : `${tab} added to demo data.`);
-  }
-  function remove(record: AdminDemoRecord) {
-    if (!window.confirm(`Delete “${record.name}” from demo data?`)) return;
-    const updated = records.filter((item) => item.id !== record.id);
-    AdminDemoService.save("academics", updated);
-    refreshRecords();
-  }
-  function makeCurrent(record: AdminDemoRecord) {
-    const updated = records.map((item) => item.recordType === "Academic Year"
-      ? { ...item, current: item.id === record.id, status: item.id === record.id ? "Active" : "Inactive" }
-      : item);
-    AdminDemoService.save("academics", updated);
-    refreshRecords();
-  }
+  useEffect(() => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      if (session?.user.id !== userId) setSessionChanged(true);
+    });
+    return () => subscription.unsubscribe();
+  }, [client, userId]);
+
+  useEffect(() => {
+    if (sessionChanged) return;
+    let active = true;
+    loadSchoolManagementAccess(client, "academic setup", ["school_admin", "principal"]).then((result) => {
+      if (!active) return;
+      if (result.userId !== userId) setError("Your sign-in changed. Refresh to check access.");
+      else setAccess(result);
+    }, () => { if (active) setError("Could not load your schools. Sign in again or retry."); });
+    return () => { active = false; };
+  }, [attempt, client, sessionChanged, userId]);
+
+  const school = access?.schools.find((item) => item.id === chosenSchool)
+    ?? (access?.schools.length === 1 ? access.schools[0] : undefined);
 
   return (
     <div className="space-y-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">Academics · Configuration</p><h1 className="mt-1 text-3xl font-black">Academics &amp; Subjects</h1><p className="mt-2 text-sm muted">Manage academic years, classes, sections, and subjects.</p></div>
-        <button type="button" onClick={load} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16} /> Reset demo data</button>
+      <header>
+        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Academics · Configuration</p>
+        <h1 className="mt-1 text-3xl font-black">Academics &amp; Subjects</h1>
+        <p className="mt-2 text-sm muted">Set up the academic years, classes, sections and subjects used by enrollment and attendance.</p>
       </header>
-      <div className="rounded-xl border border-sky-300/50 bg-sky-500/5 px-4 py-3 text-xs leading-5 text-sky-800 dark:text-sky-200">Demo preview: changes are saved in this browser only.</div>
-      {toast && <p role="status" className="text-sm text-emerald-600">{toast}</p>}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{tabs.map((item) => <button key={item} type="button" onClick={() => setTab(item)} className={`card p-4 text-left ${tab === item ? "border-blue-500 ring-2 ring-blue-500/15" : ""}`}><div className="flex items-center justify-between"><span className="text-sm font-semibold muted">{item === "Academic Year" ? "Academic Years" : `${item}s`}</span><BookOpen size={17} className="text-blue-600" /></div><p className="mt-2 text-2xl font-black">{records.filter((record) => record.recordType === item).length}</p></button>)}</div>
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-4"><div className="flex flex-wrap gap-2" role="tablist" aria-label="Academic master data">{tabs.map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item} onClick={() => setTab(item)} className={`rounded-xl px-3 py-2 text-sm font-semibold ${tab === item ? "bg-blue-600 text-white" : "border border-[var(--border)]"}`}>{item === "Academic Year" ? "Academic Years" : `${item}s`}</button>)}</div><button type="button" onClick={() => openForm()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Add {tab}</button></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[620px] text-left text-sm"><thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr>{fields[tab].map((field) => <th key={field.key} className="p-3">{field.label}</th>)}<th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[var(--border)]">{visible.map((record) => <tr key={record.id}>{fields[tab].map(({ key }) => <td key={key} className="p-3">{String(record[key] ?? "—")}</td>)}<td className="p-3">{tab === "Academic Year" && record.current ? "Current" : String(record.status ?? "Active")}</td><td className="p-3"><div className="flex justify-end gap-1">{tab === "Academic Year" && !record.current && <button type="button" onClick={() => makeCurrent(record)} className="rounded-lg px-2 text-xs font-semibold text-blue-600">Set current</button>}<button type="button" onClick={() => openForm(record)} aria-label="Edit record" className="rounded-lg p-2"><Pencil size={15} /></button><button type="button" onClick={() => remove(record)} aria-label="Delete record" className="rounded-lg p-2 text-red-600"><Trash2 size={15} /></button></div></td></tr>)}{!visible.length && <tr><td colSpan={fields[tab].length + 2} className="p-6 text-center muted">No records available yet.</td></tr>}</tbody></table></div>
-      </section>
-      {modalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4"><form onSubmit={save} className="w-full max-w-lg space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl"><div><h2 className="text-lg font-bold">{editing ? `Edit ${tab}` : `Add ${tab}`}</h2><p className="text-sm muted">Saved to this browser’s demo data.</p></div>{fields[tab].map(({ key, label, type }) => <label key={key} className="block space-y-1.5 text-sm font-medium">{label}<input required value={form[key] ?? ""} type={type ?? "text"} onChange={(event) => setForm((value) => ({ ...value, [key]: event.target.value }))} className="field" /></label>)}{tab === "Subject" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.practical === "true"} onChange={(event) => setForm((value) => ({ ...value, practical: String(event.target.checked) }))} /> Practical subject</label>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setModalOpen(false)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button><button className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">{editing ? "Save changes" : "Add to demo data"}</button></div></form></div>}
+      {sessionChanged ? <p role="alert" className="text-sm text-red-600">Your sign-in changed. Refresh to check access.</p> : error ? (
+        <section className="card space-y-3 p-4">
+          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <button type="button" className="text-sm font-semibold text-blue-600" onClick={() => {
+            setError("");
+            setAttempt((count) => count + 1);
+          }}>Retry school access</button>
+        </section>
+      ) : !access ? <p role="status" className="text-sm muted">Checking school access…</p>
+        : (
+          <>
+            <label className="card block space-y-2 p-4 text-sm font-semibold">
+              <span>School</span>
+              <select className="field" value={school?.id ?? ""} disabled={saving || access.schools.length === 1}
+                onChange={(event) => setChosenSchool(event.target.value)}>
+                <option value="">Select school</option>
+                {access.schools.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label>
+            {school && (
+              <SchoolAcademicSetup key={school.id} client={client} schoolId={school.id} userId={userId}
+                saving={saving} setSaving={setSaving} />
+            )}
+          </>
+        )}
     </div>
+  );
+}
+
+function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
+  client: Client;
+  schoolId: string;
+  userId: string;
+  saving: boolean;
+  setSaving: (value: boolean) => void;
+}) {
+  const [selectedTab, setSelectedTab] = useState<(typeof tabs)[number]>(tabs[0]);
+  const [setup, setSetup] = useState<AcademicSetup>();
+  const [attempt, setAttempt] = useState(0);
+  const [notice, setNotice] = useState<{ text: string; error?: boolean }>();
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    loadAcademicSetup(client, schoolId).then((data) => {
+      if (active) setSetup(data);
+    }, () => { if (active) setNotice({ text: "Could not load school records. Refresh to try again.", error: true }); });
+    return () => { active = false; };
+  }, [attempt, client, schoolId]);
+
+  const activeClasses = setup?.classes.filter((item) => item.is_active) ?? [];
+
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!setup || inFlight.current) return;
+    const form = event.currentTarget;
+    const fields = new FormData(form);
+    const value = (key: string) => String(fields.get(key) ?? "");
+    const name = value("name");
+    const kind = selectedTab.key;
+    let draft: AcademicSetupDraft;
+    switch (kind) {
+      case "years":
+        draft = { kind, name, startDate: value("startDate"), endDate: value("endDate"), firstYear: setup.years.length === 0 };
+        break;
+      case "classes":
+        draft = { kind, name, sortOrder: Number(value("sortOrder")) };
+        break;
+      case "sections":
+        if (!activeClasses.some((item) => item.id === value("classId"))) {
+          setNotice({ text: "Choose an active class for this section.", error: true });
+          return;
+        }
+        draft = { kind, name, classId: value("classId") };
+        break;
+      case "subjects":
+        draft = { kind, name, code: value("code") };
+        break;
+    }
+    inFlight.current = true;
+    setSaving(true);
+    setNotice(undefined);
+    try {
+      const { data, error } = await client.auth.getUser();
+      if (error || data.user?.id !== userId) throw new Error("Your sign-in changed. Refresh to check access.");
+      await addAcademicSetupRecord(client, schoolId, draft);
+      form.reset();
+      setNotice({ text: "Saved to the school." });
+      setSetup(undefined);
+      setAttempt((count) => count + 1);
+    } catch (error) {
+      setNotice({ text: error instanceof Error ? error.message : "Could not save the record.", error: true });
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
+    }
+  }
+
+  const rows = setup?.[selectedTab.key] ?? [];
+  return (
+    <section className="card space-y-4 p-4 sm:p-6" aria-label="School academic setup">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2" aria-label="Record type">
+          {tabs.map((tab) => (
+            <button key={tab.key} type="button" aria-pressed={selectedTab.key === tab.key} disabled={saving}
+              className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold aria-pressed:bg-blue-700 aria-pressed:text-white disabled:opacity-60"
+              onClick={() => { setSelectedTab(tab); if (setup) setNotice(undefined); }}>{tab.label}</button>
+          ))}
+        </div>
+        <button type="button" disabled={saving} onClick={() => {
+          setNotice(undefined);
+          setSetup(undefined);
+          setAttempt((count) => count + 1);
+        }} className="text-sm font-semibold text-blue-600">Refresh records</button>
+      </div>
+      {notice && <p role={notice.error ? "alert" : "status"} className={`text-sm ${notice.error ? "text-red-600" : "text-emerald-600"}`}>{notice.text}</p>}
+      {!setup ? (!notice?.error && <p role="status" className="text-sm muted">Loading school records…</p>) : (
+        <>
+          <h2 className="font-bold">{selectedTab.label}</h2>
+          {rows.length ? (
+            <ul className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
+              {rows.map((row) => (
+                <li key={row.id} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 text-sm">
+                  <strong>{row.name}</strong>
+                  <span className="muted">
+                    {"start_date" in row && `${row.start_date} to ${row.end_date}${row.is_current ? " · Current" : ""}`}
+                    {"sort_order" in row && `Order ${row.sort_order}${row.is_active ? "" : " · Inactive"}`}
+                    {"class_id" in row && (setup.classes.find((item) => item.id === row.class_id)?.name ?? "Class unavailable")}
+                    {"code" in row && [row.code, row.is_active ? "" : "Inactive"].filter(Boolean).join(" · ")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : <p className="text-sm muted">No records yet.</p>}
+          {selectedTab.key === "sections" && !activeClasses.length
+            ? <p className="text-sm muted">Add a class first to create a section.</p>
+            : (
+              <form key={selectedTab.key} onSubmit={save}>
+                <fieldset disabled={saving} className="grid items-end gap-3 sm:grid-cols-2">
+                  <legend className="mb-2 font-bold">Add {selectedTab.name}</legend>
+                  <label className="block space-y-1 text-sm font-semibold">
+                    <span>Name</span><input required maxLength={100} name="name" className="field" />
+                  </label>
+                  {selectedTab.key === "years" && (
+                    <>
+                      <label className="block space-y-1 text-sm font-semibold"><span>Start date</span><input required type="date" name="startDate" className="field" /></label>
+                      <label className="block space-y-1 text-sm font-semibold"><span>End date</span><input required type="date" name="endDate" className="field" /></label>
+                      <p className="text-sm muted">{setup.years.length ? "This year will be saved without changing the current year." : "This first academic year will be set as current."}</p>
+                    </>
+                  )}
+                  {selectedTab.key === "classes" && (
+                    <label className="block space-y-1 text-sm font-semibold"><span>Display order</span><input required type="number" name="sortOrder" defaultValue={0} min={0} max={999} className="field" /></label>
+                  )}
+                  {selectedTab.key === "sections" && (
+                    <label className="block space-y-1 text-sm font-semibold"><span>Class</span><select required name="classId" defaultValue="" className="field">
+                      <option value="">Select class</option>
+                      {activeClasses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </select></label>
+                  )}
+                  {selectedTab.key === "subjects" && (
+                    <label className="block space-y-1 text-sm font-semibold"><span>Subject code (optional)</span><input name="code" maxLength={30} className="field" /></label>
+                  )}
+                  <div className="sm:col-span-2">
+                    <button type="submit" className="rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60">
+                      {saving ? "Saving…" : `Add ${selectedTab.name}`}
+                    </button>
+                  </div>
+                </fieldset>
+              </form>
+            )}
+        </>
+      )}
+    </section>
   );
 }

@@ -1,5 +1,4 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AdminAcademicSetupWorkspace } from "../components/admin/admin-academic-setup-workspace";
@@ -33,6 +32,7 @@ function database(read: (request: Read) => Promise<Result>) {
       eq(key: string, value: unknown) { request.filters[key] = value; return query; },
       in(key: string, value: unknown) { request.filters[key] = value; return query; },
       order() { return query; },
+      range() { return query; },
       maybeSingle() { request.single = true; return query; },
       then<T = Result, U = never>(yes?: ((value: Result) => T | PromiseLike<T>) | null, no?: ((reason: unknown) => U | PromiseLike<U>) | null) {
         calls.push(request);
@@ -41,38 +41,36 @@ function database(read: (request: Read) => Promise<Result>) {
     };
     return query;
   });
-  const client = { auth: { getUser }, from };
+  const client = { auth: { getUser, onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) }, from };
   clientMock.create.mockReturnValue(client);
   return { client, calls, getUser, from };
 }
 
 beforeEach(() => { window.localStorage.clear(); });
 
-describe("browser demo snapshots", () => {
-  it("hydrates stored academic data, persists edits and publishes storage changes", async () => {
-    const user = userEvent.setup();
-    const stored = [{ id: "year", recordType: "Academic Year", name: "Stored year", startDate: "2026-04-01", endDate: "2027-03-31", status: "Active", current: true }];
-    const key = "kids-corner-admin-demo:academics";
-    window.localStorage.setItem(key, JSON.stringify(stored));
-    // SSR must use its stable empty snapshot, rather than browser-only storage.
-    expect(renderToString(<AdminAcademicSetupWorkspace />)).not.toContain("Stored year");
-    render(<AdminAcademicSetupWorkspace />);
-    await screen.findByRole("cell", { name: "Stored year" });
-    expect(screen.getByText(/Demo preview: changes are saved in this browser only/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Edit record" }));
-    const input = screen.getByRole("textbox", { name: "Academic Year" });
-    await user.clear(input); await user.type(input, "Edited year");
-    await user.click(screen.getByRole("button", { name: "Save changes" }));
-    await screen.findByRole("cell", { name: "Edited year" });
-    expect(JSON.parse(window.localStorage.getItem(key)!)[0].name).toBe("Edited year");
-    act(() => {
-      window.localStorage.setItem(key, JSON.stringify([{ ...stored[0], name: "Other tab year" }]));
-      window.dispatchEvent(new StorageEvent("storage", { key }));
-    });
-    expect(await screen.findByRole("cell", { name: "Other tab year" })).toBeInTheDocument();
-    expect(screen.queryByRole("cell", { name: "Edited year" })).not.toBeInTheDocument();
+it("reads academic setup only for the authorized school and ignores old browser demo data", async () => {
+  window.localStorage.setItem("kids-corner-admin-demo:academics", JSON.stringify([
+    { id: "demo-year", recordType: "Academic Year", name: "Stored demo year" },
+  ]));
+  const db = database(async ({ table }) => {
+    if (table === "user_roles") return result([{ role: "school_admin", school_id: "school-a" }]);
+    if (table === "schools") return result([{ id: "school-a", name: "School A" }]);
+    if (table === "academic_years") return result([
+      { id: "live-year", name: "Current school year", start_date: "2026-04-01", end_date: "2027-03-31", is_current: true },
+    ]);
+    return result([]);
   });
+  expect(renderToString(<AdminAcademicSetupWorkspace userId="admin" />)).not.toContain("Stored demo year");
+  render(<AdminAcademicSetupWorkspace userId="admin" />);
+  expect(await screen.findByText("Current school year")).toBeInTheDocument();
+  expect(screen.queryByText("Stored demo year")).not.toBeInTheDocument();
+  expect(db.calls.filter(({ table }) => ["academic_years", "classes", "sections", "subjects"].includes(table)))
+    .toHaveLength(4);
+  expect(db.calls.filter(({ table }) => ["academic_years", "classes", "sections", "subjects"].includes(table))
+    .every(({ filters }) => filters.school_id === "school-a")).toBe(true);
+});
 
+describe("browser demo snapshots", () => {
   it("resets module-specific filters when navigating between demo modules", async () => {
     window.localStorage.setItem("kids-corner-admin-demo:students", JSON.stringify([{ id: "pupil", name: "Saved pupil", status: "Active" }]));
     window.localStorage.setItem("kids-corner-admin-demo:inventory", JSON.stringify([{ id: "desk", name: "Saved desk", status: "In use" }]));

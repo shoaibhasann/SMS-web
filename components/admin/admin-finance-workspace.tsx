@@ -2,8 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { BadgeIndianRupee, Download, Eye, Printer, ReceiptText, RefreshCw, Search } from "lucide-react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { adminFinanceReportDemo } from "@/lib/admin/admin-dashboard-demo";
+import { readPages } from "@/lib/attendance/repository";
+import { schoolDate } from "@/lib/attendance/types";
 
 type FeeRecord = {
   id: string;
@@ -23,14 +25,58 @@ type PaymentRecord = {
   student_id: string;
   receipt_no: string;
   amount: number;
-  payment_method: string;
+  payment_method: string | null;
   status: string;
-  paid_at: string;
+  paid_at: string | null;
 };
 
 type Student = { id: string; name: string; admission_no: string };
 type FeeStructure = { id: string; name: string };
-type FeeStructureRecord = FeeStructure & { amount: number; frequency: string };
+type FeeStructureRecord = FeeStructure & { amount: number; frequency: string; academic_year_id: string; class_id: string | null };
+type DemandStudent = Student & { enrollments: { class_id: string }[] };
+type PaymentAttempt = { requestId: string; feeId: string; amount: string; method: string; reference: string };
+type OfficeReceipt = { payment_id: string; receipt_no: string };
+
+const paymentMethods = [
+  ["cash", "Cash"],
+  ["upi", "UPI"],
+  ["bank_transfer", "Bank transfer"],
+  ["card", "Card"],
+  ["cheque", "Cheque"],
+] as const;
+
+function readPaymentAttempt(key: string): PaymentAttempt | null {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(key) ?? "null");
+    if (saved && ["requestId", "feeId", "amount", "method", "reference"].every((field) => typeof saved[field] === "string")) {
+      return saved as PaymentAttempt;
+    }
+  } catch {
+    // This browser may block session storage.
+  }
+  return null;
+}
+
+function savePaymentAttempt(key: string, attempt: PaymentAttempt | null) {
+  try {
+    if (attempt) sessionStorage.setItem(key, JSON.stringify(attempt));
+    else sessionStorage.removeItem(key);
+  } catch {
+    // The current page keeps the same request ID when session storage is unavailable.
+  }
+}
+
+function feeBalance(fee: FeeRecord, paid: number) {
+  return Math.max(0, Math.round((Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee) - paid) * 100) / 100);
+}
+
+function paymentLabel(method: string | null) {
+  return paymentMethods.find(([value]) => value === method)?.[1] ?? (method?.replaceAll("_", " ") || "—");
+}
+
+function paymentDay(value: string | null) {
+  return value ? schoolDate(new Date(value)) : "";
+}
 
 function logError(context: string, error: unknown) {
   if (error && typeof error === "object") {
@@ -50,11 +96,12 @@ function money(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
 }
 
-export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "reports" }) {
+export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "fees" | "invoices" | "reports"; initialReceiptNo?: string }) {
   const [supabase] = useState(createClient);
   const latestRequest = useRef(0);
   const mounted = useRef(true);
   const [schoolId, setSchoolId] = useState("");
+  const [paymentStorageKey, setPaymentStorageKey] = useState("");
   const [currentYearId, setCurrentYearId] = useState("");
   const [fees, setFees] = useState<FeeRecord[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -64,17 +111,31 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
   const [structureName, setStructureName] = useState("Tuition Fee");
   const [structureFrequency, setStructureFrequency] = useState("monthly");
   const [structureAmount, setStructureAmount] = useState("");
+  const [demandStudents, setDemandStudents] = useState<DemandStudent[]>([]);
+  const [demandStudentId, setDemandStudentId] = useState("");
+  const [demandStructureId, setDemandStructureId] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState(() => schoolDate().slice(0, 7));
+  const [demandDueDate, setDemandDueDate] = useState("");
+  const [demandSaving, setDemandSaving] = useState(false);
+  const demandInFlight = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedFeeId, setSelectedFeeId] = useState("");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [paymentReference, setPaymentReference] = useState("");
+  const [paymentAttempt, setPaymentAttempt] = useState<PaymentAttempt | null>(null);
+  const pendingPayment = useRef<{ key: string; attempt: PaymentAttempt } | null>(null);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const paymentInFlight = useRef(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [savedReceipt, setSavedReceipt] = useState<OfficeReceipt | null>(null);
   const [localMessage, setLocalMessage] = useState("");
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
   const [selectedInvoice, setSelectedInvoice] = useState<FeeRecord | null>(null);
-  const [invoiceTab, setInvoiceTab] = useState<"invoices" | "receipts">("invoices");
-  const [financeSearch, setFinanceSearch] = useState("");
+  const [invoiceTab, setInvoiceTab] = useState<"invoices" | "receipts">(initialReceiptNo ? "receipts" : "invoices");
+  const [financeSearch, setFinanceSearch] = useState(initialReceiptNo);
   const [financeStatus, setFinanceStatus] = useState("All");
   const [financeStudent, setFinanceStudent] = useState("All");
   const [financeMonth, setFinanceMonth] = useState("");
@@ -97,8 +158,10 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
 
         let schoolId = (roles ?? []).find((row) =>
           row.role === "school_admin" && row.school_id,
+        )?.school_id ?? (roles ?? []).find((row) =>
+          ["accountant", "principal"].includes(row.role) && row.school_id,
         )?.school_id ?? "";
-        if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin")) {
+        if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin" && row.school_id === null)) {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
             .select("school_id")
@@ -107,28 +170,21 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           if (profileError) throw profileError;
           schoolId = profile?.school_id ?? "";
         }
-        if (!schoolId) throw new Error("Choose a school-linked admin account to view finance records.");
+        if (!schoolId) throw new Error("Choose a school-linked finance account to view finance records.");
 
-        const [feeResult, paymentResult, structureResult, yearResult] = await Promise.all([
-          supabase.from("student_fees").select("id,student_id,fee_structure_id,amount,discount,late_fee,status,billing_period,due_date").eq("school_id", schoolId).order("created_at", { ascending: false }),
-          supabase.from("fee_payments").select("id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at").eq("school_id", schoolId).order("paid_at", { ascending: false }),
-          supabase.from("fee_structures").select("id,name,amount,frequency").eq("school_id", schoolId),
+        const [feeRows, paymentRows, loadedStructures, yearResult] = await Promise.all([
+          readPages<FeeRecord>((from, to) => supabase.from("student_fees")
+            .select("id,student_id,fee_structure_id,amount,discount,late_fee,status,billing_period,due_date", { count: "exact" })
+            .eq("school_id", schoolId).order("created_at", { ascending: false }).order("id").range(from, to), "Fee demands"),
+          readPages<PaymentRecord>((from, to) => supabase.from("fee_payments")
+            .select("id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at", { count: "exact" })
+            .eq("school_id", schoolId).order("paid_at", { ascending: false, nullsFirst: false }).order("id").range(from, to), "Fee payments"),
+          readPages<FeeStructureRecord>((from, to) => supabase.from("fee_structures")
+            .select("id,name,amount,frequency,academic_year_id,class_id", { count: "exact" })
+            .eq("school_id", schoolId).order("name").order("id").range(from, to), "Fee structures"),
           supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
         ]);
-        const results = [
-          ["student_fees", feeResult],
-          ["fee_payments", paymentResult],
-          ["fee_structures", structureResult],
-          ["academic_years", yearResult],
-        ] as const;
-        for (const [table, result] of results) {
-          if (result.error) {
-            logError(`[Admin Finance] SELECT ${table} failed`, result.error);
-            throw result.error;
-          }
-        }
-        const feeRows = (feeResult.data ?? []) as FeeRecord[];
-        const paymentRows = (paymentResult.data ?? []) as PaymentRecord[];
+        if (yearResult.error) throw yearResult.error;
         const studentIds = [...new Set([...feeRows.map((row) => row.student_id), ...paymentRows.map((row) => row.student_id)])];
 
         const studentRows = [];
@@ -146,13 +202,24 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           studentRows.push(...(data ?? []));
         }
 
+        const activeYearId = yearResult.data?.id ?? "";
+        const roster = mode === "fees" && activeYearId
+          ? await readPages((from, to) => supabase.from("students")
+            .select("id,first_name,middle_name,last_name,admission_no,enrollments!inner(class_id)", { count: "exact" })
+            .eq("school_id", schoolId).eq("status", "active")
+            .eq("enrollments.academic_year_id", activeYearId).eq("enrollments.status", "active")
+            .order("first_name").order("id").range(from, to), "Active enrolled students")
+          : [];
+
         if (!isCurrent()) return;
+        const key = `kids-corner-office-fees:${auth.user.id}:${schoolId}`;
         setSchoolId(schoolId);
+        setPaymentStorageKey(key);
+        setPaymentAttempt(pendingPayment.current?.key === key ? pendingPayment.current.attempt : readPaymentAttempt(key));
         setFees(feeRows);
         setPayments(paymentRows);
-        const loadedStructures = (structureResult.data ?? []) as FeeStructureRecord[];
         setStructureRows(loadedStructures);
-        setCurrentYearId(yearResult.data?.id ?? "");
+        setCurrentYearId(activeYearId);
         setStudents(Object.fromEntries(studentRows.map((student) => [
           student.id,
           {
@@ -162,6 +229,12 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           },
         ])));
         setStructures(Object.fromEntries(loadedStructures.map((structure) => [structure.id, structure.name])));
+        setDemandStudents(roster.map((student) => ({
+          id: student.id,
+          name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
+          admission_no: student.admission_no,
+          enrollments: student.enrollments,
+        })));
 
       } catch (loadError) {
         if (!isCurrent()) return;
@@ -176,7 +249,7 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
       setError("Finance records could not be loaded. Please refresh or contact your administrator.");
       setLoading(false);
     });
-  }, [supabase]);
+  }, [mode, supabase]);
 
   useEffect(() => {
     mounted.current = true;
@@ -188,23 +261,26 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
     const totals = new Map<string, number>();
     for (const payment of payments) {
       if (payment.status !== "paid") continue;
-      totals.set(payment.student_fee_id, (totals.get(payment.student_fee_id) ?? 0) + Number(payment.amount));
+      totals.set(payment.student_fee_id, (totals.get(payment.student_fee_id) ?? 0) + Math.round(Number(payment.amount) * 100));
     }
-    return totals;
+    return new Map(Array.from(totals, ([id, cents]) => [id, cents / 100]));
   }, [payments]);
 
+  const payableFees = fees.filter((fee) =>
+    ["pending", "partial"].includes(fee.status) && feeBalance(fee, paidByFee.get(fee.id) ?? 0) > 0,
+  );
+  const demandStudent = demandStudents.find((student) => student.id === demandStudentId);
+  const demandStructures = structureRows.filter((structure) => structure.academic_year_id === currentYearId
+    && (!structure.class_id || demandStudent?.enrollments.some((enrollment) => enrollment.class_id === structure.class_id)));
   const totalCollected = payments.reduce((total, payment) =>
     total + (payment.status === "paid" ? Number(payment.amount) : 0), 0);
-  const outstanding = fees.reduce((total, fee) => {
-    const due = Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee);
-    return total + Math.max(0, due - (paidByFee.get(fee.id) ?? 0));
-  }, 0);
-  const currentMonth = new Date().toISOString().slice(0, 7);
+  const outstanding = fees.reduce((total, fee) => total + feeBalance(fee, paidByFee.get(fee.id) ?? 0), 0);
+  const today = schoolDate();
+  const currentMonth = today.slice(0, 7);
   const collectedThisMonth = payments.reduce((total, payment) =>
-    total + (payment.status === "paid" && payment.paid_at?.startsWith(currentMonth) ? Number(payment.amount) : 0), 0);
-  const today = new Date().toISOString().slice(0, 10);
+    total + (payment.status === "paid" && paymentDay(payment.paid_at).startsWith(currentMonth) ? Number(payment.amount) : 0), 0);
   const collectedToday = payments.reduce((total, payment) =>
-    total + (payment.status === "paid" && payment.paid_at?.startsWith(today) ? Number(payment.amount) : 0), 0);
+    total + (payment.status === "paid" && paymentDay(payment.paid_at) === today ? Number(payment.amount) : 0), 0);
   const pendingFeeCount = fees.filter((fee) => fee.status !== "paid").length;
   const overdueFeeCount = fees.filter((fee) => fee.status !== "paid" && fee.due_date && fee.due_date < today).length;
   const filteredFees = fees.filter((fee) =>
@@ -215,7 +291,7 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
   const filteredPayments = payments.filter((payment) =>
     (financeStatus === "All" || payment.status === financeStatus) &&
     (financeStudent === "All" || payment.student_id === financeStudent) &&
-    (!financeMonth || payment.paid_at?.startsWith(financeMonth)) &&
+    (!financeMonth || paymentDay(payment.paid_at).startsWith(financeMonth)) &&
     `${payment.receipt_no} ${students[payment.student_id]?.name ?? ""} ${students[payment.student_id]?.admission_no ?? ""}`.toLowerCase().includes(financeSearch.toLowerCase()),
   );
   const filteredInvoices = fees.filter((fee) =>
@@ -224,15 +300,115 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
     `${students[fee.student_id]?.name ?? ""} ${students[fee.student_id]?.admission_no ?? ""} ${structures[fee.fee_structure_id ?? ""] ?? ""}`.toLowerCase().includes(financeSearch.toLowerCase()),
   );
 
-  function previewPayment(event: FormEvent<HTMLFormElement>) {
+  function openPayment() {
+    const attempt = paymentAttempt;
+    setSelectedFeeId(attempt?.feeId ?? payableFees[0]?.id ?? "");
+    setPaymentAmount(attempt?.amount ?? "");
+    setPaymentMethod(attempt?.method ?? "cash");
+    setPaymentReference(attempt?.reference ?? "");
+    setPaymentError("");
+    setPaymentDialogOpen(true);
+  }
+
+  async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const fee = fees.find((row) => row.id === selectedFeeId);
-    if (!fee) return;
-    const amount = Number(paymentAmount);
-    if (!Number.isFinite(amount) || amount <= 0) return;
-    setLocalMessage(`Payment preview for ${students[fee.student_id]?.name ?? "student"}: ${money(amount)} via ${paymentMethod}. No payment was saved.`);
-    setPaymentDialogOpen(false);
-    setPaymentAmount("");
+    if (!schoolId || !paymentStorageKey || paymentInFlight.current) return;
+
+    if (!paymentAttempt) {
+      const fee = payableFees.find((row) => row.id === selectedFeeId);
+      const amount = Number(paymentAmount);
+      if (!fee || !/^\d{1,10}(?:\.\d{1,2})?$/.test(paymentAmount) || amount <= 0) {
+        setPaymentError("Choose an open fee and enter a positive amount with up to two decimal places.");
+        return;
+      }
+      if (amount > feeBalance(fee, paidByFee.get(fee.id) ?? 0)) {
+        setPaymentError("The amount exceeds the displayed balance. Refresh the fee records.");
+        return;
+      }
+    }
+    const attempt = paymentAttempt ?? {
+      requestId: crypto.randomUUID(),
+      feeId: selectedFeeId,
+      amount: paymentAmount,
+      method: paymentMethod,
+      reference: paymentMethod === "cash" ? "" : paymentReference.trim(),
+    };
+    paymentInFlight.current = true;
+    pendingPayment.current = { key: paymentStorageKey, attempt };
+    savePaymentAttempt(paymentStorageKey, attempt);
+    setPaymentAttempt(attempt);
+    setPaymentSaving(true);
+    setPaymentError("");
+    setSavedReceipt(null);
+
+    try {
+      const { data, error: saveError } = await supabase.rpc("record_office_fee_payment", {
+        p_school_id: schoolId,
+        p_student_fee_id: attempt.feeId,
+        p_amount: Number(attempt.amount),
+        p_payment_method: attempt.method,
+        p_request_id: attempt.requestId,
+        p_reference: attempt.reference || null,
+      });
+      if (saveError) {
+        if (["22023", "23505", "42501"].includes(saveError.code)) {
+          pendingPayment.current = null;
+          savePaymentAttempt(paymentStorageKey, null);
+          if (mounted.current) {
+            setPaymentAttempt(null);
+            setPaymentError(saveError.message);
+          }
+          return;
+        }
+        throw saveError;
+      }
+      if (!data || typeof data.payment_id !== "string" || typeof data.receipt_no !== "string") {
+        throw new Error("The server did not return a receipt.");
+      }
+      pendingPayment.current = null;
+      savePaymentAttempt(paymentStorageKey, null);
+      if (!mounted.current) return;
+      setPaymentAttempt(null);
+      setSavedReceipt(data);
+      setPaymentDialogOpen(false);
+      await load();
+    } catch {
+      if (mounted.current) setPaymentError("The result could not be confirmed. Retry this same request to recover the receipt.");
+    } finally {
+      paymentInFlight.current = false;
+      if (mounted.current) setPaymentSaving(false);
+    }
+  }
+
+  async function issueDemand(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!schoolId || !demandStudentId || !demandStructureId || !billingPeriod || demandInFlight.current) return;
+    demandInFlight.current = true;
+    setDemandSaving(true);
+    setError("");
+    setLocalMessage("");
+    try {
+      const { data, error: demandError } = await supabase.rpc("issue_office_fee_demand", {
+        p_school_id: schoolId,
+        p_student_id: demandStudentId,
+        p_fee_structure_id: demandStructureId,
+        p_billing_period: billingPeriod,
+        p_due_date: demandDueDate || null,
+      });
+      if (!mounted.current) return;
+      if (demandError || typeof data !== "string") {
+        setError(demandError && ["22023", "23505", "42501"].includes(demandError.code)
+          ? demandError.message : "The demand could not be confirmed. Retry with the same details.");
+        return;
+      }
+      setLocalMessage("Fee demand ready for collection.");
+      await load();
+    } catch {
+      if (mounted.current) setError("The demand could not be confirmed. Retry with the same details.");
+    } finally {
+      demandInFlight.current = false;
+      if (mounted.current) setDemandSaving(false);
+    }
   }
 
   function downloadReceipt(payment: PaymentRecord) {
@@ -249,7 +425,7 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `${payment.receipt_no}-preview.json`;
+    link.download = `${payment.receipt_no}.json`;
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -323,6 +499,10 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
 
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}
       {localMessage && <div role="status" className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 text-sm text-sky-800 dark:text-sky-200">{localMessage}</div>}
+      {savedReceipt && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
+        <span>Payment saved. Receipt <strong className="break-all">{savedReceipt.receipt_no}</strong></span>
+        <Link href={`/modules/invoices?receipt=${encodeURIComponent(savedReceipt.receipt_no)}`} className="font-semibold text-blue-600 underline">View receipt</Link>
+      </div>}
 
       {mode === "reports" && (
         <>
@@ -331,7 +511,7 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           <div className="card p-5"><div className="text-sm muted">Collected this month</div><div className="mt-2 text-2xl font-black">{money(collectedThisMonth)}</div></div>
           <div className="card p-5"><div className="text-sm muted">Outstanding balance</div><div className="mt-2 text-2xl font-black">{money(outstanding)}</div></div>
         </div>
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div>
           <section className="card overflow-hidden">
             <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Student-wise dues</h2></div>
             <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm">
@@ -343,16 +523,12 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
               })}{!fees.length && <tr><td colSpan={5} className="p-5 text-sm muted">No fee balances recorded.</td></tr>}</tbody>
             </table></div>
           </section>
-          <section className="card overflow-hidden">
-            <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Class-wise dues · demo preview</h2></div>
-            <div className="divide-y divide-[var(--border)]">{adminFinanceReportDemo.classDues.map((row) => <div key={row.className} className="flex items-center justify-between gap-3 p-4 text-sm"><div><p className="font-semibold">{row.className}</p><p className="text-xs muted">{row.pendingStudents} students with balance · sample data</p></div><p className="font-bold">{money(row.balance)}</p></div>)}</div>
-          </section>
         </div>
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Payment history</h2></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
             <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Date</th><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Method</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead>
-            <tbody className="divide-y divide-[var(--border)]">{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{payment.paid_at ? new Date(payment.paid_at).toLocaleDateString() : "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{payment.payment_method.replaceAll("_", " ")}</td><td className="p-3">{money(Number(payment.amount))}</td><td className="p-3 capitalize">{payment.status}</td></tr>)}
+            <tbody className="divide-y divide-[var(--border)]">{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{paymentDay(payment.paid_at) || "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td><td className="p-3">{money(Number(payment.amount))}</td><td className="p-3 capitalize">{payment.status}</td></tr>)}
               {!payments.length && <tr><td colSpan={6} className="p-5 text-sm muted">No payment history available.</td></tr>}
             </tbody>
           </table></div>
@@ -376,9 +552,45 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           {!currentYearId && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">A current academic year is required to add fee structures.</p>}
           <div className="mt-4 flex flex-wrap gap-2">{structureRows.map((structure) => <span key={structure.id} className="rounded-full bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium">{structure.name} · {structure.frequency} · {money(Number(structure.amount))}</span>)}</div>
         </section>
+        <section className="card space-y-4 p-5">
+          <div>
+            <h2 className="font-bold">Issue a fee demand</h2>
+            <p className="mt-1 text-sm muted">Assign a current-year fee structure to one enrolled student for a billing month.</p>
+          </div>
+          <form onSubmit={issueDemand} className="space-y-3">
+            <fieldset disabled={loading || demandSaving} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="space-y-1.5 text-sm font-medium">Enrolled student
+                <select required value={demandStudentId} onChange={(event) => {
+                  setDemandStudentId(event.target.value);
+                  setDemandStructureId("");
+                }} className="field">
+                  <option value="">Choose student</option>
+                  {demandStudents.map((student) => <option key={student.id} value={student.id}>{student.name} · {student.admission_no}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1.5 text-sm font-medium">Fee structure
+                <select required value={demandStructureId} onChange={(event) => setDemandStructureId(event.target.value)} className="field">
+                  <option value="">Choose structure</option>
+                  {demandStructures.map((structure) => <option key={structure.id} value={structure.id}>{structure.name} · {money(Number(structure.amount))}</option>)}
+                </select>
+              </label>
+              <label className="space-y-1.5 text-sm font-medium">Billing month
+                <input required type="month" value={billingPeriod} onChange={(event) => setBillingPeriod(event.target.value)} className="field" />
+              </label>
+              <label className="space-y-1.5 text-sm font-medium">Due date
+                <input type="date" value={demandDueDate} onChange={(event) => setDemandDueDate(event.target.value)} className="field" />
+              </label>
+            </fieldset>
+            <button type="submit" disabled={loading || demandSaving || !demandStudentId || !demandStructureId} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              {demandSaving ? "Issuing demand…" : "Issue demand"}
+            </button>
+          </form>
+        </section>
         <section className="card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Student fee records</h2>
-            <button type="button" disabled={!fees.length} onClick={() => { setSelectedFeeId(fees[0]?.id ?? ""); setPaymentDialogOpen(true); setLocalMessage(""); }} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Record Payment Preview</button>
+            <button type="button" disabled={loading || (!payableFees.length && !paymentAttempt)} onClick={openPayment} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+              {paymentAttempt ? "Resume payment request" : "Record payment"}
+            </button>
           </div>
           <div className="grid gap-2 border-b border-[var(--border)] p-4 sm:grid-cols-3">
             <label className="relative"><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 muted" /><input value={financeSearch} onChange={(event) => setFinanceSearch(event.target.value)} placeholder="Search student or fee" className="field pl-9" /></label>
@@ -446,13 +658,13 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
                   <td className="p-3 font-semibold">{payment.receipt_no}</td>
                   <td className="p-3">{students[payment.student_id]?.name ?? "Student"}<span className="block text-xs muted">{students[payment.student_id]?.admission_no ?? ""}</span></td>
                   <td className="p-3">{payment.paid_at ? new Date(payment.paid_at).toLocaleString() : "—"}</td>
-                  <td className="p-3 capitalize">{payment.payment_method.replaceAll("_", " ")}</td>
+                  <td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td>
                   <td className="p-3">{money(Number(payment.amount))}</td>
                   <td className="p-3 capitalize">{payment.status}</td>
                   <td className="p-3"><div className="flex gap-1">
                     <button type="button" aria-label={`View ${payment.receipt_no}`} onClick={() => setSelectedReceipt(payment)} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Eye size={15} /></button>
                     <button type="button" aria-label={`Print ${payment.receipt_no}`} onClick={() => window.print()} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Printer size={15} /></button>
-                    <button type="button" aria-label={`Download ${payment.receipt_no} preview`} onClick={() => downloadReceipt(payment)} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Download size={15} /></button>
+                    <button type="button" aria-label={`Download ${payment.receipt_no}`} onClick={() => downloadReceipt(payment)} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Download size={15} /></button>
                   </div></td>
                 </tr>)}{!filteredPayments.length && <tr><td className="p-5 text-sm muted" colSpan={7}>No receipts match the selected filters.</td></tr>}</tbody>
               </table>
@@ -461,7 +673,7 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
         </section>
       )}
 
-      {mode === "reports" && !loading && <p className="text-sm muted">Figures reflect saved fee records and payments only; no financial records were changed.</p>}
+      {mode === "reports" && !loading && <p className="text-sm muted">Figures reflect saved fee demands and payments for this school.</p>}
       {loading && mode === "reports" && <p className="text-sm muted">Loading finance totals…</p>}
       {mode === "invoices" && selectedInvoice && <section className="card space-y-3 p-5">
         <div className="flex items-start justify-between"><div><h2 className="font-bold">Invoice detail</h2><p className="mt-1 text-sm muted">School fee record preview</p></div><button type="button" onClick={() => setSelectedInvoice(null)} className="text-sm font-semibold text-blue-600">Close</button></div>
@@ -484,17 +696,39 @@ export function AdminFinanceWorkspace({ mode }: { mode: "fees" | "invoices" | "r
           <div><p className="text-xs muted">Admission No.</p><p className="font-semibold">{students[selectedReceipt.student_id]?.admission_no ?? "—"}</p></div>
           <div><p className="text-xs muted">Amount</p><p className="font-semibold">{money(Number(selectedReceipt.amount))}</p></div>
           <div><p className="text-xs muted">Payment date</p><p className="font-semibold">{selectedReceipt.paid_at ? new Date(selectedReceipt.paid_at).toLocaleString() : "—"}</p></div>
-          <div><p className="text-xs muted">Method</p><p className="font-semibold capitalize">{selectedReceipt.payment_method.replaceAll("_", " ")}</p></div>
+          <div><p className="text-xs muted">Method</p><p className="font-semibold capitalize">{paymentLabel(selectedReceipt.payment_method)}</p></div>
           <div><p className="text-xs muted">Status</p><p className="font-semibold capitalize">{selectedReceipt.status}</p></div>
         </div>
       </section>}
-      {paymentDialogOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4">
-        <form onSubmit={previewPayment} className="w-full max-w-lg space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
-          <div><h2 className="text-lg font-bold">Record Payment Preview</h2><p className="mt-1 text-sm muted">This is a UI-only preview; no financial record will be saved.</p></div>
-          <label className="block space-y-1.5 text-sm font-medium">Student fee record<select required value={selectedFeeId} onChange={(event) => setSelectedFeeId(event.target.value)} className="field">{fees.map((fee) => <option key={fee.id} value={fee.id}>{students[fee.student_id]?.name ?? "Student"} · {structures[fee.fee_structure_id ?? ""] ?? "Fee"} · balance {money(Math.max(0, Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee) - (paidByFee.get(fee.id) ?? 0)))}</option>)}</select></label>
-          <label className="block space-y-1.5 text-sm font-medium">Amount<input required type="number" min="0.01" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="field" /></label>
-          <label className="block space-y-1.5 text-sm font-medium">Payment Method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="field"><option value="cash">Cash</option><option value="upi">UPI</option><option value="bank_transfer">Bank Transfer</option><option value="card">Card</option><option value="cheque">Cheque</option></select></label>
-          <div className="flex justify-end gap-2"><button type="button" onClick={() => setPaymentDialogOpen(false)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button><button className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white">Preview only</button></div>
+      {paymentDialogOpen && <div role="dialog" aria-modal="true" aria-labelledby="office-payment-title" className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4">
+        <form onSubmit={recordPayment} className="w-full max-w-lg space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
+          <div><h2 id="office-payment-title" className="text-lg font-bold">Record payment</h2><p className="mt-1 text-sm muted">Enter a payment already received by the school.</p></div>
+          {paymentError && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{paymentError}</p>}
+          <fieldset disabled={paymentSaving || Boolean(paymentAttempt)} className="space-y-4">
+            <label className="block space-y-1.5 text-sm font-medium">Student fee record
+              <select required value={selectedFeeId} onChange={(event) => setSelectedFeeId(event.target.value)} className="field">
+                {paymentAttempt && !payableFees.some((fee) => fee.id === paymentAttempt.feeId) && <option value={paymentAttempt.feeId}>Previous payment request</option>}
+                {payableFees.map((fee) => <option key={fee.id} value={fee.id}>{students[fee.student_id]?.name ?? "Student"} · {structures[fee.fee_structure_id ?? ""] ?? "Fee"} · balance {money(feeBalance(fee, paidByFee.get(fee.id) ?? 0))}</option>)}
+              </select>
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">Amount
+              <input required type="number" min="0.01" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} className="field" />
+            </label>
+            <label className="block space-y-1.5 text-sm font-medium">Payment method
+              <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className="field">
+                {paymentMethods.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            {paymentMethod !== "cash" && <label className="block space-y-1.5 text-sm font-medium">Payment reference
+              <input required maxLength={120} value={paymentReference} onChange={(event) => setPaymentReference(event.target.value)} className="field" />
+            </label>}
+          </fieldset>
+          <div className="flex justify-end gap-2">
+            <button type="button" disabled={paymentSaving} onClick={() => setPaymentDialogOpen(false)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">Close</button>
+            <button type="submit" disabled={paymentSaving} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+              {paymentSaving ? "Recording…" : paymentAttempt ? "Retry payment request" : "Save payment"}
+            </button>
+          </div>
         </form>
       </div>}
     </div>

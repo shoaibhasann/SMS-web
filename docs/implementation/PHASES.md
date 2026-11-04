@@ -1,6 +1,6 @@
 # Implementation phases
 
-Updated 2 November 2026. Work one operational flow at a time: implement, run failure/regression tests, review integration, then advance. No new feature sweep until existing data risks are resolved.
+Updated 4 November 2026. Implement each operational flow, verify its permissions and failure cases, then advance.
 
 ## Phase 1: repair existing code — in progress
 
@@ -154,6 +154,14 @@ The same QA accounts verified both **3 and 4 November 2026 IST** records after a
 
 Replace demo people/academic masters with durable students, guardians, staff, enrollments, invitations and imports. Test onboarding across roles before expanding features.
 
+### Academic setup and student enrollment
+
+School admins and principals can add and view academic years, classes, sections and subjects in Supabase. The first year is set as current. Adding later years preserves the current year. Migration `20261104112755_guard_academic_year_setup` rejects inverted date ranges and multiple current years in the same school.
+
+The Students workspace admits a pupil into an active class and section in the current year. Migration `20261104112800_admit_roster_student` checks school access and saves the student and enrollment in one transaction. Duplicate admission numbers are rejected within a school.
+
+Chromium against hosted demo Supabase verified that setup records persist after reload and that a new pupil appears in the roster, Attendance and Guardian Invitations. The dedicated QA school `ERP-QA-d767af40` also verified admin attendance save and reload, student access to their own record, and guardian invite acceptance followed by read-only attendance for one linked child. Staff onboarding, roster imports and year rollover are separate remaining flows.
+
 ### Guardian invitations for the attendance pilot
 
 School admins and principals can issue or revoke a guardian invitation for one active pupil in the school's current-year roster. They copy the link and share it with the guardian. The link expires after 72 hours, and reissuing it invalidates the previous pending link for the same pupil and email.
@@ -168,9 +176,23 @@ Local Chromium against hosted demo Supabase verified invite creation and copy, w
 
 Finish fee demands, allocations, approved adjustments/reversals, receipts, day closing, dues and chosen message channels. Verify against approved opening balances and one fee cycle.
 
+### Single-pupil fee collection and receipts
+
+Office users can issue a monthly demand from a matching current-year fee structure, then record a full or partial payment. Migration `20261104113121_record_office_fee_payment` locks the demand while it checks the balance, saves a receipt and updates payment status. An identical retry returns the original receipt. Existing family reads remain available, and the office flow uses the transaction instead of separate direct writes.
+
+Hosted API checks with the seeded QA school returned one demand ID for two identical requests and one receipt for two concurrent ₹400 submissions with the same request ID. Overpayment and access from a student or a different school were denied. Fee structure setup, approved adjustments and reversals, and day closing remain separate flows.
+
+Chromium verified a ₹1,000 demand, ₹300 cash partial payment, recovery of the same receipt after a simulated lost response and reload, and a final ₹700 UPI settlement. The office reopened both receipts. Reports reconciled both QA pupils at ₹1,400 collected and ₹600 outstanding, including the separate API test.
+
 ## Phase 4: daily school use
 
 Complete guardian attendance/receipt views, notices, homework/catch-up and acknowledgments. Add school-approved results/report cards, promotion, certificates and timetable as separately tested flows.
+
+### Family receipts and targeted notices
+
+Students and guardians can read their own or linked child's paid receipts in Invoices & Receipts. Chromium verified both office receipts after refresh under each role. Receipts for the unrelated pupil and payment controls were absent.
+
+Migration `20261104113103_secure_notice_audiences` applies role, school, class and section visibility at the database. Admins and principals manage notices. Teachers can publish to their assigned classes. Other roles use the read-only notice inbox. Chromium verified a parent-only publication, a hidden draft, student denial and unpublish/republish after reload. Local database tests cover other school, current enrollment and expiry boundaries.
 
 ## Phase 5: expansion from repeat paid demand
 

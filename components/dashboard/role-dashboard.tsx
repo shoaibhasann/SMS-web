@@ -4,7 +4,6 @@
  import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  BadgeIndianRupee,
   BookOpen,
   CalendarCheck,
   ClipboardList,
@@ -23,6 +22,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import {
   guardianAttendancePath,
   loadFamilyAttendance,
@@ -60,17 +60,6 @@ type StudentRow = {
 type TeacherRow = { id: string; school_id: string; full_name: string | null };
 type NamedRow = { id: string; name: string };
 type NoticeRow = { id: string; title: string; content: string; published_at: string | null; created_at: string | null };
-type AcademicYearRow = NamedRow;
-type FeeStructureRow = NamedRow & { amount: number | string };
-type PaymentReceipt = {
-  receiptNo: string;
-  student: string;
-  admission: string | undefined;
-  fee: string;
-  amount: string;
-  method: string;
-  date: string;
-};
 type EnrollmentRow = {
   class_id: string;
   section_id: string | null;
@@ -310,7 +299,7 @@ export function RoleDashboard({
       {role === "teacher" ? (
         <TeacherDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "finance" ? (
-        <FinanceDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} />
+        <AdminFinanceWorkspace key={`${userId}:${schoolId}`} mode="fees" />
       ) : role === "student" ? (
         <StudentDashboard key={`${userId}:${schoolId}`} userId={userId} />
       ) : role === "parent" ? (
@@ -648,6 +637,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
     if (!error) {
       setNoticeTitle("");
       setNoticeContent("");
+      setReloadVersion((version) => version + 1);
     }
     setBusy(false);
   }
@@ -893,7 +883,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
           </div>
         </Card>
         <Card title="Share a Notice" icon={<FileText size={18} />}>
-          <p className="text-sm muted">Publish an update for your school community.</p>
+          <p className="text-sm muted">Publish an update for students and guardians in your assigned classes.</p>
           <div className="mt-4 space-y-3">
             <input value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} placeholder="Notice title" className="field" />
             <textarea value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="Notice content" className="field min-h-24" />
@@ -913,192 +903,6 @@ function TeacherDashboard({ userId }: { userId: string }) {
           </div>
         </Card>
       </div>
-    </div>
-  );
-}
-
-async function loadFinanceDashboardData(supabase: ReturnType<typeof createClient>, schoolId: string | null) {
-  const [{ data: students }, { data: year }, { data: structures }] = await Promise.all([
-    supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no,dob,status").order("first_name").limit(500).returns<StudentRow[]>(),
-    schoolId ? supabase.from("academic_years").select("*").eq("school_id", schoolId).eq("is_current", true).returns<AcademicYearRow[]>().maybeSingle() : Promise.resolve({ data: null }),
-    schoolId ? supabase.from("fee_structures").select("*").eq("school_id", schoolId).order("created_at", { ascending: false }).returns<FeeStructureRow[]>() : Promise.resolve({ data: [] as FeeStructureRow[] }),
-  ]);
-  return { students: students ?? [], year, structures: structures ?? [] };
-}
-
-function FinanceDashboard({ schoolId }: { schoolId: string | null }) {
-  const [supabase] = useState(createClient);
-  const [students, setStudents] = useState<StudentRow[]>([]);
-  const [year, setYear] = useState<AcademicYearRow | null>(null);
-  const [structures, setStructures] = useState<FeeStructureRow[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState("");
-  const [selectedStructure, setSelectedStructure] = useState("");
-  const [feeName, setFeeName] = useState("");
-  const [frequency, setFrequency] = useState("monthly");
-  const [feeAmount, setFeeAmount] = useState("");
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("cash");
-  const [receipt, setReceipt] = useState<PaymentReceipt | null>(null);
-  const [message, setMessage] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadFinanceDashboardData(supabase, schoolId).then((data) => {
-      if (controller.signal.aborted) return;
-      setStudents(data.students);
-      setYear(data.year);
-      setStructures(data.structures);
-    });
-    return () => controller.abort();
-  }, [schoolId, supabase]);
-
-  async function createStructure() {
-    if (!schoolId || !year || !feeName.trim() || !feeAmount) return;
-    setBusy(true);
-    const { error } = await supabase.from("fee_structures").insert({
-      school_id: schoolId,
-      academic_year_id: year.id,
-      name: feeName.trim(),
-      frequency,
-      amount: Number(feeAmount),
-    });
-    setMessage(error ? error.message : "Fee structure saved.");
-    if (!error) {
-      setFeeName("");
-      setFeeAmount("");
-      const data = await loadFinanceDashboardData(supabase, schoolId);
-      setStudents(data.students);
-      setYear(data.year);
-      setStructures(data.structures);
-    }
-    setBusy(false);
-  }
-
-  async function collectPayment() {
-    if (!schoolId || !year || !selectedStudent || !selectedStructure || !paymentAmount) return;
-    setBusy(true);
-    const structure = structures.find((x) => x.id === selectedStructure);
-    if (!structure) {
-      setMessage("Select a fee structure.");
-      setBusy(false);
-      return;
-    }
-
-    const { data: sf, error: sfError } = await supabase
-      .from("student_fees")
-      .insert({
-        school_id: schoolId,
-        student_id: selectedStudent,
-        fee_structure_id: structure.id,
-        billing_period: new Date().toISOString().slice(0, 7),
-        amount: structure.amount,
-        discount: 0,
-        late_fee: 0,
-        status: Number(paymentAmount) >= Number(structure.amount) ? "paid" : "partial",
-      })
-      .select("id")
-      .single();
-
-    if (sfError || !sf) {
-      setMessage(sfError?.message ?? "Student fee could not be created.");
-      setBusy(false);
-      return;
-    }
-
-    const receiptNo = `KC-${new Date().getFullYear()}-${Date.now().toString().slice(-8)}`;
-    const { error: pError } = await supabase.from("fee_payments").insert({
-      school_id: schoolId,
-      student_fee_id: sf.id,
-      student_id: selectedStudent,
-      receipt_no: receiptNo,
-      amount: Number(paymentAmount),
-      payment_method: paymentMethod,
-      status: "paid",
-      paid_at: new Date().toISOString(),
-    });
-
-    if (pError) {
-      setMessage(pError.message);
-      setBusy(false);
-      return;
-    }
-
-    const s = students.find((x) => x.id === selectedStudent);
-    setReceipt({
-      receiptNo,
-      student: s ? nameOf(s) : "Student",
-      admission: s?.admission_no,
-      fee: structure.name,
-      amount: paymentAmount,
-      method: paymentMethod,
-      date: new Date().toLocaleString(),
-    });
-    setMessage("Payment saved successfully. Receipt is ready to print.");
-    setPaymentAmount("");
-    setBusy(false);
-  }
-
-  return (
-    <div className="space-y-6">
-      <Header role="finance" subtitle="Finance controls fee structures, fee assignment, payments, receipts and finance reporting. Every payment is stored in Supabase and visible to authorized admin/parent/student views." />
-      {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{message}</div>}
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Students" value={students.length} />
-        <Stat label="Fee Structures" value={structures.length} tone="purple" />
-        <Stat label="Current Year" value={year?.name ?? "Not configured"} tone="green" />
-      </div>
-
-      <Card title="Create Fee Structure" icon={<BadgeIndianRupee size={18} />}>
-        <div className="grid gap-3 md:grid-cols-4">
-          <input value={feeName} onChange={(e) => setFeeName(e.target.value)} placeholder="e.g. Tuition Fee" className="field" />
-          <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="field">
-            <option>monthly</option><option>quarterly</option><option>half_yearly</option><option>yearly</option><option>custom</option>
-          </select>
-          <input type="number" value={feeAmount} onChange={(e) => setFeeAmount(e.target.value)} placeholder="Amount ₹" className="field" />
-          <button disabled={busy} onClick={createStructure} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">Save Structure</button>
-        </div>
-      </Card>
-
-      <Card title="Collect Fee · Deposit · Print Receipt" icon={<IndianRupee size={18} />}>
-        <div className="grid gap-3 md:grid-cols-4">
-          <select value={selectedStudent} onChange={(e) => setSelectedStudent(e.target.value)} className="field">
-            <option value="">Select student</option>
-            {students.map((s) => <option key={s.id} value={s.id}>{nameOf(s)} · {s.admission_no}</option>)}
-          </select>
-          <select value={selectedStructure} onChange={(e) => setSelectedStructure(e.target.value)} className="field">
-            <option value="">Select fee</option>
-            {structures.map((s) => <option key={s.id} value={s.id}>{s.name} · ₹{s.amount}</option>)}
-          </select>
-          <input type="number" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} placeholder="Deposit amount ₹" className="field" />
-          <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className="field">
-            <option>cash</option><option>upi</option><option>bank_transfer</option><option>card</option><option>cheque</option>
-          </select>
-        </div>
-        <button disabled={busy || !selectedStudent || !selectedStructure || !paymentAmount} onClick={collectPayment} className="mt-4 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">
-          Save Payment
-        </button>
-
-        {receipt && (
-          <div className="mt-6 max-w-md rounded-2xl border border-[var(--border)] bg-white p-6 text-slate-900 print-receipt">
-            <div className="text-center">
-              <div className="text-lg font-black">Kids Corner School</div>
-              <div className="text-xs text-slate-500">Fee Payment Receipt</div>
-            </div>
-            <div className="mt-5 space-y-2 text-sm">
-              <div className="flex justify-between"><span>Receipt</span><b>{receipt.receiptNo}</b></div>
-              <div className="flex justify-between"><span>Student</span><b>{receipt.student}</b></div>
-              <div className="flex justify-between"><span>Admission</span><b>{receipt.admission}</b></div>
-              <div className="flex justify-between"><span>Fee</span><b>{receipt.fee}</b></div>
-              <div className="flex justify-between"><span>Amount</span><b>₹{receipt.amount}</b></div>
-              <div className="flex justify-between"><span>Method</span><b>{receipt.method}</b></div>
-              <div className="flex justify-between"><span>Date</span><b>{receipt.date}</b></div>
-            </div>
-            <button onClick={() => window.print()} className="mt-5 w-full rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-semibold">Print Receipt</button>
-          </div>
-        )}
-      </Card>
     </div>
   );
 }
