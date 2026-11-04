@@ -2,6 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardianInvitePage from "../app/(auth)/guardian-invite/page";
+import TeacherInvitePage from "../app/(auth)/teacher-invite/page";
 
 const { getUser, signInWithPassword, signUp, signOut, rpc, replace } = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -37,6 +38,22 @@ async function fillCredentials() {
   await user.type(screen.getByLabelText("Password"), "test-password");
   return user;
 }
+
+it("opens the teaching dashboard only after the invited teacher explicitly accepts", async () => {
+  window.history.replaceState(null, "", `/teacher-invite#token=${token}`);
+  const teacher = { id: "teacher", email: "teacher@example.test" };
+  getUser.mockResolvedValue({ data: { user: teacher }, error: null });
+  rpc.mockResolvedValue({ data: { teacher_id: "teacher-record", school_id: "school" }, error: null });
+  render(<TeacherInvitePage />);
+
+  expect(screen.getByRole("heading", { name: "Teacher invitation" })).toBeInTheDocument();
+  const accept = await screen.findByRole("button", { name: "Accept invitation" });
+  expect(rpc).not.toHaveBeenCalled();
+  await userEvent.click(accept);
+  expect(rpc).toHaveBeenCalledExactlyOnceWith("accept_teacher_invitation", { p_token: token });
+  expect(replace).toHaveBeenCalledExactlyOnceWith("/dashboard");
+  expect(sessionStorage.getItem("erp:parent-child:teacher")).toBeNull();
+});
 
 describe("guardian invitation", () => {
   it.each(["", "#token=bad", `#token=${token}&token=duplicate`])(

@@ -172,8 +172,8 @@ async function readAcademicWorkspace() {
     classIds.length ? supabase.from("classes").select("id,name").in("id", classIds) : Promise.resolve({ data: [], error: null }),
     sectionIds.length ? supabase.from("sections").select("id,name").in("id", sectionIds) : Promise.resolve({ data: [], error: null }),
     subjectIds.length ? supabase.from("subjects").select("id,name").in("id", subjectIds) : Promise.resolve({ data: [], error: null }),
-    (viewerRole === "admin" || viewerRole === "principal" || viewerRole === "teacher") && teacherIds.length
-      ? supabase.from("teachers").select("id,employee_id,full_name").in("id", teacherIds)
+    teacherIds.length
+      ? supabase.rpc("academic_teacher_labels", { p_teacher_ids: teacherIds })
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (classesResult.error) throw classesResult.error;
@@ -184,9 +184,9 @@ async function readAcademicWorkspace() {
     classes: Object.fromEntries((classesResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
     sections: Object.fromEntries((sectionsResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
     subjects: Object.fromEntries((subjectsResult.data ?? []).map((row: { id: string; name: string }) => [row.id, row.name])),
-    teachers: Object.fromEntries((teachersResult.data ?? []).map((row: { id: string; full_name: string | null; employee_id: string | null }) => [
+    teachers: Object.fromEntries((teachersResult.data ?? []).map((row: { id: string; full_name: string | null }) => [
       row.id,
-      row.full_name || row.employee_id || row.id,
+      row.full_name || "Teacher",
     ])),
   };
 
@@ -602,7 +602,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
               <select value={filterClass} onChange={(event) => setFilterClass(event.target.value)} className="field"><option value="all">All classes</option>{[...new Set(logs.map((log) => log.class_id))].map((id) => <option key={id} value={id}>{labels.classes[id] ?? id}</option>)}</select>
               <select value={filterSection} onChange={(event) => setFilterSection(event.target.value)} className="field"><option value="all">All sections</option>{[...new Set(logs.map((log) => log.section_id).filter(Boolean))].map((id) => <option key={id} value={id}>{labels.sections[id] ?? id}</option>)}</select>
               <select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field"><option value="all">All subjects</option>{[...new Set(logs.map((log) => log.subject_id))].map((id) => <option key={id} value={id}>{labels.subjects[id] ?? id}</option>)}</select>
-              <select value={filterTeacher} onChange={(event) => setFilterTeacher(event.target.value)} className="field"><option value="all">All teachers</option>{[...new Set(logs.map((log) => log.teacher_id))].map((id) => <option key={id} value={id}>{labels.teachers[id] ?? id}</option>)}</select>
+              <select value={filterTeacher} onChange={(event) => setFilterTeacher(event.target.value)} className="field"><option value="all">All teachers</option>{[...new Set(logs.map((log) => log.teacher_id))].map((id) => <option key={id} value={id}>{labels.teachers[id] ?? "Teacher"}</option>)}</select>
               <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="field"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select>
               <input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="field" />
             </div>}

@@ -6,12 +6,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = safeAuthRedirect(url.searchParams.get("next"));
-  const guardianContinuation = next === "/guardian-invite";
-  const failureUrl = new URL(guardianContinuation ? next : "/login?error=auth_callback_failed", url.origin);
+  const invitationContinuation = next === "/guardian-invite" || next === "/teacher-invite";
+  const failureUrl = new URL(invitationContinuation ? next : "/login?error=auth_callback_failed", url.origin);
 
   if (url.searchParams.has("error")) return NextResponse.redirect(failureUrl);
   if (!code?.trim()) {
-    return NextResponse.redirect(guardianContinuation
+    return NextResponse.redirect(invitationContinuation
       ? failureUrl
       : new URL("/login?error=auth_callback_missing_code", url.origin));
   }

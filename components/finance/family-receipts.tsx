@@ -123,23 +123,30 @@ function ReceiptHistory({ client, student }: { client: ReturnType<typeof createC
             <button type="button" className={button} onClick={() => setAttempt((count) => count + 1)}>Retry receipts</button>
           </div>
         ) : !view.rows.length ? <p className="p-4 text-sm muted">No receipts on this page.</p> : (
-          <div className="overflow-x-auto">
-            <table aria-label="Receipt history" className="w-full text-left text-sm">
-              <thead className="bg-[var(--surface-2)] muted">
-                <tr>{["Receipt", "Paid date", "Method", "Amount"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border)]">
-                {view.rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="break-all px-4 py-3 font-semibold">{row.receipt_no}</td>
-                    <td className="whitespace-nowrap px-4 py-3">{row.paid_at ? paidDate.format(new Date(row.paid_at)) : "—"}</td>
-                    <td className="px-4 py-3 capitalize">{row.payment_method?.replaceAll("_", " ") ?? "—"}</td>
-                    <td className="px-4 py-3 font-semibold">{money.format(Number(row.amount))}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul aria-label="Receipt history" className="divide-y divide-[var(--border)]">
+            {view.rows.map((row) => (
+              <li key={row.id} className="px-4 py-4">
+                <dl className="grid grid-cols-3 items-start gap-3 text-sm sm:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr] sm:gap-4">
+                  <div className="col-span-3 min-w-0 sm:col-span-1">
+                    <dt className="mb-1 text-xs muted">Receipt number</dt>
+                    <dd className="font-mono text-xs font-semibold [overflow-wrap:anywhere]">{row.receipt_no}</dd>
+                  </div>
+                  <div>
+                    <dt className="mb-1 text-xs muted">Paid date</dt>
+                    <dd>{row.paid_at ? paidDate.format(new Date(row.paid_at)) : "—"}</dd>
+                  </div>
+                  <div>
+                    <dt className="mb-1 text-xs muted">Method</dt>
+                    <dd className="capitalize">{row.payment_method === "upi" ? "UPI" : row.payment_method?.replaceAll("_", " ") ?? "—"}</dd>
+                  </div>
+                  <div className="text-right">
+                    <dt className="mb-1 text-xs muted">Amount</dt>
+                    <dd className="font-semibold tabular-nums">{money.format(Number(row.amount))}</dd>
+                  </div>
+                </dl>
+              </li>
+            ))}
+          </ul>
         )}
       {view && !view.error && (page > 0 || view.count > pageSize) && (
         <footer className="flex justify-end gap-2 border-t border-[var(--border)] p-4">

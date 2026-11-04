@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { StudentRosterImport } from "@/components/admin/student-roster-import";
 import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName, type AttendanceContext, type AttendanceStudent } from "@/lib/attendance/types";
 import { admitRosterStudent } from "@/lib/students/roster";
@@ -218,6 +219,9 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, b
           {status.message}
         </p>}
       </form>
+
+      <StudentRosterImport client={client} context={{ schoolId, academicYearId, classId, sectionId }}
+        disabled={busy || !roster?.data} onBusyChange={onBusyChange} onImported={reloadRoster} />
 
       <section className="card space-y-4 p-4" aria-label="Current class roster">
         <div className="flex flex-wrap items-center justify-between gap-3">

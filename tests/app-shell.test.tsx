@@ -1,11 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 
-const { getUser, signOut, unsubscribe, subscribe, replace, refresh } = vi.hoisted(() => ({
-  getUser: vi.fn(), signOut: vi.fn(), unsubscribe: vi.fn(), subscribe: vi.fn(), replace: vi.fn(), refresh: vi.fn(),
+const { getUser, signOut, unsubscribe, subscribe, replace, refresh, push } = vi.hoisted(() => ({
+  getUser: vi.fn(), signOut: vi.fn(), unsubscribe: vi.fn(), subscribe: vi.fn(), replace: vi.fn(), refresh: vi.fn(), push: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard", useRouter: () => ({ replace, refresh }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard", useRouter: () => ({ replace, refresh, push }) }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getUser, signOut, onAuthStateChange: subscribe } }) }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <span>Theme options</span> }));
 
@@ -58,16 +58,33 @@ describe("AppShell session lifecycle", () => {
     expect(screen.getAllByRole("button", { name: "Logout" })[0]).toBeEnabled();
   });
 
-  it("submits one logout even when both logout controls are clicked before the response", async () => {
+  it("submits one logout even when clicked twice before the response", async () => {
     const pending = deferred<{ error: null }>();
     signOut.mockReturnValue(pending.promise);
     render(<AppShell role="admin">Workspace</AppShell>);
-    const buttons = screen.getAllByRole("button", { name: "Logout" });
-    fireEvent.click(buttons[0]);
-    fireEvent.click(buttons[1]);
+    const button = screen.getByRole("button", { name: "Logout" });
+    fireEvent.click(button);
+    fireEvent.click(button);
     expect(signOut).toHaveBeenCalledOnce();
     await act(async () => pending.resolve({ error: null }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
     expect(refresh).toHaveBeenCalledOnce();
   });
+});
+
+it("finds only pages available to the active role and opens the first match with Enter", async () => {
+  render(<AppShell role="parent">Workspace</AppShell>);
+  const dialog = document.getElementById("workspace-search") as HTMLDialogElement;
+  dialog.showModal = () => dialog.setAttribute("open", "");
+  dialog.close = () => dialog.removeAttribute("open");
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  const search = within(screen.getByRole("dialog", { name: "Find a page" }));
+  const field = search.getByRole("searchbox");
+  fireEvent.change(field, { target: { value: "finance reports" } });
+  expect(search.getByText("No pages match your search.")).toBeInTheDocument();
+  fireEvent.change(field, { target: { value: "attendance" } });
+  expect(search.getByRole("link", { name: /Attendance/ })).toHaveAttribute("href", "/modules/attendance?view=guardian");
+  fireEvent.submit(search.getByRole("search"));
+  expect(push).toHaveBeenCalledWith("/modules/attendance?view=guardian");
+  await screen.findByText("teacher@example.test");
 });

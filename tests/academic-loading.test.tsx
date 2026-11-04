@@ -10,6 +10,7 @@ import { TeacherModuleView } from "../components/teacher/teacher-views";
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   from: vi.fn(),
+  rpc: vi.fn(),
   teacherId: vi.fn(),
   assignments: vi.fn(),
   logs: vi.fn(),
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { getUser: mocks.getUser }, from: mocks.from }),
+  createClient: () => ({ auth: { getUser: mocks.getUser }, from: mocks.from, rpc: mocks.rpc }),
 }));
 vi.mock("@/lib/academic", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/academic")>(),
@@ -100,6 +101,7 @@ beforeEach(() => {
   mocks.assignments.mockResolvedValue(assignments);
   mocks.logs.mockResolvedValue([]);
   mocks.activities.mockResolvedValue([]);
+  mocks.rpc.mockResolvedValue({ data: [], error: null });
   mocks.from.mockImplementation((table: string) => {
     const query: Query = { table, action: "read", filters: {} };
     queries.push(query);
@@ -120,6 +122,28 @@ beforeEach(() => {
 });
 
 describe("academic scope loading", () => {
+  it("shows teacher names to a student using the safe label RPC", async () => {
+    read = (query) => {
+      if (query.table === "user_roles") return { data: [{ role: "student", school_id: "school-a" }], error: null };
+      if (query.table === "students") return { data: { id: "student-a", first_name: "Asha" }, error: null };
+      if (query.table === "enrollments") {
+        return { data: [{ class_id: "class-a", section_id: "section-a", academic_year_id: "year-a" }], error: null };
+      }
+      return defaultRead(query);
+    };
+    mocks.logs.mockResolvedValue([{
+      id: "log-a", school_id: "school-a", academic_year_id: "year-a", log_date: "2026-11-02",
+      class_id: "class-a", section_id: "section-a", subject_id: "subject-a", teacher_id: "teacher-a",
+      topic: "Published lesson", summary: "", teacher_remark: null, status: "published", published_at: null,
+    }]);
+    mocks.rpc.mockResolvedValue({ data: [{ id: "teacher-a", full_name: "Priya Sharma" }], error: null });
+
+    render(<AcademicWorkspace module="class-logs" />);
+    expect(await screen.findByRole("option", { name: "Priya Sharma" })).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("academic_teacher_labels", { p_teacher_ids: ["teacher-a"] });
+    expect(mocks.from).not.toHaveBeenCalledWith("teachers");
+  });
+
   it("changes the selected teaching assignment without rebooting the workspace or clearing a new draft", async () => {
     const user = userEvent.setup();
     render(<AcademicWorkspace module="class-logs" />);

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { readPages } from "@/lib/attendance/repository";
 import { schoolDate } from "@/lib/attendance/types";
+import { CashierDayClose } from "@/components/admin/cashier-day-close";
 
 type FeeRecord = {
   id: string;
@@ -506,6 +507,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
 
       {mode === "reports" && (
         <>
+        {schoolId && <CashierDayClose key={schoolId} schoolId={schoolId} client={supabase} />}
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="card p-5"><div className="flex items-center gap-2 text-sm muted"><BadgeIndianRupee size={16} /> Recorded collections</div><div className="mt-2 text-2xl font-black">{money(totalCollected)}</div></div>
           <div className="card p-5"><div className="text-sm muted">Collected this month</div><div className="mt-2 text-2xl font-black">{money(collectedThisMonth)}</div></div>

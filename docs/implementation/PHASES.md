@@ -160,7 +160,25 @@ School admins and principals can add and view academic years, classes, sections 
 
 The Students workspace admits a pupil into an active class and section in the current year. Migration `20261104112800_admit_roster_student` checks school access and saves the student and enrollment in one transaction. Duplicate admission numbers are rejected within a school.
 
-Chromium against hosted demo Supabase verified that setup records persist after reload and that a new pupil appears in the roster, Attendance and Guardian Invitations. The dedicated QA school `ERP-QA-d767af40` also verified admin attendance save and reload, student access to their own record, and guardian invite acceptance followed by read-only attendance for one linked child. Staff onboarding, roster imports and year rollover are separate remaining flows.
+Chromium against hosted demo Supabase verified that setup records persist after reload and that a new pupil appears in the roster, Attendance and Guardian Invitations. The dedicated QA school `ERP-QA-d767af40` also verified admin attendance save and reload, student access to their own record, and guardian invite acceptance followed by read-only attendance for one linked child.
+
+### Student CSV import
+
+School admins and principals can preview and import up to 50 students into the selected current-year class and section. The import uses the same school and enrollment checks as single admission. Migration `20261104131632_import_roster_students` commits the complete batch together and records the request so an identical retry returns the original result.
+
+Hosted demo browser QA imported two students and found both after reload. A second batch with a conflicting admission number rolled back every row. Parser and database tests cover malformed CSV, duplicate rows, changed retry payloads and school scope.
+
+### Teacher onboarding and permissions
+
+School admins and principals can create a teacher record, issue a 72-hour invitation and revoke a pending invitation. The teacher signs in with the verified email on the invite. Migration `20261104132141_teacher_invitations` binds the account and grants the school-specific teacher role in one transaction. Existing same-school teacher or guardian memberships are supported. Office and student accounts use a separate teacher login so accepting an invitation cannot change their default workspace.
+
+Legacy teacher and accountant activation by employee ID and phone are disabled. Teacher and student memberships can read their own profiles and school metadata. School-wide profile and legacy office access require an office role. Teacher attendance and assessment use their existing assignment policies. Legacy results and attachment access for families and teachers require their own scoped read policies.
+
+Hosted demo browser QA created a teacher record and linked a pre-confirmed QA account through an invitation. The teacher dashboard and Linked status persisted after reload. Attendance required a class assignment and then showed the assigned roster. Finance Reports, peer profiles and payroll were denied. Founder QA covers fresh-account email delivery.
+
+Migration `20261104132143_scope_student_study_materials` checks the linked student's school against the material's school. A hosted rollback test verified same-school visibility and denial of another school's school-wide material. Year rollover and onboarding for the other staff roles remain separate flows.
+
+Migration `20261104132514_scope_teacher_directory` limits full teacher records to office roles and the linked teacher. Academic pages use a school-scoped lookup that returns only teacher names and IDs. Hosted checks verified that the QA student can load the display name without reading the teacher record, and the teacher retains access to their own phone field.
 
 ### Guardian invitations for the attendance pilot
 
@@ -184,6 +202,12 @@ Hosted API checks with the seeded QA school returned one demand ID for two ident
 
 Chromium verified a ₹1,000 demand, ₹300 cash partial payment, recovery of the same receipt after a simulated lost response and reload, and a final ₹700 UPI settlement. The office reopened both receipts. Reports reconciled both QA pupils at ₹1,400 collected and ₹600 outstanding, including the separate API test.
 
+### Cashier day close
+
+Finance Reports shows paid receipts by method for an IST business date. Office users review the totals, enter the actual cash count and explain a cash difference before confirming. Migration `20261104131723_close_office_fee_day` saves a closing snapshot and locks the ledger for that date. If receipts change after review, the close requires refreshed totals.
+
+Hosted demo browser QA closed 31 October with ₹200 recorded cash and ₹190 counted. The form required an explanation for the ₹10 difference, and reload showed the same closing snapshot. Database tests cover stale reviews, retry behavior and receipt writes after close.
+
 ## Phase 4: daily school use
 
 Complete guardian attendance/receipt views, notices, homework/catch-up and acknowledgments. Add school-approved results/report cards, promotion, certificates and timetable as separately tested flows.
@@ -193,6 +217,10 @@ Complete guardian attendance/receipt views, notices, homework/catch-up and ackno
 Students and guardians can read their own or linked child's paid receipts in Invoices & Receipts. Chromium verified both office receipts after refresh under each role. Receipts for the unrelated pupil and payment controls were absent.
 
 Migration `20261104113103_secure_notice_audiences` applies role, school, class and section visibility at the database. Admins and principals manage notices. Teachers can publish to their assigned classes. Other roles use the read-only notice inbox. Chromium verified a parent-only publication, a hidden draft, student denial and unpublish/republish after reload. Local database tests cover other school, current enrollment and expiry boundaries.
+
+### Workspace navigation
+
+The workspace has role-specific mobile shortcuts, a full menu and a keyboard page finder. Desktop and mobile navigation identify the active page. The page finder searches only links available to the current role. Chromium at 390 px verified menu focus, Escape dismissal and full receipt numbers without viewport overflow. The desktop keyboard shortcut opened the selected finance page, and guardian search excluded that page.
 
 ## Phase 5: expansion from repeat paid demand
 

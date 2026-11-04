@@ -17,6 +17,7 @@ import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspac
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
 import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
+import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
 import { StudentRosterWorkspace } from "@/components/admin/student-roster-workspace";
 import { AdminDemoWorkspace } from "@/components/admin/admin-demo-workspace";
 import type { AdminDemoModule } from "@/lib/admin/admin-demo-service";
@@ -206,8 +207,12 @@ function ModuleContent() {
     );
   }
 
+  if (moduleName === "teachers" && (access.role === "admin" || access.role === "principal")) {
+    return <AppShell role={access.role}><TeacherDirectoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+  }
+
   if (access.role === "admin" && [
-    "parents", "teachers", "admissions", "timetable", "events", "notifications",
+    "parents", "admissions", "timetable", "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
     "reports", "audit-logs", "settings",
   ].includes(moduleName)) {

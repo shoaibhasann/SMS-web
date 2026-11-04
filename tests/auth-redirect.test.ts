@@ -103,9 +103,9 @@ describe("auth callback", () => {
     },
   );
 
-  it("returns to the guardian invitation instructions after successful email confirmation", async () => {
-    const response = await GET(request({ code: "signup", next: "/guardian-invite" }));
-    expect(response.headers.get("location")).toBe("https://school.example/guardian-invite");
+  it.each(["/guardian-invite", "/teacher-invite"])("returns to %s after successful email confirmation", async (next) => {
+    const response = await GET(request({ code: "signup", next }));
+    expect(response.headers.get("location")).toBe(`https://school.example${next}`);
   });
 
   it("keeps guardian instructions available when the confirmation link opens without its verifier", async () => {

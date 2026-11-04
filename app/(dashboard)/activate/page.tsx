@@ -6,7 +6,7 @@ import { GraduationCap, Loader2, ShieldCheck, Users, UserRound } from "lucide-re
 import { createClient } from "@/lib/supabase/client";
 
 const modes = [
-  { id: "teacher", label: "Teacher", detail: "Employee ID and registered mobile", Icon: UserRound },
+  { id: "teacher", label: "Teacher", detail: "Invitation from your school", Icon: UserRound },
   { id: "student", label: "Student", detail: "Admission number, date of birth and mobile", Icon: GraduationCap },
   { id: "parent", label: "Parent", detail: "Invitation from your school", Icon: Users },
 ] as const;
@@ -17,7 +17,6 @@ export default function ActivatePage() {
   const router = useRouter();
   const supabase = createClient();
   const [mode, setMode] = useState<(typeof modes)[number]["id"]>("teacher");
-  const [employeeId, setEmployeeId] = useState("");
   const [admissionNo, setAdmissionNo] = useState("");
   const [dob, setDob] = useState("");
   const [mobile, setMobile] = useState("");
@@ -26,13 +25,11 @@ export default function ActivatePage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (mode === "parent" || loading) return;
+    if (mode !== "student" || loading) return;
     setLoading(true);
     setError("");
 
-    const result = mode === "teacher"
-      ? await supabase.rpc("activate_teacher", { p_employee_id: employeeId.trim(), p_mobile: mobile.trim() })
-      : await supabase.rpc("activate_student", { p_admission_no: admissionNo.trim(), p_dob: dob, p_mobile: mobile.trim() });
+    const result = await supabase.rpc("activate_student", { p_admission_no: admissionNo.trim(), p_dob: dob, p_mobile: mobile.trim() });
 
     setLoading(false);
     if (result.error) {
@@ -77,32 +74,23 @@ export default function ActivatePage() {
                 </button>
               ))}
             </div>
-            {mode === "parent" ? (
+            {mode !== "student" ? (
               <section className="mt-7 rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] p-4">
-                <h2 className="font-semibold">Open your guardian invitation</h2>
+                <h2 className="font-semibold">Open your {mode === "teacher" ? "teacher" : "guardian"} invitation</h2>
                 <p className="mt-2 text-sm muted">
                   Ask your school to send you an invitation link. Open the link and sign in using the email address your school invited.
                 </p>
               </section>
             ) : (
               <form onSubmit={submit} className="mt-7 space-y-4">
-                {mode === "teacher" ? (
-                  <label className="block">
-                    <span className="mb-2 block text-xs font-semibold">Employee ID</span>
-                    <input required value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className={inputClass} placeholder="e.g. KC-T-001" />
-                  </label>
-                ) : (
-                  <>
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-semibold">Admission Number</span>
-                      <input required value={admissionNo} onChange={(e) => setAdmissionNo(e.target.value)} className={inputClass} placeholder="e.g. KC-2026-001" />
-                    </label>
-                    <label className="block">
-                      <span className="mb-2 block text-xs font-semibold">Date of Birth</span>
-                      <input required type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={inputClass} />
-                    </label>
-                  </>
-                )}
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold">Admission Number</span>
+                  <input required value={admissionNo} onChange={(e) => setAdmissionNo(e.target.value)} className={inputClass} placeholder="e.g. KC-2026-001" />
+                </label>
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold">Date of Birth</span>
+                  <input required type="date" value={dob} onChange={(e) => setDob(e.target.value)} className={inputClass} />
+                </label>
                 <label className="block">
                   <span className="mb-2 block text-xs font-semibold">Registered Mobile</span>
                   <input required type="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} className={inputClass} placeholder="10 digit mobile number" />

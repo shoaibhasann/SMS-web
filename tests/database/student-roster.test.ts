@@ -13,9 +13,12 @@ describe("student roster admission", () => {
 
   beforeAll(async () => {
     db = await createStaffScopeDatabase({ includeTeachingRpcs: true, applyGovernance: true });
-    const file = (await readdir(migrationDirectory)).find((name) => name.endsWith("_admit_roster_student.sql"));
-    if (!file) throw new Error("Student roster admission migration is missing.");
-    await db.exec(await readFile(new URL(file, migrationDirectory), "utf8"));
+    const files = await readdir(migrationDirectory);
+    for (const suffix of ["_admit_roster_student.sql", "_import_roster_students.sql"]) {
+      const file = files.find((name) => name.endsWith(suffix));
+      if (!file) throw new Error(`Student roster migration is missing: ${suffix}`);
+      await db.exec(await readFile(new URL(file, migrationDirectory), "utf8"));
+    }
   }, 30000);
 
   afterAll(async () => { await db?.close(); });
@@ -74,5 +77,40 @@ describe("student roster admission", () => {
     } finally {
       await db.exec("drop trigger reject_test_enrollment on public.enrollments; drop function public.reject_test_enrollment();");
     }
+  });
+
+  function batch(actor: string, requestId: string, admissionNumbers: string[], selectedScope: readonly string[] = scope) {
+    const rows = admissionNumbers.map((admissionNumber) => ({ admissionNumber, firstName: "CSV pupil", lastName: "" }));
+    return asStaffActor<{ count: number }>(db, actor, "select public.import_roster_students($1,$2,$3,$4,$5,$6) as count",
+      [...selectedScope, requestId, JSON.stringify(rows)]);
+  }
+
+  it("imports once and returns the same count on an identical retry", async () => {
+    const request = "c53021ef-d7a9-4205-9c50-d40d51456a35";
+    const numbers = ["CSV-NEW-001", "CSV-NEW-002"];
+    expect((await batch(STAFF_IDS.principalA, request, numbers)).rows).toEqual([{ count: 2 }]);
+    expect((await batch(STAFF_IDS.principalA, request, numbers)).rows).toEqual([{ count: 2 }]);
+    await expect(batch(STAFF_IDS.principalA, request, ["CSV-NEW-003"])).rejects.toMatchObject({ code: "22023" });
+    await expect(batch(STAFF_IDS.adminB, request, numbers)).rejects.toMatchObject({ code: "42501" });
+    const { rows } = await db.query(`
+      select s.admission_no, e.status
+      from public.students s join public.enrollments e on e.student_id = s.id
+      where s.admission_no = any($1) and e.academic_year_id = $2 and e.class_id = $3 and e.section_id = $4
+      order by s.admission_no
+    `, [numbers, ...scope.slice(1)]);
+    expect(rows).toEqual(numbers.map((admission_no) => ({ admission_no, status: "active" })));
+  });
+
+  it("rejects the whole batch when a later row conflicts or the section is invalid", async () => {
+    const request = "e24a7c94-743b-4960-aa2f-2ad0c7b6c748";
+    await expect(batch(STAFF_IDS.adminA, request, ["CSV-ROLLBACK", "STUDENT-A"])).rejects.toMatchObject({
+      code: "23505", message: "Student 2 has an admission number already used in this school.",
+    });
+    expect((await db.query("select id from public.students where admission_no = 'CSV-ROLLBACK'")).rows).toEqual([]);
+    await expect(batch(STAFF_IDS.adminA, request, ["CSV-BAD-SECTION"],
+      [scope[0], scope[1], scope[2], STAFF_ROWS.B.section])).rejects.toMatchObject({ code: "22023" });
+    await expect(batch(STAFF_IDS.adminA, request, Array.from({ length: 51 }, (_, index) => `CSV-${index}`)))
+      .rejects.toMatchObject({ code: "22023" });
+    expect((await batch(STAFF_IDS.adminA, request, ["CSV-ROLLBACK"])).rows).toEqual([{ count: 1 }]);
   });
 });
