@@ -1,3 +1,6 @@
+export const guardianContactPath = "/modules/profile?view=guardian";
+export const guardianEmailContinuation = `${guardianContactPath}&contact=email`;
+
 const defaultRedirect = "/dashboard";
 const internalOrigin = "https://internal.invalid";
 const encodedByte = /%[\da-f]{2}/i;

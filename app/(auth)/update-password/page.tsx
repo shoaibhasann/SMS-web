@@ -1,3 +1,32 @@
-"use client";
-import { FormEvent, useState } from "react";import {useRouter} from "next/navigation";import {Loader2,LockKeyhole,ShieldCheck} from "lucide-react";import {createClient} from "@/lib/supabase/client";
-export default function UpdatePasswordPage(){const supabase=createClient();const router=useRouter();const[password,setPassword]=useState("");const[confirm,setConfirm]=useState("");const[loading,setLoading]=useState(false);const[message,setMessage]=useState("");const[error,setError]=useState("");async function submit(event:FormEvent){event.preventDefault();setError("");setMessage("");if(password.length<8){setError("Password must be at least 8 characters.");return}if(password!==confirm){setError("Passwords do not match.");return}setLoading(true);const{error:updateError}=await supabase.auth.updateUser({password});setLoading(false);if(updateError){setError(updateError.message);return}setMessage("Password updated successfully. Redirecting to login...");setTimeout(()=>router.replace("/login"),1200)}return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><div className="card w-full max-w-md p-7 sm:p-9"><div className="grid h-12 w-12 place-items-center rounded-2xl gradient"><ShieldCheck size={22}/></div><h1 className="mt-5 text-2xl font-black">Set a new password</h1><p className="mt-2 text-sm muted">Choose a strong password for your Kids Corner account.</p><form onSubmit={submit} className="mt-7 space-y-4"><label className="block"><span className="mb-2 block text-xs font-semibold">New password</span><div className="relative"><LockKeyhole className="absolute left-3 top-1/2 -translate-y-1/2 muted" size={18}/><input required type="password" value={password} onChange={e=>setPassword(e.target.value)} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] py-3.5 pl-11 pr-4 outline-none"/></div></label><label className="block"><span className="mb-2 block text-xs font-semibold">Confirm password</span><input required type="password" value={confirm} onChange={e=>setConfirm(e.target.value)} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] py-3.5 px-4 outline-none"/></label>{error&&<p className="text-sm text-red-600">{error}</p>}{message&&<p className="text-sm text-emerald-600">{message}</p>}<button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl gradient py-3.5 text-sm font-bold disabled:opacity-60">{loading?<Loader2 className="animate-spin" size={17}/>:"Update password"}</button></form></div></main>}
+import Link from "next/link";
+import { ShieldCheck } from "lucide-react";
+import { createRecoveryClient, verifiedRecoverySession } from "@/lib/auth/recovery";
+import { UpdatePasswordForm } from "./update-password-form";
+
+export default async function UpdatePasswordPage() {
+  const recovery = await createRecoveryClient()
+    .then(({ supabase }) => verifiedRecoverySession(supabase))
+    .catch(() => null);
+
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6">
+      <div className="card w-full max-w-md p-7 sm:p-9">
+        <div className="grid size-12 place-items-center rounded-2xl gradient"><ShieldCheck size={22} aria-hidden="true" /></div>
+        <h1 className="mt-5 text-2xl font-black">{recovery ? "Set a new password" : "Open a password reset link"}</h1>
+        {recovery ? (
+          <>
+            <p className="mt-2 text-sm muted">Choose a strong password for your Kids Corner account.</p>
+            <UpdatePasswordForm sessionId={recovery.sessionId} />
+          </>
+        ) : (
+          <div className="mt-3 space-y-4">
+            <p className="text-sm muted">Request a fresh reset link and open it in this browser to continue.</p>
+            <Link href="/forgot-password" className="inline-flex min-h-11 items-center rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white">
+              Request a reset link
+            </Link>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}

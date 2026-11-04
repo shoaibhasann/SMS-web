@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { guardianContactPath } from "@/lib/auth/redirect";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -60,6 +62,8 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
         <p className="mt-2 text-sm muted">{role === "parent"
           ? "View the attendance history for your linked children."
           : "View your recorded attendance by date."}</p>
+        {role === "parent" && <Link href={guardianContactPath}
+          className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">Guardian contact settings</Link>}
       </header>
       {error ? (
         <section className="card space-y-3 p-4">

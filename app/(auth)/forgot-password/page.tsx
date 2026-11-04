@@ -1,6 +1,27 @@
-"use client";
-import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, Mail, Send, ShieldCheck } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-export default function ForgotPasswordPage(){const supabase=createClient();const[email,setEmail]=useState("");const[loading,setLoading]=useState(false);const[sent,setSent]=useState(false);const[error,setError]=useState("");async function submit(event:FormEvent){event.preventDefault();setLoading(true);setError("");const{error:resetError}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:`${window.location.origin}/update-password`});setLoading(false);if(resetError){setError(resetError.message);return}setSent(true)}return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><div className="card w-full max-w-md p-7 sm:p-9"><Link href="/login" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-blue-600"><ArrowLeft size={16}/>Back to login</Link><div className="grid h-12 w-12 place-items-center rounded-2xl gradient"><ShieldCheck size={22}/></div><h1 className="mt-5 text-2xl font-black">Reset your password</h1><p className="mt-2 text-sm muted">Enter your school account email and we’ll send a secure reset link.</p>{sent?<div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">If an account exists for that email, a password reset link has been sent.</div>:<form onSubmit={submit} className="mt-7 space-y-4"><label className="block"><span className="mb-2 block text-xs font-semibold">Email</span><div className="relative"><Mail className="absolute left-3 top-1/2 -translate-y-1/2 muted" size={18}/><input required type="email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-2)] py-3.5 pl-11 pr-4 outline-none" placeholder="name@school.com"/></div></label>{error&&<p className="text-sm text-red-600">{error}</p>}<button disabled={loading} className="flex w-full items-center justify-center gap-2 rounded-2xl gradient py-3.5 text-sm font-bold disabled:opacity-60">{loading?<Loader2 className="animate-spin" size={17}/>:<><Send size={17}/>Send reset link</>}</button></form>}</div></main>}
+import { ArrowLeft, ShieldCheck } from "lucide-react";
+import { RequestPasswordResetForm } from "./request-password-reset-form";
+
+export default async function ForgotPasswordPage({ searchParams }: {
+  searchParams: Promise<{ error?: string | string[] }>;
+}) {
+  const { error } = await searchParams;
+  return (
+    <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6">
+      <div className="card w-full max-w-md p-7 sm:p-9">
+        <Link href="/login" className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-blue-600">
+          <ArrowLeft size={16} aria-hidden="true" /> Back to login
+        </Link>
+        <div className="grid size-12 place-items-center rounded-2xl gradient"><ShieldCheck size={22} aria-hidden="true" /></div>
+        <h1 className="mt-5 text-2xl font-black">Reset your password</h1>
+        <p className="mt-2 text-sm muted">Enter the email address on your school account.</p>
+        {error === "invalid_recovery" && (
+          <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-400">
+            That reset link could not be opened. Request a new link and open it in this browser.
+          </p>
+        )}
+        <RequestPasswordResetForm />
+      </div>
+    </main>
+  );
+}

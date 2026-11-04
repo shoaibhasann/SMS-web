@@ -36,6 +36,11 @@ vi.mock("@/components/academic/family-attendance-register", () => ({
 vi.mock("@/components/academic/teacher-attendance-register", () => ({
   TeacherAttendanceRegister: () => <section aria-label="Teacher attendance register" />,
 }));
+vi.mock("@/components/family/guardian-contact-settings", () => ({
+  GuardianContactSettings: ({ userId, callbackStatus }: { userId: string; callbackStatus: string | null }) => (
+    <section aria-label="Guardian contact settings">{userId} {callbackStatus}</section>
+  ),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -113,5 +118,35 @@ describe("guardian attendance route", () => {
     render(<ModulePage />);
     expect(await screen.findByRole("region", { name: "Teacher attendance register" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
+  });
+});
+
+describe("guardian contact route", () => {
+  beforeEach(() => {
+    currentModule = "profile";
+  });
+
+  it("opens Profile for a guardian and passes callback context to that same account", async () => {
+    searchParams.set("contact", "email-returned");
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }], error: null });
+    render(<ModulePage />);
+    const profile = await screen.findByRole("region", { name: "Guardian contact settings" });
+    expect(profile).toHaveTextContent("actor email-returned");
+    expect(screen.getByRole("main", { name: "parent shell" })).toContainElement(profile);
+  });
+
+  it("supports a guardian with a teaching role through the scoped Profile link", async () => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Guardian contact settings" })).toHaveTextContent("actor");
+  });
+
+  it("blocks a non-guardian from using the scoped Profile link", async () => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "student" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    expect(screen.queryByRole("region", { name: "Guardian contact settings" })).not.toBeInTheDocument();
   });
 });

@@ -17,6 +17,7 @@ import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspac
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
 import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
+import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
 import { StudentRosterWorkspace } from "@/components/admin/student-roster-workspace";
 import { AdminDemoWorkspace } from "@/components/admin/admin-demo-workspace";
@@ -40,9 +41,9 @@ function ModuleContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const moduleName = String(params?.module || "");
-  const guardianView = moduleName === "attendance" && searchParams.get("view") === "guardian";
-  const initialChildId = guardianView ? searchParams.get("child") ?? undefined : undefined;
-  const accessKey = guardianView ? "attendance?view=guardian" : moduleName;
+  const guardianView = (moduleName === "attendance" || moduleName === "profile") && searchParams.get("view") === "guardian";
+  const initialChildId = guardianView && moduleName === "attendance" ? searchParams.get("child") ?? undefined : undefined;
+  const accessKey = guardianView ? `${moduleName}?view=guardian` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
     role: UiRole | null;
@@ -75,7 +76,7 @@ function ModuleContent() {
           role,
           userId: user.id,
           error: role ? null : guardianView
-            ? "Guardian attendance requires a linked guardian account."
+            ? "This view requires a linked guardian account."
             : "No recognized role is assigned to this login.",
         });
       } catch (error) {
@@ -187,6 +188,14 @@ function ModuleContent() {
     return (
       <AppShell role={access.role}>
         <FamilyReceipts key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
+      </AppShell>
+    );
+  }
+
+  if (moduleName === "profile" && access.role === "parent") {
+    return (
+      <AppShell role="parent">
+        <GuardianContactSettings key={access.userId} userId={access.userId} callbackStatus={searchParams.get("contact")} />
       </AppShell>
     );
   }

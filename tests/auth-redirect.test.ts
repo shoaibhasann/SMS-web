@@ -77,7 +77,7 @@ describe("auth callback", () => {
 
   it("does not follow next when code exchange fails", async () => {
     exchangeCodeForSession.mockResolvedValue({ data: { session: null }, error: { message: "expired code" } });
-    const response = await GET(request({ code: "expired", next: "/update-password" }));
+    const response = await GET(request({ code: "expired", next: "/modules/homework" }));
     expect(response.headers.get("location")).toBe("https://school.example/login?error=auth_callback_failed");
   });
 
@@ -112,12 +112,6 @@ describe("auth callback", () => {
     exchangeCodeForSession.mockResolvedValue({ data: { session: null }, error: { message: "Missing PKCE verifier" } });
     const response = await GET(request({ code: "signup", next: "/guardian-invite" }));
     expect(response.headers.get("location")).toBe("https://school.example/guardian-invite");
-  });
-
-  it("retains password recovery destination after successful exchange", async () => {
-    const response = await GET(request({ code: "recovery", next: "/update-password" }));
-    expect(response.headers.get("location")).toBe("https://school.example/update-password");
-    expect(exchangeCodeForSession).toHaveBeenCalledWith("recovery");
   });
 
   it("uses the dashboard after a successful exchange with no next", async () => {
