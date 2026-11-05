@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
+import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submission-monitor";
 import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
 import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
@@ -24,6 +25,9 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
   const [locked, setLocked] = useState(false);
   const [showCorrections, setShowCorrections] = useState(false);
   const [reviewRevision, setReviewRevision] = useState(0);
+  const [monitorRevision, setMonitorRevision] = useState(0);
+  const [cutoffSaving, setCutoffSaving] = useState(false);
+  const scopeLocked = locked || cutoffSaving;
 
   useEffect(() => {
     let active = true;
@@ -57,19 +61,27 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
           <>
             <label className="card block space-y-2 p-4 text-sm font-semibold">
               <span>School</span>
-              <select className="field" value={schoolId} disabled={locked || schools.length === 1}
+              <select className="field" value={schoolId} disabled={scopeLocked || schools.length === 1}
                 onChange={(event) => setSelectedSchool(event.target.value)}>
                 <option value="">Select school</option>
                 {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
               </select>
             </label>
             {schoolId ? <>
+              <AttendanceSubmissionMonitor key={`monitor:${schoolId}`} schoolId={schoolId} userId={access.data.userId}
+                settings disabled={scopeLocked} refreshVersion={monitorRevision} onBusyChange={setCutoffSaving} />
               <button type="button" aria-expanded={showCorrections} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold"
                 onClick={() => setShowCorrections((value) => !value)}>{showCorrections ? "Hide attendance corrections" : "Review attendance corrections"}</button>
               {showCorrections && <AttendanceCorrectionQueue key={schoolId} client={client} schoolId={schoolId}
-                userId={access.data.userId} disabled={locked} onReviewed={() => setReviewRevision((value) => value + 1)} />}
-              <SchoolAttendance key={schoolId} client={client} schoolId={schoolId}
-                userId={access.data.userId} locked={locked} onLockChange={setLocked} reviewRevision={reviewRevision} />
+                userId={access.data.userId} disabled={scopeLocked} onReviewed={() => {
+                  setReviewRevision((value) => value + 1);
+                  setMonitorRevision((value) => value + 1);
+                }} />}
+              <fieldset disabled={cutoffSaving} className="min-w-0 space-y-6">
+                <SchoolAttendance key={schoolId} client={client} schoolId={schoolId}
+                  userId={access.data.userId} locked={scopeLocked} onLockChange={setLocked} reviewRevision={reviewRevision}
+                  onSaved={() => setMonitorRevision((value) => value + 1)} />
+              </fieldset>
             </>
               : <p className="text-sm muted">Select a school to open its register.</p>}
           </>
@@ -78,13 +90,14 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
   );
 }
 
-function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, reviewRevision }: {
+function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, reviewRevision, onSaved }: {
   client: Client;
   schoolId: string;
   userId: string;
   locked: boolean;
   onLockChange: (locked: boolean) => void;
   reviewRevision: number;
+  onSaved: () => void;
 }) {
   const [setup, setSetup] = useState<LoadState<Setup>>();
   const [setupAttempt, setSetupAttempt] = useState(0);
@@ -153,7 +166,7 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">Attendance register</h2>
           <AttendanceEditor context={{ schoolId, academicYearId: year.id, classId, sectionId }}
-            userId={userId} onLockChange={onLockChange} studentSearch reviewOnlyHistory rosterVersion={reviewRevision}
+            userId={userId} onLockChange={onLockChange} onSaved={onSaved} studentSearch reviewOnlyHistory rosterVersion={reviewRevision}
             dateLimits={{ start: year.start_date, end: year.end_date }} readOnly={!year.is_current} />
         </section>
       ) : (

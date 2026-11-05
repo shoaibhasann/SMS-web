@@ -24,6 +24,7 @@ import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
+import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submission-monitor";
 import {
   guardianAttendancePath,
   loadFamilyAttendance,
@@ -232,7 +233,7 @@ function nameOf(s: StudentRow) {
 }
 
 function dateToday() {
-  return new Date().toISOString().slice(0, 10);
+  return schoolDate();
 }
 
 function displayDate(value: string) {
@@ -310,7 +311,7 @@ export function RoleDashboard({
       ) : role === "reception" ? (
         <ReceptionDashboard />
       ) : (
-        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} />
+        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} userId={userId} />
       )}
     </AppShell>
   );
@@ -1198,7 +1199,7 @@ function ParentDashboard({ userId }: { userId: string }) {
   );
 }
 
-function AdminDashboard({ schoolId }: { schoolId: string | null }) {
+function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId: string }) {
   const [supabase] = useState(createClient);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [overview, setOverview] = useState<AdminOverview>(emptyAdminOverview);
@@ -1449,6 +1450,7 @@ function AdminDashboard({ schoolId }: { schoolId: string | null }) {
         </div>
       </header>
       {dashboardError && <div role="alert" className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{dashboardError}</div>}
+      {schoolId && <AttendanceSubmissionMonitor key={schoolId} schoolId={schoolId} userId={userId} refreshVersion={reloadVersion} />}
       <section>
         <div className="mb-3">
           <h2 className="text-lg font-bold">School Overview</h2>
