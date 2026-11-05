@@ -4,7 +4,9 @@ Use this checklist on the deployed ERP before inviting a school to use it. Start
 
 ## Login screen redesign
 
-Local review: [open login](http://127.0.0.1:3120/login). This redesign has not been committed, pushed or deployed; the older Preview links below do not include it. Record the next actual deployment URL/revision and founder results before ticking these cases. [Palette review, exact illustration prompt and local verification](../design/login-visual-direction.md).
+Current all-feature founder Preview: [open SMS](https://kids-corner-erp-frontend-fe0o5b1oc-shoaibhasanns-projects.vercel.app/login), code `b9d4e3f377bcec0b0db68e3475226d814ee0dd36`, deployment `dpl_k6Mh2y4eZMn9bRwdn7jvrW3vi9us`. The [focused founder checklist](FOUNDER-RELEASE-QA.md) contains the current release record, setup and 52 cases. Use the separate private access link/login handoff; no share tokens or passwords are stored here.
+
+Local review remains at [open login](http://127.0.0.1:3120/login). The current Preview above includes the redesign and accumulated academic/fee changes; the older historical URLs below do not include this release. Record founder results before ticking these cases. [Palette review, exact illustration prompt and local verification](../design/login-visual-direction.md).
 
 - [ ] **LOGIN-UI-01 · Laptop frame and SMS branding.** At 1366 × 768 and 1280 × 720, test both device themes. The bold uppercase SMS wordmark has no graduation-cap badge. The school illustration sits on the left, the form on the right, with no document or nested-panel scrollbar. Check 1024 × 768 as well. Neither the artwork nor the action buttons should be cut off.
 - [ ] **LOGIN-UI-02 · Phone and enlarged view.** At 390 px, the illustration is hidden and the form fits the width. At 320 px, short heights and 200% browser zoom, scroll to every input/action without horizontal page scrolling or overlapping controls. Vertical scrolling is expected when the content needs it.

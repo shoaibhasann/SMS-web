@@ -1,5 +1,13 @@
 # Implementation phases
 
+## Founder release — 5–6 November 2026
+
+All accumulated runtime changes were committed as `b9d4e3f377bcec0b0db68e3475226d814ee0dd36` and pushed to GitHub `main`. The repository is now connected to the existing Vercel project. The Git-source [founder Preview](https://kids-corner-erp-frontend-fe0o5b1oc-shoaibhasanns-projects.vercel.app/login), deployment `dpl_k6Mh2y4eZMn9bRwdn7jvrW3vi9us`, reached READY. Earlier CLI source/archive/prebuilt attempts stalled before processing and were cancelled. The successful deployment builds the committed Git source; local `.env` files are gitignored.
+
+Pre-release checks passed: all 859 tests across 91 files, lint, TypeScript and an isolated optimized production build. Sixteen new academic/homework/fee migrations were already applied to the demo database and were not reapplied. The Preview's public Supabase configuration was compared privately to the intended demo project. Production is configured with the same two browser-public demo values for future main-branch releases; no real-school environment was introduced.
+
+On 6 November IST, a fresh external browser opened the seven-day private share link and reloaded without Vercel login. Teacher, Admin, Finance, Guardian and Student logins passed deployed read/refresh smoke checks for SMS/theme, attendance/homework pages, substitute coverage, office/family advance credit and receipts. Family actions stayed read-only and no browser page errors were observed. All QA sessions were signed out; this release smoke posted no school or financial rows. [The founder checklist](FOUNDER-RELEASE-QA.md) has ten quick smoke checks plus detailed cases, with founder results still pending. Share tokens and passwords stay only in the private handoff. The local server remains available on port 3120.
+
 Updated 5 November 2026. Implement each operational flow, verify its permissions and failure cases, then advance.
 
 The [founder-aligned PRD](../product/PRD.md) defines commercial scope and sign-off. This log tracks the implementation and verification of individual flows.

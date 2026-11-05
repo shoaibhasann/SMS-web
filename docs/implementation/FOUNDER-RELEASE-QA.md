@@ -1,6 +1,6 @@
 # SMS — founder release checklist
 
-5 November 2026 · Independent founder testing · Results pending
+5–6 November 2026 release · Independent founder testing · Founder results pending
 
 Is file ko **is release ke deployed URL** par use karo. Har checkbox apne test ke baad tick karo; earlier local QA ya older Preview ka Pass yahan copy mat karo. Quick smoke se start karo, phir detailed flows ke liye separate role sessions use karo. Full steps and earlier engineering evidence: [comprehensive checklist](POST-DEPLOY-QA.md).
 
@@ -8,8 +8,8 @@ Is file ko **is release ke deployed URL** par use karo. Har checkbox apne test k
 
 | Field | Fill before testing |
 |---|---|
-| Deployed login URL | `RELEASE_LOGIN_URL` |
-| Code commit / deployment ID | `RELEASE_COMMIT` / `RELEASE_DEPLOYMENT_ID` |
+| Deployed login URL | [SMS founder Preview](https://kids-corner-erp-frontend-fe0o5b1oc-shoaibhasanns-projects.vercel.app/login) — open the private access link first |
+| Code commit / deployment ID | `b9d4e3f377bcec0b0db68e3475226d814ee0dd36` / `dpl_k6Mh2y4eZMn9bRwdn7jvrW3vi9us` |
 | Founder, date and time (IST) | |
 | Desktop browser and viewport | |
 | Phone model/browser and viewport | |
@@ -17,6 +17,8 @@ Is file ko **is release ke deployed URL** par use karo. Har checkbox apne test k
 | Overall outcome | Pending — Pass / Fail / Blocked |
 
 Open Shoaib's private shareable access link first if Vercel asks for a login; then use the ERP QA account. The access token stays in the private handoff, never in this repository. Engineering pre-release checks passed: **859 tests across 91 files**, whole-project lint, TypeScript and an isolated optimized production build. The demo project already has the 16 new academic/homework/fee migrations. These engineering results do not tick the founder's cases below.
+
+Deployed engineering smoke passed on **6 November 2026 IST**: a fresh external browser opened the share link and reloaded without Vercel login; SMS branding, illustration, automatic dark theme and the phone frame were visible. Existing demo Teacher, Admin, Finance, Guardian and Student accounts signed in successfully. Teacher theme refresh, attendance/homework pages, admin substitute coverage, and office/family advance-credit/receipt pages passed read/reload checks with no monitored page errors. Family credit remained read-only. Accounts were signed out; no school/financial rows were posted by this release smoke. New submit/grade, money posting and delivery cases below remain independent founder tests.
 
 Use only synthetic QA data. The current audit has unresolved database permissions for legacy payroll/marks/audit records, revoked teacher exam access and inactive-admin role grants, plus recovery/reproducibility gaps. This is a demo QA release; functional founder approval does not clear those findings for real school onboarding. Engineering must close them before real school data is introduced.
 
@@ -37,7 +39,9 @@ Get the private login handoff from Shoaib. **Passwords, invitation tokens, email
 
 Before write tests, record the starting roster, marks, fee demands, receipts, credit balance and cashier-day status. Prepare disposable QA pupils for imports/placement/guardian removal and a fresh homework task. Do not remove a shared account's final access or rewrite retained evidence just to restart a test.
 
-- **Money tests:** run before closing the current **server-displayed IST business day**. The retained advance-credit and fee-change fixtures already have their tested cash day closed. Use a fresh disposable QA school/open day supplied by engineering, or the next open day. Do not reopen an old close or create a fake extra receipt to make the screen match an example.
+The fee/advance fixture's guardian starts with one linked pupil. **SMK-05 / GDN-02 require two links**: use the existing two-child attendance fixture, or first create and accept an invitation for a second disposable pupil with the supplied verified guardian account. Check the school and child label before comparing results across roles; fixtures from different schools cannot be compared as the same pupil.
+
+- **Money tests:** run before closing the current **server-displayed IST business day**. The retained advance-credit and fee-change fixtures have their **5 November** cash day closed. Check the new day's actual status before a 6 November or later run; use an open day/disposable fixture. Do not reopen an old close or create a fake extra receipt to make the screen match an example.
 - **Debt imports:** use a new unbilled month and fresh eligible opening-balance pupils. An opening balance is additional off-system debt; exclude debt already present in ERP demands.
 - **Homework:** the retained homework fixture ends with its teacher assignment removed. Admin must restore the exact class/section/subject assignment before a positive grading run; use Pending Practice or a new task for a new submission.
 - **Coverage/promotion:** expiry and session activation depend on actual IST date/session boundaries. Ask engineering for the prepared expired/readback fixture where needed; do not change the computer clock or school calendar to force a Pass.
