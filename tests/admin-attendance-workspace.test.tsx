@@ -11,6 +11,7 @@ const { client, from, getUser, editor } = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
+vi.mock("@/components/admin/attendance-submission-monitor", () => ({ AttendanceSubmissionMonitor: () => null }));
 
 type EditorProps = {
   context: AttendanceContext;

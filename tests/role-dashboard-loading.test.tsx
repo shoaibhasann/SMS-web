@@ -21,6 +21,7 @@ const { from, client } = vi.hoisted(() => {
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/components/layout/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
 vi.mock("@/components/academic/attendance-editor", () => ({ AttendanceEditor: () => null }));
+vi.mock("@/components/admin/attendance-submission-monitor", () => ({ AttendanceSubmissionMonitor: () => null }));
 
 type ReadQuery = {
   table: string;
@@ -275,6 +276,15 @@ describe("student and parent attendance", () => {
 });
 
 describe("role dashboard request lifetimes", () => {
+  it("uses the IST school day for the admin attendance overview after UTC midnight differs", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-04T21:30:00Z"));
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+    await waitFor(() => expect(queries.some((query) => query.table === "attendance")).toBe(true));
+    expect(queries.filter((query) => query.table === "attendance").every((query) => query.filters.attendance_date === "2026-11-05")).toBe(true);
+  });
+
   it.each([
     ["2026-11-02T18:30:01.000Z", "2026-11-03", "2026-11-01"],
     ["2026-10-31T18:30:00.000Z", "2026-11-01", "2026-11-01"],

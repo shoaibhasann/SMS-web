@@ -1,6 +1,6 @@
 # Implementation phases
 
-Updated 4 November 2026. Implement each operational flow, verify its permissions and failure cases, then advance.
+Updated 5 November 2026. Implement each operational flow, verify its permissions and failure cases, then advance.
 
 The [founder-aligned PRD](../product/PRD.md) defines commercial scope and sign-off. This log tracks the implementation and verification of individual flows.
 
@@ -311,3 +311,15 @@ Migration `20261104210847_guardian_absence_alert_bulk_read` is applied to hosted
 **All** shows the current inbox list and **Unread** filters it to unread alerts. **Mark all as read** updates the signed-in guardian’s eligible unread alerts in one database operation, including alerts beyond the visible list. The inbox reloads after the operation to show the saved count. Existing read times are preserved and the other guardian’s copies keep their own state. The [manual QA checklist](POST-DEPLOY-QA.md#guardian-notifications-filters-and-mark-all-as-read) covers both accounts, filtering and retries.
 
 Protected Preview revision `86ce43b` passed both filters and the bulk action after a real demo attendance save. Hard reload and fresh sign-in preserved each guardian’s count. The database regression covered bulk read across the 30-row list limit.
+
+## School attendance cutoff and daily register progress
+
+Migration `20261105110918_school_attendance_cutoff_monitor` is applied to hosted demo Supabase.
+
+This slice implements the founder’s per-school cutoff and pending-register dashboard requirement in ATT-01. A school administrator sets or disables the cutoff with a reason. The setting starts unconfigured. The monitor uses the server’s current IST day and current academic year to count expected, marked and unmarked pupils in each populated section. An incomplete section becomes Pending after the configured cutoff. Complete means every expected pupil has a saved attendance mark.
+
+The monitor refreshes on the dashboard and alongside the Attendance register. The existing attendance save remains the source of the counts. Unmarked pupils keep their unmarked state. School calendar exclusions and configurable period attendance remain separate PRD work. The [manual QA checklist](POST-DEPLOY-QA.md#school-attendance-cutoff-and-daily-register-progress) covers configuration, partial saves, cutoff and completion.
+
+Protected Preview revision `122a2bb` passed cutoff configuration, partial register save, Pending after cutoff and completion after a late save. Admin and principal dashboards agreed after refresh. The test verified scoped role denial, stale settings rejection and preserved attendance/guardian-alert state. All 479 automated tests, lint, TypeScript and final Preview build passed.
+
+Next implementation slice is temporary substitute-teacher coverage with school-scoped assignment and expiry. Attendance reporting and calendar configuration follow the daily-operation checks.
