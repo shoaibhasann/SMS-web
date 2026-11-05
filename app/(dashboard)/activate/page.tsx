@@ -45,14 +45,9 @@ export default function ActivatePage() {
       <div className="mx-auto max-w-3xl">
         <div className="card overflow-hidden">
           <div className="gradient p-7 sm:p-9">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-blue-600">
-                <GraduationCap />
-              </div>
-              <div>
-                <div className="text-lg font-black">Kids Corner</div>
-                <div className="text-xs text-white/75">Account activation</div>
-              </div>
+            <div>
+              <p className="text-[30px] font-black leading-none tracking-[-0.045em]">SMS</p>
+              <p className="mt-2 text-xs text-white/75">Account activation</p>
             </div>
             <h1 className="mt-8 text-3xl font-black">Verify your school account</h1>
             <p className="mt-2 max-w-2xl text-sm text-white/80">Choose how to verify your access to the school.</p>
@@ -85,7 +80,7 @@ export default function ActivatePage() {
               <form onSubmit={submit} className="mt-7 space-y-4">
                 <label className="block">
                   <span className="mb-2 block text-xs font-semibold">Admission Number</span>
-                  <input required value={admissionNo} onChange={(e) => setAdmissionNo(e.target.value)} className={inputClass} placeholder="e.g. KC-2026-001" />
+                  <input required value={admissionNo} onChange={(e) => setAdmissionNo(e.target.value)} className={inputClass} placeholder="e.g. ADM-2026-001" />
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-xs font-semibold">Date of Birth</span>

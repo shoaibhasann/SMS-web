@@ -7,11 +7,16 @@ import {
   getCurrentTeacherId,
   loadAcademicActivities,
   loadAcademicLogs,
+  saveAcademicLogWithActivities,
   type AcademicActivity,
   type AcademicLogRecord,
+  type AcademicActivityWrite,
   type TeachingAssignment,
 } from "@/lib/academic";
 import { createClient } from "@/lib/supabase/client";
+import { academicAuthoringError, canEditAcademicLog, matchesAcademicScope } from "@/lib/academic-permissions";
+import { TeacherHomeworkGrading } from "@/components/academic/homework-grading";
+import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
 
 type ActivityModule = "classwork" | "homework";
 
@@ -73,6 +78,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const [teacherSchoolId, setTeacherSchoolId] = useState("");
   const [teacherName, setTeacherName] = useState("Teacher");
   const [teacherEmail, setTeacherEmail] = useState("");
+  const [teacherUserId, setTeacherUserId] = useState("");
   const [academicYearId, setAcademicYearId] = useState("");
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState("");
   const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
@@ -89,6 +95,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const [date, setDate] = useState(todayISO());
   const [details, setDetails] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [maximumMarks, setMaximumMarks] = useState("");
   const [filterDate, setFilterDate] = useState("");
   const [filterClass, setFilterClass] = useState("all");
   const [filterSection, setFilterSection] = useState("all");
@@ -100,7 +107,11 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
-  const sections = sectionResult?.classId === selectedClassId ? sectionResult.rows : [];
+  const classAssignments = assignments.filter((assignment) => assignment.class_id === selectedClassId && assignment.academic_year_id === academicYearId);
+  const workClasses = classes.filter((item) => assignments.some((assignment) => assignment.class_id === item.id && assignment.academic_year_id === academicYearId));
+  const workYears = academicYears.filter((item) => assignments.some((assignment) => assignment.academic_year_id === item.id));
+  const sections = sectionResult?.classId === selectedClassId ? sectionResult.rows.filter((item) => classAssignments.some((assignment) => assignment.section_id === item.id)) : [];
+  const workSubjects = subjects.filter((item) => classAssignments.some((assignment) => assignment.section_id === selectedSectionId && assignment.subject_id === item.id));
   const sectionsLoading = Boolean(selectedClassId) && sectionResult?.classId !== selectedClassId;
   const sectionsError = sectionResult?.classId === selectedClassId ? sectionResult.error : "";
   const historySectionScope = `${teacherSchoolId}:${filterClass}`;
@@ -130,7 +141,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
           .select("school_id,full_name")
           .eq("id", currentTeacherId)
           .single(),
-        getCurrentTeacherAssignments(),
+        getCurrentTeacherAssignments({ currentYearOnly: true }),
         loadAcademicLogs({ teacherId: currentTeacherId }),
       ]);
       if (authError) throw authError;
@@ -174,10 +185,11 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       setTeacherSchoolId(teacher.school_id);
       setTeacherName(teacher.full_name || "Teacher");
       setTeacherEmail(user?.email ?? "");
+      setTeacherUserId(user?.id ?? "");
       setAssignments(ownAssignments);
       const currentYear = yearRows?.find((year) => year.is_current) ?? null;
       setAcademicYears(yearRows ?? []);
-      setAcademicYearId((selected) => yearRows?.some((year) => year.id === selected)
+      setAcademicYearId((selected) => ownAssignments.some((assignment) => assignment.academic_year_id === selected)
         ? selected
         : currentYear?.id ?? ownAssignments[0]?.academic_year_id ?? "");
       setCurrentAcademicYearId(currentYear?.id ?? "");
@@ -258,6 +270,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
     setDate(todayISO());
     setDetails("");
     setDueDate("");
+    setMaximumMarks("");
     setSelectedClassId("");
     setSelectedSectionId("");
     setSelectedSubjectId("");
@@ -266,11 +279,12 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   };
 
   const editEntry = (entry: SubmittedEntry) => {
-    if (entry.log.teacher_id !== teacherId) return;
+    if (!canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log)) return;
     setEditingActivityId(entry.activity.id);
     setDate(entry.log.log_date);
     setDetails(entry.activity.title);
     setDueDate(entry.activity.due_date ?? "");
+    setMaximumMarks(entry.activity.max_marks === null || entry.activity.max_marks === undefined ? "" : String(entry.activity.max_marks));
     setAcademicYearId(entry.log.academic_year_id);
     setSelectedClassId(entry.log.class_id);
     setSelectedSectionId(entry.log.section_id);
@@ -297,6 +311,9 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       setError("Please select a subject.");
       return;
     }
+    if (module === "homework" && maximumMarks.trim() && (!Number.isFinite(Number(maximumMarks)) || Number(maximumMarks) < 0)) {
+      setError("Maximum marks must be zero or a positive number."); return;
+    }
     if (!details.trim()) {
       setError(`Please enter ${label.toLowerCase()} details.`);
       return;
@@ -311,23 +328,27 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       assignment.subject_id === selectedSubjectId &&
       assignment.academic_year_id === academicYearId,
     );
-    if (!assignedCombination) {
-      setError("");
+    if (!assignedCombination || (selectedEntry && !canEditAcademicLog(assignments, teacherId, teacherSchoolId, selectedEntry.log))) {
+      setError("Select one of your current class, section and subject assignments.");
       return;
     }
     setSaving(true);
     setError("");
     setMessage("");
     const supabase = createClient();
-    let newlyCreatedLogId = "";
     try {
+      const current = await getCurrentTeacherAssignments({ currentYearOnly: true });
+      if (!current.some((assignment) => assignment.teacher_id === teacherId && matchesAcademicScope(assignment, assignedCombination))
+        || (selectedEntry && !canEditAcademicLog(current, teacherId, teacherSchoolId, selectedEntry.log))) {
+        throw new Error("Your teaching assignment changed. Refresh before saving work.");
+      }
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) throw authError;
       if (!user) throw new Error("Please sign in before submitting academic work.");
 
       const { data: destinationLog, error: destinationError } = await supabase
         .from("class_logs")
-        .select("id,status")
+        .select("id,school_id,academic_year_id,log_date,class_id,section_id,subject_id,teacher_id,topic,summary,teacher_remark,status,published_at,updated_at")
         .eq("teacher_id", teacherId)
         .eq("academic_year_id", assignedCombination.academic_year_id)
         .eq("class_id", selectedClassId)
@@ -338,106 +359,55 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       if (destinationError) throw destinationError;
 
       const sourceLogId = selectedEntry?.log.id;
-      let destinationLogId = destinationLog?.id ?? "";
-      let destinationStatus: "draft" | "published" = destinationLog?.status ?? "published";
-
       if (destinationLog && destinationLog.status === "draft" && destinationLog.id !== sourceLogId) {
         throw new Error("A private draft already exists for this class and date. Keep it private or resolve it before submitting new work.");
       }
-
-      if (!destinationLogId) {
-        const { data: insertedLog, error: insertLogError } = await supabase
-          .from("class_logs")
-          .insert({
-            school_id: teacherSchoolId,
-            academic_year_id: assignedCombination.academic_year_id,
-            class_id: selectedClassId,
-            section_id: selectedSectionId,
-            subject_id: selectedSubjectId,
-            teacher_id: teacherId,
-            log_date: date,
-            topic: details.trim().slice(0, 160),
-            summary: `${label} was submitted.`,
-            status: "published",
-            published_at: new Date().toISOString(),
-            published_by: user.id,
-          })
-          .select("id")
-          .single();
-        if (insertLogError) throw insertLogError;
-        destinationLogId = insertedLog.id;
-        newlyCreatedLogId = insertedLog.id;
-        destinationStatus = "published";
+      if (editingActivityId && (!selectedEntry || destinationLog?.id !== selectedEntry.log.id)) {
+        throw new Error("This activity's class and date cannot be changed. Create new work for another class or date.");
       }
-
-      const activityPayload = {
-        class_log_id: destinationLogId,
-        activity_type: module,
-        title: details.trim(),
-        description: label,
-        due_date: module === "homework" ? dueDate || null : null,
-      };
-      const activityResult = editingActivityId
-        ? await supabase.from("class_activities").update(activityPayload).eq("id", editingActivityId).select("id").maybeSingle()
-        : await supabase.from("class_activities").insert(activityPayload).select("id").single();
-      if (activityResult.error) {
-        if (newlyCreatedLogId) {
-          const { error: cleanupError } = await supabase.from("class_logs").delete().eq("id", newlyCreatedLogId);
-          if (cleanupError) {
-            throw new Error(`${activityResult.error.message} The empty published log could not be cleaned up: ${cleanupError.message}`);
-          }
-        }
-        throw activityResult.error;
-      }
-      if (!activityResult.data) {
-        if (newlyCreatedLogId) {
-          const { error: cleanupError } = await supabase.from("class_logs").delete().eq("id", newlyCreatedLogId);
-          if (cleanupError) throw new Error(`The activity was not saved. Its empty log could not be cleaned up: ${cleanupError.message}`);
-        }
+      const destinationStatus = destinationLog?.status ?? "published";
+      const existingActivities = destinationLog ? await loadAcademicActivities([destinationLog.id]) : [];
+      if (editingActivityId && !existingActivities.some((activity) => activity.id === editingActivityId)) {
         throw new Error("The activity was not saved; it may no longer belong to your workspace.");
       }
-
-      if (selectedEntry && selectedEntry.log.id !== destinationLogId) {
-        const oldLogIsGenerated = selectedEntry.log.summary === `${label} was submitted.`;
-        if (oldLogIsGenerated) {
-          const { data: remainingActivities, error: remainingError } = await supabase
-            .from("class_activities")
-            .select("id")
-            .eq("class_log_id", selectedEntry.log.id)
-            .limit(1);
-          if (remainingError) throw remainingError;
-          if (!remainingActivities?.length) {
-            const { error: oldLogDeleteError } = await supabase
-              .from("class_logs")
-              .delete()
-              .eq("id", selectedEntry.log.id);
-            if (oldLogDeleteError) {
-              throw new Error(`The ${label.toLowerCase()} was updated, but its previous empty log could not be removed: ${oldLogDeleteError.message}`);
-            }
-          }
-        }
-      }
+      const rows: AcademicActivityWrite[] = existingActivities.map((activity) => ({ id: activity.id, activity_type: activity.activity_type,
+        title: activity.id === editingActivityId ? details.trim() : activity.title,
+        description: activity.description, due_date: activity.id === editingActivityId && module === "homework" ? dueDate || null : activity.due_date,
+        attachment_url: activity.attachment_url ?? null, max_marks: activity.id === editingActivityId && module === "homework" ? maximumMarks.trim() ? Number(maximumMarks) : null : activity.max_marks ?? null,
+      }));
+      if (!editingActivityId) rows.push({ activity_type: module, title: details.trim(),
+        description: label, due_date: module === "homework" ? dueDate || null : null, attachment_url: null, max_marks: module === "homework" && maximumMarks.trim() ? Number(maximumMarks) : null });
+      await saveAcademicLogWithActivities({
+        id: destinationLog?.id, expected_updated_at: editingActivityId ? selectedEntry?.log.updated_at : destinationLog?.updated_at, school_id: teacherSchoolId, academic_year_id: assignedCombination.academic_year_id,
+        class_id: selectedClassId, section_id: selectedSectionId, subject_id: selectedSubjectId, log_date: date,
+        topic: destinationLog?.topic ?? details.trim().slice(0, 160), summary: destinationLog?.summary ?? `${label} was submitted.`,
+        teacher_remark: destinationLog?.teacher_remark ?? undefined, status: destinationStatus,
+      }, rows);
 
       setEditingActivityId("");
       setDetails("");
       setDueDate("");
+      setMaximumMarks("");
       setMessage(editingActivityId
         ? destinationStatus === "published" ? `${label} updated successfully.` : `${label} updated. Draft — visible only to teacher.`
         : module === "classwork" ? "Classwork submitted successfully." : "Homework submitted successfully.");
       await load();
     } catch (saveError) {
       logSupabaseError(`${label} save failed`, saveError);
-      setError(userError(saveError, `${label} could not be saved. Please verify your assignment and try again.`));
+      setError(academicAuthoringError(saveError, `${label} could not be saved. Please verify your assignment and try again.`));
     } finally {
       setSaving(false);
     }
   };
 
   const deleteEntry = async (entry: SubmittedEntry) => {
-    if (entry.log.teacher_id !== teacherId) return;
+    if (!canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) || saving) return;
+    setSaving(true);
     setError("");
     setMessage("");
     try {
+      const current = await getCurrentTeacherAssignments({ currentYearOnly: true });
+      if (!canEditAcademicLog(current, teacherId, teacherSchoolId, entry.log)) throw new Error("Your teaching assignment changed. Refresh before deleting work.");
       const supabase = createClient();
       const { data: deletedActivity, error: deleteError } = await supabase
         .from("class_activities")
@@ -483,8 +453,8 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       await load();
     } catch (deleteError) {
       logSupabaseError(`${label} delete failed`, deleteError);
-      setError(userError(deleteError, `${label} could not be deleted. Please try again.`));
-    }
+      setError(academicAuthoringError(deleteError, `${label} could not be deleted. Please try again.`));
+    } finally { setSaving(false); }
   };
 
   const className = (id: string) => classes.find((item) => item.id === id)?.name ?? id;
@@ -495,6 +465,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
     ?? assignments.find((assignment) => assignment.subject_id === id)?.subject_name
     ?? id;
   const selectAssignment = (assignment: TeachingAssignment) => {
+    if (editingActivityId || saving) return;
     setAcademicYearId(assignment.academic_year_id);
     setSelectedClassId(assignment.class_id);
     setSelectedSectionId(assignment.section_id);
@@ -502,11 +473,24 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
     setError("");
   };
 
+  useAcademicAssignmentRevalidation({ enabled: !loading && Boolean(teacherId), assignments,
+    onChanged: () => {
+      setAssignments([]); setEntries([]); setLoading(true); resetForm(); setPendingDelete(null);
+      setError("Your teaching assignments changed. The workspace is refreshing its access.");
+      void load();
+    },
+    onUnavailable: () => {
+      setAssignments([]); setEntries([]); resetForm(); setPendingDelete(null);
+      setError("Teaching access could not be verified. Refresh before making changes.");
+    },
+  });
+
   return (
     <div className="space-y-6">
       <header>
         <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Teacher Workspace</p>
         <h1 className="mt-1 text-3xl font-black">{label}</h1>
+        <button type="button" disabled={saving || loading} className="mt-3 min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={() => { setLoading(true); setEntries([]); resetForm(); setPendingDelete(null); setError(""); void load(); }}>Refresh teaching access</button>
       </header>
 
       {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">{message}</div>}
@@ -519,7 +503,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Date</span>
-            <input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]" />
+            <input required type="date" disabled={Boolean(editingActivityId) || saving} value={date} onChange={(event) => setDate(event.target.value)} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]" />
           </label>
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Academic Year</span>
             <select required value={academicYearId} onChange={(event) => {
@@ -528,9 +512,9 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId("");
               setSelectedSubjectId("");
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading}>
+            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || Boolean(editingActivityId) || saving}>
               <option value="">{loading ? "Loading academic years..." : "Select academic year"}</option>
-              {academicYears.map((year) => <option key={year.id} value={year.id}>{year.name}{year.is_current ? " (Current)" : ""}</option>)}
+              {workYears.map((year) => <option key={year.id} value={year.id}>{year.name}{year.is_current ? " (Current)" : ""}</option>)}
             </select>
           </label>
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Class</span>
@@ -539,8 +523,8 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId("");
               setSelectedSubjectId("");
                         setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading}>
-              <option value="">{loading ? "Loading classes..." : "Select class"}</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || Boolean(editingActivityId) || saving}>
+              <option value="">{loading ? "Loading classes..." : "Select class"}</option>{workClasses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Section</span>
@@ -548,7 +532,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId(event.target.value);
               setSelectedSubjectId("");
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-60" disabled={!selectedClassId || sectionsLoading}>
+            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-60" disabled={!selectedClassId || sectionsLoading || Boolean(editingActivityId) || saving}>
               <option value="">{!selectedClassId ? "Select class first" : sectionsLoading ? "Loading sections..." : sectionsError ? "Error loading sections" : sections.length ? "Select section" : "No sections found for this class"}</option>{sections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
             {sectionsError && <span role="alert" className="mt-2 block text-xs font-medium text-red-600">{sectionsError}</span>}
@@ -557,8 +541,8 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
             <select required value={selectedSubjectId} onChange={(event) => {
               setSelectedSubjectId(event.target.value);
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading}>
-              <option value="">{loading ? "Loading subjects..." : subjects.length ? "Select subject" : "No subjects found"}</option>{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || !selectedSectionId || Boolean(editingActivityId) || saving}>
+              <option value="">{loading ? "Loading subjects..." : workSubjects.length ? "Select subject" : "No assigned subjects"}</option>{workSubjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
         </div>
@@ -581,6 +565,8 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
         {module === "homework" && <label className="block max-w-sm text-sm font-semibold"><span className="mb-2 block leading-5">Due Date</span>
           <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]" />
         </label>}
+        {module === "homework" && <label className="block max-w-sm text-sm font-semibold"><span className="mb-2 block leading-5">Maximum marks (optional)</span><input type="number" min={0} step="0.01" value={maximumMarks} onChange={(event) => setMaximumMarks(event.target.value)} className="field w-full" /><span className="mt-2 block text-xs muted">Set a maximum for numeric grades. Without it, submissions can receive written feedback.</span></label>}
+        {editingActivityId && <p className="text-sm muted">To use another date, class or subject, create new work.</p>}
         {selectedEntry?.log.status === "draft" && <p className="text-xs font-semibold text-amber-600">Draft — visible only to teacher. Editing will not publish the parent log.</p>}
         <button type="submit" disabled={saving || loading || !academicYearId || !assignments.length || !classes.length || !selectedAssignment || sectionsLoading || Boolean(sectionsError)} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">
           {editingActivityId ? <Pencil size={16} /> : <Plus size={16} />}{saving ? "Saving..." : editingActivityId ? `Update ${label}` : `Submit ${label}`}
@@ -590,7 +576,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
             <h3 className="text-sm font-bold">My Assigned Classes</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {assignments.map((assignment) => (
-                <button key={assignment.id} type="button" onClick={() => selectAssignment(assignment)}
+                <button key={assignment.id} type="button" disabled={Boolean(editingActivityId) || saving} onClick={() => selectAssignment(assignment)}
                   aria-pressed={assignment.id === selectedAssignment?.id}
                   className={`rounded-full border px-3 py-2 text-left text-xs font-semibold transition ${assignment.id === selectedAssignment?.id ? "border-blue-500 bg-blue-500/10 text-blue-700 dark:text-blue-300" : "border-[var(--border)] hover:bg-[var(--surface-2)]"}`}>
                   {assignment.class_name} • {assignment.section_name} • {assignment.subject_name}
@@ -646,10 +632,11 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
                         <div><dt className="text-xs muted">Status</dt><dd className={`mt-1 font-semibold ${entry.log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{entry.log.status === "published" ? "Published" : "Draft — visible only to teacher"}</dd></div>
                         <div className="sm:col-span-2"><dt className="text-xs muted">{label} Details</dt><dd className="mt-1 whitespace-pre-wrap font-medium">{entry.activity.title}</dd></div>
                       </dl>
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button type="button" onClick={() => editEntry(entry)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"><Pencil size={15} />Edit</button>
-                        <button type="button" onClick={() => setPendingDelete(entry)} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600"><Trash2 size={15} />Delete</button>
-                      </div>
+                      {canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) && <div className="mt-4 flex flex-wrap gap-2">
+                        <button type="button" disabled={saving} onClick={() => editEntry(entry)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"><Pencil size={15} />Edit</button>
+                        <button type="button" disabled={saving} onClick={() => setPendingDelete(entry)} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600"><Trash2 size={15} />Delete</button>
+                      </div>}
+                      {module === "homework" && teacherUserId && entry.log.status === "published" && canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) && <TeacherHomeworkGrading key={`${teacherUserId}:${entry.activity.id}`} userId={teacherUserId} activityId={entry.activity.id} />}
                     </div>
                   )}
                 </article>

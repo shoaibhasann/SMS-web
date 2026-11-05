@@ -1,35 +1,21 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useRef, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { BadgeIndianRupee, Download, Eye, Printer, ReceiptText, RefreshCw, Search } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { readPages } from "@/lib/attendance/repository";
 import { schoolDate } from "@/lib/attendance/types";
 import { CashierDayClose } from "@/components/admin/cashier-day-close";
+import { FeeBatchWorkspace } from "@/components/finance/fee-batch-workspace";
+import { FeeLedgerWorkspace } from "@/components/finance/fee-ledger";
+import { feeMoney, formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow } from "@/lib/finance/fee-batches";
+import { FeeChangeWorkspace } from "@/components/finance/fee-change-workspace";
+import { getOfficeFinanceSummary, loadOfficeFeePositions, loadOfficeFeeReceipts, type OfficeFeeReceipt, type OfficeFinanceSummary } from "@/lib/finance/fee-changes";
+import { manualPaymentMethods as paymentMethods, manualPaymentLabel as paymentLabel } from "@/lib/finance/payment-methods";
 
-type FeeRecord = {
-  id: string;
-  student_id: string;
-  fee_structure_id: string | null;
-  amount: number;
-  discount: number;
-  late_fee: number;
-  status: string;
-  billing_period: string | null;
-  due_date: string | null;
-};
-
-type PaymentRecord = {
-  id: string;
-  student_fee_id: string;
-  student_id: string;
-  receipt_no: string;
-  amount: number;
-  payment_method: string | null;
-  status: string;
-  paid_at: string | null;
-};
+type FeeRecord = FeeLedgerRow & { id: string };
+type PaymentRecord = OfficeFeeReceipt;
 
 type Student = { id: string; name: string; admission_no: string };
 type FeeStructure = { id: string; name: string };
@@ -37,14 +23,6 @@ type FeeStructureRecord = FeeStructure & { amount: number; frequency: string; ac
 type DemandStudent = Student & { enrollments: { class_id: string }[] };
 type PaymentAttempt = { requestId: string; feeId: string; amount: string; method: string; reference: string };
 type OfficeReceipt = { payment_id: string; receipt_no: string };
-
-const paymentMethods = [
-  ["cash", "Cash"],
-  ["upi", "UPI"],
-  ["bank_transfer", "Bank transfer"],
-  ["card", "Card"],
-  ["cheque", "Cheque"],
-] as const;
 
 function readPaymentAttempt(key: string): PaymentAttempt | null {
   try {
@@ -67,12 +45,14 @@ function savePaymentAttempt(key: string, attempt: PaymentAttempt | null) {
   }
 }
 
-function feeBalance(fee: FeeRecord, paid: number) {
-  return Math.max(0, Math.round((Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee) - paid) * 100) / 100);
+function paise(value: string) {
+  const canonical = feeMoney(value), negative = canonical.startsWith("-");
+  const amount = BigInt(canonical.replace(/^-/, "").replace(".", ""));
+  return negative ? -amount : amount;
 }
 
-function paymentLabel(method: string | null) {
-  return paymentMethods.find(([value]) => value === method)?.[1] ?? (method?.replaceAll("_", " ") || "—");
+function feeBalance(fee: FeeRecord) {
+  return fee.balance;
 }
 
 function paymentDay(value: string | null) {
@@ -93,8 +73,12 @@ function logError(context: string, error: unknown) {
   }
 }
 
-function money(value: number) {
-  return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 }).format(value);
+function money(value: string | number | null | undefined) {
+  return value === undefined ? "—" : value === null ? "Review required" : formatFeeMoney(value);
+}
+
+function ReceiptStatus({ payment }: { payment: PaymentRecord }) {
+  return <div className="space-y-1"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${payment.status === "reversed" ? "bg-amber-500/10 text-amber-900 dark:text-amber-200" : "bg-[var(--surface-2)]"}`}>{payment.status.replaceAll("_", " ")}</span>{payment.reversed_at && <p className="text-xs muted">Reversed {new Date(payment.reversed_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>}{payment.reversal_reference && <p className="max-w-52 break-all text-xs muted">{payment.reversal_reference}</p>}</div>;
 }
 
 export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "fees" | "invoices" | "reports"; initialReceiptNo?: string }) {
@@ -102,12 +86,16 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
   const latestRequest = useRef(0);
   const mounted = useRef(true);
   const [schoolId, setSchoolId] = useState("");
+  const [userId, setUserId] = useState("");
+  const resolvedUser = useRef("");
+  const [canReviewChanges, setCanReviewChanges] = useState(false);
+  const [feeChangeBusy, setFeeChangeBusy] = useState(false);
+  const [financeSummary, setFinanceSummary] = useState<OfficeFinanceSummary>();
   const [paymentStorageKey, setPaymentStorageKey] = useState("");
   const [currentYearId, setCurrentYearId] = useState("");
   const [fees, setFees] = useState<FeeRecord[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [students, setStudents] = useState<Record<string, Student>>({});
-  const [structures, setStructures] = useState<Record<string, string>>({});
   const [structureRows, setStructureRows] = useState<FeeStructureRecord[]>([]);
   const [structureName, setStructureName] = useState("Tuition Fee");
   const [structureFrequency, setStructureFrequency] = useState("monthly");
@@ -151,6 +139,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         setError("");
         if (authError) throw authError;
         if (!auth.user) throw new Error("Please sign in again.");
+        resolvedUser.current = auth.user.id;
         const { data: roles, error: rolesError } = await supabase
           .from("user_roles")
           .select("role,school_id")
@@ -173,17 +162,14 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         }
         if (!schoolId) throw new Error("Choose a school-linked finance account to view finance records.");
 
-        const [feeRows, paymentRows, loadedStructures, yearResult] = await Promise.all([
-          readPages<FeeRecord>((from, to) => supabase.from("student_fees")
-            .select("id,student_id,fee_structure_id,amount,discount,late_fee,status,billing_period,due_date", { count: "exact" })
-            .eq("school_id", schoolId).order("created_at", { ascending: false }).order("id").range(from, to), "Fee demands"),
-          readPages<PaymentRecord>((from, to) => supabase.from("fee_payments")
-            .select("id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at", { count: "exact" })
-            .eq("school_id", schoolId).order("paid_at", { ascending: false, nullsFirst: false }).order("id").range(from, to), "Fee payments"),
+        const [feeRows, paymentRows, loadedStructures, yearResult, summary] = await Promise.all([
+          loadOfficeFeePositions(supabase, schoolId),
+          loadOfficeFeeReceipts(supabase, schoolId),
           readPages<FeeStructureRecord>((from, to) => supabase.from("fee_structures")
             .select("id,name,amount,frequency,academic_year_id,class_id", { count: "exact" })
             .eq("school_id", schoolId).order("name").order("id").range(from, to), "Fee structures"),
           supabase.from("academic_years").select("id").eq("school_id", schoolId).eq("is_current", true).maybeSingle(),
+          getOfficeFinanceSummary(supabase, schoolId),
         ]);
         if (yearResult.error) throw yearResult.error;
         const studentIds = [...new Set([...feeRows.map((row) => row.student_id), ...paymentRows.map((row) => row.student_id)])];
@@ -215,10 +201,18 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         if (!isCurrent()) return;
         const key = `kids-corner-office-fees:${auth.user.id}:${schoolId}`;
         setSchoolId(schoolId);
+        setUserId(auth.user.id);
+        resolvedUser.current = auth.user.id;
+        setCanReviewChanges((roles ?? []).some((row) => (["school_admin", "principal"].includes(row.role) && row.school_id === schoolId)
+          || (row.role === "super_admin" && row.school_id === null)));
+        setFinanceSummary(summary);
         setPaymentStorageKey(key);
         setPaymentAttempt(pendingPayment.current?.key === key ? pendingPayment.current.attempt : readPaymentAttempt(key));
-        setFees(feeRows);
+        const mappedFees = feeRows.map((fee) => ({ ...fee, id: fee.demand_id }));
+        setFees(mappedFees);
         setPayments(paymentRows);
+        setSelectedReceipt((selected) => selected ? paymentRows.find((payment) => payment.id === selected.id) ?? null : null);
+        setSelectedInvoice((selected) => selected ? mappedFees.find((fee) => fee.id === selected.id) ?? null : null);
         setStructureRows(loadedStructures);
         setCurrentYearId(activeYearId);
         setStudents(Object.fromEntries(studentRows.map((student) => [
@@ -229,7 +223,6 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             admission_no: student.admission_no,
           },
         ])));
-        setStructures(Object.fromEntries(loadedStructures.map((structure) => [structure.id, structure.name])));
         setDemandStudents(roster.map((student) => ({
           id: student.id,
           name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
@@ -255,39 +248,34 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
   useEffect(() => {
     mounted.current = true;
     void load();
-    return () => { mounted.current = false; latestRequest.current += 1; };
-  }, [load]);
-
-  const paidByFee = useMemo(() => {
-    const totals = new Map<string, number>();
-    for (const payment of payments) {
-      if (payment.status !== "paid") continue;
-      totals.set(payment.student_fee_id, (totals.get(payment.student_fee_id) ?? 0) + Math.round(Number(payment.amount) * 100));
-    }
-    return new Map(Array.from(totals, ([id, cents]) => [id, cents / 100]));
-  }, [payments]);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted.current || !resolvedUser.current || session?.user.id === resolvedUser.current) return;
+      latestRequest.current += 1; resolvedUser.current = "";
+      setSchoolId(""); setUserId(""); setFees([]); setPayments([]); setStudents({}); setStructureRows([]); setFinanceSummary(undefined);
+      setCurrentYearId(""); setDemandStudents([]); setDemandStudentId(""); setDemandStructureId(""); setPaymentStorageKey(""); setPaymentAttempt(null); setCanReviewChanges(false);
+      setSelectedInvoice(null); setSelectedReceipt(null); setPaymentDialogOpen(false); setSavedReceipt(null);
+      setError("Your sign-in changed. Reload this finance page to verify school access."); setLoading(false);
+    });
+    return () => { mounted.current = false; latestRequest.current += 1; subscription.unsubscribe(); };
+  }, [load, supabase]);
 
   const payableFees = fees.filter((fee) =>
-    ["pending", "partial"].includes(fee.status) && feeBalance(fee, paidByFee.get(fee.id) ?? 0) > 0,
+    ["pending", "partial"].includes(fee.status) && fee.financial_token && fee.balance !== null && paise(fee.balance) > BigInt(0),
   );
   const demandStudent = demandStudents.find((student) => student.id === demandStudentId);
   const demandStructures = structureRows.filter((structure) => structure.academic_year_id === currentYearId
+    && Number(structure.amount) > 0
     && (!structure.class_id || demandStudent?.enrollments.some((enrollment) => enrollment.class_id === structure.class_id)));
-  const totalCollected = payments.reduce((total, payment) =>
-    total + (payment.status === "paid" ? Number(payment.amount) : 0), 0);
-  const outstanding = fees.reduce((total, fee) => total + feeBalance(fee, paidByFee.get(fee.id) ?? 0), 0);
-  const today = schoolDate();
-  const currentMonth = today.slice(0, 7);
-  const collectedThisMonth = payments.reduce((total, payment) =>
-    total + (payment.status === "paid" && paymentDay(payment.paid_at).startsWith(currentMonth) ? Number(payment.amount) : 0), 0);
-  const collectedToday = payments.reduce((total, payment) =>
-    total + (payment.status === "paid" && paymentDay(payment.paid_at) === today ? Number(payment.amount) : 0), 0);
-  const pendingFeeCount = fees.filter((fee) => fee.status !== "paid").length;
-  const overdueFeeCount = fees.filter((fee) => fee.status !== "paid" && fee.due_date && fee.due_date < today).length;
+  const totalCollected = financeSummary?.collections.net_amount;
+  const outstanding = financeSummary?.balance;
+  const collectedThisMonth = financeSummary?.collections.month_net;
+  const collectedToday = financeSummary?.collections.today_net;
+  const pendingFeeCount = financeSummary?.pending_count ?? "—";
+  const overdueFeeCount = financeSummary?.overdue_count ?? "—";
   const filteredFees = fees.filter((fee) =>
     (financeStatus === "All" || fee.status === financeStatus) &&
     (financeStudent === "All" || fee.student_id === financeStudent) &&
-    `${students[fee.student_id]?.name ?? ""} ${students[fee.student_id]?.admission_no ?? ""} ${structures[fee.fee_structure_id ?? ""] ?? ""}`.toLowerCase().includes(financeSearch.toLowerCase()),
+    `${students[fee.student_id]?.name ?? ""} ${students[fee.student_id]?.admission_no ?? ""} ${fee.fee_name}`.toLowerCase().includes(financeSearch.toLowerCase()),
   );
   const filteredPayments = payments.filter((payment) =>
     (financeStatus === "All" || payment.status === financeStatus) &&
@@ -298,7 +286,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
   const filteredInvoices = fees.filter((fee) =>
     (financeStatus === "All" || fee.status === financeStatus) &&
     (financeStudent === "All" || fee.student_id === financeStudent) &&
-    `${students[fee.student_id]?.name ?? ""} ${students[fee.student_id]?.admission_no ?? ""} ${structures[fee.fee_structure_id ?? ""] ?? ""}`.toLowerCase().includes(financeSearch.toLowerCase()),
+    `${students[fee.student_id]?.name ?? ""} ${students[fee.student_id]?.admission_no ?? ""} ${fee.fee_name}`.toLowerCase().includes(financeSearch.toLowerCase()),
   );
 
   function openPayment() {
@@ -313,16 +301,15 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
 
   async function recordPayment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!schoolId || !paymentStorageKey || paymentInFlight.current) return;
+    if (!schoolId || !paymentStorageKey || paymentInFlight.current || feeChangeBusy) return;
 
     if (!paymentAttempt) {
       const fee = payableFees.find((row) => row.id === selectedFeeId);
-      const amount = Number(paymentAmount);
-      if (!fee || !/^\d{1,10}(?:\.\d{1,2})?$/.test(paymentAmount) || amount <= 0) {
+      if (!fee || !/^\d{1,10}(?:\.\d{1,2})?$/.test(paymentAmount) || paise(paymentAmount) <= BigInt(0)) {
         setPaymentError("Choose an open fee and enter a positive amount with up to two decimal places.");
         return;
       }
-      if (amount > feeBalance(fee, paidByFee.get(fee.id) ?? 0)) {
+      if (fee.balance === null || paise(paymentAmount) > paise(fee.balance)) {
         setPaymentError("The amount exceeds the displayed balance. Refresh the fee records.");
         return;
       }
@@ -343,10 +330,12 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
     setSavedReceipt(null);
 
     try {
+      const { data: { user: currentUser }, error: authError } = await supabase.auth.getUser();
+      if (authError || currentUser?.id !== userId || resolvedUser.current !== userId) return;
       const { data, error: saveError } = await supabase.rpc("record_office_fee_payment", {
         p_school_id: schoolId,
         p_student_fee_id: attempt.feeId,
-        p_amount: Number(attempt.amount),
+        p_amount: attempt.amount,
         p_payment_method: attempt.method,
         p_request_id: attempt.requestId,
         p_reference: attempt.reference || null,
@@ -368,7 +357,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       }
       pendingPayment.current = null;
       savePaymentAttempt(paymentStorageKey, null);
-      if (!mounted.current) return;
+      if (!mounted.current || resolvedUser.current !== userId) return;
       setPaymentAttempt(null);
       setSavedReceipt(data);
       setPaymentDialogOpen(false);
@@ -383,7 +372,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
 
   async function issueDemand(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!schoolId || !demandStudentId || !demandStructureId || !billingPeriod || demandInFlight.current) return;
+    if (!schoolId || !demandStudentId || !demandStructureId || !billingPeriod || demandInFlight.current || feeChangeBusy) return;
     demandInFlight.current = true;
     setDemandSaving(true);
     setError("");
@@ -418,10 +407,15 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       receipt: payment.receipt_no,
       student: student?.name ?? "Student",
       admissionNumber: student?.admission_no ?? "",
-      amount: Number(payment.amount),
+      amount: payment.amount,
+      creditedAmount: payment.net_amount,
+      reversedAmount: payment.reversed_amount,
+      reversedAt: payment.reversed_at,
+      reversalReference: payment.reversal_reference,
       paymentMethod: payment.payment_method,
       paidAt: payment.paid_at,
       status: payment.status,
+      recordedStatus: payment.recorded_status,
     }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -432,20 +426,22 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
   }
 
   function downloadInvoice(fee: FeeRecord) {
-    const paid = paidByFee.get(fee.id) ?? 0;
-    const total = Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee);
     const invoice = {
       school: "School invoice preview",
       student: students[fee.student_id]?.name ?? "Student",
       admissionNumber: students[fee.student_id]?.admission_no ?? "",
-      fee: structures[fee.fee_structure_id ?? ""] ?? "Fee",
-      billingPeriod: fee.billing_period,
-      subtotal: Number(fee.amount),
-      discount: Number(fee.discount),
-      lateFee: Number(fee.late_fee),
-      paid,
-      pending: Math.max(0, total - paid),
-      total,
+      fee: fee.fee_name,
+      billingPeriod: formatFeeBillingPeriod(fee.billing_period),
+      subtotal: fee.amount,
+      discount: fee.discount,
+      lateFee: fee.late_fee,
+      baseNetAmount: fee.base_net_amount,
+      approvedAdjustments: fee.adjustment_amount,
+      paid: fee.paid_amount,
+      grossPaidAmount: fee.gross_paid_amount,
+      reversedAmount: fee.reversed_amount,
+      pending: fee.balance,
+      total: fee.net_amount,
       dueDate: fee.due_date,
     };
     const url = URL.createObjectURL(new Blob([JSON.stringify(invoice, null, 2)], { type: "application/json" }));
@@ -458,7 +454,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
 
   async function createFeeStructure(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!schoolId || !currentYearId || !structureName.trim() || !Number(structureAmount)) return;
+    if (!schoolId || !currentYearId || !structureName.trim() || !Number(structureAmount) || feeChangeBusy) return;
     setError("");
     setLocalMessage("");
     try {
@@ -493,12 +489,16 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
           <h1 className="mt-1 text-3xl font-black">{labels.title}</h1>
           <p className="mt-2 text-sm muted">{labels.subtitle}</p>
         </div>
+        <div className="flex flex-wrap gap-2">
+        <Link href="/modules/advance-credit" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold text-blue-700 hover:bg-[var(--surface-2)] dark:text-blue-300">Advance credit</Link>
         <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold hover:bg-[var(--surface-2)]">
           <RefreshCw size={16} /> Refresh
         </button>
+        </div>
       </header>
 
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}
+      {financeSummary && financeSummary.invalid_count > 0 && <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 text-sm text-amber-900 dark:text-amber-200">{financeSummary.invalid_count} financial records need reconciliation. Overall totals are unavailable; flagged fees cannot be paid or changed.</p>}
       {localMessage && <div role="status" className="rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 text-sm text-sky-800 dark:text-sky-200">{localMessage}</div>}
       {savedReceipt && <div role="status" className="flex flex-wrap items-center gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm">
         <span>Payment saved. Receipt <strong className="break-all">{savedReceipt.receipt_no}</strong></span>
@@ -507,31 +507,30 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
 
       {mode === "reports" && (
         <>
-        {schoolId && <CashierDayClose key={schoolId} schoolId={schoolId} client={supabase} />}
+        {schoolId && <CashierDayClose key={`${userId}:${schoolId}`} schoolId={schoolId} client={supabase} />}
+        {schoolId && userId && <FeeLedgerWorkspace key={`${userId}:${schoolId}:${currentYearId}`} client={supabase} schoolId={schoolId} academicYearId={currentYearId} />}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="card p-5"><div className="flex items-center gap-2 text-sm muted"><BadgeIndianRupee size={16} /> Recorded collections</div><div className="mt-2 text-2xl font-black">{money(totalCollected)}</div></div>
-          <div className="card p-5"><div className="text-sm muted">Collected this month</div><div className="mt-2 text-2xl font-black">{money(collectedThisMonth)}</div></div>
+          <div className="card p-5"><div className="flex items-center gap-2 text-sm muted"><BadgeIndianRupee size={16} /> Net recorded collections</div><div className="mt-2 text-2xl font-black">{money(totalCollected)}</div><p className="mt-2 text-xs muted">Gross money received {money(financeSummary?.collections.gross_amount)} · Reversals {money(financeSummary?.collections.reversal_amount)}{financeSummary?.collections.refund_amount !== undefined && ` · Offline refunds ${money(financeSummary.collections.refund_amount)}`}</p></div>
+          <div className="card p-5"><div className="text-sm muted">Net collections this month</div><div className="mt-2 text-2xl font-black">{money(collectedThisMonth)}</div></div>
           <div className="card p-5"><div className="text-sm muted">Outstanding balance</div><div className="mt-2 text-2xl font-black">{money(outstanding)}</div></div>
         </div>
+        <p className="text-xs muted">Collections include fee payments and money received as advance credit, less entry corrections and completed offline refunds. Applying stored credit and reserving a refund do not receive or send money. Original receipts and past closed-day snapshots remain available.</p>
+        {financeSummary?.advance && <section aria-label="School advance credit totals" className="card space-y-3 p-5"><h2 className="font-bold">Advance credit and offline refunds</h2><dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Available student credit", financeSummary.advance.available_amount], ["Reserved for unpaid refunds", financeSummary.advance.reserved_amount], ["Offline refunds paid", financeSummary.collections.refund_amount], ["Offline refunds paid today", financeSummary.collections.today_refund]].map(([label, value]) => <div key={label}><dt className="text-xs muted">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{money(value)}</dd></div>)}</dl><p className="text-xs muted">Student credit is separate from outstanding fees until applied. <Link href="/modules/advance-credit" className="font-semibold text-blue-700 underline dark:text-blue-300">Open advance credit</Link></p></section>}
         <div>
           <section className="card overflow-hidden">
             <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Student-wise dues</h2></div>
             <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm">
               <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Total</th><th className="p-3">Paid</th><th className="p-3">Pending</th></tr></thead>
-              <tbody className="divide-y divide-[var(--border)]">{fees.slice(0, 20).map((fee) => {
-                const total = Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee);
-                const paid = paidByFee.get(fee.id) ?? 0;
-                return <tr key={fee.id}><td className="p-3 font-semibold">{students[fee.student_id]?.name ?? "Student"}</td><td className="p-3">{structures[fee.fee_structure_id ?? ""] ?? "Fee"}</td><td className="p-3">{money(total)}</td><td className="p-3">{money(paid)}</td><td className="p-3">{money(Math.max(0, total - paid))}</td></tr>;
-              })}{!fees.length && <tr><td colSpan={5} className="p-5 text-sm muted">No fee balances recorded.</td></tr>}</tbody>
+              <tbody className="divide-y divide-[var(--border)]">{fees.slice(0, 20).map((fee) => <tr key={fee.id}><td className="p-3 font-semibold">{students[fee.student_id]?.name ?? fee.student_name}</td><td className="p-3">{fee.fee_name}</td><td className="p-3">{money(fee.net_amount)}</td><td className="p-3">{money(fee.paid_amount)}</td><td className="p-3">{money(fee.balance)}</td></tr>)}{!fees.length && <tr><td colSpan={5} className="p-5 text-sm muted">No fee balances recorded.</td></tr>}</tbody>
             </table></div>
           </section>
         </div>
         <section className="card overflow-hidden">
           <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Payment history</h2></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
-            <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Date</th><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Method</th><th className="p-3">Amount</th><th className="p-3">Status</th></tr></thead>
-            <tbody className="divide-y divide-[var(--border)]">{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{paymentDay(payment.paid_at) || "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td><td className="p-3">{money(Number(payment.amount))}</td><td className="p-3 capitalize">{payment.status}</td></tr>)}
-              {!payments.length && <tr><td colSpan={6} className="p-5 text-sm muted">No payment history available.</td></tr>}
+            <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Date</th><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Method</th><th className="p-3">Original amount</th><th className="p-3">Credited amount</th><th className="p-3">Status</th></tr></thead>
+            <tbody className="divide-y divide-[var(--border)]">{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{paymentDay(payment.paid_at) || "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td><td className="p-3">{money(payment.amount)}</td><td className="p-3">{money(payment.net_amount)}</td><td className="p-3"><ReceiptStatus payment={payment} /></td></tr>)}
+              {!payments.length && <tr><td colSpan={7} className="p-5 text-sm muted">No payment history available.</td></tr>}
             </tbody>
           </table></div>
         </section>
@@ -541,7 +540,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       {mode === "fees" && (
         <>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[["Today's Collection", money(collectedToday)], ["Monthly Collection", money(collectedThisMonth)], ["Pending Fees", pendingFeeCount], ["Overdue Fees", overdueFeeCount]].map(([label, value]) => <article key={String(label)} className="card p-4"><p className="text-xs font-semibold muted">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></article>)}
+          {[["Today's net collections", money(collectedToday)], ["Monthly net collections", money(collectedThisMonth)], ["Pending Fees", pendingFeeCount], ["Overdue Fees", overdueFeeCount]].map(([label, value]) => <article key={String(label)} className="card p-4"><p className="text-xs font-semibold muted">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></article>)}
         </div>
         <section className="card p-5">
           <h2 className="font-bold">Fee structures</h2>
@@ -549,18 +548,22 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <label className="space-y-1.5 text-sm font-medium">Fee Category<select value={structureName} onChange={(event) => setStructureName(event.target.value)} className="field">{["Admission Fee", "Tuition Fee", "Annual Fee", "Transport", "Other"].map((item) => <option key={item}>{item}</option>)}</select></label>
             <label className="space-y-1.5 text-sm font-medium">Frequency<select value={structureFrequency} onChange={(event) => setStructureFrequency(event.target.value)} className="field"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="half_yearly">Half-yearly</option><option value="yearly">Yearly</option><option value="custom">Custom</option></select></label>
             <label className="space-y-1.5 text-sm font-medium">Amount<input required type="number" min="0.01" step="0.01" value={structureAmount} onChange={(event) => setStructureAmount(event.target.value)} className="field" /></label>
-            <button disabled={!currentYearId} className="self-end rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Add Fee Structure</button>
+            <button disabled={!currentYearId || feeChangeBusy} className="self-end rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Add Fee Structure</button>
           </form>
           {!currentYearId && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">A current academic year is required to add fee structures.</p>}
-          <div className="mt-4 flex flex-wrap gap-2">{structureRows.map((structure) => <span key={structure.id} className="rounded-full bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium">{structure.name} · {structure.frequency} · {money(Number(structure.amount))}</span>)}</div>
+          <div className="mt-4 flex flex-wrap gap-2">{structureRows.filter((structure) => Number(structure.amount) > 0).map((structure) => <span key={structure.id} className="rounded-full bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium">{structure.name} · {structure.frequency} · {money(Number(structure.amount))}</span>)}</div>
         </section>
+        {schoolId && userId && currentYearId && <FeeBatchWorkspace client={supabase} schoolId={schoolId} userId={userId} academicYearId={currentYearId}
+          structures={structureRows} disabled={loading || paymentSaving || demandSaving || feeChangeBusy} onPosted={() => { void load(); }} />}
+        {schoolId && userId && <FeeChangeWorkspace client={supabase} schoolId={schoolId} userId={userId} canReview={canReviewChanges}
+          demands={fees} payments={payments} disabled={loading || paymentSaving || demandSaving} onBusyChange={setFeeChangeBusy} onChanged={() => { void load(); }} />}
         <section className="card space-y-4 p-5">
           <div>
             <h2 className="font-bold">Issue a fee demand</h2>
             <p className="mt-1 text-sm muted">Assign a current-year fee structure to one enrolled student for a billing month.</p>
           </div>
           <form onSubmit={issueDemand} className="space-y-3">
-            <fieldset disabled={loading || demandSaving} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <fieldset disabled={loading || demandSaving || feeChangeBusy} className="grid items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <label className="space-y-1.5 text-sm font-medium">Enrolled student
                 <select required value={demandStudentId} onChange={(event) => {
                   setDemandStudentId(event.target.value);
@@ -583,14 +586,14 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
                 <input type="date" value={demandDueDate} onChange={(event) => setDemandDueDate(event.target.value)} className="field" />
               </label>
             </fieldset>
-            <button type="submit" disabled={loading || demandSaving || !demandStudentId || !demandStructureId} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+            <button type="submit" disabled={loading || demandSaving || feeChangeBusy || !demandStudentId || !demandStructureId} className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
               {demandSaving ? "Issuing demand…" : "Issue demand"}
             </button>
           </form>
         </section>
         <section className="card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Student fee records</h2>
-            <button type="button" disabled={loading || (!payableFees.length && !paymentAttempt)} onClick={openPayment} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+            <button type="button" disabled={loading || feeChangeBusy || (!payableFees.length && !paymentAttempt)} onClick={openPayment} className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
               {paymentAttempt ? "Resume payment request" : "Record payment"}
             </button>
           </div>
@@ -604,14 +607,12 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
               <table className="w-full min-w-[840px] text-left text-sm">
                 <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Period</th><th className="p-3">Amount</th><th className="p-3">Paid</th><th className="p-3">Balance</th><th className="p-3">Due</th><th className="p-3">Status</th></tr></thead>
                 <tbody className="divide-y divide-[var(--border)]">{filteredFees.map((fee) => {
-                  const due = Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee);
-                  const paid = paidByFee.get(fee.id) ?? 0;
                   const student = students[fee.student_id];
                   return <tr key={fee.id}>
                     <td className="p-3 font-semibold">{student?.name ?? "Student"}<span className="block text-xs muted">{student?.admission_no ?? ""}</span></td>
-                    <td className="p-3">{fee.fee_structure_id ? structures[fee.fee_structure_id] ?? "Fee" : "Fee"}</td>
-                    <td className="p-3">{fee.billing_period ?? "—"}</td>
-                    <td className="p-3">{money(due)}</td><td className="p-3">{money(paid)}</td><td className="p-3">{money(Math.max(0, due - paid))}</td><td className="p-3">{fee.due_date ?? "—"}</td><td className="p-3 capitalize">{fee.status.replaceAll("_", " ")}</td>
+                    <td className="p-3">{fee.fee_name}</td>
+                    <td className="p-3">{formatFeeBillingPeriod(fee.billing_period)}</td>
+                    <td className="p-3">{money(fee.net_amount)}</td><td className="p-3">{money(fee.paid_amount)}</td><td className="p-3">{money(fee.balance)}</td><td className="p-3">{fee.due_date ?? "—"}</td><td className="p-3 capitalize">{fee.status.replaceAll("_", " ")}</td>
                   </tr>;
                 })}{!filteredFees.length && <tr><td className="p-5 text-sm muted" colSpan={8}>No fee records match the selected filters.</td></tr>}</tbody>
               </table>
@@ -641,12 +642,10 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
               <table className="w-full min-w-[740px] text-left text-sm">
                 <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Period</th><th className="p-3">Total</th><th className="p-3">Paid</th><th className="p-3">Pending</th><th className="p-3">Due</th><th className="p-3">Status</th><th className="p-3">Actions</th></tr></thead>
                 <tbody className="divide-y divide-[var(--border)]">{filteredInvoices.map((fee) => {
-                  const total = Number(fee.amount) - Number(fee.discount) + Number(fee.late_fee);
-                  const paid = paidByFee.get(fee.id) ?? 0;
                   return <tr key={fee.id}>
                     <td className="p-3 font-semibold">{students[fee.student_id]?.name ?? "Student"}<span className="block text-xs muted">{students[fee.student_id]?.admission_no ?? ""}</span></td>
-                    <td className="p-3">{structures[fee.fee_structure_id ?? ""] ?? "Fee"}</td><td className="p-3">{fee.billing_period ?? "—"}</td>
-                    <td className="p-3">{money(total)}</td><td className="p-3">{money(paid)}</td><td className="p-3">{money(Math.max(0, total - paid))}</td><td className="p-3">{fee.due_date ?? "—"}</td><td className="p-3 capitalize">{fee.status}</td>
+                    <td className="p-3">{fee.fee_name}</td><td className="p-3">{formatFeeBillingPeriod(fee.billing_period)}</td>
+                    <td className="p-3">{money(fee.net_amount)}</td><td className="p-3">{money(fee.paid_amount)}</td><td className="p-3">{money(fee.balance)}</td><td className="p-3">{fee.due_date ?? "—"}</td><td className="p-3 capitalize">{fee.status.replaceAll("_", " ")}</td>
                     <td className="p-3"><div className="flex gap-1"><button type="button" onClick={() => setSelectedInvoice(fee)} aria-label="View invoice" className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Eye size={15} /></button><button type="button" onClick={() => window.print()} aria-label="Print invoice" className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Printer size={15} /></button><button type="button" onClick={() => downloadInvoice(fee)} aria-label="Download invoice preview" className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Download size={15} /></button></div></td>
                   </tr>;
                 })}</tbody>
@@ -655,20 +654,21 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
           ) : payments.length === 0 ? <p className="p-5 text-sm muted">No payment receipts found.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[700px] text-left text-sm">
-                <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Date</th><th className="p-3">Method</th><th className="p-3">Amount</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr></thead>
+                <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Date</th><th className="p-3">Method</th><th className="p-3">Original amount</th><th className="p-3">Credited amount</th><th className="p-3">Status</th><th className="p-3 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-[var(--border)]">{filteredPayments.map((payment) => <tr key={payment.id}>
                   <td className="p-3 font-semibold">{payment.receipt_no}</td>
                   <td className="p-3">{students[payment.student_id]?.name ?? "Student"}<span className="block text-xs muted">{students[payment.student_id]?.admission_no ?? ""}</span></td>
                   <td className="p-3">{payment.paid_at ? new Date(payment.paid_at).toLocaleString() : "—"}</td>
                   <td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td>
-                  <td className="p-3">{money(Number(payment.amount))}</td>
-                  <td className="p-3 capitalize">{payment.status}</td>
+                  <td className="p-3">{money(payment.amount)}</td>
+                  <td className="p-3">{money(payment.net_amount)}</td>
+                  <td className="p-3"><ReceiptStatus payment={payment} /></td>
                   <td className="p-3"><div className="flex gap-1">
                     <button type="button" aria-label={`View ${payment.receipt_no}`} onClick={() => setSelectedReceipt(payment)} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Eye size={15} /></button>
                     <button type="button" aria-label={`Print ${payment.receipt_no}`} onClick={() => window.print()} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Printer size={15} /></button>
                     <button type="button" aria-label={`Download ${payment.receipt_no}`} onClick={() => downloadReceipt(payment)} className="rounded-lg p-2 hover:bg-[var(--surface-2)]"><Download size={15} /></button>
                   </div></td>
-                </tr>)}{!filteredPayments.length && <tr><td className="p-5 text-sm muted" colSpan={7}>No receipts match the selected filters.</td></tr>}</tbody>
+                </tr>)}{!filteredPayments.length && <tr><td className="p-5 text-sm muted" colSpan={8}>No receipts match the selected filters.</td></tr>}</tbody>
               </table>
             </div>
           )}
@@ -682,13 +682,14 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div><p className="text-xs muted">Student</p><p className="font-semibold">{students[selectedInvoice.student_id]?.name ?? "Student"}</p></div>
           <div><p className="text-xs muted">Admission No.</p><p className="font-semibold">{students[selectedInvoice.student_id]?.admission_no ?? "—"}</p></div>
-          <div><p className="text-xs muted">Fee</p><p className="font-semibold">{structures[selectedInvoice.fee_structure_id ?? ""] ?? "Fee"}</p></div>
-          <div><p className="text-xs muted">Subtotal</p><p className="font-semibold">{money(Number(selectedInvoice.amount))}</p></div>
-          <div><p className="text-xs muted">Discount</p><p className="font-semibold">{money(Number(selectedInvoice.discount))}</p></div>
-          <div><p className="text-xs muted">Late Fee</p><p className="font-semibold">{money(Number(selectedInvoice.late_fee))}</p></div>
-          <div><p className="text-xs muted">Paid</p><p className="font-semibold">{money(paidByFee.get(selectedInvoice.id) ?? 0)}</p></div>
-          <div><p className="text-xs muted">Pending</p><p className="font-semibold">{money(Math.max(0, Number(selectedInvoice.amount) - Number(selectedInvoice.discount) + Number(selectedInvoice.late_fee) - (paidByFee.get(selectedInvoice.id) ?? 0)))}</p></div>
-          <div><p className="text-xs muted">Total</p><p className="font-semibold">{money(Number(selectedInvoice.amount) - Number(selectedInvoice.discount) + Number(selectedInvoice.late_fee))}</p></div>
+          <div><p className="text-xs muted">Fee</p><p className="font-semibold">{selectedInvoice.fee_name}</p></div>
+          <div><p className="text-xs muted">Original subtotal</p><p className="font-semibold">{money(selectedInvoice.amount)}</p></div>
+          <div><p className="text-xs muted">Original discount</p><p className="font-semibold">{money(selectedInvoice.discount)}</p></div>
+          <div><p className="text-xs muted">Original late fee</p><p className="font-semibold">{money(selectedInvoice.late_fee)}</p></div>
+          <div><p className="text-xs muted">Approved fee changes</p><p className="font-semibold">{money(selectedInvoice.adjustment_amount)}</p></div>
+          <div><p className="text-xs muted">Credited payments</p><p className="font-semibold">{money(selectedInvoice.paid_amount)}</p></div>
+          <div><p className="text-xs muted">Pending</p><p className="font-semibold">{money(selectedInvoice.balance)}</p></div>
+          <div><p className="text-xs muted">Effective total</p><p className="font-semibold">{money(selectedInvoice.net_amount)}</p></div>
         </div>
       </section>}
       {mode === "invoices" && selectedReceipt && <section className="card space-y-3 p-5">
@@ -696,11 +697,14 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         <div className="grid gap-3 sm:grid-cols-2">
           <div><p className="text-xs muted">Student</p><p className="font-semibold">{students[selectedReceipt.student_id]?.name ?? "Student"}</p></div>
           <div><p className="text-xs muted">Admission No.</p><p className="font-semibold">{students[selectedReceipt.student_id]?.admission_no ?? "—"}</p></div>
-          <div><p className="text-xs muted">Amount</p><p className="font-semibold">{money(Number(selectedReceipt.amount))}</p></div>
+          <div><p className="text-xs muted">Original receipt amount</p><p className="font-semibold">{money(selectedReceipt.amount)}</p></div>
+          <div><p className="text-xs muted">Credited amount</p><p className="font-semibold">{money(selectedReceipt.net_amount)}</p></div>
+          <div><p className="text-xs muted">Reversed amount</p><p className="font-semibold">{money(selectedReceipt.reversed_amount)}</p></div>
           <div><p className="text-xs muted">Payment date</p><p className="font-semibold">{selectedReceipt.paid_at ? new Date(selectedReceipt.paid_at).toLocaleString() : "—"}</p></div>
           <div><p className="text-xs muted">Method</p><p className="font-semibold capitalize">{paymentLabel(selectedReceipt.payment_method)}</p></div>
-          <div><p className="text-xs muted">Status</p><p className="font-semibold capitalize">{selectedReceipt.status}</p></div>
+          <div><p className="text-xs muted">Status</p><ReceiptStatus payment={selectedReceipt} /></div>
         </div>
+        {selectedReceipt.status === "reversed" && <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">This corrects a recorded entry; it does not send a bank refund. The original receipt amount remains in the audit history.</p>}
       </section>}
       {paymentDialogOpen && <div role="dialog" aria-modal="true" aria-labelledby="office-payment-title" className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/55 p-4">
         <form onSubmit={recordPayment} className="w-full max-w-lg space-y-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-2xl">
@@ -710,7 +714,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <label className="block space-y-1.5 text-sm font-medium">Student fee record
               <select required value={selectedFeeId} onChange={(event) => setSelectedFeeId(event.target.value)} className="field">
                 {paymentAttempt && !payableFees.some((fee) => fee.id === paymentAttempt.feeId) && <option value={paymentAttempt.feeId}>Previous payment request</option>}
-                {payableFees.map((fee) => <option key={fee.id} value={fee.id}>{students[fee.student_id]?.name ?? "Student"} · {structures[fee.fee_structure_id ?? ""] ?? "Fee"} · balance {money(feeBalance(fee, paidByFee.get(fee.id) ?? 0))}</option>)}
+                {payableFees.map((fee) => <option key={fee.id} value={fee.id}>{students[fee.student_id]?.name ?? fee.student_name} · {fee.fee_name} · balance {money(feeBalance(fee))}</option>)}
               </select>
             </label>
             <label className="block space-y-1.5 text-sm font-medium">Amount

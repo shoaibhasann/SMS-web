@@ -1,0 +1,10 @@
+Isolated production build: 127.0.0.1:3107; placeholder Supabase configuration; no external redirects followed.
+/login 200
+/forgot-password 200
+/update-password 200
+/dashboard 307 /login
+/activate 200
+/modules/students 200
+/modules/academic 200
+/auth/callback?next=https%3A%2F%2Fattacker.example 307 https://attacker.example/
+/auth/callback?next=%2F%2Fattacker.example 307 http://attacker.example/

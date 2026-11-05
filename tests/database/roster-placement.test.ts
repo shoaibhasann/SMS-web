@@ -29,6 +29,7 @@ describe("audited roster placement changes", () => {
     for (const suffix of [
       "_repair_school_policy_helper.sql", "_guardian_invitations.sql", "_govern_attendance_corrections.sql",
       "_withdraw_roster_enrollment.sql", "_change_roster_placement.sql",
+      "_attendance_optimistic_conflict_http_status.sql",
     ]) {
       const file = files.find((name) => name.endsWith(suffix));
       if (!file) throw new Error("Missing migration " + suffix);

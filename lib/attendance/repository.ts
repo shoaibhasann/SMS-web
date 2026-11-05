@@ -406,7 +406,12 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         p_reason: reason.trim(),
         p_request_id: requestId,
       });
-      if (error) throw new Error(messageOf(error));
+      if (error) {
+        const conflict = error.code === "PT409" || error.code === "40001";
+        throw Object.assign(new Error(conflict
+          ? "Attendance changed before the correction could be requested. Reload the register and check the latest mark before requesting again."
+          : messageOf(error)), { code: error.code });
+      }
       if (data !== requestId) throw new Error("The correction could not be confirmed. Retry the same request.");
     },
   };

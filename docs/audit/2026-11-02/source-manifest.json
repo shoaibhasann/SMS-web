@@ -1,0 +1,257 @@
+{
+  "audit_date": "2026-11-02",
+  "root": "/Users/shoaib/kids-corner-erp-frontend/kids-corner-erp-frontend",
+  "git_available": false,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "29fa24ceac3fd36a385dc8741f404fb743bf0322323213e9c1bd12dcf04e21a1",
+      "lines": 11
+    },
+    {
+      "path": "app/(auth)/auth/callback/route.ts",
+      "sha256": "bdf065474893ead6eb90e2004a3c4d7d864c71e51a1c18228474ff747e2b9d92",
+      "lines": 2
+    },
+    {
+      "path": "app/(auth)/forgot-password/page.tsx",
+      "sha256": "d375a769f34e650e46531eb834aebbbf501962e8a3322a6b892932746388fafd",
+      "lines": 6
+    },
+    {
+      "path": "app/(auth)/layout.tsx",
+      "sha256": "78648c7a540743bab00a2cb928233ef892b27df8167f88a69b3a4323e5cdf536",
+      "lines": 1
+    },
+    {
+      "path": "app/(auth)/login/page.tsx",
+      "sha256": "32c834eba28970d4a30c966f0f7a128acbdd11b6f2e9586fb867ce76610782ec",
+      "lines": 195
+    },
+    {
+      "path": "app/(auth)/update-password/page.tsx",
+      "sha256": "95b98d21be1bf34932dbde14b5dcd1ee0565d7bee0e6620bb5d532a8610f04fd",
+      "lines": 3
+    },
+    {
+      "path": "app/(dashboard)/activate/page.tsx",
+      "sha256": "9fe911c7002f3e1d09db332981c90ff3f0b687fdf88b8d078a7a07370aa22209",
+      "lines": 41
+    },
+    {
+      "path": "app/(dashboard)/dashboard/page.tsx",
+      "sha256": "f59d451624e7d1ca096cbda73ecd8628cd768405ec697a35f4916ac9e582dd7c",
+      "lines": 42
+    },
+    {
+      "path": "app/(dashboard)/layout.tsx",
+      "sha256": "399e81c600fd62c2cf124ef078429db03289e20d90b3afbc6a17c1c0afabfbc0",
+      "lines": 1
+    },
+    {
+      "path": "app/(dashboard)/modules/[module]/page.tsx",
+      "sha256": "6af12b0f3ab0de6a18456a9300fdeedf11157bd8b1ee4c5610668b73fef925b1",
+      "lines": 2238
+    },
+    {
+      "path": "app/(dashboard)/modules/academic/page.tsx",
+      "sha256": "e6f9a91208015df3fb7ed37bbd47fe87307862e42e1ed6c3f86d74914cc849cd",
+      "lines": 461
+    },
+    {
+      "path": "app/globals.css",
+      "sha256": "fa21fd891fa023c304e7c546edd79b06ad475faaa106090ac9de9f231487adfd",
+      "lines": 17
+    },
+    {
+      "path": "app/layout.tsx",
+      "sha256": "d79a79bb01a1aa67cf36c30d347154783449a45a5920c2da57845940bd96800d",
+      "lines": 7
+    },
+    {
+      "path": "app/page.tsx",
+      "sha256": "8933aab7d04cbe9c0336c51df2efd34495a960b2d9498c5f3519396c0f02dfd4",
+      "lines": 1
+    },
+    {
+      "path": "components/academic/academic-workspace.tsx",
+      "sha256": "64cf2b2d4e158d0ffd9b12fdc821674fdaab23fb0d0d18ee1271af797d73efd0",
+      "lines": 613
+    },
+    {
+      "path": "components/academic/teacher-activity-workspace.tsx",
+      "sha256": "efa3483c5ddd1f595c9843b7d9993370b1f11a5ff68bc43dabf56bbe19a13679",
+      "lines": 680
+    },
+    {
+      "path": "components/academic/teacher-assignments.tsx",
+      "sha256": "d47ab6f2cb73f5e7aeb44c871d453cd153a27c43d20be1f766a2745b6df04bc8",
+      "lines": 96
+    },
+    {
+      "path": "components/admin/admin-academic-setup-workspace.tsx",
+      "sha256": "958a59aa5f2d64a9683cefe9e06074e562930e2acba59a540321e8eb429cad76",
+      "lines": 82
+    },
+    {
+      "path": "components/admin/admin-assessment-workspace.tsx",
+      "sha256": "9d1740461285883bd21505a92670eef38c9a0916749382f33d44c04b0ac4fea7",
+      "lines": 591
+    },
+    {
+      "path": "components/admin/admin-attendance-workspace.tsx",
+      "sha256": "fa61355fa6d475326b4b4f991fac209a02049deece8694437fdc5b59219a65ff",
+      "lines": 62
+    },
+    {
+      "path": "components/admin/admin-demo-workspace.tsx",
+      "sha256": "ef7458e2400114639f73cd07f0227baa54718e55d2d2da64fa50ecf013a46e03",
+      "lines": 202
+    },
+    {
+      "path": "components/admin/admin-finance-workspace.tsx",
+      "sha256": "0cc1ede466f9ce4c8f986be5c86020a2c4a009f71cfb2c74f0bc0399dfdbde8b",
+      "lines": 487
+    },
+    {
+      "path": "components/admin/admin-module-placeholder.tsx",
+      "sha256": "484ef7182ecb5e919be073e3c18ae06c8abbfc607e9dd8fe4dcf667b674e13b5",
+      "lines": 35
+    },
+    {
+      "path": "components/admin/admin-notices-workspace.tsx",
+      "sha256": "fdfd922c2b775641409cd9c34c5e1d196fa1fb97af1c18bb8517b0eb517999ec",
+      "lines": 310
+    },
+    {
+      "path": "components/admin/admin-people-workspace.tsx",
+      "sha256": "a6a3276443b445edc307041636b74c98c14b9b6d6e00f547a22383697bb38730",
+      "lines": 216
+    },
+    {
+      "path": "components/dashboard/dashboard.tsx",
+      "sha256": "54a77d4002b78630e2078299fd8a98aae531fbff93e14056e104bb8f717502be",
+      "lines": 33
+    },
+    {
+      "path": "components/dashboard/role-dashboard.tsx",
+      "sha256": "8726719bfaca383b1c24ea790a0a49fa82c1ba0772bba1eb879660d533b9cc57",
+      "lines": 1776
+    },
+    {
+      "path": "components/dashboard/stat-card.tsx",
+      "sha256": "b041ad9699373cff233e0213dc3241d00355e7abaf424bbffbdb04a4ea8de5da",
+      "lines": 2
+    },
+    {
+      "path": "components/layout/app-shell.tsx",
+      "sha256": "b51177de7ef0e192d9309df8056736ffe678e197185c72b325047e6c63fa06a5",
+      "lines": 235
+    },
+    {
+      "path": "components/teacher/teacher-views.tsx",
+      "sha256": "2348a00e303a77a04a557c9a98d964d959b6a7c75362c09e8f7141c2a5c0b688",
+      "lines": 1346
+    },
+    {
+      "path": "components/ui/theme-provider.tsx",
+      "sha256": "af6baff60c8729dd4b8170cc0803d7cf06cfd4b9df418237a7b60012bed72180",
+      "lines": 4
+    },
+    {
+      "path": "components/ui/theme-toggle.tsx",
+      "sha256": "b918f5a2a5f709c7a87b1e480303b100d5ba3f142190610189bd69ea928fe1d8",
+      "lines": 5
+    },
+    {
+      "path": "lib/academic.ts",
+      "sha256": "52bedc98d704971585b5ae3cc52f3ae73b8d2b670fb41f6b89b1d9b44cf79b38",
+      "lines": 210
+    },
+    {
+      "path": "lib/admin/admin-dashboard-demo.ts",
+      "sha256": "d30f220a75300392491d9a74d628727a206db7d447688d5988ef407efc334201",
+      "lines": 27
+    },
+    {
+      "path": "lib/admin/admin-demo-service.ts",
+      "sha256": "5309b2c70b33c25b812961d1a40a189738b476a3bc3674f1ddfaf013c3a3b559",
+      "lines": 222
+    },
+    {
+      "path": "lib/auth/roles.ts",
+      "sha256": "49cdf1bad5f3f2400bb057251e421cdd362c1bc769aab08b48164247dfd53aba",
+      "lines": 36
+    },
+    {
+      "path": "lib/dashboard-data.ts",
+      "sha256": "6d1765ac72b1950fb350451870015ce2cda3711232c369b489b93f2a766ddf08",
+      "lines": 7
+    },
+    {
+      "path": "lib/demo.ts",
+      "sha256": "4700fc2e364d70367ef84a01d521ad3d7ff1304fd24edb1e1e71d0cd5caf2e21",
+      "lines": 1
+    },
+    {
+      "path": "lib/modules.ts",
+      "sha256": "935bb6bbad82f454a4c1ce1a8895218113a9f0890186feded1f773fd6e777dc2",
+      "lines": 134
+    },
+    {
+      "path": "lib/supabase/client.ts",
+      "sha256": "0f3749a0db3321a99afd9997371bd3d26a763d2f121be0425894e1d4a54bc74e",
+      "lines": 2
+    },
+    {
+      "path": "lib/supabase/server.ts",
+      "sha256": "6cd7b9fe326cdc7146451352b45aa2d6bd287249ddf2cec2d67df41383660dc0",
+      "lines": 3
+    },
+    {
+      "path": "next.config.ts",
+      "sha256": "c6fec4f61ecfd5790f04386c4cb408679d5797900eeb956456ee527b164fe6e8",
+      "lines": 3
+    },
+    {
+      "path": "package-lock.json",
+      "sha256": "3729ded10f1df5dc069cee9a894195ef9e0de520f3e5a734433e1d5ca0888a05",
+      "lines": 2089
+    },
+    {
+      "path": "package.json",
+      "sha256": "7568b9bec92c49f851b49ce303276ba1eae401bb0cb82b1a6ef757f8ed023aed",
+      "lines": 31
+    },
+    {
+      "path": "postcss.config.mjs",
+      "sha256": "a1a188221f064d964dd9958c3d48b0c23252fabbeb6099d95ee8e15c764718b0",
+      "lines": 1
+    },
+    {
+      "path": "proxy.ts",
+      "sha256": "ad3c1ead6016c75eda4d71acb40966b456917de0f222889dbf0e07b33eb73757",
+      "lines": 3
+    },
+    {
+      "path": "supabase/migrations/20261030_academic_teacher_self_management.sql",
+      "sha256": "2bf238e9bab42f15a3a037eeacbc8c66353bf64118e9395a7bdc0b4e176414b5",
+      "lines": 111
+    },
+    {
+      "path": "supabase/migrations/20261101_teacher_assessments_and_profile.sql",
+      "sha256": "933b25b1f3161ade1962b31c19ccc97df5fca7defd91a7d6d954cd44fc42f317",
+      "lines": 509
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "50a53ec4a582bd0412678588a1d117f209edbbd50562f1b16b3ffa66be6bab7d",
+      "lines": 41
+    },
+    {
+      "path": "types/database.ts",
+      "sha256": "e2c44ac99d914bc7eb70d20c4b5841a399c44d0075f6c6ac74db596cd09d458b",
+      "lines": 3
+    }
+  ]
+}

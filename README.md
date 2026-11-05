@@ -1,8 +1,8 @@
-# Kids Corner ERP
+# SMS — School Management System
 
 Next.js / React / TypeScript frontend backed by Supabase Auth and PostgreSQL. Workflows are implemented and verified in slices against the founder-approved product scope.
 
-See the [implementation phases](docs/implementation/PHASES.md) and the [manual Vercel QA checklist](docs/implementation/POST-DEPLOY-QA.md).
+See the [founder release checklist](docs/implementation/FOUNDER-RELEASE-QA.md), [implementation phases](docs/implementation/PHASES.md) and [detailed manual QA checklist](docs/implementation/POST-DEPLOY-QA.md).
 
 The [product requirements](docs/product/PRD.md) capture the current product scope and release gates. See the [founder answers](docs/product/FOUNDER-ANSWERS.md) and the original [founder worksheet](docs/product/FOUNDER-PRD-INPUT.html).
 
@@ -30,9 +30,11 @@ npm run lint
 npm run build
 ```
 
-`npm run test:watch` runs Vitest in watch mode. `npm test` includes local database tests, and `test:db` runs only those. The latest local checkpoint has 479 passing tests, plus passing lint, TypeScript and production build checks. The automated tests use local fixtures and mocked provider boundaries.
+`npm run test:watch` runs Vitest in watch mode. `npm test` includes local database tests, and `test:db` runs only those. The automated tests use local fixtures and mocked provider boundaries. Current release checks and hosted verification are recorded in the [founder release checklist](docs/implementation/FOUNDER-RELEASE-QA.md); earlier checkpoints remain in the implementation log.
 
-Browser QA used the local frontend with hosted demo Supabase and four seeded accounts. Teacher and admin save/reload and student and parent attendance readback passed. The attendance Preview is deployed and ready for manual testing. Its URL and revision are in the [post-deploy QA checklist](docs/implementation/POST-DEPLOY-QA.md).
+Browser QA uses the frontend with hosted demo Supabase and isolated seeded accounts. Earlier release URLs and revisions are in the [post-deploy QA checklist](docs/implementation/POST-DEPLOY-QA.md); the current founder release is recorded separately. This release includes substitute attendance coverage, academic permission hardening, private homework submission/grading, attendance/fee conflict recovery, reviewed fee batches/opening balances, approved fee changes/payment-entry reversals, student advance credit/offline refunds, and SMS branding with automatic login theme and saved dashboard preferences. The corresponding backend migrations are already applied to the demo project. The [implementation phases](docs/implementation/PHASES.md#fees-phase-3-student-advance-credit-and-offline-refunds) record the latest fee slice. The [settlement boundary](docs/implementation/FEE-SETTLEMENT-BOUNDARY.md) explains current manual accounting and future server-only gateway integration.
+
+Use this as a demo/founder QA release. The [current technical audit](docs/audit/2026-11-05/REPORT.md) records open legacy permissions, activation and concurrent-edit risks. Resolve its release gates before onboarding real schools or importing real pupil/financial data.
 
 ## Attendance flow
 

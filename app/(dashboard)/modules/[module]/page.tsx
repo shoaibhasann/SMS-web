@@ -26,7 +26,10 @@ import type { AdminDemoModule } from "@/lib/admin/admin-demo-service";
 import { TeacherAttendanceRegister } from "@/components/academic/teacher-attendance-register";
 import { FamilyAttendanceRegister } from "@/components/academic/family-attendance-register";
 import { FamilyReceipts } from "@/components/finance/family-receipts";
+import { AdvanceCreditWorkspace } from "@/components/finance/advance-credit-workspace";
+import { FamilyAdvanceCredit } from "@/components/finance/family-advance-credit";
 import { TeachingAssignmentManager } from "@/components/academic/teaching-assignment-manager";
+import { SubstituteCoverageWorkspace } from "@/components/academic/substitute-coverage-workspace";
 
 const supabase = createClient();
 
@@ -42,7 +45,7 @@ function ModuleContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const moduleName = String(params?.module || "");
-  const guardianView = ["attendance", "notifications", "profile"].includes(moduleName) && searchParams.get("view") === "guardian";
+  const guardianView = ["attendance", "notifications", "profile", "advance-credit"].includes(moduleName) && searchParams.get("view") === "guardian";
   const initialChildId = guardianView && moduleName === "attendance" ? searchParams.get("child") ?? undefined : undefined;
   const accessKey = guardianView ? `${moduleName}?view=guardian` : moduleName;
   const [access, setAccess] = useState<{
@@ -176,6 +179,15 @@ function ModuleContent() {
     return <AppShell role={access.role}><AdminFinanceWorkspace key={access.userId} mode="fees" /></AppShell>;
   }
 
+  if (moduleName === "advance-credit") {
+    if (access.role === "admin" || access.role === "principal" || access.role === "finance") {
+      return <AppShell role={access.role}><AdvanceCreditWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+    }
+    if (access.role === "parent" || access.role === "student") {
+      return <AppShell role={access.role}><FamilyAdvanceCredit key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} /></AppShell>;
+    }
+  }
+
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "invoices") {
     const receipt = searchParams.get("receipt") ?? "";
     return <AppShell role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${receipt}`} mode="invoices" initialReceiptNo={receipt} /></AppShell>;
@@ -245,7 +257,10 @@ function ModuleContent() {
   }
 
   if (moduleName === "teacher-assignments") {
-    return <AppShell role={access.role}><TeachingAssignmentManager /></AppShell>;
+    return <AppShell role={access.role}><div className="space-y-6">
+      {(access.role === "admin" || access.role === "principal") && <SubstituteCoverageWorkspace key={access.userId} userId={access.userId} />}
+      <TeachingAssignmentManager />
+    </div></AppShell>;
   }
 
   if (access.role === "teacher") {

@@ -15,7 +15,7 @@ export default async function UpdatePasswordPage() {
         <h1 className="mt-5 text-2xl font-black">{recovery ? "Set a new password" : "Open a password reset link"}</h1>
         {recovery ? (
           <>
-            <p className="mt-2 text-sm muted">Choose a strong password for your Kids Corner account.</p>
+            <p className="mt-2 text-sm muted">Choose a strong password for your SMS account.</p>
             <UpdatePasswordForm sessionId={recovery.sessionId} />
           </>
         ) : (

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAttendanceRepository } from "../lib/attendance/repository";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -431,5 +433,55 @@ describe("schoolDate", () => {
     ["2026-12-31T18:30:00.000Z", "2027-01-01"],
   ])("uses the Indian school day for %s regardless of host timezone", (instant, expected) => {
     expect(schoolDate(new Date(instant))).toBe(expected);
+  });
+});
+
+describe("historical correction request conflicts", () => {
+  it.each(["PT409", "40001"])("keeps the requested mark and reason until an explicit register reload, then uses the fresh mark revision (%s)", async (code) => {
+    const user = userEvent.setup();
+    const { repository: base, store, key } = persistedRepository();
+    const pastDay = schoolDate(new Date(Date.now() - 86_400_000));
+    const previous = initialSnapshot();
+    previous.entries.a = { ...previous.entries.a, id: "mark-a", revision: 0 };
+    store.set(key(context, pastDay), previous);
+    let requests = 0;
+    const rpc = vi.fn(async (_name: string, args: Record<string, unknown>) => {
+      requests += 1;
+      if (requests === 1) return { data: null, error: { code, message: "The before record is stale." } };
+      return { data: args.p_request_id, error: null };
+    });
+    const actual = createAttendanceRepository({ rpc } as unknown as SupabaseClient);
+    const repository = { ...base, requestCorrection: actual.requestCorrection };
+    const onCorrectionRequested = vi.fn();
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} onCorrectionRequested={onCorrectionRequested} />);
+    await loaded();
+    fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: pastDay } });
+    await loaded();
+    await user.selectOptions(attendance("Aarav"), "late");
+    await user.type(screen.getByLabelText("Correction reason"), "Gate register confirms late arrival.");
+    await user.click(screen.getByRole("button", { name: "Request correction" }));
+    await screen.findByText(/Attendance changed before the correction could be requested/);
+    expect(attendance("Aarav")).toHaveValue("late");
+    expect(screen.getByLabelText("Correction reason")).toHaveValue("Gate register confirms late arrival.");
+    expect(screen.getByRole("button", { name: "Request correction" })).toBeDisabled();
+    expect(onCorrectionRequested).not.toHaveBeenCalled();
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/Correction requested\./)).not.toBeInTheDocument();
+
+    const changed = structuredClone(previous);
+    changed.entries.a = { ...changed.entries.a, status: "present", revision: 1 };
+    store.set(key(context, pastDay), changed);
+    await user.click(screen.getByRole("button", { name: "Discard changes and reload" }));
+    await waitFor(() => expect(attendance("Aarav")).toHaveValue("present"));
+    await user.selectOptions(attendance("Aarav"), "late");
+    await user.type(screen.getByLabelText("Correction reason"), "New request after checking the latest mark.");
+    await user.click(screen.getByRole("button", { name: "Request correction" }));
+    await screen.findByText(/Correction requested\./);
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[0][1]).toMatchObject({ p_expected_id: "mark-a", p_expected_revision: 0 });
+    expect(rpc.mock.calls[1][1]).toMatchObject({ p_expected_id: "mark-a", p_expected_revision: 1, p_reason: "New request after checking the latest mark." });
+    expect(rpc.mock.calls[0][1].p_request_id).not.toBe(rpc.mock.calls[1][1].p_request_id);
+    expect(onCorrectionRequested).toHaveBeenCalledTimes(1);
+    expect(base.save).not.toHaveBeenCalled();
   });
 });

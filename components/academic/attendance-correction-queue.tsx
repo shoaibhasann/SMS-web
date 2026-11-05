@@ -42,6 +42,8 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
   const [selected, setSelected] = useState("");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [requiresRefresh, setRequiresRefresh] = useState("");
+  const [outdated, setOutdated] = useState<Set<string>>(() => new Set());
   const [message, setMessage] = useState<{ text: string; error: boolean }>();
   const inFlight = useRef(false);
   const queryKey = JSON.stringify([schoolId, userId, own, page, revision, refresh]);
@@ -73,9 +75,10 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
 
   async function decide(event: FormEvent<HTMLFormElement>, request: Correction) {
     event.preventDefault();
-    if (own || disabled || inFlight.current || request.state !== "pending" || request.requested_by === userId || !reason.trim()) return;
+    if (own || disabled || inFlight.current || requiresRefresh === request.id || request.state !== "pending" || request.requested_by === userId || !reason.trim()) return;
     const decision = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value");
     if (decision !== "approved" && decision !== "rejected") return;
+    if (decision === "approved" && outdated.has(request.id)) return;
     inFlight.current = true;
     setSaving(true);
     setMessage(undefined);
@@ -86,6 +89,12 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
         p_reason: reason.trim(),
       });
       if (error || data !== decision) {
+        if (error && ["PT409", "40001"].includes(error.code)) {
+          setRequiresRefresh(request.id);
+          setOutdated((previous) => new Set(previous).add(request.id));
+          setMessage({ text: "Attendance changed, so this request cannot be approved. Your review reason is kept. Refresh requests, reject the outdated request with a reason, and ask the teacher to reload and submit a new correction.", error: true });
+          return;
+        }
         const actionable = error && ["22023", "42501", "23505", "40001"].includes(error.code);
         setMessage({ text: actionable ? error.message : "The review could not be confirmed. Retry with the same reason or refresh.", error: true });
         return;
@@ -110,7 +119,7 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
           <h2 className="font-bold">{own ? "My correction requests" : "Attendance correction review"}</h2>
           <p className="mt-1 text-sm muted">{own ? "See the decisions and reasons for your requests." : "Review requests for past attendance dates. Every decision needs a reason."}</p>
         </div>
-        <button type="button" disabled={saving} className={buttonClass} onClick={() => { setMessage(undefined); setRefresh((value) => value + 1); }}>Refresh requests</button>
+        <button type="button" disabled={saving} className={buttonClass} onClick={() => { setMessage(undefined); setRequiresRefresh(""); setRefresh((value) => value + 1); }}>Refresh requests</button>
       </div>
       {message && <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{message.text}</p>}
       {!activeResult ? <p role="status" className="text-sm muted">Loading correction requests…</p> : activeResult.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{activeResult.error}</p> : !rows.length ? <p className="text-sm muted">No correction requests on this page.</p> : (
@@ -129,6 +138,7 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
               {request.before_record?.remarks && <p className="break-words text-sm muted">Original remarks · {request.before_record.remarks}</p>}
               {request.after_record && <p className="text-sm muted">Applied status · {attendanceLabels[request.after_record.status]}</p>}
               {request.review_reason && <p className="break-words text-sm muted">Review reason{request.reviewer_name && ` by ${request.reviewer_name}`} · {request.review_reason}</p>}
+              {request.state === "pending" && outdated.has(request.id) && <p className="text-sm muted">This request uses an outdated mark. Reject it with a reason; the teacher must reload and request a new correction.</p>}
               {!own && request.state === "pending" && (request.requested_by === userId
                 ? <p className="text-sm muted">Another reviewer must decide your request.</p>
                 : selected === request.id ? (
@@ -138,8 +148,8 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
                       <textarea required rows={2} maxLength={500} value={reason} disabled={saving} onChange={(event) => setReason(event.target.value)} className="field" />
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      <button type="submit" value="approved" disabled={disabled || saving || !reason.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Approve correction</button>
-                      <button type="submit" value="rejected" disabled={disabled || saving || !reason.trim()} className={buttonClass}>Reject correction</button>
+                      <button type="submit" value="approved" disabled={disabled || saving || outdated.has(request.id) || requiresRefresh === request.id || !reason.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Approve correction</button>
+                      <button type="submit" value="rejected" disabled={disabled || saving || requiresRefresh === request.id || !reason.trim()} className={buttonClass}>Reject correction</button>
                       <button type="button" disabled={saving} className={buttonClass} onClick={() => { setSelected(""); setReason(""); }}>Cancel</button>
                     </div>
                   </form>

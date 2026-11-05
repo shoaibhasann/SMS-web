@@ -4,17 +4,10 @@ import { useEffect, useState } from "react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
 import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
-
-type Receipt = {
-  id: string;
-  receipt_no: string;
-  amount: number;
-  paid_at: string | null;
-  payment_method: string | null;
-};
+import { listFamilyFeeReceipts, type FamilyFeeReceipt } from "@/lib/finance/fee-changes";
+import { formatFeeMoney } from "@/lib/finance/fee-batches";
 
 const pageSize = 30;
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const paidDate = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" });
 const button = "rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60";
 
@@ -91,19 +84,15 @@ export function FamilyReceipts({ role, userId }: { role: "student" | "parent"; u
 function ReceiptHistory({ client, student }: { client: ReturnType<typeof createClient>; student: FamilyStudent }) {
   const [page, setPage] = useState(0);
   const [attempt, setAttempt] = useState(0);
-  const [result, setResult] = useState<{ page: number; attempt: number; rows: Receipt[]; count: number; error: boolean }>();
+  const [result, setResult] = useState<{ page: number; attempt: number; rows: FamilyFeeReceipt[]; count: number; error: boolean }>();
   const view = result?.page === page && result.attempt === attempt ? result : undefined;
 
   useEffect(() => {
     let active = true;
     const offset = page * pageSize;
-    void client.from("fee_payments")
-      .select("id,receipt_no,amount,paid_at,payment_method", { count: "exact" })
-      .eq("school_id", student.school_id).eq("student_id", student.id).eq("status", "paid")
-      .order("paid_at", { ascending: false, nullsFirst: false }).order("id")
-      .range(offset, offset + pageSize - 1).returns<Receipt[]>()
-      .then(({ data, error, count }) => {
-        if (active) setResult({ page, attempt, rows: data ?? [], count: count ?? 0, error: Boolean(error) });
+    void listFamilyFeeReceipts(client, student.id, pageSize, offset)
+      .then(({ rows, count }) => {
+        if (active) setResult({ page, attempt, rows, count, error: false });
       }, () => {
         if (active) setResult({ page, attempt, rows: [], count: 0, error: true });
       });
@@ -140,10 +129,16 @@ function ReceiptHistory({ client, student }: { client: ReturnType<typeof createC
                     <dd className="capitalize">{row.payment_method === "upi" ? "UPI" : row.payment_method?.replaceAll("_", " ") ?? "—"}</dd>
                   </div>
                   <div className="text-right">
-                    <dt className="mb-1 text-xs muted">Amount</dt>
-                    <dd className="font-semibold tabular-nums">{money.format(Number(row.amount))}</dd>
+                    <dt className="mb-1 text-xs muted">Receipt amount</dt>
+                    <dd className="font-semibold tabular-nums">{formatFeeMoney(row.amount)}</dd>
                   </div>
                 </dl>
+                {row.status === "reversed" && <div className="mt-3 space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
+                  <p className="font-semibold">Payment entry reversed{row.reversed_at ? ` · ${paidDate.format(new Date(row.reversed_at))} IST` : ""}</p>
+                  <p className="muted">The original receipt is retained. Effective recorded amount: {row.net_amount === null ? "Under review" : formatFeeMoney(row.net_amount)}.</p>
+                  {row.reversal_reference && <p className="break-all text-xs muted">Correction reference · {row.reversal_reference}</p>}
+                  <p className="text-xs muted">This is a correction of the school’s payment record. Refunds are handled separately by the school.</p>
+                </div>}
               </li>
             ))}
           </ul>

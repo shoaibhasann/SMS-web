@@ -4,25 +4,32 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { CalendarDays, CircleCheck, LockKeyhole, RefreshCw } from "lucide-react";
 import { schoolDate } from "@/lib/attendance/types";
 import type { createClient } from "@/lib/supabase/client";
+import { feeMoney, formatFeeMoney } from "@/lib/finance/fee-batches";
 
 type OfficeDay = {
   business_date: string;
   revision: number;
   receipt_count: number;
-  recorded_total: number;
-  recorded_cash: number;
+  recorded_total: number | string;
+  recorded_cash: number | string;
+  gross_total?: number | string;
+  reversed_total?: number | string;
+  reversal_count?: number;
+  advance_total?: number | string;
+  advance_count?: number;
+  refunded_total?: number | string;
+  refund_count?: number;
   invalid_count: number;
-  methods: { method: string; receipt_count: number; total: number }[];
+  methods: { method: string; receipt_count: number; total: number | string; reversal_count?: number; gross_total?: number | string; reversed_total?: number | string; advance_total?: number | string; advance_count?: number; refunded_total?: number | string; refund_count?: number }[];
   closed_at: string | null;
   closed_by_name: string | null;
-  counted_cash: number | null;
-  cash_variance: number | null;
+  counted_cash: number | string | null;
+  cash_variance: number | string | null;
   variance_note: string | null;
 };
 
 type Review = { day: string; refresh: number; snapshot: OfficeDay | null; error: string };
 
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const closedTime = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata",
 });
@@ -30,6 +37,15 @@ const methodLabels: Record<string, string> = {
   cash: "Cash", upi: "UPI", bank_transfer: "Bank transfer", card: "Card",
   cheque: "Cheque", unclassified: "Unclassified",
 };
+
+function cashDifference(counted: string, recorded: string | number) {
+  const asPaise = (value: string | number) => {
+    const canonical = feeMoney(value), sign = canonical.startsWith("-") ? -BigInt(1) : BigInt(1);
+    return BigInt(canonical.replace(/^-/, "").replace(".", "")) * sign;
+  };
+  const delta = asPaise(counted) - asPaise(recorded), absolute = delta < BigInt(0) ? -delta : delta;
+  return `${delta < BigInt(0) ? "-" : ""}${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
+}
 
 export function CashierDayClose({ schoolId, client }: { schoolId: string; client: ReturnType<typeof createClient> }) {
   const today = schoolDate();
@@ -40,6 +56,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
   const [note, setNote] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [requiresRefresh, setRequiresRefresh] = useState(false);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
   const activeReview = review?.day === day && review.refresh === refresh ? review : undefined;
@@ -67,20 +84,22 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
 
   function refreshReview() {
     setConfirming(false);
+    setRequiresRefresh(false);
     setError("");
     setRefresh((value) => value + 1);
   }
 
-  const countedCash = /^\d{1,12}(?:\.\d{1,2})?$/.test(counted) ? Number(counted) : null;
+  const countedCash = /^\d{1,12}(?:\.\d{1,2})?$/.test(counted) ? feeMoney(counted) : null;
   const difference = countedCash !== null && snapshot
-    ? Math.round((countedCash - snapshot.recorded_cash) * 100) / 100
+    ? cashDifference(countedCash, snapshot.recorded_cash)
     : null;
-  const canClose = countedCash !== null && (difference === 0 || Boolean(note.trim()));
+  const hasVariance = difference !== null && difference !== "0.00";
+  const canClose = !requiresRefresh && countedCash !== null && (!hasVariance || Boolean(note.trim()));
 
   async function closeDay(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!snapshot || snapshot.closed_at || snapshot.invalid_count || countedCash === null
-      || !canClose || inFlight.current) return;
+      || !canClose || requiresRefresh || inFlight.current) return;
     if (!confirming) {
       setConfirming(true);
       return;
@@ -93,12 +112,13 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
         p_school_id: schoolId,
         p_day: snapshot.business_date,
         p_revision: snapshot.revision,
-        p_counted_cash: countedCash,
+        p_counted_cash: Number(countedCash),
         p_note: note.trim() || null,
       });
-      if (result.error?.code === "40001" || result.error?.code === "23505") {
-        refreshReview();
-        setError(result.error.message);
+      if (["PT409", "40001", "23505"].includes(result.error?.code ?? "")) {
+        setConfirming(false);
+        setRequiresRefresh(true);
+        setError("The day's receipts or close status changed. Your cash count and note are kept. Refresh day and review the latest totals before closing.");
       } else if (result.error?.code === "22023" || result.error?.code === "42501") {
         setError(result.error.message);
       } else if (result.error || !result.data?.closed_at) {
@@ -123,7 +143,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
             <CalendarDays size={15} aria-hidden="true" /> Daily reconciliation
           </div>
           <h2 id="cashier-day-title" className="text-xl font-bold">Cashier day close</h2>
-          <p className="mt-1 max-w-xl text-sm muted">Review recorded receipts and compare them with the cash on hand. Business dates use IST.</p>
+          <p className="mt-1 max-w-xl text-sm muted">Review fee and advance receipts, recorded offline refunds and entry corrections. Compare net recorded cash with cash on hand. Applying credit and reserving refunds do not move money. Business dates use IST.</p>
         </div>
         {snapshot && (
           <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${snapshot.closed_at
@@ -154,27 +174,31 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
         {day && !activeReview && <p role="status" className="text-sm muted">Loading the day’s receipts…</p>}
 
         {snapshot && <>
-          <dl className="grid gap-3 sm:grid-cols-3">
+          <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ["Day collections", money.format(snapshot.recorded_total)],
-              ["Recorded cash", money.format(snapshot.recorded_cash)],
-              ["Paid receipts", snapshot.receipt_count],
+              ["Gross money received", formatFeeMoney(snapshot.gross_total ?? snapshot.recorded_total)],
+              ["Advance receipts included", formatFeeMoney(snapshot.advance_total ?? 0)],
+              ["Reversal entries", formatFeeMoney(snapshot.reversed_total ?? 0)],
+              ["Offline refunds paid", formatFeeMoney(snapshot.refunded_total ?? 0)],
+              ["Net day collections", formatFeeMoney(snapshot.recorded_total)],
+              ["Net recorded cash", formatFeeMoney(snapshot.recorded_cash)],
             ].map(([label, value]) => <div key={label} className="rounded-xl bg-[var(--surface-2)] p-4">
               <dt className="text-xs font-medium muted">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{value}</dd>
             </div>)}
           </dl>
+          <p className="text-xs muted">{snapshot.receipt_count} paid {snapshot.receipt_count === 1 ? "receipt" : "receipts"} ({snapshot.advance_count ?? 0} advance) · {snapshot.reversal_count ?? 0} {(snapshot.reversal_count ?? 0) === 1 ? "reversal" : "reversals"} · {snapshot.refund_count ?? 0} offline {(snapshot.refund_count ?? 0) === 1 ? "refund" : "refunds"}. Earlier closed days retain their original saved totals.</p>
 
           {snapshot.methods.length > 0 ? (
             <ul aria-label="Collections by method" className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
-              {snapshot.methods.map(({ method, receipt_count, total }) => (
+              {snapshot.methods.map(({ method, receipt_count, total, reversal_count = 0, reversed_total = 0, advance_count = 0, refund_count = 0, refunded_total = 0 }) => (
                 <li key={method} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                   <span className="font-medium capitalize">{methodLabels[method] ?? method.replaceAll("_", " ")}</span>
-                  <span className="ml-auto text-xs muted">{receipt_count} {receipt_count === 1 ? "receipt" : "receipts"}</span>
-                  <span className="min-w-24 text-right font-semibold tabular-nums">{money.format(total)}</span>
+                  <span className="ml-auto text-xs muted">{receipt_count} {receipt_count === 1 ? "receipt" : "receipts"} ({advance_count} advance) · {reversal_count} {reversal_count === 1 ? "reversal" : "reversals"}{reversal_count > 0 && ` (${formatFeeMoney(reversed_total)})`} · {refund_count} offline {refund_count === 1 ? "refund" : "refunds"}{refund_count > 0 && ` (${formatFeeMoney(refunded_total)})`}</span>
+                  <span className="min-w-24 text-right font-semibold tabular-nums">Net {formatFeeMoney(total)}</span>
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm muted">There are no paid receipts for this date.</p>}
+          ) : <p className="text-sm muted">There are no receipts, offline refunds or reversal entries for this date.</p>}
 
           {snapshot.closed_at ? (
             <div className="space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
@@ -185,8 +209,8 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
                 </div>
               </div>
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                <div><dt className="muted">Counted cash</dt><dd className="font-semibold">{money.format(snapshot.counted_cash ?? 0)}</dd></div>
-                <div><dt className="muted">Cash variance</dt><dd className="font-semibold">{money.format(snapshot.cash_variance ?? 0)}</dd></div>
+                <div><dt className="muted">Counted cash</dt><dd className="font-semibold">{formatFeeMoney(snapshot.counted_cash ?? 0)}</dd></div>
+                <div><dt className="muted">Cash variance</dt><dd className="font-semibold">{formatFeeMoney(snapshot.cash_variance ?? 0)}</dd></div>
               </dl>
               {snapshot.variance_note && <p className="break-words text-sm muted">{snapshot.variance_note}</p>}
             </div>
@@ -199,13 +223,13 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
                   <input required type="number" min="0" max="999999999999.99" step="0.01" inputMode="decimal" value={counted} onChange={(event) => setCounted(event.target.value)} className="field" placeholder="0.00" />
                 </label>
                 <label className="space-y-1.5 text-sm font-medium">
-                  {difference ? "Variance note (required)" : "Variance note"}
-                  <input required={Boolean(difference)} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} className="field" placeholder="Explain any difference" />
+                  {hasVariance ? "Variance note (required)" : "Variance note"}
+                  <input required={hasVariance} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} className="field" placeholder="Explain any difference" />
                 </label>
               </fieldset>
-              {difference !== null && <p className="text-sm muted">Cash variance <strong className="tabular-nums">{money.format(difference)}</strong></p>}
+              {difference !== null && <p className="text-sm muted">Cash variance <strong className="tabular-nums">{formatFeeMoney(difference)}</strong></p>}
               {confirming && <p role="status" className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
-                Closing locks the receipts for this date. New payments for this date will be refused.
+                Closing locks receipts, offline payouts and reversal entries for this date. New entries for this date will be refused. Credit applications and refund reservations are not cash movements.
               </p>}
               <div className="flex flex-wrap gap-2">
                 <button type="submit" disabled={saving || !canClose} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">

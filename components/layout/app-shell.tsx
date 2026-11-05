@@ -30,17 +30,15 @@ const idleLink = "muted hover:bg-[var(--surface-2)]";
 function moduleHref(role: UiRole, key: string) {
   if (role === "parent" && key === "attendance") return guardianAttendancePath;
   if (role === "parent" && key === "notifications") return guardianNotificationsPath;
+  if (role === "parent" && key === "advance-credit") return "/modules/advance-credit?view=guardian";
   return `/modules/${key}`;
 }
 
 function Brand() {
   return (
-    <div className="flex min-w-0 items-center gap-3">
-      <div aria-hidden="true" className="gradient grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-black shadow-sm">KC</div>
-      <div className="min-w-0">
-        <div className="truncate font-extrabold tracking-tight">Kids Corner</div>
-        <div className="text-xs muted">School workspace</div>
-      </div>
+    <div className="min-w-0">
+      <p className="text-[30px] font-black leading-none tracking-[-0.045em]">SMS</p>
+      <p className="mt-2 text-xs muted">School Management System</p>
     </div>
   );
 }
@@ -256,8 +254,8 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
             <Navigation role={role} modules={visibleModules} currentKey={currentKey} onNavigate={() => menuDialog.current?.close()} />
           </div>
           <div className="shrink-0 border-t border-[var(--border)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+            <p className="mb-2 text-sm font-semibold">{roleLabels[role]}</p>
             <div className="flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold">{roleLabels[role]}</p>
               <ThemeToggle />
               {logout}
             </div>

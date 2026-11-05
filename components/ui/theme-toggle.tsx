@@ -1,27 +1,39 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { ChevronDown, Monitor, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useSyncExternalStore } from "react";
 
-// The browser environment is constant for this component's lifetime. React
-// uses the server snapshot for hydration, then reads the browser snapshot.
 const subscribe = () => () => {};
 const browserSnapshot = () => true;
 const serverSnapshot = () => false;
-const choices = [["light", Sun], ["dark", Moon], ["system", Monitor]] as const;
+const choices = [
+  { value: "system", label: "System", icon: Monitor },
+  { value: "light", label: "Light", icon: Sun },
+  { value: "dark", label: "Dark", icon: Moon },
+] as const;
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  const { theme, resolvedTheme, setTheme } = useTheme();
   const browserReady = useSyncExternalStore(subscribe, browserSnapshot, serverSnapshot);
-  if (!browserReady) return <div aria-hidden="true" className="h-10 w-28 rounded-xl border border-[var(--border)]" />;
+  const choice = choices.find(({ value }) => browserReady && value === theme) ?? choices[0];
+  const Icon = choice.icon;
 
-  return <div role="group" aria-label="Color theme" className="flex rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
-    {choices.map(([value, Icon]) => <button key={value} type="button"
-      aria-label={`Use ${value} theme`} aria-pressed={theme === value}
-      onClick={() => setTheme(value)}
-      className={`rounded-lg p-2 ${theme === value ? "bg-blue-50 text-blue-600 dark:bg-blue-950" : "muted"}`}>
-      <Icon size={16} />
-    </button>)}
-  </div>;
+  return (
+    <label className="relative inline-flex min-h-12 min-w-28 shrink-0 items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-medium text-[var(--text)] hover:bg-[var(--surface-2)] focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--primary)]">
+      <Icon size={17} aria-hidden="true" className="muted" />
+      <span aria-hidden="true">{choice.label}</span>
+      <ChevronDown size={14} aria-hidden="true" className="muted" />
+      <select
+        aria-label="Color theme"
+        title={choice.value === "system" && browserReady ? `System theme (${resolvedTheme === "dark" ? "dark" : "light"})` : `${choice.label} theme`}
+        value={choice.value}
+        disabled={!browserReady}
+        onChange={(event) => setTheme(event.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
+      >
+        {choices.map(({ value, label }) => <option key={value} value={value}>{label === "System" ? "System (device setting)" : label}</option>)}
+      </select>
+    </label>
+  );
 }

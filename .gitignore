@@ -12,3 +12,6 @@ graphify-out/
 *.tsbuildinfo
 coverage/
 .vitest/
+.vercel/
+.claude/
+.mcp.json

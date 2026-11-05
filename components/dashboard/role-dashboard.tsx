@@ -22,6 +22,8 @@ import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
+import { useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
 import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submission-monitor";
@@ -35,6 +37,8 @@ import {
   type FamilyStudent,
 } from "@/lib/attendance/family";
 import { attendanceLabels, schoolDate } from "@/lib/attendance/types";
+import { formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow, type FeeMoney } from "@/lib/finance/fee-batches";
+import { getFamilyFeeLedger, getOfficeFinanceSummary } from "@/lib/finance/fee-changes";
 
 type Assignment = {
   id: string;
@@ -46,6 +50,9 @@ type Assignment = {
   className?: string;
   sectionName?: string;
   subjectName?: string;
+  coverage_id?: string | null;
+  starts_on?: string | null;
+  ends_on?: string | null;
 };
 
 type StudentRow = {
@@ -70,12 +77,6 @@ type EnrollmentRow = {
   classes: { name: string } | null;
   sections: { name: string } | null;
 };
-type StudentFeeRow = {
-  id: string;
-  amount: number | string;
-  status: string;
-  billing_period: string | null;
-};
 type StudentDashboardData = {
   student: FamilyStudent | null;
   enrollment: EnrollmentRow | null;
@@ -83,10 +84,12 @@ type StudentDashboardData = {
   attendanceError: boolean;
   logs: LogRow[];
   activities: ActivityRow[];
-  fees: StudentFeeRow[];
+  fees: FeeLedgerRow[];
+  feesError: boolean;
+  feeCount: number | null;
 };
 const emptyStudentDashboard: StudentDashboardData = {
-  student: null, enrollment: null, attendance: [], attendanceError: false, logs: [], activities: [], fees: [],
+  student: null, enrollment: null, attendance: [], attendanceError: false, logs: [], activities: [], fees: [], feesError: false, feeCount: null,
 };
 
 type LogRow = {
@@ -193,8 +196,8 @@ type AdminOverview = {
   activeTeachers: number | null;
   classesLoggedToday: number | null;
   upcomingExams: number | null;
-  todayCollection: number | null;
-  monthCollection: number | null;
+  todayCollection: FeeMoney | null;
+  monthCollection: FeeMoney | null;
   pendingFees: number | null;
   overdueFees: number | null;
 };
@@ -369,7 +372,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
   const [upcomingAssessments, setUpcomingAssessments] = useState<TeacherAssessmentRow[]>([]);
   const [recentMarks, setRecentMarks] = useState<TeacherMarkActivity[]>([]);
   const [teacherNotices, setTeacherNotices] = useState<NoticeRow[]>([]);
-  const [classTeacherAssignments, setClassTeacherAssignments] = useState<Assignment[]>([]);
+  const [classTeacherAssignments, setClassTeacherAssignments] = useState<(Assignment & EffectiveAttendanceAssignment)[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const [attendanceLocked, setAttendanceLocked] = useState(false);
   const [noticeTitle, setNoticeTitle] = useState("");
@@ -378,8 +381,8 @@ function TeacherDashboard({ userId }: { userId: string }) {
   const [busy, setBusy] = useState(true);
 
   const currentAssignment = useMemo(
-    () => assignments.find((a) => a.id === selectedAssignment),
-    [assignments, selectedAssignment]
+    () => classTeacherAssignments.find((a) => a.id === selectedAssignment),
+    [classTeacherAssignments, selectedAssignment]
   );
 
   function refresh() {
@@ -387,6 +390,15 @@ function TeacherDashboard({ userId }: { userId: string }) {
     setMessage("");
     setReloadVersion((version) => version + 1);
   }
+
+  useAttendanceAccessRevalidation({ client: supabase, enabled: !busy && Boolean(teacher), assignments: classTeacherAssignments,
+    onChanged: () => { setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false); refresh(); },
+    onUnavailable: () => {
+      setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false);
+      setTodayAttendanceRows([]); setAttendanceOverviewUnavailable(true);
+      setMessage("Attendance access could not be verified. Reopen this page to check your access.");
+    },
+  });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -434,11 +446,21 @@ function TeacherDashboard({ userId }: { userId: string }) {
         subjectName: submap.get(x.subject_id) ?? "Subject",
       }));
       setAssignments(enriched);
-      const classTeacherRows = enriched.filter((x) => x.is_class_teacher);
-      setClassTeacherAssignments(classTeacherRows);
-
-      // Attendance belongs to the assigned class teacher, not an arbitrary subject.
-      const eligibleAssignments = classTeacherRows.filter((assignment) => assignment.section_id);
+      // Temporary cover applies only to attendance; academics continue using permanent assignments above.
+      let eligibleAssignments: (Assignment & EffectiveAttendanceAssignment)[] = [];
+      if (currentYear?.id && !currentYearError) {
+        try {
+          const effective = await loadEffectiveAttendanceAssignments(supabase);
+          if (controller.signal.aborted) return;
+          eligibleAssignments = effective.filter((item) => item.academic_year_id === currentYear.id).map((item) => ({
+            ...item, className: item.class_name, sectionName: item.section_name, subjectName: item.subject_name,
+          }));
+        } catch {
+          if (controller.signal.aborted) return;
+          setMessage("Attendance assignments could not be verified. Refresh before recording attendance.");
+        }
+      }
+      setClassTeacherAssignments(eligibleAssignments);
       setSelectedAssignment((selected) => eligibleAssignments.some((assignment) => assignment.id === selected)
         ? selected : eligibleAssignments[0]?.id ?? "");
 
@@ -513,8 +535,8 @@ function TeacherDashboard({ userId }: { userId: string }) {
         }
       }
 
-      const assignedSectionIds = [...new Set(enriched.map((assignment) => assignment.section_id).filter(Boolean))] as string[];
-      const assignmentYearIds = [...new Set(enriched.map((assignment) => assignment.academic_year_id))];
+      const assignedSectionIds = [...new Set(eligibleAssignments.map((assignment) => assignment.section_id).filter(Boolean))] as string[];
+      const assignmentYearIds = [...new Set(eligibleAssignments.map((assignment) => assignment.academic_year_id))];
       setAttendanceOverviewUnavailable(false);
       if (assignedSectionIds.length && assignmentYearIds.length) {
         const { data: attendanceRows, error: attendanceError } = await supabase
@@ -809,7 +831,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         <div className="mt-6 border-t border-[var(--border)] pt-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div>
-              <label className="block text-sm font-semibold">Assigned class / subject
+              <label className="block text-sm font-semibold">Attendance class
                 <select
                   value={selectedAssignment}
                   disabled={attendanceLocked || busy}
@@ -818,7 +840,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
                 >
                   {!selectedAssignment && <option value="">No assigned class teacher section</option>}
                   {classTeacherAssignments.filter((assignment) => assignment.section_id).map((a) => (
-                    <option key={a.id} value={a.id}>{a.className} {a.sectionName} · {a.subjectName}</option>
+                    <option key={a.id} value={a.id}>{a.className} {a.sectionName}{a.coverage_id ? " · Temporary attendance coverage" : " · Class teacher"}</option>
                   ))}
                 </select>
               </label>
@@ -836,6 +858,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
             </div>
             <div>
               <h3 className="mb-3 font-semibold">Record attendance</h3>
+              {currentAssignment?.coverage_id && <p className="mb-3 text-sm muted">Temporary attendance coverage · {currentAssignment.starts_on} through {currentAssignment.ends_on} IST. Previous days are read-only.</p>}
               <fieldset disabled={busy}>
               <AttendanceEditor
                 context={teacher?.school_id && currentAssignment?.is_class_teacher && currentAssignment.section_id ? {
@@ -845,6 +868,9 @@ function TeacherDashboard({ userId }: { userId: string }) {
                   sectionId: currentAssignment.section_id,
                 } : null}
                 userId={userId}
+                reviewOnlyHistory={Boolean(currentAssignment?.coverage_id)}
+                dateLimits={currentAssignment?.coverage_id && currentAssignment.starts_on && currentAssignment.ends_on
+                  ? { start: currentAssignment.starts_on, end: currentAssignment.ends_on } : undefined}
                 onLockChange={setAttendanceLocked}
                 onSaved={refresh}
               />
@@ -916,15 +942,16 @@ async function loadStudentDashboardData(
   student: FamilyStudent,
   signal: AbortSignal,
 ): Promise<StudentDashboardData | null> {
-  const [{ data: enrollment }, attendanceResult, { data: fees }] = await Promise.all([
+  const [{ data: enrollment }, attendanceResult, feeResult] = await Promise.all([
     supabase.from("enrollments").select("class_id,section_id,academic_year_id,roll_no,classes(name),sections(name),academic_years!inner(is_current)")
       .eq("student_id", student.id).eq("status", "active")
       .eq("academic_years.school_id", student.school_id).eq("academic_years.is_current", true)
       .returns<EnrollmentRow[]>().maybeSingle(),
     loadFamilyAttendance(supabase, student),
-    supabase.from("student_fees").select("id,amount,discount,late_fee,status,billing_period,due_date")
-      .eq("school_id", student.school_id).eq("student_id", student.id)
-      .order("created_at", { ascending: false }).limit(30).returns<StudentFeeRow[]>(),
+    getFamilyFeeLedger(supabase, student.id, 4, 0).then(
+      (ledger) => ({ data: ledger, error: false }),
+      () => ({ data: null, error: true }),
+    ),
   ]);
   if (signal.aborted) return null;
 
@@ -951,8 +978,34 @@ async function loadStudentDashboardData(
   }
   return {
     student, enrollment, attendance: attendanceResult.rows,
-    attendanceError: attendanceResult.error, fees: fees ?? [], logs, activities,
+    attendanceError: attendanceResult.error, fees: feeResult.data?.rows ?? [], feesError: feeResult.error,
+    feeCount: feeResult.data?.summary.demand_count ?? null, logs, activities,
   };
+}
+
+function FamilyFeeBalances({ rows, total, error, loading }: {
+  rows: FeeLedgerRow[]; total: number | null; error: boolean; loading: boolean;
+}) {
+  return <Card title="Fee balances" icon={<IndianRupee size={18} />}>
+    {loading ? <p role="status" className="text-sm muted">Loading fee balances…</p>
+      : error ? <p role="alert" className="text-sm text-red-600 dark:text-red-300">Fee balances could not be loaded. Refresh to check the saved records.</p>
+        : !rows.length ? <p className="text-sm muted">No fee demands available.</p> : <>
+          <p className="mb-3 text-xs muted">Showing {rows.length} of {total} retained demands. Balances include approved fee changes and recorded-payment reversals.</p>
+          <ul aria-label="Fee balance preview" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {rows.map((fee) => <li key={fee.demand_id} className="min-w-0 space-y-3 rounded-xl bg-[var(--surface-2)] p-4">
+              <div><h3 className="break-words text-sm font-semibold">{fee.fee_name}</h3>
+                <p className="mt-1 break-words text-xs muted">{formatFeeBillingPeriod(fee.billing_period)}{fee.academic_year_name ? ` · ${fee.academic_year_name}` : ""}</p>
+              </div>
+              <dl className="space-y-2 text-sm">
+                {[["Net fee", fee.net_amount], ["Payments applied", fee.paid_amount], ["Outstanding", fee.balance]].map(([label, value]) => <div key={label} className="flex flex-wrap justify-between gap-1">
+                  <dt className="text-xs muted">{label}</dt><dd className="break-words font-semibold tabular-nums">{value === null ? "Needs review" : formatFeeMoney(value)}</dd>
+                </div>)}
+              </dl>
+              <p className="text-xs font-semibold capitalize">{fee.status.replaceAll("_", " ")}</p>
+            </li>)}
+          </ul>
+        </>}
+  </Card>;
 }
 
 function attendanceRate(rows: FamilyAttendanceRow[]) {
@@ -990,7 +1043,7 @@ function AttendanceHistory({ title, rows, error, loading }: {
 function StudentDashboard({ userId }: { userId: string }) {
   const [supabase] = useState(createClient);
   const [data, setData] = useState<StudentDashboardData>(emptyStudentDashboard);
-  const { student, enrollment, attendance, attendanceError, logs, activities, fees } = data;
+  const { student, enrollment, attendance, attendanceError, logs, activities, fees, feesError, feeCount } = data;
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -1023,7 +1076,7 @@ function StudentDashboard({ userId }: { userId: string }) {
         <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
         <Stat label="Class Logs" value={logs.length} />
         <Stat label="Homework / Work" value={activities.length} tone="purple" />
-        <Stat label="Fee Records" value={fees.length} tone="orange" />
+        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" />
       </div>
       <Card title="My Profile & Class" icon={<UserRound size={18} />}>
         <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
@@ -1086,11 +1139,7 @@ function StudentDashboard({ userId }: { userId: string }) {
           ))}
         </div>
       </Card>
-      <Card title="Fees" icon={<IndianRupee size={18} />}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {fees.map((f) => <div key={f.id} className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs muted">{f.billing_period ?? "Fee"}</div><div className="mt-1 text-xl font-black">₹{f.amount}</div><div className="mt-1 text-xs font-semibold">{f.status}</div></div>)}
-        </div>
-      </Card>
+      <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !student)} loading={!student && !message} />
     </div>
   );
 }
@@ -1101,7 +1150,7 @@ function ParentDashboard({ userId }: { userId: string }) {
   const [selected, setSelected] = useState("");
   const [childData, setChildData] = useState<{ studentId: string; data: StudentDashboardData } | null>(null);
   // A newly selected child starts with empty data until that child's request finishes.
-  const { student: child, attendance, attendanceError, enrollment, logs, activities, fees } =
+  const { student: child, attendance, attendanceError, enrollment, logs, activities, fees, feesError, feeCount } =
     childData?.studentId === selected ? childData.data : emptyStudentDashboard;
   const [message, setMessage] = useState("");
 
@@ -1158,7 +1207,7 @@ function ParentDashboard({ userId }: { userId: string }) {
         <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
         <Stat label="Academic Logs" value={logs.length} />
         <Stat label="Homework / Projects" value={activities.length} tone="purple" />
-        <Stat label="Fee Records" value={fees.length} tone="orange" />
+        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" />
       </div>
       <Card title="Child Details" icon={<GraduationCap size={18} />}>
         <div className="grid gap-3 sm:grid-cols-5 text-sm">
@@ -1192,9 +1241,7 @@ function ParentDashboard({ userId }: { userId: string }) {
           {!logs.some((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id)) && <div className="text-sm muted">No missed academic work found.</div>}
         </div>
       </Card>
-      <Card title="Fees & Payment Status" icon={<IndianRupee size={18} />}>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{fees.map((f) => <div key={f.id} className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs muted">{f.billing_period ?? "Fee"}</div><div className="mt-1 text-xl font-black">₹{f.amount}</div><div className="mt-1 text-xs font-semibold">{f.status}</div></div>)}</div>
-      </Card>
+      <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !child)} loading={!child && !message} />
     </div>
   );
 }
@@ -1228,36 +1275,15 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
 
   useEffect(() => {
     if (!schoolId) return;
+    const financeSchoolId = schoolId;
     const controller = new AbortController();
     async function load() {
 
       const today = dateToday();
-      const todayStart = new Date(`${today}T00:00:00`).toISOString();
-      const tomorrowDate = new Date(`${today}T00:00:00`);
-      tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const tomorrowStart = tomorrowDate.toISOString();
-      const monthStartDate = new Date(`${today.slice(0, 7)}-01T00:00:00`);
-      const monthStart = monthStartDate.toISOString();
       const weekEndDate = new Date(`${today}T00:00:00`);
       weekEndDate.setDate(weekEndDate.getDate() + 7);
       const weekEnd = weekEndDate.toISOString().slice(0, 10);
 
-      const sumCollection = async (start: string, end: string) => {
-        let total = 0;
-        for (let offset = 0; ; offset += 500) {
-          const { data, error } = await supabase
-            .from("fee_payments")
-            .select("amount")
-            .eq("school_id", schoolId)
-            .gte("paid_at", start)
-            .lt("paid_at", end)
-            .order("paid_at", { ascending: true })
-            .range(offset, offset + 499);
-          if (error) return { total: 0, error };
-          total += (data ?? []).reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-          if ((data ?? []).length < 500) return { total, error: null };
-        }
-      };
       if (controller.signal.aborted) return;
 
       const [
@@ -1271,12 +1297,9 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
         todayLogsResult,
         upcomingResult,
         completedAssessmentsResult,
-        pendingFeesResult,
-        overdueFeesResult,
         recentLogsResult,
         noticesResult,
-        todayCollectionResult,
-        monthCollectionResult,
+        financeResult,
       ] = await Promise.all([
         supabase.from("students").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         supabase.from("teachers").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
@@ -1288,12 +1311,12 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
         supabase.from("class_logs").select("id,teacher_id,class_id,section_id").eq("school_id", schoolId).eq("log_date", today),
         supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
         supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
-        supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid"),
-        supabase.from("student_fees").select("id", { count: "exact", head: true }).eq("school_id", schoolId).neq("status", "paid").lt("due_date", today),
         supabase.from("class_logs").select("id,log_date,topic,class_id,section_id,subject_id,status").eq("school_id", schoolId).order("log_date", { ascending: false }).limit(10),
         supabase.from("notices").select("id,title,content,created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(5),
-        sumCollection(todayStart, tomorrowStart),
-        sumCollection(monthStart, tomorrowStart),
+        getOfficeFinanceSummary(supabase, financeSchoolId).then(
+          (data) => ({ data, error: null }),
+          (error: unknown) => ({ data: null, error }),
+        ),
       ]);
       if (controller.signal.aborted) return;
 
@@ -1308,12 +1331,9 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
         ["today's class logs", todayLogsResult.error],
         ["upcoming assessments", upcomingResult.error],
         ["completed assessments", completedAssessmentsResult.error],
-        ["pending fees", pendingFeesResult.error],
-        ["overdue fees", overdueFeesResult.error],
         ["recent academic logs", recentLogsResult.error],
         ["notices", noticesResult.error],
-        ["today's fee payments", todayCollectionResult.error],
-        ["monthly fee payments", monthCollectionResult.error],
+        ["finance summary", financeResult.error],
       ] as const;
       const failedQueries = queryErrors.filter(([, error]) => error);
       for (const [queryName, error] of failedQueries) {
@@ -1321,6 +1341,8 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
       }
       if (failedQueries.length) {
         setDashboardError("Some dashboard data could not be loaded. Please refresh or contact your administrator.");
+      } else if (financeResult.data?.invalid_count) {
+        setDashboardError("Some fee records need review. Unverified finance totals are unavailable; open Finance Reports to check them.");
       }
 
       const logs = (recentLogsResult.error ? [] : recentLogsResult.data ?? []) as AdminOverviewLog[];
@@ -1339,10 +1361,10 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
         activeTeachers: todayLogsResult.error ? null : teacherIdsWithActivity.size,
         classesLoggedToday: todayLogsResult.error ? null : new Set(todayLogs.map((log) => `${log.class_id}:${log.section_id ?? ""}`)).size,
         upcomingExams: upcomingResult.error ? null : upcomingResult.count ?? upcoming.length,
-        todayCollection: todayCollectionResult.error ? null : todayCollectionResult.total,
-        monthCollection: monthCollectionResult.error ? null : monthCollectionResult.total,
-        pendingFees: pendingFeesResult.error ? null : pendingFeesResult.count ?? 0,
-        overdueFees: overdueFeesResult.error ? null : overdueFeesResult.count ?? 0,
+        todayCollection: financeResult.data?.collections.today_net ?? null,
+        monthCollection: financeResult.data?.collections.month_net ?? null,
+        pendingFees: financeResult.data?.pending_count ?? null,
+        overdueFees: financeResult.data?.overdue_count ?? null,
       });
       setRecentSchoolLogs(logs);
       setUpcomingSchoolAssessments(upcoming);
@@ -1422,7 +1444,6 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
     return () => controller.abort();
   }, [schoolId, supabase, reloadVersion]);
 
-  const formatMoney = (amount: number) => `₹${amount.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
   const classLabel = (log: AdminOverviewLog) =>
     `${schoolNames.classes[log.class_id] ?? "Class"} ${schoolNames.sections[log.section_id ?? ""] ?? ""}`.trim();
   const resultsLabel = (assessment: AdminOverviewAssessment) =>
@@ -1498,18 +1519,18 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
       <section>
         <div className="mb-3">
           <h2 className="text-lg font-bold">Finance</h2>
-          <p className="mt-1 text-sm muted">Collections and dues from recorded fee transactions.</p>
+          <p className="mt-1 text-sm muted">Net recorded collections and outstanding fees. Accounting reversals use their approval date.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
-            ["Today's Collection", overview.todayCollection === null ? null : formatMoney(overview.todayCollection)],
-            ["This Month Collection", overview.monthCollection === null ? null : formatMoney(overview.monthCollection)],
+            ["Today's Collection", overview.todayCollection === null ? null : formatFeeMoney(overview.todayCollection)],
+            ["This Month Collection", overview.monthCollection === null ? null : formatFeeMoney(overview.monthCollection)],
             ["Pending Fees", overview.pendingFees],
             ["Overdue Fees", overview.overdueFees],
           ].map(([label, value]) => (
             <article key={label} className="card p-5">
               <p className="text-sm font-semibold muted">{label}</p>
-              <p className="mt-2 text-2xl font-black">{dashboardLoading ? "—" : value ?? "—"}</p>
+              <p className="mt-2 break-words text-2xl font-black">{dashboardLoading ? "—" : value ?? "Unavailable"}</p>
             </article>
           ))}
         </div>

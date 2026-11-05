@@ -86,5 +86,8 @@ it("finds only pages available to the active role and opens the first match with
   expect(search.getByRole("link", { name: /Attendance/ })).toHaveAttribute("href", "/modules/attendance?view=guardian");
   fireEvent.submit(search.getByRole("search"));
   expect(push).toHaveBeenCalledWith("/modules/attendance?view=guardian");
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  fireEvent.change(field, { target: { value: "advance credit" } });
+  expect(search.getByRole("link", { name: /Advance credit/ })).toHaveAttribute("href", "/modules/advance-credit?view=guardian");
   await screen.findByText("teacher@example.test");
 });

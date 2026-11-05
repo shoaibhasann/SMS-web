@@ -1,0 +1,29 @@
+{
+  "source": "User-exported Supabase SQL Editor result",
+  "expected_project_ref": "bjecfuixgqgyohttrdfr",
+  "live_connection_verified": false,
+  "captured_at": "2026-11-02T16:05:15.980903+00:00",
+  "format": "kids-corner-schema-metadata/v1",
+  "counts": {
+    "enums": 10,
+    "domains": 0,
+    "schemas": 2,
+    "policies": 178,
+    "routines": 34,
+    "triggers": 24,
+    "relations": 72,
+    "sequences": 0,
+    "extensions": 5,
+    "default_privileges": 6
+  },
+  "attachment_sha256": "e4dea9a6a15cad0bbedfa84f70a1fe8317fb1a5337d1cf58a7e17e07ac0bf143",
+  "normalized_sha256": "c98134634ffc72d11c94e2042d4b1ee625094db56e21cb90ba0bca75823dad97",
+  "secret_pattern_scan": {
+    "secret_api_keys": 0,
+    "personal_access_tokens": 0,
+    "private_keys": 0,
+    "database_password_urls": 0,
+    "jwt_tokens": 0
+  },
+  "remote_changes_applied": false
+}

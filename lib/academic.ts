@@ -27,6 +27,8 @@ export type AcademicLog = {
   summary: string;
   teacher_remark?: string;
   activities: AcademicActivityMap;
+  existingActivities?: AcademicActivity[];
+  expected_updated_at?: string;
   status?: 'draft' | 'published';
 };
 
@@ -44,6 +46,7 @@ export type AcademicLogRecord = {
   teacher_remark: string | null;
   status: 'draft' | 'published';
   published_at: string | null;
+  updated_at?: string;
 };
 
 export type AcademicActivity = {
@@ -53,6 +56,8 @@ export type AcademicActivity = {
   title: string;
   description: string | null;
   due_date: string | null;
+  attachment_url?: string | null;
+  max_marks?: number | null;
 };
 
 export const activityTypes = [
@@ -93,11 +98,13 @@ export async function getCurrentTeacherAssignments({ currentYearOnly = false } =
   const teacherId = await getCurrentTeacherId();
   if (!teacherId) return [];
 
-  const columns = 'id, teacher_id, class_id, section_id, subject_id, academic_year_id, is_class_teacher, classes(name), sections(name), subjects(name)';
+  const names = currentYearOnly ? 'classes!inner(name,is_active), sections!inner(name), subjects!inner(name,is_active)' : 'classes(name), sections(name), subjects(name)';
+  const columns = `id, teacher_id, class_id, section_id, subject_id, academic_year_id, is_class_teacher, ${names}`;
   const query = supabase
     .from('teacher_subject_assignments')
     .select(currentYearOnly ? `${columns}, academic_years!inner(is_current)` : columns)
     .eq('teacher_id', teacherId);
+  if (currentYearOnly) query.eq('classes.is_active', true).eq('subjects.is_active', true);
   const { data, error } = await (currentYearOnly ? query.eq('academic_years.is_current', true) : query);
   if (error) throw error;
 
@@ -126,7 +133,7 @@ export async function loadAcademicLogs(filters: {
   const supabase = createClient();
   let query = supabase
     .from('class_logs')
-    .select('id, school_id, academic_year_id, log_date, class_id, section_id, subject_id, teacher_id, topic, summary, teacher_remark, status, published_at')
+    .select('id, school_id, academic_year_id, log_date, class_id, section_id, subject_id, teacher_id, topic, summary, teacher_remark, status, published_at, updated_at')
     .order('log_date', { ascending: false })
     .limit(200);
 
@@ -147,60 +154,61 @@ export async function loadAcademicActivities(logIds: string[]): Promise<Academic
   const supabase = createClient();
   const { data, error } = await supabase
     .from('class_activities')
-    .select('id, class_log_id, activity_type, title, description, due_date')
+    .select('id, class_log_id, activity_type, title, description, due_date, attachment_url, max_marks')
     .in('class_log_id', logIds);
   if (error) throw error;
   return (data ?? []) as AcademicActivity[];
 }
 
 export async function saveAcademicLog(log: AcademicLog) {
-  const supabase = createClient();
-  const teacherId = await getCurrentTeacherId();
-  if (!teacherId) throw new Error('Teacher profile was not found for this login.');
+  const existing = log.existingActivities ?? [];
+  const rows: AcademicActivityWrite[] = [];
+  const preserve = (activity: AcademicActivity) => ({ id: activity.id, activity_type: activity.activity_type, title: activity.title,
+    description: activity.description, due_date: activity.due_date, attachment_url: activity.attachment_url ?? null, max_marks: activity.max_marks ?? null });
+  for (const [type, label] of activityTypes) {
+    const previous = existing.filter((activity) => activity.activity_type === type);
+    if (previous.length > 1) {
+      // The log form has one field per type. Never collapse multiple homework entries.
+      rows.push(...previous.map(preserve));
+      continue;
+    }
+    const title = log.activities[type]?.trim();
+    if (!title) continue;
+    const prior = previous[0];
+    rows.push({ ...(prior ? { id: prior.id } : {}), activity_type: type, title,
+      description: prior?.description ?? label, due_date: prior?.due_date ?? null,
+      attachment_url: prior?.attachment_url ?? null, max_marks: prior?.max_marks ?? null,
+    });
+  }
+  // Preserve types not represented by the fixed log form.
+  const knownTypes = new Set<string>(activityTypes.map(([type]) => type));
+  rows.push(...existing.filter((activity) => !knownTypes.has(activity.activity_type))
+    .map(preserve));
+  return saveAcademicLogWithActivities(log, rows);
+}
 
+export type AcademicActivityWrite = Omit<AcademicActivity, 'id' | 'class_log_id'> & { id?: string };
+
+export async function saveAcademicLogWithActivities(log: Omit<AcademicLog, 'activities' | 'existingActivities'>, rows: AcademicActivityWrite[]) {
+  if (log.id && !log.expected_updated_at) throw new Error('Refresh the source log before saving so its latest work is preserved.');
+  const supabase = createClient();
   const payload = {
-    ...(log.id ? { id: log.id } : {}),
+    ...(log.id ? { id: log.id, expected_updated_at: log.expected_updated_at } : {}),
     school_id: log.school_id,
     academic_year_id: log.academic_year_id,
     class_id: log.class_id,
     section_id: log.section_id,
     subject_id: log.subject_id,
-    teacher_id: teacherId,
     log_date: log.log_date,
     topic: log.topic.trim(),
     summary: log.summary.trim(),
     teacher_remark: log.teacher_remark?.trim() || null,
     status: log.status ?? 'draft',
   };
-
-  const { data: saved, error } = await supabase
-    .from('class_logs')
-    .upsert(payload, { onConflict: 'section_id,subject_id,log_date,teacher_id' })
-    .select('id')
-    .single();
+  const { data, error } = await supabase.rpc('save_academic_log', { p_log: payload, p_activities: rows });
   if (error) throw error;
-
-  const { error: deleteError } = await supabase
-    .from('class_activities')
-    .delete()
-    .eq('class_log_id', saved.id);
-  if (deleteError) throw deleteError;
-
-  const rows = activityTypes
-    .filter(([type]) => log.activities[type]?.trim())
-    .map(([type, label]) => ({
-      class_log_id: saved.id,
-      activity_type: type,
-      title: log.activities[type].trim(),
-      description: label,
-    }));
-
-  if (rows.length) {
-    const { error: activityError } = await supabase.from('class_activities').insert(rows);
-    if (activityError) throw activityError;
-  }
-
-  return saved;
+  if (typeof data !== 'string' || !data) throw new Error('Academic work was not saved. Refresh your teaching assignments before trying again.');
+  return { id: data };
 }
 
 export async function publishAcademicLog(id: string) {

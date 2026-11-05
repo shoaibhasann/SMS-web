@@ -6,10 +6,14 @@ import { RoleDashboard } from "../components/dashboard/role-dashboard";
 import { loadFamilyAttendance } from "../lib/attendance/family";
 import { createClient } from "../lib/supabase/client";
 
-const { from, client } = vi.hoisted(() => {
+const { from, client, effectiveAssignments, attendanceEditor, familyFeeLedger, officeFinanceSummary } = vi.hoisted(() => {
   const from = vi.fn();
   return {
     from,
+    effectiveAssignments: vi.fn(),
+    attendanceEditor: vi.fn(),
+    familyFeeLedger: vi.fn(),
+    officeFinanceSummary: vi.fn(),
     client: {
       from,
       rpc: () => ({ abortSignal: () => ({ returns: async () => ({ data: [], error: null }) }) }),
@@ -20,8 +24,14 @@ const { from, client } = vi.hoisted(() => {
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/components/layout/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => children }));
-vi.mock("@/components/academic/attendance-editor", () => ({ AttendanceEditor: () => null }));
+vi.mock("@/components/academic/attendance-editor", () => ({ AttendanceEditor: (props: unknown) => { attendanceEditor(props); return null; } }));
+vi.mock("@/lib/assignments/attendance-coverage", () => ({ loadEffectiveAttendanceAssignments: effectiveAssignments }));
 vi.mock("@/components/admin/attendance-submission-monitor", () => ({ AttendanceSubmissionMonitor: () => null }));
+vi.mock("@/lib/finance/fee-changes", async (importOriginal) => ({
+  ...await importOriginal<typeof import("../lib/finance/fee-changes")>(),
+  getFamilyFeeLedger: familyFeeLedger,
+  getOfficeFinanceSummary: officeFinanceSummary,
+}));
 
 type ReadQuery = {
   table: string;
@@ -51,6 +61,28 @@ function student(id: string) {
   return { id, school_id: "school", admission_no: `admission-${id}`, first_name: `Student ${id}`, last_name: null, status: "active" };
 }
 
+function feeLedger(studentId = "current", overrides: Record<string, unknown> = {}) {
+  const row = {
+    demand_id: `fee-${studentId}`, student_id: studentId, admission_no: `admission-${studentId}`,
+    student_name: `Student ${studentId}`, academic_year_id: "year", academic_year_name: "2026–27",
+    fee_name: "Tuition", fee_structure_id: "structure", kind: "monthly", billing_period: "2026-11", due_date: "2026-11-20",
+    amount: "1000.00", discount: "0.00", late_fee: "0.00", net_amount: "900.00", paid_amount: "350.00", balance: "550.00", status: "partial", invalid: false,
+    ...overrides,
+  };
+  return { academic_year_id: null, rows: [row], summary: { demand_count: 1, invalid_count: 0, net_amount: row.net_amount,
+    paid_amount: row.paid_amount, balance: row.balance, opening_amount: "0.00" } };
+}
+
+function emptyFeeLedger() {
+  return { academic_year_id: null, rows: [], summary: { demand_count: 0, invalid_count: 0,
+    net_amount: "0.00", paid_amount: "0.00", balance: "0.00", opening_amount: "0.00" } };
+}
+
+function financeSummary(overrides: Record<string, unknown> = {}) {
+  return { demand_count: 2, pending_count: 2, overdue_count: 1, invalid_count: 0, net_amount: "1700.00", paid_amount: "450.00", balance: "1250.00", opening_amount: "0.00",
+    collections: { gross_amount: "550.00", reversal_amount: "100.00", net_amount: "450.00", today_gross: "450.00", today_reversal: "100.00", today_net: "350.00", month_gross: "550.00", month_reversal: "100.00", month_net: "450.00" }, ...overrides };
+}
+
 function academicResult(query: ReadQuery): QueryResult {
   const id = String(query.filters.student_id ?? "");
   if (query.table === "enrollments") return result({ class_id: `class-${id}`, section_id: null,
@@ -66,6 +98,9 @@ function academicResult(query: ReadQuery): QueryResult {
 
 beforeEach(() => {
   queries = [];
+  effectiveAssignments.mockResolvedValue([]);
+  familyFeeLedger.mockReset().mockResolvedValue(emptyFeeLedger());
+  officeFinanceSummary.mockReset().mockResolvedValue(financeSummary());
   resolveQuery = academicResult;
   sessionStorage.clear();
   from.mockImplementation((table: string) => {
@@ -125,6 +160,26 @@ function attendanceHistory(title: string) {
 }
 
 describe("student and parent attendance", () => {
+  it("gives substitutes a bounded dashboard register while permanent academic assignments stay unchanged", async () => {
+    resolveQuery = (query) => {
+      if (query.table === "teachers") return result({ id: "substitute", school_id: "school", full_name: "Substitute Teacher" });
+      if (query.table === "academic_years") return result({ id: "year" });
+      return result([]);
+    };
+    effectiveAssignments.mockResolvedValue([{ id: "source", teacher_id: "substitute", academic_year_id: "year", class_id: "covered-class", section_id: "covered-section",
+      subject_id: "source-subject", is_class_teacher: true, class_name: "Covered Class", section_name: "A", subject_name: "English",
+      coverage_id: "coverage", starts_on: "2026-11-05", ends_on: "2026-11-07" }]);
+    render(<RoleDashboard role="teacher" schoolId="school" userId="substitute-user" />);
+    await screen.findByRole("option", { name: "Covered Class A · Temporary attendance coverage" });
+    await waitFor(() => expect(attendanceEditor).toHaveBeenLastCalledWith(expect.objectContaining({
+      context: { schoolId: "school", academicYearId: "year", classId: "covered-class", sectionId: "covered-section" },
+      reviewOnlyHistory: true, dateLimits: { start: "2026-11-05", end: "2026-11-07" },
+    })));
+    expect(queries.find((query) => query.table === "teacher_subject_assignments")?.filters).toMatchObject({ teacher_id: "substitute", academic_year_id: "year" });
+    expect(queries.filter((query) => ["classes", "sections", "subjects"].includes(query.table))).toHaveLength(0);
+    expect(queries.find((query) => query.table === "attendance")?.filters.section_id).toEqual(["covered-section"]);
+    expect(within(screen.getByText("My Classes").parentElement!).getByText("0")).toBeInTheDocument();
+  });
   it("keeps the exact attendance total separate from the requested page", async () => {
     const page = [{ attendance_date: "2026-11-03", academic_year_id: "year", status: "present" }];
     resolveQuery = () => result(page, 41);
@@ -187,6 +242,10 @@ describe("student and parent attendance", () => {
     { role: "student", userId: "student-user", pupil: "current", title: "Attendance History" },
     { role: "parent", userId: "parent-user", pupil: "a", title: "Attendance by Date" },
   ] as const)("keeps prior attendance and fees visible to a $role without a current placement", async ({ role, userId, pupil, title }) => {
+    familyFeeLedger.mockResolvedValue(feeLedger(pupil, {
+      demand_id: "old-demand", academic_year_id: "old-year", academic_year_name: "2025–26", billing_period: "2026-03",
+      amount: "600.00", net_amount: "600.00", paid_amount: "600.00", balance: "0.00", status: "paid",
+    }));
     resolveQuery = (query) => {
       if (query.table === "enrollments") {
         return query.filters["academic_years.is_current"] ? result(null)
@@ -205,14 +264,15 @@ describe("student and parent attendance", () => {
 
     render(<RoleDashboard role={role} schoolId="school" userId={userId} />);
     await attendanceHistory(title).findByText("Late");
-    expect(screen.getByText("2026-03")).toBeInTheDocument();
+    expect(screen.getByText(/2026-03/)).toBeInTheDocument();
     expect(screen.queryByText("old-roll")).not.toBeInTheDocument();
     expect(screen.queryByText("legacy-roll")).not.toBeInTheDocument();
     expect(queries.find((query) => query.table === "enrollments")).toMatchObject({
       columns: expect.stringContaining("academic_years!inner"),
       filters: { student_id: pupil, status: "active", "academic_years.school_id": "school", "academic_years.is_current": true },
     });
-    expect(queries.find((query) => query.table === "student_fees")?.filters).toEqual({ school_id: "school", student_id: pupil });
+    expect(familyFeeLedger).toHaveBeenCalledWith(client, pupil, 4, 0);
+    expect(queries.some((query) => query.table === "student_fees")).toBe(false);
     expect(queries.some((query) => query.table === "class_logs")).toBe(false);
   });
 
@@ -313,6 +373,8 @@ describe("role dashboard request lifetimes", () => {
       return result([]);
     };
 
+    effectiveAssignments.mockResolvedValue([{ id: "assignment", teacher_id: "teacher", academic_year_id: "year", class_id: "class", section_id: "section",
+      subject_id: "subject", is_class_teacher: true, class_name: "Class", section_name: "Section", subject_name: "Subject", coverage_id: null, starts_on: null, ends_on: null }]);
     render(<RoleDashboard role="teacher" schoolId="school" userId="teacher-user" />);
     expect(await screen.findByText("1 absent student may need to catch up on 1 academic item.")).toBeInTheDocument();
     expect(queries.find((query) => query.table === "attendance")?.filters.attendance_date).toBe(schoolDay);
@@ -408,5 +470,152 @@ describe("role dashboard request lifetimes", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("This admin account is not linked to a school.");
     expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+describe("canonical dashboard finance", () => {
+  const feeBalances = () => within(screen.getByRole("heading", { name: "Fee balances" }).closest("section")!);
+  const officeFinance = () => within(screen.getByRole("heading", { name: "Finance" }).closest("section")!);
+  const financeValue = (label: string) => within(officeFinance().getByText(label, { exact: true }).closest("article")!);
+
+  it.each([
+    { role: "student", userId: "student-user", pupil: "current" },
+    { role: "parent", userId: "parent-user", pupil: "a" },
+  ] as const)("shows effective fee, applied payments and balance to a $role instead of raw demand amounts", async ({ role, userId, pupil }) => {
+    familyFeeLedger.mockResolvedValue(feeLedger(pupil));
+    resolveQuery = (query) => role === "parent" ? parentResolver(query)
+      : query.table === "students" ? result(student(pupil)) : academicResult(query);
+    render(<RoleDashboard role={role} schoolId="school" userId={userId} />);
+    await feeBalances().findByText("₹900.00");
+    expect(feeBalances().getByText("₹350.00")).toBeInTheDocument();
+    expect(feeBalances().getByText("₹550.00")).toBeInTheDocument();
+    expect(feeBalances().getByText("Net fee")).toBeInTheDocument();
+    expect(feeBalances().getByText("partial")).toBeInTheDocument();
+    expect(feeBalances().queryByText("₹1,000.00")).not.toBeInTheDocument();
+    expect(familyFeeLedger).toHaveBeenCalledWith(client, pupil, 4, 0);
+    expect(queries.some((query) => query.table === "student_fees")).toBe(false);
+  });
+
+  it("uses the complete verified demand count while rendering a bounded family preview", async () => {
+    const first = feeLedger("current");
+    familyFeeLedger.mockResolvedValue({ ...first, rows: Array.from({ length: 4 }, (_, index) => ({ ...first.rows[0], demand_id: `fee-${index}`, billing_period: `2026-${String(index + 1).padStart(2, "0")}` })),
+      summary: { ...first.summary, demand_count: 81 } });
+    resolveQuery = (query) => query.table === "students" ? result(student("current")) : academicResult(query);
+    render(<RoleDashboard role="student" schoolId="school" userId="student-user" />);
+    await feeBalances().findByText(/Showing 4 of 81 retained demands/);
+    expect(feeBalances().getAllByRole("listitem")).toHaveLength(4);
+    expect(within(screen.getByText("Fee Records", { exact: true }).parentElement!).getByText("81")).toBeInTheDocument();
+  });
+
+  it.each([
+    { role: "student", userId: "student-user" },
+    { role: "parent", userId: "parent-user" },
+  ] as const)("shows unavailable family balances after a $role finance read fails", async ({ role, userId }) => {
+    familyFeeLedger.mockRejectedValue(new Error("Canonical finance unavailable"));
+    resolveQuery = (query) => role === "parent" ? parentResolver(query)
+      : query.table === "students" ? result(student("current")) : academicResult(query);
+    render(<RoleDashboard role={role} schoolId="school" userId={userId} />);
+    await feeBalances().findByRole("alert");
+    expect(feeBalances().getByRole("alert")).toHaveTextContent("Fee balances could not be loaded");
+    expect(feeBalances().queryByText("No fee demands available.")).not.toBeInTheDocument();
+    expect(feeBalances().queryByRole("list")).not.toBeInTheDocument();
+    expect(within(screen.getByText("Fee Records", { exact: true }).parentElement!).getByText("—")).toBeInTheDocument();
+    expect(screen.getByText(role === "student" ? "Student current" : "Student a")).toBeInTheDocument();
+  });
+
+  it("labels an inconsistent family demand for review instead of inventing zero amounts", async () => {
+    const inconsistent = feeLedger("current", { net_amount: null, paid_amount: null, balance: null, status: "review_required", invalid: true });
+    familyFeeLedger.mockResolvedValue({ ...inconsistent, summary: { ...inconsistent.summary, invalid_count: 1 } });
+    resolveQuery = (query) => query.table === "students" ? result(student("current")) : academicResult(query);
+    render(<RoleDashboard role="student" schoolId="school" userId="student-user" />);
+    await feeBalances().findByText("review required");
+    expect(feeBalances().getAllByText("Needs review")).toHaveLength(3);
+    expect(feeBalances().queryByText("₹0.00")).not.toBeInTheDocument();
+  });
+
+  it("clears the old child's financial cards and ignores a late canonical fee response", async () => {
+    const stale = deferred<ReturnType<typeof feeLedger>>();
+    const next = deferred<ReturnType<typeof feeLedger>>();
+    let aReads = 0;
+    familyFeeLedger.mockImplementation((_client, pupil) => pupil === "a"
+      ? ++aReads === 1 ? Promise.resolve(feeLedger("a", { net_amount: "911.00" })) : stale.promise
+      : next.promise);
+    resolveQuery = parentResolver;
+    render(<RoleDashboard role="parent" schoolId="school" userId="parent-user" />);
+    await feeBalances().findByText("₹911.00");
+    fireEvent.change(screen.getByRole("combobox", { name: "Select child" }), { target: { value: "b" } });
+    expect(feeBalances().queryByText("₹911.00")).not.toBeInTheDocument();
+    expect(feeBalances().getByRole("status")).toHaveTextContent("Loading fee balances");
+    fireEvent.change(screen.getByRole("combobox", { name: "Select child" }), { target: { value: "a" } });
+    await waitFor(() => expect(aReads).toBe(2));
+    fireEvent.change(screen.getByRole("combobox", { name: "Select child" }), { target: { value: "b" } });
+    await act(async () => { next.resolve(feeLedger("b", { net_amount: "822.00" })); });
+    await feeBalances().findByText("₹822.00");
+    await act(async () => { stale.resolve(feeLedger("a", { net_amount: "999.00" })); });
+    expect(feeBalances().getByText("₹822.00")).toBeInTheDocument();
+    expect(feeBalances().queryByText("₹999.00")).not.toBeInTheDocument();
+  });
+
+  it("discards an old student's financial response after the signed-in identity changes", async () => {
+    const old = deferred<ReturnType<typeof feeLedger>>();
+    familyFeeLedger.mockImplementation((_client, pupil) => pupil === "old" ? old.promise : Promise.resolve(feeLedger("current", { net_amount: "822.00" })));
+    resolveQuery = (query) => query.table === "students" ? result(student(query.filters.profile_id === "old-user" ? "old" : "current")) : academicResult(query);
+    const view = render(<RoleDashboard role="student" schoolId="school" userId="old-user" />);
+    await waitFor(() => expect(familyFeeLedger).toHaveBeenCalledWith(client, "old", 4, 0));
+    view.rerender(<RoleDashboard role="student" schoolId="school" userId="current-user" />);
+    await feeBalances().findByText("₹822.00");
+    await act(async () => { old.resolve(feeLedger("old", { net_amount: "999.00" })); });
+    expect(feeBalances().queryByText("₹999.00")).not.toBeInTheDocument();
+  });
+
+  it("uses canonical event-date net collections and server pending counts for the school overview", async () => {
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+    await financeValue("Today's Collection").findByText("₹350.00");
+    expect(financeValue("This Month Collection").getByText("₹450.00")).toBeInTheDocument();
+    expect(financeValue("Pending Fees").getByText("2")).toBeInTheDocument();
+    expect(financeValue("Overdue Fees").getByText("1")).toBeInTheDocument();
+    expect(officeFinanceSummary).toHaveBeenCalledWith(client, "school");
+    expect(queries.some((query) => ["fee_payments", "student_fees"].includes(query.table))).toBe(false);
+  });
+
+  it("does not replace a failed office summary with zero or gross raw payments", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    officeFinanceSummary.mockRejectedValue(new Error("Finance service failed"));
+    resolveQuery = () => result([]);
+    try {
+      render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+      await financeValue("Today's Collection").findByText("Unavailable");
+      expect(officeFinance().getAllByText("Unavailable")).toHaveLength(4);
+      expect(officeFinance().queryByText("₹0.00")).not.toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Some dashboard data could not be loaded");
+      expect(queries.some((query) => query.table === "fee_payments")).toBe(false);
+    } finally { logged.mockRestore(); }
+  });
+
+  it("withholds unknown monetary totals when the canonical office records need review", async () => {
+    const summary = financeSummary();
+    officeFinanceSummary.mockResolvedValue({ ...summary, invalid_count: 1, net_amount: null, paid_amount: null, balance: null,
+      collections: { ...summary.collections, today_net: null, month_net: null } });
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+    await financeValue("Today's Collection").findByText("Unavailable");
+    expect(financeValue("This Month Collection").getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Some fee records need review");
+    expect(officeFinance().queryByText("₹0.00")).not.toBeInTheDocument();
+  });
+
+  it("keeps the current school's canonical totals when a previous school's summary completes late", async () => {
+    const previous = deferred<ReturnType<typeof financeSummary>>();
+    officeFinanceSummary.mockImplementation((_client, school) => school === "old-school" ? previous.promise : Promise.resolve(financeSummary()));
+    resolveQuery = () => result([]);
+    const view = render(<RoleDashboard role="admin" schoolId="old-school" userId="admin" />);
+    await waitFor(() => expect(officeFinanceSummary).toHaveBeenCalledWith(client, "old-school"));
+    view.rerender(<RoleDashboard role="admin" schoolId="current-school" userId="admin" />);
+    await financeValue("Today's Collection").findByText("₹350.00");
+    const stale = financeSummary();
+    await act(async () => { previous.resolve({ ...stale, collections: { ...stale.collections, today_net: "9999.00" } }); });
+    expect(financeValue("Today's Collection").getByText("₹350.00")).toBeInTheDocument();
+    expect(officeFinance().queryByText("₹9,999.00")).not.toBeInTheDocument();
   });
 });

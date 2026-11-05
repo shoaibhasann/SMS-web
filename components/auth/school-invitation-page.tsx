@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { GraduationCap, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { guardianAttendancePath, rememberFamilyChild } from "@/lib/attendance/family";
@@ -22,7 +21,6 @@ const invitationDetails = {
     access: "view the child’s attendance history",
     account: "Create a guardian account",
     dashboard: "attendance",
-    Icon: Users,
   },
   teacher: {
     title: "Teacher invitation",
@@ -31,7 +29,6 @@ const invitationDetails = {
     access: "open your teaching workspace",
     account: "Create a teacher account",
     dashboard: "dashboard",
-    Icon: GraduationCap,
   },
 } as const;
 
@@ -45,7 +42,7 @@ function getInviteHash() {
 }
 
 export function SchoolInvitationPage({ kind }: { kind: InvitationKind }) {
-  const { title, Icon } = invitationDetails[kind];
+  const { title } = invitationDetails[kind];
   // Keep the bearer token out of HTTP URLs, auth callbacks and persistent storage.
   const hash = useSyncExternalStore(subscribeToHash, getInviteHash, () => null);
   const token = hash?.match(/^#token=([a-f0-9]{64})$/)?.[1];
@@ -53,13 +50,10 @@ export function SchoolInvitationPage({ kind }: { kind: InvitationKind }) {
   return (
     <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-4 sm:p-6">
       <section className="card w-full max-w-lg overflow-hidden" aria-labelledby="school-invite-heading">
-        <header className="gradient flex items-center gap-4 p-5 text-white sm:p-7">
-          <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-white/15">
-            <Icon size={23} aria-hidden="true" />
-          </span>
+        <header className="gradient p-5 text-white sm:p-7">
           <div>
-            <p className="mb-1 text-xs font-bold uppercase tracking-wider text-white/80">Kids Corner ERP</p>
-            <h1 id="school-invite-heading" className="text-2xl font-black">{title}</h1>
+            <p className="text-[30px] font-black leading-none tracking-[-0.045em]">SMS</p>
+            <h1 id="school-invite-heading" className="mt-3 text-2xl font-black">{title}</h1>
           </div>
         </header>
         <div className="space-y-5 p-5 sm:p-7">

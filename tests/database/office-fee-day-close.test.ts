@@ -22,7 +22,7 @@ describe("office fee day close", () => {
     db = await createStaffScopeDatabase();
     const directory = new URL("../../supabase/migrations/", import.meta.url);
     const files = await readdir(directory);
-    for (const suffix of ["_record_office_fee_payment.sql", "_close_office_fee_day.sql"]) {
+    for (const suffix of ["_record_office_fee_payment.sql", "_close_office_fee_day.sql", "_office_fee_day_optimistic_conflict_http_status.sql"]) {
       const matches = files.filter((name) => name.endsWith(suffix));
       expect(matches).toHaveLength(1);
       await db.exec(await readFile(new URL(matches[0], directory), "utf8"));
@@ -77,7 +77,13 @@ describe("office fee day close", () => {
   it("rejects a stale review, requires an explanation, and freezes the close record", async () => {
     const before = await read();
     await importPayment("20.50", "cash", "2026-10-15 14:00:00+00", "paid");
-    await expect(close({ revision: before.revision })).rejects.toMatchObject({ code: "40001" });
+    const beforeClose = await read();
+    const beforeReceipts = (await db.query("select to_jsonb(payment) as record from public.fee_payments payment order by id")).rows;
+    const beforeDay = (await db.query("select to_jsonb(day) as record from app_private.office_fee_days day where school_id=$1 and business_date=$2", [schoolA, day])).rows;
+    await expect(close({ revision: before.revision })).rejects.toMatchObject({ code: "PT409" });
+    expect(await read()).toEqual(beforeClose);
+    expect((await db.query("select to_jsonb(payment) as record from public.fee_payments payment order by id")).rows).toEqual(beforeReceipts);
+    expect((await db.query("select to_jsonb(day) as record from app_private.office_fee_days day where school_id=$1 and business_date=$2", [schoolA, day])).rows).toEqual(beforeDay);
     const fresh = await read();
     expect(fresh.recorded_cash).toBe(120.5);
     await expect(close({ revision: fresh.revision })).rejects.toMatchObject({ code: "22023" });

@@ -41,7 +41,19 @@ function database(read: (request: Read) => Promise<Result>) {
     };
     return query;
   });
-  const client = { auth: { getUser, onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) }, from };
+  const rpc = vi.fn(async (name: string, args: Record<string, unknown>) => {
+    calls.push({ table: `rpc:${name}`, filters: { school_id: args.p_school_id }, single: false });
+    if (name === "get_office_fee_ledger") return result({ academic_year_id: null, rows: [], summary: {
+      demand_count: 0, invalid_count: 0, net_amount: "0.00", paid_amount: "0.00", balance: "0.00", opening_amount: "0.00",
+    } });
+    if (name === "list_office_fee_receipts") return result({ rows: [], count: 0 });
+    if (name === "list_office_fee_changes") return result({ rows: [], total_count: 0 });
+    if (name === "get_office_finance_summary") return result({ demand_count: 0, pending_count: 0, overdue_count: 0, invalid_count: 0,
+      net_amount: "0.00", paid_amount: "0.00", balance: "0.00", opening_amount: "0.00",
+      collections: { gross_amount: "0.00", reversal_amount: "0.00", net_amount: "0.00", today_gross: "0.00", today_reversal: "0.00", today_net: "0.00", month_gross: "0.00", month_reversal: "0.00", month_net: "0.00" } });
+    throw new Error(`Unexpected loading RPC ${name}`);
+  });
+  const client = { auth: { getUser, onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) }, from, rpc };
   clientMock.create.mockReturnValue(client);
   return { client, calls, getUser, from };
 }

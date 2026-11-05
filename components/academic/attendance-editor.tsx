@@ -80,6 +80,7 @@ function ScopedAttendanceEditor({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionConflict, setCorrectionConflict] = useState(false);
   const [search, setSearch] = useState("");
   const savingRef = useRef(false);
   const correctionRequest = useRef<{ key: string; id: string } | null>(null);
@@ -143,6 +144,7 @@ function ScopedAttendanceEditor({
     if (!value || value > maxDate || (dateLimits && value < dateLimits.start) || savingRef.current || dirty) return;
     setDraft({});
     setCorrectionReason("");
+    setCorrectionConflict(false);
     correctionRequest.current = null;
     setMessage("");
     setDate(value);
@@ -181,7 +183,7 @@ function ScopedAttendanceEditor({
 
   async function save() {
     if (!snapshot || !dirty || !canEdit || savingRef.current) return;
-    if (historical && (dirtyIds.length !== 1 || !correctionReason.trim() || !repository.requestCorrection)) return;
+    if (historical && (correctionConflict || dirtyIds.length !== 1 || !correctionReason.trim() || !repository.requestCorrection)) return;
     savingRef.current = true;
     const loadGeneration = loadGenerationRef.current;
     setSaving(true);
@@ -230,6 +232,7 @@ function ScopedAttendanceEditor({
       }
       if (result.saved.length) onSaved?.();
     } catch (error: unknown) {
+      if (aliveRef.current && historical && ["PT409", "40001"].includes((error as { code?: string })?.code ?? "")) setCorrectionConflict(true);
       if (aliveRef.current) setMessage(`${error instanceof Error ? error.message : "Attendance could not be saved."} Your edits are kept. Reload before retrying if the connection was interrupted.`);
     } finally {
       savingRef.current = false;
@@ -241,6 +244,7 @@ function ScopedAttendanceEditor({
     if (savingRef.current) return;
     setDraft({});
     setCorrectionReason("");
+    setCorrectionConflict(false);
     correctionRequest.current = null;
     setMessage("");
     setRevision((value) => value + 1);
@@ -300,7 +304,7 @@ function ScopedAttendanceEditor({
         <span>Correction reason</span>
         <textarea className="field" rows={2} value={correctionReason} maxLength={500} required disabled={saving} onChange={(event) => setCorrectionReason(event.target.value)} />
       </label>}
-      {canEdit && <button type="button" disabled={!ready || saving || !dirty || !students.length || (historical && !correctionReason.trim())} onClick={save} className="rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">
+      {canEdit && <button type="button" disabled={!ready || saving || !dirty || !students.length || (historical && (correctionConflict || !correctionReason.trim()))} onClick={save} className="rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">
         {historical ? saving ? "Submitting correction…" : "Request correction" : saving ? "Saving attendance…" : "Save Attendance"}
       </button>}
       {message && <p role="status" className="text-sm" aria-live="polite">{message}</p>}

@@ -18,9 +18,13 @@ describe("daily attendance corrections", () => {
   beforeAll(async () => {
     db = await createStaffScopeDatabase({ includeTeachingRpcs: true, applyGovernance: true });
     const directory = new URL("../../supabase/migrations/", import.meta.url);
-    const files = (await readdir(directory)).filter((name) => name.endsWith("_govern_attendance_corrections.sql"));
+    const migrationFiles = await readdir(directory);
+    const files = migrationFiles.filter((name) => name.endsWith("_govern_attendance_corrections.sql"));
     expect(files).toHaveLength(1);
     await db.exec(await readFile(new URL(files[0], directory), "utf8"));
+    const conflictFiles = migrationFiles.filter((name) => name.endsWith("_attendance_optimistic_conflict_http_status.sql"));
+    expect(conflictFiles).toHaveLength(1);
+    await db.exec(await readFile(new URL(conflictFiles[0], directory), "utf8"));
     const { rows: [dates] } = await db.query<{ today: string; yesterday: string; earlier: string }>(`
       select d::text as today, (d - 1)::text as yesterday, (d - 2)::text as earlier
       from (select (statement_timestamp() at time zone 'Asia/Kolkata')::date as d) dates
@@ -122,12 +126,32 @@ describe("daily attendance corrections", () => {
       .rejects.toMatchObject({ code: "42501" });
   });
 
+  it("returns a business HTTP conflict for a stale request without changing attendance or creating a request", async () => {
+    const current = await mark(yesterday);
+    if (!current) throw new Error("The stale-request fixture needs its original mark.");
+    const key = randomUUID();
+    const beforeRequests = (await db.query("select to_jsonb(c) as record from app_private.attendance_corrections c order by id")).rows;
+    await expect(request({ expected: { ...current, revision: current.revision + 1 }, status: "present", key }))
+      .rejects.toMatchObject({ code: "PT409" });
+    expect(await mark(yesterday)).toEqual(current);
+    expect((await db.query("select to_jsonb(c) as record from app_private.attendance_corrections c order by id")).rows).toEqual(beforeRequests);
+    expect((await db.query("select id from app_private.attendance_corrections where id=$1", [key])).rows).toEqual([]);
+    const valid = await request({ expected: current, status: "present", key });
+    expect(await request({ expected: current, status: "present", key })).toBe(valid);
+    expect(await review(valid, "rejected", "Keep the verified original mark")).toBe("rejected");
+    expect(await mark(yesterday)).toEqual(current);
+  });
+
   it("rejects an ABA-stale request and allows audited approval of an unmarked date", async () => {
     const expected = await mark(yesterday);
     const stale = await request({ expected, status: "present" });
     await db.query("update public.attendance set status='holiday' where id=$1", [expected?.id]);
     await db.query("update public.attendance set status='late' where id=$1", [expected?.id]);
-    await expect(review(stale)).rejects.toMatchObject({ code: "40001" });
+    const beforeMark = await mark(yesterday);
+    const beforeRequest = (await db.query("select to_jsonb(c) as record from app_private.attendance_corrections c where id=$1", [stale])).rows;
+    await expect(review(stale)).rejects.toMatchObject({ code: "PT409" });
+    expect(await mark(yesterday)).toEqual(beforeMark);
+    expect((await db.query("select to_jsonb(c) as record from app_private.attendance_corrections c where id=$1", [stale])).rows).toEqual(beforeRequest);
     expect(await review(stale, "rejected", "Attendance changed while pending")).toBe("rejected");
 
     const newMark = await request({ day: earlier, expected: null, status: "leave" });
