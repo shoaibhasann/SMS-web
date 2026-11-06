@@ -95,7 +95,7 @@ describe("family notifications under the complete recovered schema", () => {
     try {
       const sources = await readRecoverySources(await readRecoveryManifest());
       const upgrade = sources.find(source => source.version === "20261106144905")!;
-      for (const source of sources.filter(source => source.kind === "pending" && source !== upgrade)) await prior.exec(source.sql);
+      for (const source of sources.slice(0, sources.indexOf(upgrade)).filter(source => source.kind === "pending")) await prior.exec(source.sql);
       await seedRecoveryData(prior);
       await prior.exec("insert into auth.sessions(id,user_id) select id,id from auth.users; begin");
       const as = async <T>(user: string, sql: string, params: unknown[] = []) =>

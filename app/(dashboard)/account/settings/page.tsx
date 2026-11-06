@@ -21,5 +21,6 @@ export default async function AccountSettingsPage() {
   const role = resolveUiRole(access.roles);
   if (!role) redirect("/activate");
   return <AppShell key={access.userId} userId={access.userId} role={role}><AccountSettings userId={access.userId} role={role}
-    hasGuardianRole={access.roles.some((row) => row.role === "parent" && row.school_id === access.profileSchoolId)} /></AppShell>;
+    hasGuardianRole={access.roles.some((row) => row.role === "parent" && row.school_id === access.profileSchoolId)}
+    hasStudentRole={access.roles.some((row) => row.role === "student" && row.school_id === access.profileSchoolId)} /></AppShell>;
 }

@@ -4,7 +4,7 @@
 
 Use the existing privately supplied Student, Guardian and Admin/Principal QA accounts. Test synthetic records only. Do not include credentials, tokens, private review reasons or other children's details in screenshots. Engineering test results do not tick these founder boxes. Record the deployed revision before testing.
 
-**Engineering fixture:** existing private QA Guardian starts with 6 items / 4 unread; Student has 3 items / 0 unread. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
+**Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
 **What to expect:** new published results and approved/rejected child leave decisions appear in Notifications. Existing Guardian absence alerts remain, with their saved read state. Old result/leave history is not converted into new alerts. This phase sends in-app alerts only; no SMS/email/push is sent.
 

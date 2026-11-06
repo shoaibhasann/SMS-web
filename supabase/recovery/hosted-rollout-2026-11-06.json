@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-06T10:44:32.539Z",
-  "allMigrationsVerifiedAt": "2026-11-06T15:06:03.518017+00:00",
+  "allMigrationsVerifiedAt": "2026-11-06T16:12:46.075609+00:00",
   "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
   "preflight": {
     "btree_gist": {
@@ -217,12 +217,34 @@
       "recorded_sql_sha256": "e7da66dbae68b24228446c2e487259b2f02dac5e72c594fd5472d5bcbafc2914",
       "verifiedAt": "2026-11-06T15:06:03.518017+00:00",
       "reason": "Transactional result-publication/leave-decision events, shared role-scoped family inbox with retained legacy absence IDs/read state, bounded target readers."
+    },
+    {
+      "sourceVersion": "20261106153406",
+      "sourcePath": "supabase/migrations/20261106153406_native_family_push_delivery.sql",
+      "sourceSha256": "98505d0429f846c78ac0db87671a5885edcab3c1ce047629bfe6c00fb886455a",
+      "version": "20261106155042",
+      "name": "native_family_push_delivery",
+      "statement_count": 1,
+      "recorded_sql_sha256": "98505d0429f846c78ac0db87671a5885edcab3c1ce047629bfe6c00fb886455a",
+      "verifiedAt": "2026-11-06T15:59:19.834376+00:00",
+      "reason": "Native FID devices/preferences and new-event private delivery jobs with fenced service-only dispatch; native app/provider/schedule activation deferred."
+    },
+    {
+      "sourceVersion": "20261106160442",
+      "sourcePath": "supabase/migrations/20261106160442_prevent_native_push_device_reactivation.sql",
+      "sourceSha256": "43fbb6eea9fb1fd7fc516e625e443e367bc96da5e21c8ff63c4f1200a41f51df",
+      "version": "20261106160708",
+      "name": "prevent_native_push_device_reactivation",
+      "statement_count": 1,
+      "recorded_sql_sha256": "43fbb6eea9fb1fd7fc516e625e443e367bc96da5e21c8ff63c4f1200a41f51df",
+      "verifiedAt": "2026-11-06T16:12:46.075609+00:00",
+      "reason": "Revoked native installations cannot be silently reactivated by registration refresh; explicit re-enrollment requires fresh installation identity."
     }
   ],
   "requested_migrations": 9,
   "followup_fixes": 2,
-  "total_applied": 14,
-  "phase_migrations": 3,
+  "total_applied": 16,
+  "phase_migrations": 5,
   "auditHistoryPhaseVerification": {
     "preChangeApplicationTables": 103,
     "preChangeApplicationRows": 2462,
@@ -262,5 +284,39 @@
     "syntheticPublications": 1,
     "newWarnFindings": 0,
     "expectedPrivateRlsDenyAllInfoFindings": 1
+  },
+  "nativePushPhaseVerification": {
+    "preChangeApplicationTables": 8,
+    "preChangeApplicationRows": 1414,
+    "routinesBackedUp": 4,
+    "affectedApplicationRowsRestored": true,
+    "allOriginalRowsUnchangedAfterQa": true,
+    "newTablesEmptyImmediatelyAfterDdl": 4,
+    "syntheticDevices": 3,
+    "syntheticJobOutcomes": {
+      "failed": 1,
+      "cancelled": 2,
+      "accepted": 0
+    },
+    "realProviderCalls": 0,
+    "enabledPreferencesAfterQa": 0,
+    "activeDevicesAfterQa": 0,
+    "nativeSessionsLocallySignedOut": 7,
+    "newWarnFindings": 0,
+    "expectedPrivateRlsDenyAllInfoFindings": 4,
+    "nativeAppBuilt": false,
+    "providerActivated": false,
+    "scheduleActivated": false
+  },
+  "nativePushRevokeHardeningVerification": {
+    "preChangeApplicationTables": 4,
+    "preChangeApplicationRows": 9,
+    "routinesBackedUp": 1,
+    "affectedApplicationRowsRestored": true,
+    "allOriginalRowsUnchangedAfterDdl": true,
+    "deniedNativeReplayAttempts": 6,
+    "ownedAuthSessionsLocallySignedOut": 1,
+    "settingsDeviceSourceInboxReadStateUnchanged": true,
+    "realProviderCalls": 0
   }
 }

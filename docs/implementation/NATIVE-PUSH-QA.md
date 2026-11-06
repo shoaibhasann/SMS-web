@@ -1,0 +1,90 @@
+# Native push backend — implementation and QA
+
+6 November 2026 · Backend now, native app next phase · Hosted backend verified · Production release verification pending
+
+App: [SMS Production login](https://kids-corner-erp-frontend.vercel.app/login) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md)
+
+## Scope and boundaries
+
+This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.
+
+Sending is gated behind server-only configuration and remains OFF until the native app, Firebase credentials, registered devices and protected recurring dispatcher have been verified. A preference save does not register a phone or prove notification delivery. This phase does not activate SMS, email, WhatsApp, paid OTP or a provider fallback.
+
+The server uses Firebase HTTP v1 and current Firebase Installation IDs (FIDs), rather than treating an arbitrary legacy registration token as a current installation identifier. The provider endpoint and OAuth scope are fixed; credential JSON cannot redirect authentication or sending to a caller-controlled host. See the [current FCM message resource](https://firebase.google.com/docs/reference/fcm/rest/v1/projects.messages) and [registration lifecycle guide](https://firebase.google.com/docs/cloud-messaging/manage-tokens). Recheck the actual native SDK contract when building the app; older Expo/FCM examples may still use deprecated registration-token APIs.
+
+## Implemented behavior
+
+- Each current verified Student/Guardian role has independent preferences. The master switch defaults OFF; supported event choices default selected but cannot enable delivery by themselves. Guardian settings show absence/results/leave; Student settings show results/leave only. The four-boolean API contract retains the compatibility absence field, without creating Student absence events.
+- Account settings reads only the supplied verified family contexts, keeps drafts on stale/lost saves and confirms discard before changing context or refreshing. Accounts without an actual family role have no family push settings panel.
+- The web UI lists redacted own devices and supports explicit remote revocation. It does not collect or display FIDs, native installation proofs, session IDs or privileged credentials.
+- A native installation is bound to its own account, explicit family role, school, live native Auth session and a hashed 256-bit installation proof. Current FID/session changes advance a device generation and invalidate old queued work. A revoked installation is permanently rejected by registration; automatic refresh cannot undo a remote revoke. Explicit re-enrollment requires a fresh Firebase installation/FID, installation UUID and proof.
+- Existing installation ownership cannot transfer to another account, school or family role merely by supplying its UUID or proof. An FID already belonging to another installation cannot be claimed. Native account-switch/reset behavior must be implemented before the app ships; the app must not silently reuse another account's installation identity.
+- New qualifying event inserts enqueue at most one job per event/device generation when that device is eligible and opted in. Registration, opt-in or a migration does not backfill historical notifications. New Guardians do not receive fabricated old pushes.
+- Current recipient/child linkage, role/profile eligibility, source status/latest result revision, registered device/session and preferences are checked at queue creation, claim and immediate preparation before each send. Disabled/revoked/stale/superseded scopes are suppressed without changing original school records or inbox read state.
+- Service-only RPCs claim bounded jobs with leased ownership and skip locked rows. Preparation consumes one bounded attempt and cannot be repeated under the same prepared lease. Completion checks the current lease; an old worker cannot overwrite a newer claim.
+- Job lifetime is 24 hours, maximum prepared attempts is five, and a lease lasts five minutes. Device freshness is limited to 90 days. Own device history is bounded to 50 redacted rows, with at most 10 non-revoked devices and 100 new installation registrations per account/day.
+- Push content is neutral: `SMS school update` / `Open SMS to view your school updates.` Only a notifications-screen hint is sent. The future app must authenticate and recheck current authorization before loading private records. A delivered lock-screen message cannot be recalled after a later revocation.
+
+The HTTP worker claims up to 20 jobs with at most five parallel sends, bounds provider authentication, RPC and send time, and uses a private bearer secret. Missing/incorrect authorization fails before privileged database/provider calls. The public status route exposes configuration availability only, not credentials, installation identifiers or delivery claims.
+
+## Delivery semantics
+
+| State | Meaning |
+|---|---|
+| Queued / leased | Work is retained or owned temporarily by a dispatcher. No delivery is implied. |
+| Accepted | FCM returned a verified project message resource. This is provider acceptance, not proof the phone displayed or a person read the alert. |
+| Retry | A retryable network/unknown acknowledgement, rate-limit or provider-unavailable outcome is retained within the lifetime/attempt cap. |
+| Cancelled / suppressed | The source, preference, session, device or current recipient scope no longer permits this work, or it expired. |
+| Failed | The attempt/lifetime limit or a terminal provider/configuration rejection stopped this job. Source/inbox records remain retained. |
+
+Provider/network acknowledgements can be lost after FCM accepted a send. The queue therefore provides at-least-once attempts with source/job deduplication and coalesced neutral notifications; it cannot guarantee exactly-once display on a phone. Android tags/collapse keys and APNs collapse IDs reduce redundant visible update alerts but are not delivery receipts. No push outcome marks the in-app notification read.
+
+Only a confirmed typed FCM `UNREGISTERED` response disables an installation. An arbitrary malformed payload, generic 400/404 or sender credential problem must not revoke somebody's device. Rate limits and server failures retry with bounded backoff; explicit provider Retry-After must be honored rather than shortened. 401/403 provider authorization failures retry after at least one hour within the same lifetime/attempt cap. Exhausted or terminal project/payload rejections require operator reconciliation after fixing configuration; OAuth-token acquisition alone does not prove permission to send to the configured Firebase project.
+
+## RPC contract for the future native app
+
+All ordinary calls use the signed-in family's Supabase session. A supplied role is a requested context, not authorization; the database checks the actual same-school role and active verified native session each time.
+
+| RPC | Inputs | Result |
+|---|---|---|
+| `get_my_family_push_settings` | `p_role`: `parent` or `student` | `{ preferences: { enabled, absence, result_published, leave_decision, version }, devices: [...] }`. Device whitelist: `id`, `platform`, `label`, `created_at`, `last_seen_at`, `revoked_at`. |
+| `set_my_family_push_preferences` | `p_role`, four preference booleans, `p_expected_version` | Same checked settings. Differing stale writes return PT409; an identical desired-state retry may confirm an already-saved version. |
+| `register_my_family_push_device` | `p_role`, installation UUID, 64 lowercase-hex secret, current 22-character FID, `android`/`ios`, trimmed label 1–80 codepoints | `{ device_id, generation }`. Inputs use `p_installation_id`, `p_installation_secret`, `p_fid`, `p_platform`, `p_label`. No secret/FID readback. |
+| `revoke_my_family_push_device` | `p_role`, `p_device_id` | `true` for own confirmed/already-revoked registration; `false` for unavailable/foreign registration. |
+
+Worker-only RPCs are `claim_family_push_jobs(p_batch_id,p_limit)`, `prepare_family_push_job(p_job_id,p_lease_id)` and `finish_family_push_job(...)`. Anonymous and ordinary authenticated roles cannot use them or read/write raw private device/job/preferences/batch tables. The native app never receives service-role or dispatch secrets.
+
+## Activation checklist — operator owned, currently OFF
+
+1. Build the native app's actual Firebase registration, phone-permission UX and secure installation-proof lifecycle. Verify startup refresh, reauthentication, account/role switch, logout, reinstall/reset and FID rotation against the current Firebase SDK. Never reuse another owner's installation identity.
+2. Configure a least-privilege Firebase sender and the correct Android/iOS project applications. Verify actual native registration; iOS also requires its APNs/Firebase setup. Keep the service-account key and Supabase service role server-only.
+3. Set `FIREBASE_SERVICE_ACCOUNT_JSON`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL` and a high-entropy `PUSH_DISPATCH_SECRET`. Do not put secrets in `NEXT_PUBLIC_` fields or source control. Keep `NATIVE_PUSH_ENABLED=false` until the target device and sender are ready.
+4. Establish a protected recurring HTTP POST to `/api/push/dispatch` with `Authorization: Bearer <dispatch secret>`. Set and inspect the real scheduler cadence, retries and operational ownership. This migration does not silently create or activate a cron job. A successful manual invocation is not a running scheduler.
+5. With an opted-in disposable native installation, verify new source event → private job → worker → FCM acceptance → real phone display → authenticated inbox and permitted record. Record the separate observations; do not label acceptance as display/read.
+6. Exercise shared-phone account switches, revocation while queued/in flight, expiry, reinstallation, denied OS permissions, stale native sessions, provider 429/5xx, long Retry-After, lost send/finish acknowledgements, duplicate scheduler invocations and cleanup. Only then enable the dispatch flag and recurring job for the approved scope.
+
+## Engineering verification ledger
+
+| Check | Status | Evidence / remaining boundary |
+|---|---|---|
+| Client/settings/account UI | PASS — 48 focused cases | Strict response whitelist, own-role request arguments, optimistic version/desired-state acknowledgement, redacted devices, defaults, save/reopen, stale draft/discard, explicit revoke/focus, role/user/session races, parallel writes, Unicode device-label parity and existing account password/contact behavior. |
+| Scoped UI/client lint and TypeScript | PASS for owned files | Whole-project final checks are recorded by the release owner. |
+| Database queue/device/access regressions | PASS — 24 new cases | Recovered PostgreSQL tests cover all3events, no backfill, ownership/proof/FID collisions, default-off/versioned preferences, current session/role/source/link checks, limits, fencing/rotation/late acknowledgements and explicit7200-second Retry-After. Recovery86sources/16patches/110tables/five views. Serial local tests do not prove simultaneous hosted connections. |
+| Provider/worker regressions and Retry-After integration | PASS — 45 cases | Fixed sender/scope and credential whitelist, private authorization, configuration gate, HTTP v1 FID payload, platform TTL/coalescing, bounded20/5parallel dispatch, response limits, retries, typed invalid-device handling and lost/stale acknowledgements. Transport is mocked, not real FCM evidence. |
+| Hosted migration, original-record preservation and API QA | PASS | Source20261106153406 → hosted20261106155042, exact SHA25698505d0429f846c78ac0db87671a5885edcab3c1ce047629bfe6c00fb886455a. A private8table/1414row/4routine prechange snapshot restored in the prephase embedded schema. Immediate post-DDL rows were identical and all4newtables empty. Final original rows/read timestamps also remain identical after synthetic QA. |
+| Account settings browser save/reload and role isolation | Local PASS; Production pending | Existing Guardian account: masterOFF, own2revokeddevices; Published results checked→unchecked→save→hardreload staysunchecked, then checked→save restores baseline. No registration or send control exists in web UI. Student/other-role isolation also covered by native RPC and server-context tests. |
+| `main` Production release | PENDING | Record feature commit, deployment Ready/stable alias, exact public checklist bytes and disabled status. |
+| Real FCM/device delivery and recurring schedule | BLOCKED / not activated | Native app, verified target installation, approved provider setup and operator scheduler activation are required. No real delivery pass is claimed. |
+| Founder acceptance | PENDING | All boxes in the public checklist remain unchecked. |
+
+Source migrations: `supabase/migrations/20261106153406_native_family_push_delivery.sql` and `supabase/migrations/20261106160442_prevent_native_push_device_reactivation.sql`. The second is hosted20261106160708, exact SHA25643fbb6eea9fb1fd7fc516e625e443e367bc96da5e21c8ff63c4f1200a41f51df; the base source is unchanged. Recovery orders86sources/16patches/110tables/five views. Deployed revision is recorded after Production verification. Existing in-app read state, original attendance/fees/child links and prior results/leave history must remain preserved during this rollout.
+
+## Hosted synthetic backend QA — 6 November
+
+The native SDK run signs in existing verified family and reviewer accounts, registers only3synthetic FIDs, checks exact registration retries, proof/collision/takeover denial, same-owner generation rotation, redacted settings, stale/identical preference saves, wrong-role/anonymous/service access denial and one new Student leave → independent Principal decision. All seven owned SDK Auth sessions are closed locally (six primary QA plus one revoke regression); original preference values are restored and all3test devices revoked.
+
+Controlled service SQL claims exactly those3new jobs. One own Guardian job is prepared and finished with the explicitly simulated code `QA_SIMULATED_UNREGISTERED`; no Firebase request occurs and no Accepted outcome is invented. The other2leases remain unprepared. After Guardian opt-out and Student device revocation, both preparations return null and both late completions return false. Final jobs are1failed/2cancelled,0accepted; active devices0 and enabled preference masters0. This proves the recorded hosted backend checks, not native phone display or simultaneous-connection throughput.
+
+Before the revoke-hardening follow-up, a separate private4table/9row/1routine snapshot restored against the prepatch embedded schema; all9rows remained identical after DDL. Fresh native Auth then denied all6same/reused installation and FID registration attempts across both revoked Guardian devices with42501. Preferences, device generation/last-seen metadata, source histories and inbox/read state remained unchanged. No provider request occurred.
+
+Whole-project verification:1,971tests/147files, lint, TypeScript and optimized Next build pass. Production-dependency audit reports no vulnerabilities. Security advisors add4expected INFO findings for inaccessible private RLS-deny-all tables; pre-existing warnings are unchanged. Native Auth/Storage/provider disaster recovery remains outside the affected-application-row backup boundary.

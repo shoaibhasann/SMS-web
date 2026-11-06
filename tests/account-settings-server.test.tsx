@@ -8,9 +8,9 @@ vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Erro
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser },
   from: (table: string) => ({ select: () => ({ eq: () => table === "profiles" ? { maybeSingle: profile } : roles() }) }) }) }));
 vi.mock("@/components/layout/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
-vi.mock("@/components/account/account-settings", () => ({ AccountSettings: ({ userId, role, hasGuardianRole }: {
-  userId: string; role: string; hasGuardianRole: boolean;
-}) => <section aria-label="Verified own settings">{userId}/{role}/{String(hasGuardianRole)}</section> }));
+vi.mock("@/components/account/account-settings", () => ({ AccountSettings: ({ userId, role, hasGuardianRole, hasStudentRole }: {
+  userId: string; role: string; hasGuardianRole: boolean; hasStudentRole: boolean;
+}) => <section aria-label="Verified own settings">{userId}/{role}/{String(hasGuardianRole)} · student push {String(hasStudentRole)}</section> }));
 beforeEach(() => {
   vi.clearAllMocks();
   getUser.mockResolvedValue({ data: { user: { id: "owner", user_metadata: { role: "super_admin" } } }, error: null });
@@ -54,4 +54,12 @@ describe("account settings server authority", () => {
     expect(screen.queryByRole("region", { name: "Verified own settings" })).not.toBeInTheDocument();
     expect(profile).not.toHaveBeenCalled();
   });
+});
+
+
+it("passes only server-verified same-school Student and Guardian push contexts",async()=>{
+ roles.mockResolvedValueOnce({data:[{role:"teacher",school_id:"school"},{role:"parent",school_id:"school"},{role:"student",school_id:"foreign-school"}],error:null});
+ const first=render(await AccountSettingsPage());expect(screen.getByRole("region",{name:"Verified own settings"})).toHaveTextContent("owner/teacher/true · student push false");first.unmount();
+ roles.mockResolvedValueOnce({data:[{role:"parent",school_id:"school"},{role:"student",school_id:"school"}],error:null});
+ render(await AccountSettingsPage());expect(screen.getByRole("region",{name:"Verified own settings"})).toHaveTextContent("student push true");
 });

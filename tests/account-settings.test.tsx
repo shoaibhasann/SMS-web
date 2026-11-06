@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountSettings } from "../components/account/account-settings";
 import { PasswordChangeError } from "../lib/account/password";
 
-const { authUser, profile, subscribe, change, signOut, eq } = vi.hoisted(() => ({
-  authUser: vi.fn(), profile: vi.fn(), subscribe: vi.fn(), change: vi.fn(), signOut: vi.fn(), eq: vi.fn(),
+const { authUser, profile, subscribe, change, signOut, eq, rpc } = vi.hoisted(() => ({
+  authUser: vi.fn(), profile: vi.fn(), subscribe: vi.fn(), change: vi.fn(), signOut: vi.fn(), eq: vi.fn(), rpc: vi.fn(),
 }));
-vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getUser: authUser, onAuthStateChange: subscribe, signOut },
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc, auth: { getUser: authUser, onAuthStateChange: subscribe, signOut },
   from: () => ({ select: () => ({ eq: (...args: unknown[]) => { eq(...args); return { maybeSingle: profile }; } }) }) }) }));
 vi.mock("@/lib/account/password", async (original) => ({ ...await original<typeof import("../lib/account/password")>(), changeOwnPassword: change }));
 const owner = { id: "owner", email: "owner@example.test", email_confirmed_at: "2026-11-06T00:00:00Z", identities: [{ provider: "email" }], user_metadata: { role: "super_admin" } };
@@ -24,6 +24,7 @@ beforeEach(() => {
   subscribe.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   change.mockResolvedValue({ changed: true, temporarySessionClosed: true });
   signOut.mockResolvedValue({ error: null });
+  rpc.mockImplementation(() => { const reply = Promise.resolve({ data: { preferences: { enabled: false, absence: true, result_published: true, leave_decision: true, version: 0 }, devices: [] }, error: null }); return Object.assign(reply, { abortSignal: () => reply }); });
 });
 
 describe("own account settings", () => {

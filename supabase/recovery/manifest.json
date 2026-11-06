@@ -745,6 +745,22 @@
       "version": "20261106144905",
       "name": "family_notification_inbox",
       "provenance": "Additive recipient events and guarded family inbox; absence history retained."
+    },
+    {
+      "path": "supabase/migrations/20261106153406_native_family_push_delivery.sql",
+      "sha256": "98505d0429f846c78ac0db87671a5885edcab3c1ce047629bfe6c00fb886455a",
+      "kind": "pending",
+      "version": "20261106153406",
+      "name": "native_family_push_delivery",
+      "reason": "Private native family device registration, opt-in preferences and lease-fenced event delivery jobs; sending remains disabled until provider/app setup."
+    },
+    {
+      "path": "supabase/migrations/20261106160442_prevent_native_push_device_reactivation.sql",
+      "sha256": "43fbb6eea9fb1fd7fc516e625e443e367bc96da5e21c8ff63c4f1200a41f51df",
+      "kind": "pending",
+      "version": "20261106160442",
+      "name": "prevent_native_push_device_reactivation",
+      "reason": "Keep remote device revocation effective: a revoked native installation/FID tombstone cannot re-enable itself through ordinary registration refresh."
     }
   ],
   "excluded": [
@@ -783,5 +799,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "dd5866097ccc3b0ce5fa6336e3dc02f5462751d5a106759b57c0b7cb092f7486"
+  "order_sha256": "fbe2f35f745b2fbc2d8bec59c2db7184e8e3581f26c0920b995ac3b9e0742d0c"
 }

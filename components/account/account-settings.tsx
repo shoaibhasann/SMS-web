@@ -8,6 +8,8 @@ import { changeOwnPassword, PasswordChangeError, validatePasswordChange, type Pa
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeIndianMobile } from "@/lib/auth/phone";
+import { NativePushSettings } from "@/components/notifications/native-push-settings";
+import type { NativePushRole } from "@/lib/notifications/native-push";
 
 type Details = { name: string; email: string | null; verified: boolean; phone: string | null; providers: string[]; oauthOnly: boolean };
 type Result = { details: Details } | { error: string };
@@ -15,11 +17,14 @@ const emptyPassword = { currentPassword: "", newPassword: "", confirmation: "" }
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] disabled:opacity-50";
 const label = "block min-w-0 space-y-2 text-sm font-semibold";
 
-export function AccountSettings(props: { userId: string; role: UiRole; hasGuardianRole: boolean }) {
+type AccountProps = { userId: string; role: UiRole; hasGuardianRole: boolean; hasStudentRole?: boolean };
+
+export function AccountSettings(props: AccountProps) {
   return <OwnAccountSettings key={props.userId} {...props} />;
 }
 
-function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string; role: UiRole; hasGuardianRole: boolean }) {
+function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = role === "student" }: AccountProps) {
+  const pushRoles: NativePushRole[] = [...(hasGuardianRole ? ["parent" as const] : []), ...(hasStudentRole ? ["student" as const] : [])];
   const [client] = useState(createClient);
   const [result, setResult] = useState<{ version: number; result: Result }>();
   const [version, setVersion] = useState(0);
@@ -122,6 +127,7 @@ function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string;
           <p className="text-xs leading-6 muted">School profile changes need school verification. Sign-in details cannot be edited on this page.</p>
           {hasGuardianRole && <Link href="/modules/profile?view=guardian" className={`${button} text-blue-700 dark:text-blue-300`}>Verified guardian contact settings</Link>}
         </section>
+        <NativePushSettings userId={userId} roles={pushRoles} />
         <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="password-heading">
           <div className="flex items-center gap-2"><KeyRound size={19} aria-hidden="true" /><h2 id="password-heading" className="font-semibold">Change password</h2></div>
           {!current.details.email && current.details.phone ? <p className="text-sm leading-6 muted">This guardian account uses mobile OTP. You do not need a password. Manage your verified number in guardian contact settings. If you lose that number, contact the school office to verify your identity.</p>
