@@ -255,6 +255,12 @@
     "backfill": false,
     "backupScope": "Affected application rows/routines only; no native Auth/Storage/provider restore",
     "paidSmsSent": 0,
-    "pushSent": 0
+    "pushSent": 0,
+    "originalRowsPreservedAfterNativeAndBrowserQa": true,
+    "nativeAuthSessionsClosed": 8,
+    "syntheticLeaveDecisions": 2,
+    "syntheticPublications": 1,
+    "newWarnFindings": 0,
+    "expectedPrivateRlsDenyAllInfoFindings": 1
   }
 }

@@ -47,9 +47,9 @@ There is deliberately **no historical result/leave notification backfill** and n
 | Full repository test/lint/typecheck/build/recovery rerun | PASS | 1,867 tests/142 files passed, including target-mode leave-submit guidance. Whole-project lint and optimized Next build including TypeScript pass. Recovery has 84 sources/14 patches,106 tables/five views. An empty notification status region is no longer rendered while its count is loading. |
 | Hosted migration/source preservation | PASS | Hosted version/hash and additive pre/post checks above. |
 | Hosted new-event and read-state preservation QA | PASS | Exactly 2 new one-day leave decisions and 1 new assessment/11 complete marks including zero → Teacher request → independent Principal publish. Retries deduplicate, recipients/role/foreign/sibling/anonymous calls isolate, exact target/filter/cursor/count checks pass. Original source/attendance/fee/payment/link/absence read-state fingerprints are unchanged. Only new event read fields were exercised. All8 owned native SDK Auth sessions were closed locally. |
-| Native/browser Student + Guardian flows | PARTIAL | Native role flows pass. Guardian local browser opens the exact result18/20 and approved leave, preserves both after reload, and a new-item read updates its saved count5→4. Student browser and final Production observation are recorded in the release handoff. Live revoke/relink and >50 history are not exercised against shared founder fixtures. |
+| Native/browser Student + Guardian flows | PASS for recorded scope | Local browser: Guardian exact result18/20 + approved leave survive reload; marking only the new result changes count5→4 and persists. Student own inbox remains3read/0unread. Production: separate Student and Guardian logins show the same independent state; Student result18/20 survives hard reload; Guardian4unread survives hard reload and its approved link opens the exact reviewed request. No Production school writes were needed for browser readback. Live revoke/relink, >50 history and simultaneous connections remain unverified on shared founder fixtures. |
 | Native concurrent publication/mark-all/session races | PENDING | Do not infer simultaneous-connection behavior from serial local tests. |
-| `main` Production deployment | PENDING | Record commit, deployment ID and Ready/HTTP/browser verification below. |
+| `main` Production deployment | PASS | Feature source `dbf12d642adc82e1e03037c04bbf4a00a3103af4`, deployment `dpl_4cucpHfpWhvSsSPLzprqzCEzShSk` Ready and assigned the stable alias. Public checklist HTTP200 bytes match source. Subsequent documentation-only commits retain this feature source. |
 | Founder/manual acceptance | PENDING | Every founder box remains unchecked in [the public checklist](../../public/qa/family-notifications-checklist.md). |
 
 ## QA procedure and data preservation
@@ -70,7 +70,13 @@ This slice provides **in-app notifications only**. It does not send SMS, OTP, pu
 | Release field | Recorded value |
 |---|---|
 | Stable URL | https://kids-corner-erp-frontend.vercel.app/login |
-| Deployed `main` commit / deployment ID | PENDING |
-| Full checks and browser/native evidence | PENDING |
+| Verified feature commit / deployment ID | `dbf12d6` / `dpl_4cucpHfpWhvSsSPLzprqzCEzShSk` · Ready; same stable alias |
+| Full checks and browser/native evidence | 1,867 tests/142 files; lint/types/optimized build; native SDK flow + two-role local/Production readback above |
 | Shared QA read-state restoration/parity | Original absence IDs/read_at unchanged; deliberate new-event read states retained for demo |
 | Founder acceptance / outstanding cases | PENDING |
+
+## Preserved demo and founder starting state
+
+The last global comparison retains all original1,405rows unchanged:20legacy absence alerts,1,307attendance rows,18student fees,16payments,34guardian links and the original5leave/5publication rows. New QA adds2leave decisions and1publication; original school records and original read timestamps remain identical. No whole-project/native managed-service restoration is implied.
+
+Use the existing private Fee Credit Student and Guardian accounts. The new result is titled `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` (own target18/20); the new leave dates are9November approved and10November rejected. Guardian starts with6events/4unread after the deliberate new-result read, including all3original absence alerts still unread. Student starts with3events/0unread after the new-event-only bulk test. Counts may change as the founder tests; these are the recorded engineering starting values.

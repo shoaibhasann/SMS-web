@@ -10,6 +10,8 @@ Source20261106144905 is applied as hosted20261106150230 with exact SHA256e7da66d
 
 Native SDK QA created only2synthetic leave requests and1assessment with11completed marks including zero, then performed Teacher request → independent Principal publication. Source retries produced no duplicates. Filter/keyset/count, recipient isolation, exact targets, wrong-role/sibling/foreign/anonymous denial, new-item reads, Student Mark all and fresh-session persistence passed; all8owned Authsessions were signed out locally. Original attendance/fee/payment/link/source records and all original absence IDs/read timestamps were preserved. Guardian bulk/revoke and >50 target fixtures are tested locally, not asserted as live founder acceptance. [Evidence and acceptance](FAMILY-NOTIFICATIONS-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/family-notifications-checklist.md).
 
+Final verification passes1,867tests/142files, whole-project lint and optimized Next build including TypeScript. Feature commit`dbf12d6` is Production Ready as`dpl_4cucpHfpWhvSsSPLzprqzCEzShSk` on the stable alias. Two-role local and Production browser readback verifies own inboxes, result/leave targets and hard refresh; Guardiannew-result read persists5→4 while Student stays0unread. Final global comparison preserves all1,405original rows exactly; shared original absence reads were never reset. Founder manual boxes remain unchecked.
+
 No SMS, email or push is sent. Staff notifications, additional event types/preferences, funded phone-provider activation and lost-number administration remain subsequent slices.
 
 
