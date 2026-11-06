@@ -1,5 +1,11 @@
 # Implementation phases
 
+Current web backlog: [remaining code, demo screens and activation gates](WEB-REMAINING.md), audited 6 November 2026.
+
+## Separate React Native family pilot — 6 November 2026
+
+The separate Android-first `sms-mobile` app implements verified family login, linked-child attendance, shared Notifications and explicit native FID enrollment/cleanup with session-bound API clients and encrypted storage.89mobile tests/fourfiles, lint/TypeScript, ExpoDoctor20/20, AndroidJSexport and GradledebugAPK build pass. Three actual hosted QA SDKsessions verify own/linked refresh and wrongscope denial without school source writes; allthree close locally. The native dev app launches on the owned emulator using Metro8087. Login receives compact brand/form refinement after user visual feedback. Physical/native interactive acceptance and real FCM sender/scheduler activation remain unchecked/OFF. Native homework/results/leave views and app-store/iOS setup follow later; the web commercial backlog remains open. [Evidence](MOBILE-PILOT-QA.md) · [Web remaining scope](WEB-REMAINING.md).
+
 ## Native-app push backend — 6 November 2026
 
 Native app is the next phase; this release implements backend registration, preferences, queue and dispatch only. Current Firebase Installation IDs are bound to an immutable verified family account/role/school and native Auth session, with a hashed installation proof and generation fencing. Shared-phone context changes require revoking/deleting the old Firebase installation and creating a fresh FID/proof; a retained old proof cannot rebind another owner. Own settings expose only redacted devices, defaultOFF preferences and explicit remote revoke. No web registration or permission prompt is added.

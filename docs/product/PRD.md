@@ -2,7 +2,7 @@
 
 6 November 2026 · Founder-aligned scope · Commercial sign-off pending
 
-[Founder answers](FOUNDER-ANSWERS.md) · [Build and verification log](../implementation/PHASES.md) · [Manual QA checklist](../implementation/POST-DEPLOY-QA.md)
+[Founder answers](FOUNDER-ANSWERS.md) · [Build and verification log](../implementation/PHASES.md) · [Manual QA checklist](../implementation/POST-DEPLOY-QA.md) · [Remaining web work](../implementation/WEB-REMAINING.md)
 
 ## Product and customer
 
@@ -49,6 +49,8 @@ Check role, school, assignment and ownership at the database boundary. Audit per
 **Earlier 6 November rollout checkpoint:** the original nine hardening/academic patches and two verified HTTP/performance follow-ups are applied to the demo project. The matching frontend, neutral/role-aware skeletons and stricter active-profile/module gates are released from `main` at [SMS Production](https://kids-corner-erp-frontend.vercel.app/login), code `2dfb1e26`. [Production founder acceptance](../implementation/PRODUCTION-RELEASE-QA.md) records the deployment and verification. Backend role/privacy and native concurrency checks plus real-data UI workflows pass; founder and real-school onboarding acceptance remain separate. Future releases use main/Production, with localhost for development.
 
 This sequence is an implementation decision. Commercial scope and sign-off are governed by the founder answers.
+
+**Separate native app pilot — 6 November:** an Android-first React Native family app now exists outside the web repository. Its first local development slice covers secure family sign-in, linked-child attendance, the shared notification inbox and explicit phone enrollment/cleanup. Native homework/results/leave detail screens and real phone delivery remain subsequent acceptance/build work. [Mobile pilot evidence and boundary](../implementation/MOBILE-PILOT-QA.md).
 
 **Native push backend slice — 6 November:** mobile-app delivery now has private FID registrations, immutable own account/role/school binding, session/generation fencing, default-off preferences, redacted remote device management, new-event job fan-out and a protected bounded Firebase HTTP v1 dispatcher. Existing absence/result/leave events are reused; no PWA/web subscription or history backfill is introduced. Native SDK and controlled service SQL QA verify queue/access/cleanup with synthetic registrations and no provider calls. The native app, real OS permission/Firebase registration, credentials and recurring schedule remain next-phase activation gates. [Backend acceptance](../implementation/NATIVE-PUSH-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md).
 
