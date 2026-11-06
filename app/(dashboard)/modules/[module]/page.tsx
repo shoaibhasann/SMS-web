@@ -17,6 +17,7 @@ import { AdminNoticesWorkspace } from "@/components/admin/admin-notices-workspac
 import { NoticeInbox } from "@/components/notices/notice-inbox";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
+import { SchoolSettingsWorkspace } from "@/components/admin/school-settings-workspace";
 import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-workspace";
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
@@ -300,10 +301,14 @@ function ModuleContent() {
     return <AppShell key={access.userId} userId={access.userId} role={access.role}><AuditHistoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
   }
 
+  if (moduleName === "settings" && (access.role === "admin" || access.role === "principal")) {
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><SchoolSettingsWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+  }
+
   if (access.role === "admin" && [
     "parents", "admissions", "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
-    "reports", "settings",
+    "reports",
   ].includes(moduleName)) {
     return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminDemoWorkspace module={moduleName as AdminDemoModule} /></AppShell>;
   }

@@ -55,13 +55,13 @@ describe("recovery source boundary", () => {
 
   it("keeps tenant bootstrap scripts archived but outside the replay plan", async () => {
     const actual = await readRecoveryManifest();
-    expect(actual.plan).toHaveLength(88);
-    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(18);
+    expect(actual.plan).toHaveLength(89);
+    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(19);
     expect(actual.plan.some((source) => source.path.endsWith("20261030_academic_teacher_self_management.sql"))).toBe(false);
     expect(actual.plan.some((source) => /20261030094244|20261030095353/.test(source.path))).toBe(false);
     const before = await readRecoverySources(actual, { applyPending: false });
     const after = await readRecoverySources(actual);
-    expect(after.length - before.length).toBe(18);
+    expect(after.length - before.length).toBe(19);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
@@ -90,7 +90,7 @@ describe("complete empty application replay", () => {
         count(*) filter(where c.relkind='v')::int as views
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where n.nspname in ('public','app_private')`);
-      expect(counts.rows).toEqual([{ tables: 110, views: 5 }]);
+      expect(counts.rows).toEqual([{ tables: 112, views: 5 }]);
       expect((await db.query("select count(*)::int as schools from public.schools")).rows).toEqual([{ schools: 0 }]);
       expect((await db.query("select count(*)::int as users from auth.users")).rows).toEqual([{ users: 0 }]);
       expect((await db.query("select count(*)::int as profiles from public.profiles")).rows).toEqual([{ profiles: 0 }]);

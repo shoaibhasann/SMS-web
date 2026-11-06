@@ -55,6 +55,9 @@ vi.mock("@/components/admin/audit-history-workspace", () => ({
     return <section aria-label="School audit history">{userId}</section>;
   },
 }));
+vi.mock("@/components/admin/school-settings-workspace", () => ({
+  SchoolSettingsWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real school settings">{userId}</section>,
+}));
 vi.mock("@/components/family/student-leave-workspace", () => ({
   StudentLeaveWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Student leave workspace">{role} {userId}</section>,
 }));
@@ -96,6 +99,20 @@ beforeEach(() => {
   readProfile.mockResolvedValue({ data: { is_active: true, school_id: "school" }, error: null });
   onAuthStateChange.mockReset().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
+});
+
+describe("real school settings route", () => {
+  it.each(["school_admin", "principal", "super_admin"])("opens real school settings for %s", async (role) => {
+    currentModule = "settings"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Real school settings" })).toHaveTextContent("actor");
+    expect(screen.queryByText("This module is ready for its dedicated management screen.")).not.toBeInTheDocument();
+  });
+  it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("denies %s before mounting settings", async (role) => {
+    currentModule = "settings"; readRoles.mockResolvedValue({ data: [{ role }], error: null }); render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    expect(screen.queryByRole("region", { name: "Real school settings" })).not.toBeInTheDocument();
+  });
 });
 
 describe("school audit route", () => {
