@@ -761,6 +761,14 @@
       "version": "20261106160442",
       "name": "prevent_native_push_device_reactivation",
       "reason": "Keep remote device revocation effective: a revoked native installation/FID tombstone cannot re-enable itself through ordinary registration refresh."
+    },
+    {
+      "path": "supabase/migrations/20261106180524_require_live_academic_family_sessions.sql",
+      "sha256": "d4a5cbf04b938772bef9f10cfaf083a8f5bf029601df699a02afe7e9b8956e6a",
+      "kind": "pending",
+      "version": "20261106180524",
+      "name": "require_live_academic_family_sessions",
+      "reason": "Close confirmed post-sign-out JWT reads across academic RLS and private files, governed student leave and assessment publication without changing retained records or assignment/link predicates."
     }
   ],
   "excluded": [
@@ -799,5 +807,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "fbe2f35f745b2fbc2d8bec59c2db7184e8e3581f26c0920b995ac3b9e0742d0c"
+  "order_sha256": "5c722cb548c3ed733c5fc900f1959ba0d32fdea706dc51aedf6613bce77c7dd7"
 }

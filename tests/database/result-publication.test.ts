@@ -63,6 +63,8 @@ beforeAll(async () => {
   await db.query("update public.teacher_assessments set status='completed' where id=$1", [id.assessmentA]);
   await db.query(`insert into public.teacher_assessments(id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,status)
     values($1,$2,$3,$4,$5,$6,$7,'Foreign school result','2026-11-05',100,'completed')`, [assessmentB, id.schoolB, id.yearB, id.classB, id.sectionB, id.subjectB, teacherRecordB]);
+  // Explicit synthetic native sessions; the platform auth.jwt() contract stays unchanged.
+  await db.exec("insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing");
   await db.exec("begin");
   try {
     await actor(id.teacherA, "update public.teacher_assessment_marks set remarks='Careful work' where id=$1", [id.markA]);
@@ -81,10 +83,10 @@ async function actor<Row extends Record<string, unknown> = Record<string, unknow
   await connection.exec("savepoint publication_actor");
   try {
     await connection.exec(`set local role ${role}`);
-    await connection.query("select set_config('request.jwt.claim.sub',$1,true)", [user ?? ""]);
+    await connection.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [user ?? "", JSON.stringify({ sub: user, session_id: user })]);
     const result = await connection.query<Row>(sql, params);
     await connection.exec("reset role");
-    await connection.query("select set_config('request.jwt.claim.sub','',true)");
+    await connection.query("select set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true)");
     await connection.exec("release savepoint publication_actor");
     return result;
   } catch (error) { await connection.exec("rollback to savepoint publication_actor; release savepoint publication_actor"); throw error; }

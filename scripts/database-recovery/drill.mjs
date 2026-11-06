@@ -75,6 +75,9 @@ export async function restoreSyntheticSnapshot(snapshot) {
 async function asActor(db, userId, callback, beforeRole) {
   await db.exec("begin");
   try {
+    // Sessions are disposable local verification fixtures and roll back with every probe.
+    await db.exec("insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing");
+    await db.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({ sub:userId,session_id:userId })]);
     if (beforeRole) await beforeRole(db);
     await db.exec("set local role authenticated");
     await db.query("select set_config('request.jwt.claim.sub',$1,true)", [userId]);
@@ -111,7 +114,7 @@ export async function verifyRecoveredState(db) {
     assert.equal(page.events[0].actor_name, "Synthetic admin-a");
     assert.equal(page.next_cursor, null);
     assert.equal(JSON.stringify(page).includes("PRIVATE_RESTORE_AUDIT_REASON"), false);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.guardianA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.guardianA, JSON.stringify({ sub:id.guardianA,session_id:id.guardianA })]);
     await assert.rejects(() => tx.query("select public.list_school_audit_events($1,'2026-11-05','2026-11-05')", [id.schoolA]),
       (error) => error.code === "42501");
   }, async (tx) => {
@@ -154,9 +157,9 @@ export async function verifyRecoveredState(db) {
     const args = [id.pupilA, "2026-11-10", "2026-11-11", "Synthetic recovery leave", "74000000-0000-0000-0000-000000000150"];
     const request = (await tx.query("select public.submit_student_leave($1,$2,$3,$4,$5) as id", args)).rows[0].id;
     assert.equal((await tx.query("select public.submit_student_leave($1,$2,$3,$4,$5) as id", args)).rows[0].id, request);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.adminA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.adminA, JSON.stringify({ sub:id.adminA,session_id:id.adminA })]);
     await tx.query("select public.review_student_leave($1,'approved','Synthetic recovery review')", [request]);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.studentUserA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.studentUserA, JSON.stringify({ sub:id.studentUserA,session_id:id.studentUserA })]);
     const history = (await tx.query("select id,status,review_note from public.list_family_student_leave($1)", [id.pupilA])).rows;
     assert.deepEqual(history, [{ id: request, status: "approved", review_note: "Synthetic recovery review" }]);
   });
@@ -170,15 +173,15 @@ export async function verifyRecoveredState(db) {
     const createSql = "select public.save_timetable_period($1,null,null,$2,$3,1,1,'08:00','09:00','Recovery room',$4) as id";
     const period = (await tx.query(createSql, args)).rows[0].id;
     assert.equal((await tx.query(createSql, args)).rows[0].id, period);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.teacherA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.teacherA, JSON.stringify({ sub:id.teacherA,session_id:id.teacherA })]);
     const teacher = (await tx.query("select public.get_teacher_timetable() as value")).rows[0].value;
     assert.equal(teacher.rows[0].id, period);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.guardianA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.guardianA, JSON.stringify({ sub:id.guardianA,session_id:id.guardianA })]);
     const family = (await tx.query("select public.get_family_timetable($1) as value", [id.pupilA])).rows[0].value;
     assert.equal(family.rows[0].id, period);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.adminA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.adminA, JSON.stringify({ sub:id.adminA,session_id:id.adminA })]);
     await tx.query("select public.remove_timetable_period($1,$2,$3,$4)", [id.schoolA, period, family.rows[0].version, "74000000-0000-0000-0000-000000000161"]);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.studentUserA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.studentUserA, JSON.stringify({ sub:id.studentUserA,session_id:id.studentUserA })]);
     assert.equal((await tx.query("select public.get_family_timetable($1) as value", [id.pupilA])).rows[0].value.rows.length, 0);
   });
   checks.push("timetable_retry_teacher_family_and_removal");
@@ -191,11 +194,11 @@ export async function verifyRecoveredState(db) {
     const request = (await tx.query("select public.request_assessment_publication($1,$2,$3) as id", [
       id.assessmentA, preview.source_token, "74000000-0000-0000-0000-000000000170",
     ])).rows[0].id;
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.guardianA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.guardianA, JSON.stringify({ sub:id.guardianA,session_id:id.guardianA })]);
     assert.equal((await tx.query("select public.get_family_assessment_results($1) as value", [id.pupilA])).rows[0].value.rows.length, 0);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.adminA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.adminA, JSON.stringify({ sub:id.adminA,session_id:id.adminA })]);
     await tx.query("select public.review_assessment_publication($1,'published','Reviewed synthetic restore results')", [request]);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.studentUserA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.studentUserA, JSON.stringify({ sub:id.studentUserA,session_id:id.studentUserA })]);
     const results = (await tx.query("select public.get_family_assessment_results($1) as value", [id.pupilA])).rows[0].value;
     assert.equal(results.rows.length, 1);
     assert.equal(results.rows[0].marks_obtained, 74);
@@ -228,7 +231,7 @@ export async function verifyRecoveredState(db) {
     assert.equal(fresh.length, 1);
     assert.notEqual(fresh[0].version, original);
     assert.equal((await tx.query("update public.notices set title='Stale restore edit' where id=$1 and version=$2 returning id", [id.noticeA, original])).rows.length, 0);
-    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.guardianA]);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [id.guardianA, JSON.stringify({ sub:id.guardianA,session_id:id.guardianA })]);
     assert.equal((await tx.query("select id from public.notices where id=$1", [id.noticeA])).rows.length, 0);
   });
   checks.push("notice_cas_and_withdrawn_audience_privacy");

@@ -1,6 +1,8 @@
 # Manual QA for SMS Production
 
-Latest backend milestone: [Native push backend](NATIVE-PUSH-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md). Native app remains the next phase. Test web account preferences now; phone delivery/provider/schedule cases are explicitly blocked until native setup is available. Existing in-app notifications and their read state remain separate.
+Latest mobile milestone: [Native Learning and session hardening](MOBILE-PILOT-QA.md) · [shareable founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/mobile-learning-checklist.md). Homework/results/leave SDK flows pass; native device acceptance, strict cached-file revocation and real FCM remain open gates.
+
+Latest backend milestone: [Native push backend](NATIVE-PUSH-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md). The separate native family app now has a development-build pilot; see [mobile Learning checklist](MOBILE-PILOT-QA.md). Phone delivery/provider/schedule cases remain blocked until approved real-device activation. Existing in-app notifications and their read state remain separate.
 
 
 Latest family milestone: [Student/Guardian Notifications v2](FAMILY-NOTIFICATIONS-QA.md) · [public founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/family-notifications-checklist.md). New reviewed result/leave alerts share the retained Guardian absence inbox. Run FN-01–15 with private demo accounts on the same stable Production URL. Original shared QA absence unread state remains intact; founder boxes stay unchecked. Push/SMS/email delivery is not part of this release.

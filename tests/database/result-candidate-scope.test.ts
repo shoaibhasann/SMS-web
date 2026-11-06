@@ -19,7 +19,7 @@ async function state(name: string) {
     proconfig as settings,prosecdef as definer from pg_proc where oid=$1::regprocedure`, [name])).rows[0];
 }
 async function candidates(user: string) {
-  await db.query("select set_config('request.jwt.claim.sub',$1,true)", [user]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [user, JSON.stringify({ sub: user, session_id: user })]);
   await db.exec("set local role authenticated");
   try {
     return (await db.query<{ value: Metadata[] }>("select public.list_assessment_publication_candidates() as value")).rows[0].value;
@@ -43,6 +43,8 @@ beforeAll(async () => {
     await db.query(`insert into public.teacher_assessments(id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks)
       values($1,$2,$3,$4,$5,$6,$7,'Synthetic candidate assessment','2026-11-05',100)`, [assessment, school, year, klass, section, subject, record]);
   }
+  // Explicit synthetic native sessions; the platform auth.jwt() contract stays unchanged.
+  await db.exec("insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing");
   originalState = await state("app_private.list_assessment_publication_candidates()");
   wrapperBefore = await state("public.list_assessment_publication_candidates()");
   await db.exec("begin");

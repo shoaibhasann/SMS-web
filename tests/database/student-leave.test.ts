@@ -26,6 +26,8 @@ beforeAll(async () => {
     await db.query("update public.profiles set school_id=$2,full_name=$3 where id=$1", [user, role === "super_admin" ? null : id.schoolA, `Leave ${role}`]);
     await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,$3)", [user, role === "super_admin" ? null : id.schoolA, role]);
   }
+  // Explicit synthetic native sessions; the platform auth.jwt() contract stays unchanged.
+  await db.exec("insert into auth.sessions(id,user_id) select id,id from auth.users on conflict(id) do nothing");
 }, 60_000);
 beforeEach(async () => { await db.exec("begin"); });
 afterEach(async () => { await db.exec("rollback"); });
@@ -38,10 +40,10 @@ async function actor<Row extends Record<string, unknown> = Record<string, unknow
   await connection.exec("savepoint leave_actor");
   try {
     await connection.exec(`set local role ${role}`);
-    await connection.query("select set_config('request.jwt.claim.sub',$1,true)", [user ?? ""]);
+    await connection.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)", [user ?? "", JSON.stringify({ sub: user, session_id: user })]);
     const result = await connection.query<Row>(sql, params);
     await connection.exec("reset role");
-    await connection.query("select set_config('request.jwt.claim.sub','',true)");
+    await connection.query("select set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true)");
     await connection.exec("release savepoint leave_actor");
     return result;
   } catch (error) {
@@ -365,6 +367,7 @@ describe("governed student leave under the complete recovered schema", () => {
     let restored: PGlite | undefined;
     try {
       await seedRecoveryData(source);
+      await source.exec("insert into auth.sessions(id,user_id) select id,id from auth.users");
       await source.exec("begin");
       const request = (await actor<{ id: string }>(id.guardianA,
         "select public.submit_student_leave($1,'2026-11-10','2026-11-11','Synthetic recovery leave',$2) as id",

@@ -2,9 +2,13 @@
 
 Current web backlog: [remaining code, demo screens and activation gates](WEB-REMAINING.md), audited 6 November 2026.
 
-## Separate React Native family pilot — 6 November 2026
+## Native Learning and academic session hardening — 6 November 2026
 
-The separate Android-first `sms-mobile` app implements verified family login, linked-child attendance, shared Notifications and explicit native FID enrollment/cleanup with session-bound API clients and encrypted storage.89mobile tests/fourfiles, lint/TypeScript, ExpoDoctor20/20, AndroidJSexport and GradledebugAPK build pass. Three actual hosted QA SDKsessions verify own/linked refresh and wrongscope denial without school source writes; allthree close locally. The native dev app launches on the owned emulator using Metro8087. Login receives compact brand/form refinement after user visual feedback. Physical/native interactive acceptance and real FCM sender/scheduler activation remain unchecked/OFF. Native homework/results/leave views and app-store/iOS setup follow later; the web commercial backlog remains open. [Evidence](MOBILE-PILOT-QA.md) · [Web remaining scope](WEB-REMAINING.md).
+The separate family app adds current-session Homework/private upload/Student submission/Guardian read-only feedback, latest published assessment Results and Leave requests/decisions, with exact native notification targets and encrypted mutation retries. Mobile206tests/sevenfiles, TypeScript/ESLint, Doctor20/20, final Android export and Gradle APK pass; new build installed/launched on the owned emulator. Actual hosted SDK PDF→Student submit→Teacher8/10→family reload and leave→independent Principal approve→both decision/alerts pass. All19owned sessions close, zero provider sends, and old source/attendance/finance/link/read fields remain unchanged. Native visual/touch/physical acceptance remains unchecked.
+
+Session guard migration20261106180524 matches exact local SQL SHA256d4a5cbf04b938772bef9f10cfaf083a8f5bf029601df699a02afe7e9b8956e6a, following a private8routine/30policy rollback snapshot. Fresh retained-token reads/writes now deny after logout. Immediate global1307attendance/16payment fingerprints remain unchanged. Wholeweb1997tests/148files pass; recovery87sources/17patches. Previously authorized raw Storage URLs can still hit the provider CDN until oldJWTexpiry, so strict noncached file delivery remains a real-school pilot gate. Original native downloads, Hindi/OTP, term report cards, signed app distribution/iOS and real FCM sending remain separate work. [Current evidence](MOBILE-PILOT-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/mobile-learning-checklist.md) · [Web remaining scope](WEB-REMAINING.md).
+
+The earlier89-test mobile foundation/runtime8c28b7e remains a historical checkpoint; current Learning source supersedes its web result/leave fallbacks.
 
 ## Native-app push backend — 6 November 2026
 
