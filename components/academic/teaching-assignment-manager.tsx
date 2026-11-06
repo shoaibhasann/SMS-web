@@ -7,6 +7,7 @@ import {
   type TeachingAssignmentDraft, type TeachingAssignmentRepository, type TeachingAssignmentRow,
 } from "@/lib/assignments/repository";
 import { TeachingAssignmentImport } from "./teaching-assignment-import";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const emptyDraft: TeachingAssignmentDraft = { teacher_id: "", class_id: "", section_id: "", subject_id: "", is_class_teacher: false };
 const panel = "rounded-2xl border border-slate-800 bg-[#0f172a] p-6 text-slate-200";
@@ -114,7 +115,7 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
   const accessError = accessState?.version === accessVersion ? accessState.error : null;
   if (!access) return <section className={panel}>
     {accessError ? <><p role="alert">{accessError}</p><button type="button" onClick={() => setAccessVersion((value) => value + 1)} className={`${action} mt-4`}>Retry access check</button></>
-      : <p role="status">Checking teaching assignment access…</p>}
+      : <LoadingState variant="form">Checking teaching assignment access…</LoadingState>}
   </section>;
 
   return <div className="space-y-6">
@@ -136,7 +137,7 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
       className={`rounded-xl border p-4 text-sm ${message.error ? "border-red-500/40 text-red-500" : "border-emerald-500/30 text-emerald-600"}`}>{message.text}</div>}
     {!school ? <p className="text-sm muted">Select an authorized school to continue.</p>
       : currentView?.error ? <section className={panel}><p role="alert">{currentView.error}</p></section>
-      : !data ? <section className={panel}><p role="status">Loading teaching assignments…</p></section>
+      : !data ? <section className={panel}><LoadingState variant="table">Loading teaching assignments…</LoadingState></section>
       : <>
         {school.canManage && <section className={panel}>
           <h2 className="text-lg font-semibold text-white">{editing ? "Edit Assignment" : "Add Teaching Assignment"}</h2>

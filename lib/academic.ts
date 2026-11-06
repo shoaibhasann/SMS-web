@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { readCompletePages } from '@/lib/complete-pages';
 
 export type TeachingAssignment = {
   id: string;
@@ -122,45 +123,69 @@ export async function getCurrentTeacherAssignments({ currentYearOnly = false } =
   }));
 }
 
-export async function loadAcademicLogs(filters: {
+export type AcademicLogFilters = {
   teacherId?: string;
   schoolId?: string;
   academicYearId?: string;
+  academicYearIds?: string[];
   classIds?: string[];
   sectionIds?: string[];
+  subjectId?: string;
+  logDate?: string;
+  activityType?: (typeof activityTypes)[number][0];
   status?: 'draft' | 'published';
-} = {}): Promise<AcademicLogRecord[]> {
+};
+
+export async function loadAcademicLogs(filters: AcademicLogFilters = {}): Promise<AcademicLogRecord[]> {
+  if (filters.classIds?.length === 0 || filters.sectionIds?.length === 0 || filters.academicYearIds?.length === 0) return [];
   const supabase = createClient();
-  let query = supabase
-    .from('class_logs')
-    .select('id, school_id, academic_year_id, log_date, class_id, section_id, subject_id, teacher_id, topic, summary, teacher_remark, status, published_at, updated_at')
-    .order('log_date', { ascending: false })
-    .limit(200);
-
-  if (filters.teacherId) query = query.eq('teacher_id', filters.teacherId);
-  if (filters.schoolId) query = query.eq('school_id', filters.schoolId);
-  if (filters.academicYearId) query = query.eq('academic_year_id', filters.academicYearId);
-  if (filters.classIds?.length) query = query.in('class_id', filters.classIds);
-  if (filters.sectionIds?.length) query = query.in('section_id', filters.sectionIds);
-  if (filters.status) query = query.eq('status', filters.status);
-
-  const { data, error } = await query;
-  if (error) throw error;
-  return (data ?? []) as AcademicLogRecord[];
+  // shortcut: loads the complete chosen scope, use a cursor UI for large multi-year history.
+  return readCompletePages<AcademicLogRecord>((from, to) => {
+    let query = supabase.from('class_logs')
+      .select(`id, school_id, academic_year_id, log_date, class_id, section_id, subject_id, teacher_id, topic, summary, teacher_remark, status, published_at, updated_at${filters.activityType ? ',class_activities!inner(activity_type)' : ''}`, { count: 'exact' })
+      .order('log_date', { ascending: false }).order('id');
+    if (filters.teacherId) query = query.eq('teacher_id', filters.teacherId);
+    if (filters.schoolId) query = query.eq('school_id', filters.schoolId);
+    if (filters.academicYearId) query = query.eq('academic_year_id', filters.academicYearId);
+    if (filters.academicYearIds?.length) query = query.in('academic_year_id', filters.academicYearIds);
+    if (filters.classIds?.length) query = query.in('class_id', filters.classIds);
+    if (filters.sectionIds?.length) query = query.in('section_id', filters.sectionIds);
+    if (filters.subjectId) query = query.eq('subject_id', filters.subjectId);
+    if (filters.logDate) query = query.eq('log_date', filters.logDate);
+    if (filters.activityType) query = query.eq('class_activities.activity_type', filters.activityType);
+    if (filters.status) query = query.eq('status', filters.status);
+    return query.range(from, to).returns<AcademicLogRecord[]>();
+  }, 'Academic history');
 }
 
 export async function loadAcademicActivities(logIds: string[]): Promise<AcademicActivity[]> {
   if (!logIds.length) return [];
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from('class_activities')
-    .select('id, class_log_id, activity_type, title, description, due_date, attachment_url, max_marks')
-    .in('class_log_id', logIds);
-  if (error) throw error;
-  return (data ?? []) as AcademicActivity[];
+  const uniqueIds = [...new Set(logIds)];
+  const activities: AcademicActivity[] = [];
+  const seen = new Set<string>();
+  for (let offset = 0; offset < uniqueIds.length; offset += 100) {
+    const ids = uniqueIds.slice(offset, offset + 100);
+    const rows = await readCompletePages<AcademicActivity>((from, to) => supabase
+      .from('class_activities')
+      .select('id, class_log_id, activity_type, title, description, due_date, attachment_url, max_marks', { count: 'exact' })
+      .in('class_log_id', ids).order('id').range(from, to).returns<AcademicActivity[]>(), 'Academic activities');
+    const allowed = new Set(ids);
+    for (const row of rows) {
+      if (!allowed.has(row.class_log_id) || seen.has(row.id)) {
+        throw new Error('Academic activities changed or returned an unexpected source log. Refresh before editing.');
+      }
+      seen.add(row.id);
+    }
+    activities.push(...rows);
+  }
+  return activities;
 }
 
 export async function saveAcademicLog(log: AcademicLog) {
+  if (log.id && !Array.isArray(log.existingActivities)) {
+    throw new Error('Load the complete activity list before editing this log. Your draft has not been saved.');
+  }
   const existing = log.existingActivities ?? [];
   const rows: AcademicActivityWrite[] = [];
   const preserve = (activity: AcademicActivity) => ({ id: activity.id, activity_type: activity.activity_type, title: activity.title,

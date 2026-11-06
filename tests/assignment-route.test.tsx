@@ -1,10 +1,12 @@
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
-import { canAccessModule, getTeacherNavigationModules, getVisibleModules } from "../lib/modules";
+import { canAccessModule, getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules } from "../lib/modules";
 
-const { getUser, readRoles } = vi.hoisted(() => ({ getUser: vi.fn(), readRoles: vi.fn() }));
+const { getUser, readRoles, readProfile, onAuthStateChange } = vi.hoisted(() => ({
+  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(),
+}));
 
 let currentModule: string;
 let searchParams: URLSearchParams;
@@ -16,8 +18,12 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
-    auth: { getUser },
-    from: () => ({ select: () => ({ eq: readRoles }) }),
+    auth: { getUser, onAuthStateChange },
+    from: (table: string) => ({ select: () => ({ eq: (...args: unknown[]) => table === "profiles"
+      ? { maybeSingle: () => readProfile(...args) }
+      : Promise.resolve(readRoles(...args)).then((result) => ({ ...result, data: result.data?.map((row: { role: string; school_id?: string | null }) => ({
+        ...row, school_id: "school_id" in row ? row.school_id : row.role === "super_admin" ? null : "school",
+      })) })) }) }),
   }),
 }));
 vi.mock("@/components/layout/app-shell", () => ({
@@ -36,6 +42,27 @@ vi.mock("@/components/finance/advance-credit-workspace", () => ({
 }));
 vi.mock("@/components/finance/family-advance-credit", () => ({
   FamilyAdvanceCredit: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Family advance credit">{role} {userId}</section>,
+}));
+vi.mock("@/components/finance/family-receipts", () => ({
+  FamilyReceipts: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Family receipts">{role} {userId}</section>,
+}));
+vi.mock("@/components/admin/admin-finance-workspace", () => ({
+  AdminFinanceWorkspace: () => <section aria-label="Office finance workspace" />,
+}));
+vi.mock("@/components/family/student-leave-workspace", () => ({
+  StudentLeaveWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Student leave workspace">{role} {userId}</section>,
+}));
+vi.mock("@/components/academic/result-publication-workspace", () => ({
+  ResultPublicationWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Result publication workspace">{role} {userId}</section>,
+}));
+vi.mock("@/components/teacher/teacher-views", () => ({
+  TeacherModuleView: ({ module }: { module: string }) => <section aria-label="Teacher raw assessment workspace">{module}</section>,
+}));
+vi.mock("@/components/admin/admin-assessment-workspace", () => ({
+  AdminAssessmentWorkspace: ({ mode }: { mode: string }) => <section aria-label="Admin raw assessment workspace">{mode}</section>,
+}));
+vi.mock("@/components/academic/timetable-workspace", () => ({
+  TimetableWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Timetable workspace">{role} {userId}</section>,
 }));
 
 vi.mock("@/components/academic/family-attendance-register", () => ({
@@ -60,7 +87,102 @@ beforeEach(() => {
   currentModule = "teacher-assignments";
   searchParams = new URLSearchParams();
   getUser.mockResolvedValue({ data: { user: { id: "actor" } }, error: null });
+  readProfile.mockResolvedValue({ data: { is_active: true, school_id: "school" }, error: null });
+  onAuthStateChange.mockReset().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
+});
+
+describe("verified module authority", () => {
+  beforeEach(() => { currentModule = "advance-credit"; });
+
+  it.each([false, null])("blocks an inactive or missing profile before mounting office data (%s)", async (active) => {
+    readProfile.mockResolvedValue({ data: active === null ? null : { is_active: active, school_id: "school" }, error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("inactive or unavailable");
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { role: "school_admin", school_id: null },
+    { role: "super_admin", school_id: "school" },
+  ])("does not treat malformed role scope as authority ($role / $school_id)", async (row) => {
+    readRoles.mockResolvedValue({ data: [row], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("No recognized role");
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+  });
+
+  it("requires the guardian role in the linked profile's actual school", async () => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "parent", school_id: "other-school" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("linked guardian account");
+    expect(screen.queryByRole("region", { name: "Family advance credit" })).not.toBeInTheDocument();
+  });
+
+  it("removes privileged content when a role is revoked before a focus recheck", async () => {
+    render(<ModulePage />);
+    await screen.findByRole("region", { name: "Office advance credit" });
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
+    fireEvent.focus(window);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the existing workspace mounted when the same authority is reverified", async () => {
+    render(<ModulePage />);
+    const office = await screen.findByRole("region", { name: "Office advance credit" });
+    fireEvent.focus(window);
+    await waitFor(() => expect(readRoles).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("region", { name: "Office advance credit" })).toBe(office);
+  });
+
+  it("removes office content when a disabled account returns to a visible tab", async () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    try {
+      render(<ModulePage />);
+      await screen.findByRole("region", { name: "Office advance credit" });
+      readProfile.mockResolvedValue({ data: { is_active: false, school_id: "school" }, error: null });
+      fireEvent(document, new Event("visibilitychange"));
+      expect(await screen.findByRole("alert")).toHaveTextContent("inactive or unavailable");
+      expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+    } finally { visibility.mockRestore(); }
+  });
+
+  it("clears old privileged content on account change and ignores a late old-role response", async () => {
+    let finishOld!: (value: unknown) => void;
+    const oldRead = new Promise((resolve) => { finishOld = resolve; });
+    render(<ModulePage />);
+    await screen.findByRole("region", { name: "Office advance credit" });
+    readRoles.mockReturnValueOnce(oldRead);
+    fireEvent.focus(window);
+    await waitFor(() => expect(readRoles).toHaveBeenCalledTimes(2));
+    getUser.mockResolvedValue({ data: { user: { id: "new-account" } }, error: null });
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
+    act(() => onAuthStateChange.mock.calls[0][0]("SIGNED_IN", { user: { id: "new-account" } }));
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await act(async () => { finishOld({ data: [{ role: "school_admin" }], error: null }); await oldRead; });
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+  });
+
+  it("clears office content immediately on sign-out and removes listeners on unmount", async () => {
+    const mounted = render(<ModulePage />);
+    await screen.findByRole("region", { name: "Office advance credit" });
+    getUser.mockResolvedValue({ data: { user: null }, error: null });
+    act(() => onAuthStateChange.mock.calls[0][0]("SIGNED_OUT", null));
+    expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Please sign in");
+    mounted.unmount();
+    const calls = getUser.mock.calls.length;
+    fireEvent.focus(window);
+    await act(async () => {
+      onAuthStateChange.mock.calls[0][0]("SIGNED_IN", { user: { id: "new-account" } });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(getUser).toHaveBeenCalledTimes(calls);
+    expect(onAuthStateChange.mock.results[0].value.data.subscription.unsubscribe).toHaveBeenCalledOnce();
+  });
 });
 
 describe("advance-credit module access", () => {
@@ -106,6 +228,176 @@ describe("advance-credit module access", () => {
       expect(canAccessModule(role, "advance-credit")).toBe(false);
       expect(getVisibleModules(role).some((module) => module.key === "advance-credit")).toBe(false);
     }
+  });
+});
+
+describe("guardian receipts route", () => {
+  beforeEach(() => { currentModule = "invoices"; });
+
+  it.each(["teacher", "school_admin", "accountant"])("uses explicit guardian scope for a parent who is also %s", async (role) => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    const receipts = await screen.findByRole("region", { name: "Family receipts" });
+    expect(receipts).toHaveTextContent("parent actor");
+    expect(screen.getByRole("main", { name: "parent shell" })).toContainElement(receipts);
+    expect(screen.queryByRole("region", { name: "Office finance workspace" })).not.toBeInTheDocument();
+  });
+
+  it.each(["teacher", "student", "school_admin"])("requires a verified parent role when %s requests guardian receipts", async (role) => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    expect(screen.queryByRole("region", { name: "Family receipts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Office finance workspace" })).not.toBeInTheDocument();
+  });
+
+  it("does not grant a teacher staff receipt access when a parent role is also present", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "teacher" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Family receipts" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Office finance workspace" })).not.toBeInTheDocument();
+    expect(canAccessModule("teacher", "invoices")).toBe(false);
+    expect(getVisibleModules("teacher").some((module) => module.key === "invoices")).toBe(false);
+  });
+
+  it("retains the default office receipt workspace for an administrator with a parent role", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "school_admin" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Office finance workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "admin shell" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Family receipts" })).not.toBeInTheDocument();
+  });
+});
+
+describe("student leave request route", () => {
+  beforeEach(() => { currentModule = "student-leave"; });
+
+  it.each([
+    ["student", "student"], ["parent", "parent"], ["school_admin", "admin"], ["super_admin", "admin"], ["principal", "principal"],
+  ])("opens the leave workspace with verified %s scope", async (dbRole, uiRole) => {
+    readRoles.mockResolvedValue({ data: [{ role: dbRole }], error: null });
+    render(<ModulePage />);
+    const workspace = await screen.findByRole("region", { name: "Student leave workspace" });
+    expect(workspace).toHaveTextContent(`${uiRole} actor`);
+    expect(screen.getByRole("main", { name: `${uiRole} shell` })).toContainElement(workspace);
+  });
+
+  it.each(["teacher", "accountant", "reception_staff"])("denies %s access to student leave requests", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
+  });
+
+  it.each(["teacher", "school_admin"])("opens family leave requests for a mixed %s and guardian account only in explicit guardian view", async (role) => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    const workspace = await screen.findByRole("region", { name: "Student leave workspace" });
+    expect(workspace).toHaveTextContent("parent actor");
+    expect(screen.getByRole("main", { name: "parent shell" })).toContainElement(workspace);
+  });
+
+  it("does not turn a mixed teacher and guardian account into a leave reviewer by default", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the office leave review scope by default for a mixed administrator and guardian account", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "school_admin" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Student leave workspace" })).toHaveTextContent("admin actor");
+    expect(screen.queryByRole("main", { name: "parent shell" })).not.toBeInTheDocument();
+  });
+
+  it("requires the parent role for the explicit guardian leave view", async () => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
+  });
+
+  it("keeps family and office leave navigation aligned with permissions while retaining staff leave", () => {
+    for (const role of ["admin", "principal", "student", "parent"] as const) {
+      expect(canAccessModule(role, "student-leave")).toBe(true);
+      expect(getVisibleModules(role).some((module) => module.key === "student-leave" && module.label === "Leave requests")).toBe(true);
+    }
+    for (const role of ["teacher", "finance", "reception"] as const) {
+      expect(canAccessModule(role, "student-leave")).toBe(false);
+      expect(getVisibleModules(role).some((module) => module.key === "student-leave")).toBe(false);
+    }
+    expect(getAdminNavigationModules().some((module) => module.key === "student-leave")).toBe(true);
+    expect(getAdminNavigationModules().some((module) => module.key === "leave")).toBe(true);
+  });
+});
+
+describe("timetable route", () => {
+  beforeEach(() => { currentModule = "timetable"; });
+
+  it.each([
+    ["school_admin", "admin"], ["super_admin", "admin"], ["principal", "principal"],
+    ["teacher", "teacher"], ["student", "student"], ["parent", "parent"],
+  ])("opens the real timetable workspace in the verified %s scope", async (dbRole, uiRole) => {
+    readRoles.mockResolvedValue({ data: [{ role: dbRole }], error: null });
+    render(<ModulePage />);
+    const workspace = await screen.findByRole("region", { name: "Timetable workspace" });
+    expect(workspace).toHaveTextContent(`${uiRole} actor`);
+    expect(screen.getByRole("main", { name: `${uiRole} shell` })).toContainElement(workspace);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it.each(["accountant", "reception_staff"])("does not expose timetable editing to %s", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Timetable workspace" })).not.toBeInTheDocument();
+  });
+
+  it.each(["teacher", "school_admin", "accountant"])("preserves explicit family scope for a mixed %s and guardian login", async (role) => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    const workspace = await screen.findByRole("region", { name: "Timetable workspace" });
+    expect(workspace).toHaveTextContent("parent actor");
+    expect(screen.getByRole("main", { name: "parent shell" })).toContainElement(workspace);
+    expect(screen.queryByRole("main", { name: "teacher shell" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: "admin shell" })).not.toBeInTheDocument();
+  });
+
+  it.each(["teacher", "student", "school_admin"])("requires the parent role when %s requests guardian timetable", async (role) => {
+    searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    expect(screen.queryByRole("region", { name: "Timetable workspace" })).not.toBeInTheDocument();
+  });
+
+  it("keeps a mixed teacher and guardian on their own teacher schedule by default", async () => {
+    readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "teacher" }], error: null });
+    render(<ModulePage />);
+    const workspace = await screen.findByRole("region", { name: "Timetable workspace" });
+    expect(workspace).toHaveTextContent("teacher actor");
+    expect(screen.getByRole("main", { name: "teacher shell" })).toContainElement(workspace);
+    expect(screen.queryByRole("main", { name: "parent shell" })).not.toBeInTheDocument();
+  });
+
+  it("keeps timetable navigation aligned with the office and read-only role routes", () => {
+    for (const role of ["admin", "principal", "teacher", "student", "parent"] as const) {
+      expect(canAccessModule(role, "timetable")).toBe(true);
+      expect(getVisibleModules(role).some((module) => module.key === "timetable")).toBe(true);
+    }
+    for (const role of ["finance", "reception"] as const) {
+      expect(canAccessModule(role, "timetable")).toBe(false);
+      expect(getVisibleModules(role).some((module) => module.key === "timetable")).toBe(false);
+    }
+    expect(getAdminNavigationModules().some((module) => module.key === "timetable")).toBe(true);
+    expect(getTeacherNavigationModules().some((module) => module.key === "timetable")).toBe(true);
   });
 });
 
@@ -242,5 +534,66 @@ describe("guardian contact route", () => {
     render(<ModulePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
     expect(screen.queryByRole("region", { name: "Guardian contact settings" })).not.toBeInTheDocument();
+  });
+});
+
+
+describe("published assessment result routes", () => {
+  beforeEach(() => { currentModule = "published-results"; });
+
+  it.each([["school_admin", "admin"], ["super_admin", "admin"], ["principal", "principal"], ["teacher", "teacher"], ["parent", "parent"], ["student", "student"]])("routes %s to the checked publication workspace", async (dbRole, role) => {
+    readRoles.mockResolvedValue({ data: [{ role: dbRole }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Result publication workspace" })).toHaveTextContent(`${role} actor`);
+    expect(screen.getByRole("main", { name: `${role} shell` })).toBeInTheDocument();
+  });
+
+  it.each(["accountant", "reception_staff"])("does not give %s publication access", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Result publication workspace" })).not.toBeInTheDocument();
+  });
+
+  it.each([["student", "results"], ["parent", "results"], ["student", "result-report"], ["parent", "result-report"]])("routes %s legacy %s to published-only family results", async (role, module) => {
+    currentModule = module;
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Result publication workspace" })).toHaveTextContent(`${role} actor`);
+    expect(screen.queryByRole("region", { name: "Admin raw assessment workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Teacher raw assessment workspace" })).not.toBeInTheDocument();
+  });
+
+  it.each(["results", "result-report", "published-results"])("preserves explicit mixed guardian scope for %s", async (module) => {
+    currentModule = module; searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Result publication workspace" })).toHaveTextContent("parent actor");
+    expect(screen.getByRole("main", { name: "parent shell" })).toBeInTheDocument();
+  });
+
+  it.each(["results", "published-results"])("does not infer a guardian role on %s", async (module) => {
+    currentModule = module; searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+  });
+
+  it.each([["teacher", "Teacher raw assessment workspace"], ["school_admin", "Admin raw assessment workspace"]])("keeps %s existing results report separate", async (role, label) => {
+    currentModule = "results";
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: label })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Result publication workspace" })).not.toBeInTheDocument();
+  });
+
+  it("does not duplicate the family results navigation", () => {
+    for (const role of ["parent", "student"] as const) {
+      expect(canAccessModule(role, "published-results")).toBe(true);
+      expect(getVisibleModules(role).filter((item) => item.key === "results")).toEqual([expect.objectContaining({ label: "Published results" })]);
+      expect(getVisibleModules(role).some((item) => item.key === "published-results")).toBe(false);
+    }
+    expect(getTeacherNavigationModules().some((item) => item.key === "published-results")).toBe(true);
+    expect(getAdminNavigationModules().some((item) => item.key === "published-results")).toBe(true);
   });
 });

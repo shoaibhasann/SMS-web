@@ -7,7 +7,7 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => mocks }));
 
 const log: AcademicLog = {
   id: "log-a", expected_updated_at: "2026-11-05T12:00:00Z", school_id: "school-a", academic_year_id: "year-a", class_id: "class-a", section_id: "section-a",
-  subject_id: "subject-a", log_date: "2026-11-05", topic: " Fractions ", summary: " Practice ", status: "published", activities: {},
+  subject_id: "subject-a", log_date: "2026-11-05", topic: " Fractions ", summary: " Practice ", status: "published", activities: {}, existingActivities: [],
 };
 const activity = (id: string, type: string, title: string): AcademicActivity => ({
   id, class_log_id: "log-a", activity_type: type, title, description: "Keep this description", due_date: "2026-11-07",

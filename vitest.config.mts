@@ -10,6 +10,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Database fixtures boot PostgreSQL/WASM; bound concurrent workers so
+    // startup contention does not exhaust the per-test timeout on laptops/CI.
+    maxWorkers: 4,
     environment: "jsdom",
     setupFiles: ["./tests/setup.ts"],
     clearMocks: true,

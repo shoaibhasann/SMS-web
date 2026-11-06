@@ -6,6 +6,7 @@ import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import { listFamilyFeeReceipts, type FamilyFeeReceipt } from "@/lib/finance/fee-changes";
 import { formatFeeMoney } from "@/lib/finance/fee-batches";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const pageSize = 30;
 const paidDate = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" });
@@ -57,7 +58,7 @@ export function FamilyReceipts({ role, userId }: { role: "student" | "parent"; u
               setAttempt((count) => count + 1);
             }}>Retry access check</button>
           </div>
-        ) : !students ? <p role="status" className="text-sm muted">Checking receipt access…</p>
+        ) : !students ? <LoadingState variant="form" className="text-sm muted">Checking receipt access…</LoadingState>
           : !student ? <p className="card p-4 text-sm muted">No student is linked to this account.</p>
             : (
               <>
@@ -105,7 +106,7 @@ function ReceiptHistory({ client, student }: { client: ReturnType<typeof createC
         <h2 className="font-bold">Receipt history</h2>
         <p className="mt-1 text-sm muted">{studentName(student)} · {student.admission_no}</p>
       </header>
-      {!view ? <p role="status" className="p-4 text-sm muted">Loading receipts…</p>
+      {!view ? <LoadingState variant="table" className="p-4 text-sm muted">Loading receipts…</LoadingState>
         : view.error ? (
           <div className="space-y-3 p-4">
             <p role="alert" className="text-sm text-red-600">Receipts could not be loaded.</p>

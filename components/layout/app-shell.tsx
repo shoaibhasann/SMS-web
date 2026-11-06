@@ -24,21 +24,21 @@ const quickLinks: Record<UiRole, readonly string[]> = {
 };
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)]";
 const iconButton = `min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)] ${focus}`;
-const activeLink = "bg-blue-50 font-semibold text-blue-700 dark:bg-blue-950/70 dark:text-blue-200";
-const idleLink = "muted hover:bg-[var(--surface-2)]";
+const activeLink = "bg-[var(--primary)] font-semibold text-white shadow-[0_4px_12px_#3867ff20] dark:text-[#0b1020]";
+const idleLink = "font-medium muted hover:bg-[var(--surface-2)] hover:text-[var(--text)]";
 
 function moduleHref(role: UiRole, key: string) {
   if (role === "parent" && key === "attendance") return guardianAttendancePath;
   if (role === "parent" && key === "notifications") return guardianNotificationsPath;
-  if (role === "parent" && key === "advance-credit") return "/modules/advance-credit?view=guardian";
+  if (role === "parent" && (key === "advance-credit" || key === "invoices" || key === "student-leave" || key === "timetable" || key === "results" || key === "published-results" || key === "profile")) return `/modules/${key}?view=guardian`;
   return `/modules/${key}`;
 }
 
 function Brand() {
   return (
     <div className="min-w-0">
-      <p className="text-[30px] font-black leading-none tracking-[-0.045em]">SMS</p>
-      <p className="mt-2 text-xs muted">School Management System</p>
+      <p className="text-[28px] font-extrabold leading-none tracking-[-0.055em]">SMS</p>
+      <p className="mt-1.5 text-[11px] leading-4 muted">School Management System</p>
     </div>
   );
 }
@@ -53,8 +53,8 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
   return (
     <nav aria-label="Workspace pages" className="space-y-5 px-3 pb-5">
       <Link href="/dashboard" aria-current={currentKey === "dashboard" ? "page" : undefined} onClick={onNavigate}
-        className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold ${currentKey === "dashboard" ? activeLink : idleLink} ${focus}`}>
-        <Icons.LayoutDashboard aria-hidden="true" size={18} />
+        className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[13px] font-semibold transition-colors ${currentKey === "dashboard" ? activeLink : idleLink} ${focus}`}>
+        <Icons.LayoutDashboard aria-hidden="true" size={19} strokeWidth={1.8} />
         Dashboard
       </Link>
       {navigationGroups.map((group) => {
@@ -62,16 +62,16 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
         if (!items.length) return null;
         return (
           <div key={group} className="space-y-0.5">
-            <p className="px-3 pb-1 text-[11px] font-bold uppercase tracking-[0.14em] muted">{group}</p>
+            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] muted">{group}</p>
             {items.map((item) => {
               const Icon = Icons[item.icon];
               const selected = currentKey === item.key;
               return (
                 <Link key={item.key} href={moduleHref(role, item.key)} aria-current={selected ? "page" : undefined}
                   onClick={onNavigate}
-                  className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm ${selected ? activeLink : idleLink} ${focus}`}>
-                  <Icon aria-hidden="true" size={17} strokeWidth={1.8} className="shrink-0" />
-                  <span className="flex-1">{item.label}</span>
+                  className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[13px] transition-colors ${selected ? activeLink : idleLink} ${focus}`}>
+                  <Icon aria-hidden="true" size={19} strokeWidth={1.75} className="shrink-0" />
+                  <span className="min-w-0 flex-1 leading-5">{item.label}</span>
                   {selected && <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />}
                 </Link>
               );
@@ -83,12 +83,20 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
   );
 }
 
+function displayIdentity(user: { email?: string; user_metadata?: unknown } | null | undefined) {
+  const metadata = user?.user_metadata && typeof user.user_metadata === "object" && !Array.isArray(user.user_metadata)
+    ? user.user_metadata as Record<string, unknown> : {};
+  const rawName = typeof metadata.full_name === "string" && metadata.full_name.trim() ? metadata.full_name
+    : typeof metadata.name === "string" ? metadata.name : "";
+  return { email: user?.email ?? "", name: rawName.replace(/\s+/g, " ").trim().slice(0, 80) };
+}
+
 export function AppShell({ children, role }: { children: ReactNode; role: UiRole }) {
   const path = usePathname();
   const router = useRouter();
   const [supabase] = useState(createClient);
   const [signingOut, setSigningOut] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  const [identity, setIdentity] = useState({ email: "", name: "" });
   const [logoutError, setLogoutError] = useState("");
   const [query, setQuery] = useState("");
   const logoutPending = useRef(false);
@@ -100,13 +108,13 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     let identityVersion = 0;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       identityVersion += 1;
-      if (active) setUserEmail(session?.user.email ?? "");
+      if (active) setIdentity(displayIdentity(session?.user));
     });
     const requestVersion = identityVersion;
     void supabase.auth.getUser().then(({ data, error }) => {
-      if (active && identityVersion === requestVersion) setUserEmail(error ? "" : data.user?.email ?? "");
+      if (active && identityVersion === requestVersion) setIdentity(displayIdentity(error ? null : data.user));
     }, () => {
-      if (active && identityVersion === requestVersion) setUserEmail("");
+      if (active && identityVersion === requestVersion) setIdentity(displayIdentity(null));
     });
     return () => { active = false; subscription.unsubscribe(); };
   }, [supabase]);
@@ -145,7 +153,8 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     ? getTeacherNavigationModules()
     : role === "admin" ? getAdminNavigationModules() : getVisibleModules(role);
   const moduleKey = path?.split("/")[2];
-  const currentKey = path === "/dashboard" ? "dashboard" : moduleKey === "result-report" ? "results" : moduleKey;
+  const currentKey = path === "/dashboard" ? "dashboard" : moduleKey === "result-report"
+    || ((role === "parent" || role === "student") && moduleKey === "published-results") ? "results" : moduleKey;
   const currentModule = visibleModules.find((item) => item.key === currentKey);
   const mobileModules = quickLinks[role].flatMap((key) => {
     const item = visibleModules.find((candidate) => candidate.key === key);
@@ -157,8 +166,17 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     ...visibleModules.map((item) => ({ label: item.label, group: item.group, href: moduleHref(role, item.key) })),
   ];
   const matches = pages.filter((page) => `${page.label} ${page.group}`.toLowerCase().includes(searchTerm));
-  const initials = userEmail.split("@")[0].split(/[._-]/).filter(Boolean).slice(0, 2)
-    .map((part) => part[0].toUpperCase()).join("") || "U";
+  const displayName = identity.name || roleLabels[role];
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2)
+    .map((part) => Array.from(part)[0].toUpperCase()).join("") || "U";
+  const canOpenProfile = visibleModules.some((item) => item.key === "profile");
+  const notificationKey = role === "parent" && visibleModules.some((item) => item.key === "notifications") ? "notifications"
+    : visibleModules.some((item) => item.key === "notices") ? "notices" : null;
+  const profileIdentity = <>
+    <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))] text-xs font-bold text-[var(--primary)]">{initials}</span>
+    <span className="hidden min-w-0 text-left xl:block"><span className="block max-w-36 truncate text-[13px] font-semibold">{displayName}</span><span className="mt-0.5 block text-[11px] muted">{identity.name ? roleLabels[role] : "School workspace"}</span></span>
+  </>;
+
   const logout = (
     <button type="button" onClick={handleLogout} disabled={signingOut}
       className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold muted hover:bg-[var(--surface-2)] disabled:opacity-60 ${focus}`}>
@@ -170,53 +188,52 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <a href="#workspace-main" className={`sr-only z-50 rounded-xl bg-[var(--surface)] p-3 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3 ${focus}`}>Skip to workspace</a>
-      <aside aria-label="Desktop sidebar" className="fixed inset-y-0 left-0 z-30 hidden w-[272px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
-        <div className="border-b border-[var(--border)] px-5 py-5"><Brand /></div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4">
+      <aside aria-label="Desktop sidebar" className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
+        <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--border)] px-6"><Brand /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5">
           <Navigation role={role} modules={visibleModules} currentKey={currentKey} />
         </div>
-        <div className="border-t border-[var(--border)] p-3">
-          <div className="flex items-center gap-3 px-2 pt-1">
-            <div aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-blue-100 text-xs font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-200">{initials}</div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold">{roleLabels[role]}</p>
-              {userEmail && <p className="truncate text-xs muted" title={userEmail}>{userEmail}</p>}
+        <div className="shrink-0 border-t border-[var(--border)] p-3">
+          <div className="flex items-center gap-2.5 rounded-xl bg-[var(--surface-2)] px-3 py-3">
+            <div aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] text-[11px] font-bold text-[var(--primary)]">{initials}</div>
+            <div className="min-w-0"><p className="text-[12px] font-semibold">{roleLabels[role]}</p>
+              {identity.email && <p className="mt-0.5 truncate text-[11px] muted" title={identity.email}>{identity.email}</p>}
             </div>
           </div>
-          <div className="mt-2 flex items-center justify-between gap-2">{logout}<ThemeToggle /></div>
+          <div className="mt-2 flex items-center justify-between gap-1">{logout}<ThemeToggle /></div>
         </div>
       </aside>
 
-      <div className="lg:pl-[272px]">
-        <header className="sticky top-0 z-20 flex min-h-[68px] items-center gap-3 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_90%,transparent)] px-4 backdrop-blur-xl sm:px-6 lg:gap-5">
-          <button type="button" aria-label="Open workspace menu" aria-haspopup="dialog" aria-controls="workspace-menu"
-            className={`inline-flex ${iconButton} lg:hidden`} onClick={() => menuDialog.current?.showModal()}>
-            <Icons.Menu aria-hidden="true" size={20} />
-          </button>
-          <div className="min-w-0 flex-1">
-            <p className="hidden text-xs font-medium muted sm:block">{currentModule?.group ?? "Workspace"}</p>
-            <p className="truncate text-sm font-bold tracking-tight sm:text-base">{currentModule?.label ?? "Dashboard"}</p>
+      <div className="min-w-0 lg:pl-[240px]">
+        <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] backdrop-blur-xl">
+          <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-4 sm:px-6 lg:min-h-[72px] lg:gap-5 lg:px-8">
+            <button type="button" aria-label="Open workspace menu" aria-haspopup="dialog" aria-controls="workspace-menu"
+              className={`inline-flex ${iconButton} lg:hidden`} onClick={() => menuDialog.current?.showModal()}>
+              <Icons.Menu aria-hidden="true" size={20} />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="mb-0.5 hidden items-center gap-1.5 text-[11px] muted sm:flex"><span>{roleLabels[role]}</span><Icons.ChevronRight aria-hidden="true" size={11} /><span>{currentModule?.group ?? "Workspace"}</span></p>
+              <p className="truncate text-[14px] font-semibold tracking-tight">{currentModule?.label ?? "Dashboard"}</p>
+            </div>
+            <button type="button" aria-label="Find a page" aria-haspopup="dialog" aria-controls="workspace-search" aria-keyshortcuts="Control+k Meta+k"
+              className={`flex min-h-11 shrink-0 items-center justify-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-[13px] font-medium muted transition-colors hover:text-[var(--text)] lg:min-w-[232px] lg:justify-start ${focus}`}
+              onClick={() => searchDialog.current?.showModal()}>
+              <Icons.Search aria-hidden="true" size={18} />
+              <span className="hidden sm:inline">Find a page</span>
+              <kbd aria-hidden="true" className="ml-auto hidden px-1.5 py-0.5 font-sans text-[11px] muted lg:inline">⌘ K</kbd>
+            </button>
+            {notificationKey && <Link href={moduleHref(role, notificationKey)} aria-label={notificationKey === "notifications" ? "Open notifications" : "Notices and circulars"} className={`hidden sm:inline-flex ${iconButton}`}><Icons.Bell aria-hidden="true" size={19} strokeWidth={1.75} /></Link>}
+            {canOpenProfile ? <Link href={moduleHref(role, "profile")} aria-label="Open my profile" className={`hidden min-h-11 min-w-11 items-center gap-2.5 rounded-xl lg:flex ${focus}`}>{profileIdentity}</Link>
+              : <div role="group" aria-label="Signed-in account" className="hidden min-h-11 min-w-11 items-center gap-2.5 lg:flex">{profileIdentity}</div>}
           </div>
-          <button type="button" aria-haspopup="dialog" aria-controls="workspace-search" aria-keyshortcuts="Control+k Meta+k"
-            className={`flex min-h-11 shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-medium hover:bg-[var(--surface-2)] ${focus}`}
-            onClick={() => searchDialog.current?.showModal()}>
-            <Icons.Search aria-hidden="true" size={17} />
-            <span>Find a page</span>
-            <kbd aria-hidden="true" className="hidden rounded-md border border-[var(--border)] bg-[var(--surface-2)] px-1.5 py-0.5 font-sans text-[11px] muted md:inline">Ctrl / ⌘ K</kbd>
-          </button>
-          {visibleModules.some((item) => item.key === "notices") && (
-            <Link href="/modules/notices" aria-label="Notices and circulars" className={`hidden sm:inline-flex ${iconButton}`}>
-              <Icons.Bell aria-hidden="true" size={18} />
-            </Link>
-          )}
         </header>
-        <main id="workspace-main" tabIndex={-1} className="mx-auto max-w-[1600px] p-4 pb-28 outline-none sm:p-6 sm:pb-28 lg:p-8">
+        <main id="workspace-main" tabIndex={-1} className="mx-auto min-w-0 max-w-[1600px] px-4 pb-28 pt-6 outline-none sm:px-6 sm:pb-28 lg:px-8 lg:pb-8 lg:pt-7">
           {logoutError && <p role="alert" className="mb-4 rounded-xl border border-red-500/30 bg-[var(--surface)] p-3 text-sm text-red-700 dark:text-red-300">{logoutError}</p>}
           {children}
         </main>
       </div>
 
-      <nav aria-label="Mobile shortcuts" className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex gap-1 rounded-2xl p-1.5 shadow-xl lg:hidden">
+      <nav aria-label="Mobile shortcuts" className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex gap-1 rounded-2xl p-1.5 shadow-[0_8px_32px_#12233c16] lg:hidden">
         <Link href="/dashboard" aria-current={currentKey === "dashboard" ? "page" : undefined}
           className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold ${currentKey === "dashboard" ? activeLink : idleLink} ${focus}`}>
           <Icons.Home aria-hidden="true" size={18} />Home

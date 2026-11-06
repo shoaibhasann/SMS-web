@@ -96,7 +96,7 @@ export function schoolDate(now = new Date()): string {
   return `${value("year")}-${value("month")}-${value("day")}`;
 }
 
-export function studentName(student: AttendanceStudent): string {
+export function studentName(student: Pick<AttendanceStudent, "first_name" | "middle_name" | "last_name">): string {
   return [student.first_name, student.middle_name, student.last_name]
     .filter(Boolean)
     .join(" ");

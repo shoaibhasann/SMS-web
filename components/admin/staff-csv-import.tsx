@@ -8,6 +8,7 @@ import {
 import {
   importSchoolStaff, listSchoolStaffImports, StaffImportRejected, type StaffImportHistory,
 } from "@/lib/teachers/staff-import";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Preview = { fileName: string; requestId: string; rows: StaffCsvRow[] };
 type Feedback = { kind: "error" | "retry" | "success"; text: string };
@@ -179,7 +180,7 @@ export function StaffCsvImport({
         <section aria-labelledby="staff-csv-history" className="space-y-2 border-t border-[var(--border)] pt-4">
           <h3 id="staff-csv-history" className="text-sm font-bold">Recent CSV imports</h3>
           {historyError ? <p role="alert" className="text-sm muted">Import history could not be loaded. Reopen this panel to retry.</p>
-            : !history ? <p role="status" className="text-sm muted">Loading import history…</p>
+            : !history ? <LoadingState variant="table" className="text-sm muted">Loading import history…</LoadingState>
             : history.length === 0 ? <p className="text-sm muted">No staff CSV imports for this school.</p>
             : <ul className="divide-y divide-[var(--border)]">
               {history.map((item) => (

@@ -14,6 +14,7 @@ import {
   type CreditActivity, type CreditAllocationInput, type CreditChangeInput, type CreditChangeKind,
   type CreditChangeRequest, type CreditPayoutInput, type CreditReceiptInput, type OfficeCreditAccount,
 } from "@/lib/finance/advance-credit";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Props = { client: SupabaseClient; schoolId: string; studentId: string; userId: string; canReview: boolean; onLockChange?: (locked: boolean) => void };
 type Tab = "receive" | "apply" | "refunds" | "activity";
@@ -308,7 +309,7 @@ function ScopedAdvanceCreditAccount({ client, schoolId, studentId, userId, canRe
         <div><h2 className="text-lg font-bold">{account?.student_name ?? "Student credit account"}</h2><p className="mt-1 text-sm muted">{account?.admission_no} · Advance credit is separate from fee dues.</p></div>
         <button type="button" className={button} disabled={saving || Boolean(pending) || Boolean(confirmation) || !storageReady} onClick={refresh}><RefreshCw size={15} aria-hidden="true" /> Refresh credit account</button>
       </div>
-      {active?.error ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{active.error}</p> : !account ? <p role="status" className="p-5 text-sm muted">Loading verified credit and fee records…</p> : <div className="space-y-3 p-4 sm:p-5">
+      {active?.error ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{active.error}</p> : !account ? <LoadingState variant="table" className="p-5 text-sm muted">Loading verified credit and fee records…</LoadingState> : <div className="space-y-3 p-4 sm:p-5">
         <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">{[["Available credit", account.summary.available_amount], ["Reserved for unpaid refunds", account.summary.reserved_amount], ["Total unused credit", account.summary.balance_amount]].map(([label, value]) => <div key={label} className="rounded-xl bg-[var(--surface-2)] p-4"><dt className="text-xs font-medium muted">{label}</dt><dd className="mt-2 break-words text-xl font-bold tabular-nums">{displayMoney(value)}</dd></div>)}</dl>
         <p className="text-xs muted">Received {displayMoney(account.summary.received_amount)} · Applied to fees {displayMoney(account.summary.allocated_amount)} · Refunded {displayMoney(account.summary.refunded_amount)} · Entry corrections {displayMoney(account.summary.reversed_amount)}</p>
         {account.summary.invalid && <p role="alert" className={errorClass}>This credit account needs reconciliation. Financial actions are disabled; ask school finance to review the records.</p>}

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
 import { useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import type { AttendanceContext } from "@/lib/attendance/types";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Register = {
   context: AttendanceContext;
@@ -109,7 +110,7 @@ export function TeacherAttendanceRegister() {
 
   if (loadError) return <div className="space-y-3"><p role="alert" className="rounded-xl border border-red-500/30 p-4 text-sm text-red-600">{loadError}</p>
     <button type="button" className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold" onClick={refreshAccess}>Refresh attendance access</button></div>;
-  if (!register) return <p role="status" className="text-sm muted">Loading your attendance register…</p>;
+  if (!register) return <LoadingState variant="table" className="text-sm muted">Loading your attendance register…</LoadingState>;
 
   return (
     <div className="space-y-5">

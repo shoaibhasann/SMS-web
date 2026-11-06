@@ -1,6 +1,30 @@
-# Manual QA for Vercel Preview
+# Manual QA for SMS Production
+
+Current release target: **`main` → [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login)**. Use [the Production founder checklist](PRODUCTION-RELEASE-QA.md). The older Preview URLs/records below are retained as historical evidence; no new Preview branch is part of the workflow.
+
+Latest **dashboard-only Preview** (6 November): [SMS login](https://kids-corner-erp-frontend-c8ex0atk2-shoaibhasanns-projects.vercel.app/login) · [focused founder checklist](DASHBOARD-FOUNDER-PREVIEW-QA.md). This release adds the cleaner Sora dashboard interface over the already populated demo school. The nine pending SQL phases and their frontend workspaces are excluded. Use the private share link first; the all-feature release record below remains the earlier historical checkpoint.
+
+Dashboard implementation and local/full-feature boundaries: [Premium dashboards for all four roles](DASHBOARD-QA.md). The focused dashboard-only Preview is available above; the broader pending SQL-backed phases remain local.
+
+Next local academic slice: [Independently reviewed assessment publication](RESULT-PUBLICATION-QA.md). Its ninth pending migration and matching UI are not available on the existing Preview. Do not tick hosted cases from local controlled QA.
+
+Next local slice: [Timetable creation, conflicts and role views, TT-01–TT-12](TIMETABLE-QA.md). Hosted rollout is pending; the current founder Preview is unchanged.
+
+Next local slice: [Student leave requests and review, SL-01–SL-11](STUDENT-LEAVE-QA.md). Hosted rollout is pending; the existing founder Preview is unchanged.
 
 Use this checklist on the deployed ERP before inviting a school to use it. Start with attendance, which has already been checked in the local frontend against hosted demo Supabase. Record a new result for the Vercel URL you actually test.
+
+## Database recovery foundation · local only
+
+[REC-01 through REC-08](DATABASE-RECOVERY-QA.md) cover the executable application replay, provenance, offline restore, target/tamper guards and later real recovery rehearsal. The offline drill creates fresh embedded databases and does not change the current Preview. Actual hosted backup/restore, Auth sign-in and uploaded object bytes remain pending; do not mark those Pass from synthetic results.
+
+## Next academic integrity phase · local only
+
+[INT-01 through INT-10](ACADEMIC-INTEGRITY-QA.md) cover mark conflicts and parent context, notice privacy/status/delete conflicts, complete result/history reads and preserved activity siblings. These changes and their two migrations follow the four pending access-security patches. **None are applied to the hosted demo or included in the current founder Preview.** Record a new URL/revision and migration state before ticking those cases; keep the existing Preview run separate.
+
+## Next security phase · local only
+
+The 6 November access-control/student-activation patches are **not applied to hosted Supabase or deployed**. Continue founder testing on the release below; it retains the earlier database policies. [SEC-01 through SEC-10](ACCESS-SECURITY-QA.md) cover the next rollout's activation/history, revoked/inactive identities, legacy sensitive data and concurrency checks. Leave them pending until engineering records the applied migrations and actual test URL. Do not use this local phase to mark current Preview security findings closed.
 
 ## Login screen redesign
 

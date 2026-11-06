@@ -6,6 +6,7 @@ import { WalletCards } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { readPages } from "@/lib/attendance/repository";
 import { AdvanceCreditAccount } from "./advance-credit-account";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type OfficeRole = { role: string; school_id: string | null };
 type School = { id: string; name: string };
@@ -94,7 +95,7 @@ function OfficeAdvanceCredit({ userId }: { userId: string }) {
     </header>
     {sessionChanged ? <p role="alert" className="card p-5 text-sm">Your sign-in changed. Reopen this page to verify access. No previous account results are shown.</p>
       : error ? <p role="alert" className="card p-5 text-sm text-red-700 dark:text-red-300">{error}</p>
-        : !access ? <p role="status" className="card p-5 text-sm muted">Checking school finance access…</p>
+        : !access ? <LoadingState variant="form" className="card p-5 text-sm muted">Checking school finance access…</LoadingState>
           : <>
             <section aria-label="Advance credit context" className="card space-y-3 p-4 sm:p-5">
               <div className="grid gap-4 lg:grid-cols-3">
@@ -107,7 +108,7 @@ function OfficeAdvanceCredit({ userId }: { userId: string }) {
               </div>
               <p className="text-xs muted">Credit belongs to this student in this school across academic sessions. Applying credit is separate from receiving money.</p>
               {contextLocked && <p role="status" className="text-xs text-amber-800 dark:text-amber-300">Finish or discard the current review before changing student. An unconfirmed saved operation must be retried first.</p>}
-              {schoolId && !students && <p role={roster?.schoolId === schoolId && roster.error ? "alert" : "status"} className="text-sm muted">{roster?.schoolId === schoolId && roster.error ? roster.error : "Loading students…"}</p>}
+              {schoolId && !students && (roster?.schoolId === schoolId && roster.error ? <p role="alert" className="text-sm muted">{roster.error}</p> : <LoadingState variant="table">Loading students…</LoadingState>)}
             </section>
             {selected && <AdvanceCreditAccount key={`${userId}:${schoolId}:${selected.id}`} client={client} schoolId={schoolId} userId={userId} studentId={selected.id} canReview={canReview} onLockChange={setContextLocked} />}
           </>}

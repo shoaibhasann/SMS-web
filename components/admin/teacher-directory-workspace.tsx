@@ -8,6 +8,7 @@ import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { invitationStatus, type SchoolInvitation } from "@/lib/invitations/model";
 import { createClient } from "@/lib/supabase/client";
 import { createTeacherRecord, issueTeacherInvitation, listNonTeachingStaff, listTeacherInvitations, listTeachers, revokeTeacherInvitation, type NonTeachingStaffRecord, type TeacherRecord } from "@/lib/teachers/directory";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -66,7 +67,7 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
         </div>
       </header>
       {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload the page to check school access.</p>
-        : !access ? <p role="status" className="text-sm muted">Checking school access…</p>
+        : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
         : "error" in access ? <p role="alert" className="card p-4 text-sm">{access.error}</p>
         : <>
           <label className={`card p-4 ${label}`}>
@@ -185,7 +186,7 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
           </div>
           <label className={label}><span>Search teachers</span><input className="field" type="search" value={filter}
             onChange={(event) => setFilter(event.target.value)} /></label>
-          {!result ? <p role="status" className="text-sm muted">Loading teachers…</p>
+          {!result ? <LoadingState variant="list" className="text-sm muted">Loading teachers…</LoadingState>
             : "error" in result ? <p role="alert" className="text-sm">{result.error}</p>
             : visibleTeachers.length === 0 ? <p className="text-sm muted">{search ? "No matching teachers." : "No teachers have been added to this school."}</p>
             : <ul className="divide-y divide-[var(--border)]">
@@ -217,7 +218,7 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
         <h2 className="text-lg font-bold" id="staff-list-heading">Non-teaching staff directory</h2>
         <label className={label}><span>Search staff</span><input className="field" type="search" value={staffFilter}
           onChange={(event) => setStaffFilter(event.target.value)} /></label>
-        {!staffResult ? <p role="status" className="text-sm muted">Loading staff…</p>
+        {!staffResult ? <LoadingState variant="list" className="text-sm muted">Loading staff…</LoadingState>
           : "error" in staffResult ? <p role="alert" className="text-sm">{staffResult.error}</p>
           : !visibleStaff.length ? <p className="text-sm muted">{staffSearch ? "No matching staff." : "No non-teaching staff have been added to this school."}</p>
           : <ul className="divide-y divide-[var(--border)]">
@@ -333,7 +334,7 @@ function TeacherInvitationPanel({ teacher, client, busy, setBusy, refreshVersion
       )}
       <div className="space-y-2 border-t border-[var(--border)] pt-4">
         <h3 className="text-sm font-semibold">Invitation history</h3>
-        {!result ? <p role="status" className="text-sm muted">Loading invitations…</p>
+        {!result ? <LoadingState variant="list" className="text-sm muted">Loading invitations…</LoadingState>
           : "error" in result ? <p role="alert" className="text-sm">{result.error}</p>
           : result.data.items.length === 0 ? <p className="text-sm muted">No invitations have been created for this teacher.</p>
           : <ul className="divide-y divide-[var(--border)]">

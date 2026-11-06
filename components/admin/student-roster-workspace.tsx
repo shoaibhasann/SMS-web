@@ -9,6 +9,7 @@ import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAcc
 import { studentName, type AttendanceContext, type AttendanceStudent } from "@/lib/attendance/types";
 import { admitRosterStudent } from "@/lib/students/roster";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -63,7 +64,7 @@ export function StudentRosterWorkspace({ userId }: { userId: string }) {
         <p className="mt-2 text-sm muted">Admit students and manage their class, section and academic year.</p>
       </header>
       {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload this page to check access again.</p>
-        : !access ? <p role="status" className="text-sm muted">Checking school access…</p>
+        : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
         : !access.data ? <p role="alert" className="card p-4 text-sm">{access.error}</p>
         : <>
             <label className={`card p-4 ${label}`}>
@@ -101,7 +102,7 @@ function SchoolRoster({ client, schoolId, busy, onBusyChange }: {
     return () => { active = false; };
   }, [client, schoolId]);
 
-  if (!setup) return <p role="status" className="text-sm muted">Loading the academic year and classes…</p>;
+  if (!setup) return <LoadingState variant="form" className="text-sm muted">Loading the academic year and classes…</LoadingState>;
   if (!setup.data) return <p role="alert" className="card p-4 text-sm">{setup.error}</p>;
 
   const { year, classes } = setup.data;
@@ -236,7 +237,7 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
           <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
         </div>
         {rosterNotice && <p role="status" className="text-sm">{rosterNotice}</p>}
-        {!roster ? <p role="status" className="text-sm muted">Loading roster…</p>
+        {!roster ? <LoadingState variant="table" className="text-sm muted">Loading roster…</LoadingState>
           : !roster.data ? <p role="alert" className="text-sm">{roster.error}</p>
           : !roster.data.length ? <p className="text-sm muted">No active students are enrolled in this section.</p>
           : <ul className="divide-y divide-[var(--border)]">

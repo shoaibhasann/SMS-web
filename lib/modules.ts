@@ -14,10 +14,12 @@ export const modules = [
   { key: "study-material", label: "Study Material", icon: "LibraryBig", group: "Academics" },
   { key: "missed-activities", label: "What You Missed", icon: "CircleAlert", group: "Academics" },
   { key: "attendance", label: "Attendance", icon: "CalendarCheck", group: "Academics" },
+  { key: "student-leave", label: "Leave requests", icon: "CalendarOff", group: "Academics" },
   { key: "academics", label: "Academics & Subjects", icon: "BookOpen", group: "Academics" },
   { key: "teacher-assignments", label: "Teaching Assignments", icon: "GraduationCap", group: "Academics" },
   { key: "exams", label: "Exam / Marks", icon: "PencilRuler", group: "Assessment" },
   { key: "results", label: "Result Report", icon: "ChartNoAxesCombined", group: "Assessment" },
+  { key: "published-results", label: "Result publication", icon: "BadgeCheck", group: "Assessment" },
   { key: "timetable", label: "Timetable", icon: "CalendarClock", group: "Assessment" },
   { key: "fees", label: "Fee", icon: "IndianRupee", group: "Finance" },
   { key: "advance-credit", label: "Advance credit", icon: "WalletCards", group: "Finance" },
@@ -58,6 +60,8 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
     "study-material",
     "exams",
     "results",
+    "published-results",
+    "timetable",
     "attendance",
     "fees",
     "notices",
@@ -68,6 +72,7 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
   reception: ["students", "parents", "admissions", "notices", "events", "documents"],
   student: [
     "attendance",
+    "student-leave",
     "class-logs",
     "classwork",
     "homework",
@@ -77,6 +82,7 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
     "missed-activities",
     "exams",
     "results",
+    "published-results",
     "timetable",
     "fees",
     "advance-credit",
@@ -88,6 +94,7 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
   ],
   parent: [
     "attendance",
+    "student-leave",
     "class-logs",
     "classwork",
     "homework",
@@ -97,6 +104,7 @@ const roleModuleKeys: Record<UiRole, readonly string[]> = {
     "missed-activities",
     "exams",
     "results",
+    "published-results",
     "timetable",
     "fees",
     "advance-credit",
@@ -115,14 +123,16 @@ export function canAccessModule(role: UiRole, moduleKey: string) {
 }
 
 export function getVisibleModules(role: UiRole) {
-  return modules.filter((module) => roleModuleKeys[role].includes(module.key));
+  const family = role === "parent" || role === "student";
+  return modules.filter((module) => roleModuleKeys[role].includes(module.key) && !(family && module.key === "published-results"))
+    .map((module) => family && module.key === "results" ? { ...module, label: "Published results" } : module);
 }
 
 export function getAdminNavigationModules() {
   const adminOrder = [
     "students", "parents", "teachers", "admissions", "guardian-invitations",
-    "attendance", "academics", "teacher-assignments", "timetable",
-    "exams", "results",
+    "attendance", "student-leave", "academics", "teacher-assignments", "timetable",
+    "exams", "results", "published-results",
     "fees", "advance-credit", "invoices", "finance-reports",
     "notices", "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave",

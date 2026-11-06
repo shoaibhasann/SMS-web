@@ -1,0 +1,194 @@
+{
+  "format": "sms-recovered-history/v1",
+  "captured_at_utc": "2026-11-05T19:41:23.011336+00:00",
+  "source_project_ref": "bjecfuixgqgyohttrdfr",
+  "source": "read-only supabase_migrations.schema_migrations version/name/statements; no application rows or Auth identities",
+  "ledger_records": 66,
+  "recovered_missing_files": [
+    {
+      "version": "20261029133256",
+      "name": "foundation_complete_school_erp_schema",
+      "path": "supabase/recovery/history/20261029133256_foundation_complete_school_erp_schema.sql",
+      "sha256": "2709ca9048c19e821dabcaa1c3fc64b9ba4d90b16489e1a4c252a5fdc9c99e86",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133504",
+      "name": "activation_indexes",
+      "path": "supabase/recovery/history/20261029133504_activation_indexes.sql",
+      "sha256": "c96a0bb19a41719c946a4bbd7fd071066aa0485b6c1ab446ee1ced35b64db8f6",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133513",
+      "name": "school_storage_buckets",
+      "path": "supabase/recovery/history/20261029133513_school_storage_buckets.sql",
+      "sha256": "4b9ee096a871b1bb01b18cbf51bbcd6a2089908ae5ecf34e8aa778165d7f1c2c",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133545",
+      "name": "missed_activity_engine_v1",
+      "path": "supabase/recovery/history/20261029133545_missed_activity_engine_v1.sql",
+      "sha256": "4ebf2081104b32e7e3bec3d5707b9846fdbf0ada239cb18fe8bdb031ed8582ac",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133606",
+      "name": "payments_and_reporting_foundation_v1",
+      "path": "supabase/recovery/history/20261029133606_payments_and_reporting_foundation_v1.sql",
+      "sha256": "58ae2af9e1e7ae8d72229c35b7ccd9ddfb7241084a0450a6c12275b4ff870bd2",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133629",
+      "name": "role_permission_matrix_v1",
+      "path": "supabase/recovery/history/20261029133629_role_permission_matrix_v1.sql",
+      "sha256": "b09fa015874e175cc95ce6caa78ebd483238c0a2547a0fad620f00f99bbd51d2",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029133640",
+      "name": "notification_queue_foundation_v1",
+      "path": "supabase/recovery/history/20261029133640_notification_queue_foundation_v1.sql",
+      "sha256": "446bb075bb3654e6d3c424d974aefc5e24d81c31496e4cd384ced71da718fd74",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029134026",
+      "name": "secure_verified_activation_and_access_helpers",
+      "path": "supabase/recovery/history/20261029134026_secure_verified_activation_and_access_helpers.sql",
+      "sha256": "e90f02ff46e4e5919d1c8c6a6db3d1dd74b16d2bf301ef4e4628eb1a419b7cba",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029134409",
+      "name": "backend_security_hardening_v1",
+      "path": "supabase/recovery/history/20261029134409_backend_security_hardening_v1.sql",
+      "sha256": "8e8577f56cbab52f3b629c06a6b3d23788bb54fbc7a9e46c56407e67a7f82e27",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029134433",
+      "name": "backend_security_hardening_v2",
+      "path": "supabase/recovery/history/20261029134433_backend_security_hardening_v2.sql",
+      "sha256": "bf14103c1780c6017ecb7c20cc883435e90a33ef6bf73ef25f6ebe480727bf7f",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261029142105",
+      "name": "auth_activation_alignment_v2",
+      "path": "supabase/recovery/history/20261029142105_auth_activation_alignment_v2.sql",
+      "sha256": "7b0edfcc101b1af820bba87245fb9806f3bb164a8f914b0ad1b57c338accd779",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030060132",
+      "name": "fix_authenticated_role_lookup_permission",
+      "path": "supabase/recovery/history/20261030060132_fix_authenticated_role_lookup_permission.sql",
+      "sha256": "1e673c8d7819dcfe7f4fc116d4b8061a67e6b2a59b08251b95c4775ef4b64c27",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030061147",
+      "name": "role_scoped_academic_access_v1",
+      "path": "supabase/recovery/history/20261030061147_role_scoped_academic_access_v1.sql",
+      "sha256": "83f48480cf48a3103d384a4c814f08fb40f5bed6a4e32afbbf5be419798f4d03",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030090425",
+      "name": "master_role_workflow_finance_activation",
+      "path": "supabase/recovery/history/20261030090425_master_role_workflow_finance_activation.sql",
+      "sha256": "d7471a1b5a14331788ac8eee9ccb8dbca5b381e22b4fd3eeb1ee433ed4ad6d97",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030090434",
+      "name": "restore_parent_access_policies",
+      "path": "supabase/recovery/history/20261030090434_restore_parent_access_policies.sql",
+      "sha256": "5d74334a6c941d588a4671ad10ec28d78c328cb4352f7f147a9dbf920b91034f",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030094244",
+      "name": "seed_kids_corner_academic_master_2026_27",
+      "path": "supabase/recovery/history/20261030094244_seed_kids_corner_academic_master_2026_27.sql",
+      "sha256": "d50c6618459b11bf92ac2bd627cdf06ccca8ad25105bf957b626edf0af1ed478",
+      "statement_count": 1,
+      "category": "tenant-data-seed"
+    },
+    {
+      "version": "20261030094657",
+      "name": "teacher_management_full_name",
+      "path": "supabase/recovery/history/20261030094657_teacher_management_full_name.sql",
+      "sha256": "5e439e4a2737248ae12e52fd135f1042c402996fbef1868cdd4ca0c060237a50",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030095353",
+      "name": "seed_academic_subjects_and_streams_v1",
+      "path": "supabase/recovery/history/20261030095353_seed_academic_subjects_and_streams_v1.sql",
+      "sha256": "f03a94514f5843d3b9deba3612f2e310423c1eb7496c18e2f69e925cb54e61b5",
+      "statement_count": 1,
+      "category": "tenant-data-seed"
+    },
+    {
+      "version": "20261030101336",
+      "name": "teacher_enrollment_visibility",
+      "path": "supabase/recovery/history/20261030101336_teacher_enrollment_visibility.sql",
+      "sha256": "06dddb6c86a90b3c31e658c174ca38673926bcd7b9a41280dec12b58dc4f1093",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030113351",
+      "name": "class_teacher_attendance_register_v1",
+      "path": "supabase/recovery/history/20261030113351_class_teacher_attendance_register_v1.sql",
+      "sha256": "604de724df8d074f4df799cb13ed7a98ec9c5c485b73ee629b417d2f3a31837f",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030120629",
+      "name": "school_holidays_attendance_register_v1",
+      "path": "supabase/recovery/history/20261030120629_school_holidays_attendance_register_v1.sql",
+      "sha256": "1256b90d407eae3ea9390bb1eaab27488a1aeeaf87eefbc5eb046d138075071e",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030124004",
+      "name": "attendance_holiday_status_v1",
+      "path": "supabase/recovery/history/20261030124004_attendance_holiday_status_v1.sql",
+      "sha256": "abb973abef00a12095fb4697b3ed219a39cd56126c88a57a569bd471891efb4f",
+      "statement_count": 1,
+      "category": "schema-history"
+    },
+    {
+      "version": "20261030134042",
+      "name": "allow_teachers_manage_own_teaching_assignments",
+      "path": "supabase/recovery/history/20261030134042_allow_teachers_manage_own_teaching_assignments.sql",
+      "sha256": "e8ccd0fa005486d4d8a67bc84cff8f951515cec23c10bc790a8f79b796e7524a",
+      "statement_count": 1,
+      "category": "schema-history"
+    }
+  ],
+  "limits": "Recorded SQL does not establish complete history: manual checkpoint/patches are reconciled separately. Tenant-specific seeds are archived and excluded from fresh replay. No secret-pattern hits found; reviewed separately."
+}

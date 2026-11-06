@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { CalendarCheck, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type SectionProgress = {
   section_id: string;
@@ -121,7 +122,7 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
       </header>
       {sessionChanged ? <p role="alert" className="p-4 text-sm muted">Your sign-in changed. Reopen this page to check attendance progress.</p>
         : error ? <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{error}</p>
-          : !record ? <p role="status" className="p-4 text-sm muted">Loading attendance progress…</p>
+          : !record ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance progress…</LoadingState>
             : <>
               <div className="space-y-2 p-4">
                 <p className="text-sm muted">{record.day} · IST · {record.cutoff_time ? `Daily cutoff ${record.cutoff_time}` : "Cutoff not configured"}</p>

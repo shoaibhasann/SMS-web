@@ -8,6 +8,7 @@ import { studentName } from "@/lib/attendance/types";
 import { getFamilyStudentCredit, type CreditActivityKind, type FamilyCreditAccount } from "@/lib/finance/advance-credit";
 import { formatMoney } from "@/lib/finance/money";
 import { manualPaymentLabel } from "@/lib/finance/payment-methods";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const pageSize = 30;
 const dateLabel = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" });
@@ -46,7 +47,7 @@ export function FamilyAdvanceCredit({ role, userId }: { role: "parent" | "studen
       <h1 className="text-3xl font-black">Advance credit</h1><p className="mt-2 max-w-2xl text-sm muted">See retained advance funds, fee applications and refunds recorded by the school. Advance stays separate from unpaid fees until the office applies it.</p></header>
     {sessionChanged ? <p role="alert" className="card p-5 text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reload to verify advance account access.</p>
       : accessError ? <div className="card space-y-3 p-5"><p role="alert" className="text-sm text-red-700 dark:text-red-300">The students linked to this account could not be verified.</p><button type="button" className={buttonClass} onClick={() => { setAccessError(false); setAttempt((value) => value + 1); }}>Retry access check</button></div>
-        : !students ? <p role="status" className="text-sm muted">Checking advance account access…</p>
+        : !students ? <LoadingState variant="form" className="text-sm muted">Checking advance account access…</LoadingState>
           : !student ? <p className="card p-5 text-sm muted">No student is linked to this account.</p> : <>
             {role === "parent" && <label className="card block space-y-2 p-5 text-sm font-semibold"><span>Select child</span><select className="field max-w-xl" value={selectedId} onChange={(event) => {
               if (!students.some((item) => item.id === event.target.value)) return;
@@ -72,7 +73,7 @@ function FamilyCreditStatement({ client, student }: { client: ReturnType<typeof 
   const account = view?.account, summary = account?.summary;
   return <section className="card overflow-hidden" aria-label="Advance credit statement" aria-busy={!view}>
     <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-5"><div><h2 className="font-bold">{studentName(student)}</h2><p className="mt-1 text-sm muted">{student.admission_no} · All retained sessions</p></div><button type="button" className={buttonClass} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" /> Refresh advance account</button></header>
-    {!view ? <p role="status" className="p-5 text-sm muted">Loading the saved advance statement…</p>
+    {!view ? <LoadingState variant="list" className="p-5 text-sm muted">Loading the saved advance statement…</LoadingState>
       : view.failed || !account || !summary ? <div className="space-y-3 p-5"><p role="alert" className="text-sm text-red-700 dark:text-red-300">Advance records could not be loaded. Refresh to verify the saved account.</p></div> : <>
         {summary.invalid && <p role="alert" className="m-5 rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">This advance account needs reconciliation by the school. Unverified balances are unavailable.</p>}
         <dl className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">{([

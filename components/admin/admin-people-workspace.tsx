@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { RefreshCw, Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState, Skeleton } from "@/components/ui/skeleton";
 
 type PersonRecord = {
   id: string;
@@ -213,14 +214,14 @@ function PeopleWorkspace({ mode }: { mode: Mode }) {
 
       <section className="card overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold">{records.length} records</p>
+          <p className="text-sm font-semibold">{loading ? <Skeleton className="h-5 w-24" /> : `${records.length} records`}</p>
           <label className="relative block w-full sm:max-w-sm">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 muted" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} className="field w-full pl-9" />
           </label>
         </div>
         {error && <div role="alert" className="m-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}
-        {loading ? <p className="p-5 text-sm muted">Loading {title.toLowerCase()}…</p> : filtered.length === 0 ? (
+        {loading ? <LoadingState variant="list" className="p-5 text-sm muted">Loading {title.toLowerCase()}…</LoadingState> : filtered.length === 0 ? (
           <p className="p-5 text-sm muted">{records.length ? "No records match your search." : `No ${title.toLowerCase()} found for this school.`}</p>
         ) : <div className="divide-y divide-[var(--border)]">
           {filtered.map((record) => (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { createClient } from "@/lib/supabase/client";
 import { HOMEWORK_FILE_ACCEPT, discardPendingHomeworkFile, downloadHomeworkFile, uploadHomeworkFile, validateHomeworkFile } from "@/lib/homework/files";
 import { homeworkError, loadMyHomeworkSubmission, submitHomework, type HomeworkSubmission } from "@/lib/homework/submissions";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Scope = Parameters<typeof uploadHomeworkFile>[1];
 type Uploaded = Awaited<ReturnType<typeof uploadHomeworkFile>>;
@@ -154,7 +155,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
     <button type="button" className={action} aria-expanded={open} aria-controls={panelId} onClick={() => { if (open) { downloadController.current?.abort(); setDownloading(false); } else if (!sessionChanged) void load(); setOpen((value) => !value); }} disabled={Boolean(phase)}>{open ? "Hide my submission" : "My submission"}</button>
     {open && <div id={panelId} className="min-w-0 space-y-3">
       {sessionChanged ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reopen Homework before continuing.</p> : <>
-        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold">{loading ? "Checking submission…" : snapshot === undefined ? "Status unavailable" : snapshot ? snapshot.status === "graded" ? "Graded" : "Submitted" : "Not submitted"}</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">{loading ? <LoadingState variant="form" label="Checking submission…" /> : <p className="text-sm font-semibold">{snapshot === undefined ? "Status unavailable" : snapshot ? snapshot.status === "graded" ? "Graded" : "Submitted" : "Not submitted"}</p>}
           <button type="button" className={action} disabled={loading || Boolean(phase)} onClick={() => { setMessage(""); void load(); }}>Refresh submission status</button></div>
         {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}

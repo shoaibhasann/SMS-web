@@ -1,0 +1,191 @@
+{
+  "format": "sms-hosted-migration-rollout/v1",
+  "projectRef": "bjecfuixgqgyohttrdfr",
+  "appliedAt": "2026-11-06T10:44:32.539Z",
+  "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
+  "preflight": {
+    "btree_gist": {
+      "available": true,
+      "installed_schema": null
+    },
+    "pending_state": {
+      "leave_table_exists": false,
+      "notice_version_exists": false,
+      "publication_table_exists": false,
+      "timetable_receipts_exist": false,
+      "student_login_index_exists": false
+    },
+    "legacy_policies": {
+      "marks": [
+        "marks_tenant"
+      ],
+      "payroll": [
+        "tenant_isolation_payroll"
+      ],
+      "audit_logs": [
+        "admin_audit_logs_all",
+        "audit_logs_school_admin_all",
+        "tenant_isolation_audit_logs"
+      ]
+    },
+    "timetable_total": 0,
+    "preflight_counts": {
+      "teacher_time_overlap": 0,
+      "mark_nonfinite_updated_at": 0,
+      "class_section_time_overlap": 0,
+      "class_section_duplicate_period": 0,
+      "assessment_nonfinite_updated_at": 0,
+      "invalid_saved_assessment_scores": 0,
+      "duplicate_student_login_profiles": 0
+    },
+    "timetable_null_or_invalid_times": 0
+  },
+  "dataPreservation": {
+    "originalTables": 99,
+    "originalRows": 2401,
+    "allOriginalRowsPreserved": true,
+    "expectedAddedFields": [
+      "public.notices.version"
+    ],
+    "concurrentAdditions": [
+      {
+        "table": "public.students",
+        "additionalRows": 1
+      },
+      {
+        "table": "public.teachers",
+        "additionalRows": 1
+      },
+      {
+        "table": "public.enrollments",
+        "additionalRows": 1
+      },
+      {
+        "table": "app_private.teacher_invitations",
+        "additionalRows": 1
+      },
+      {
+        "table": "app_private.guardian_invitations",
+        "additionalRows": 1
+      }
+    ],
+    "note": "Additional rows appeared during the snapshot/rollout window; preserved, not attributed to DDL and not removed."
+  },
+  "migrations": [
+    {
+      "sourceVersion": "20261105184935",
+      "sourcePath": "supabase/migrations/20261105184935_freeze_legacy_client_mutations.sql",
+      "sourceSha256": "d60ec9ff46cdecf155c442b2187e0ecc9a7dfde301ff9e393ab93af43e26340c",
+      "version": "20261106104036",
+      "name": "freeze_legacy_client_mutations",
+      "statement_count": 1,
+      "recorded_sql_sha256": "d60ec9ff46cdecf155c442b2187e0ecc9a7dfde301ff9e393ab93af43e26340c",
+      "verifiedAt": "2026-11-06T10:40:54.510Z"
+    },
+    {
+      "sourceVersion": "20261105184937",
+      "sourcePath": "supabase/migrations/20261105184937_revoke_assessment_access_on_role_removal.sql",
+      "sourceSha256": "4e5adfeefd3e6850cd88cb77500e3f2dfb7fecbccdfdba024a71c0cf9109b2b5",
+      "version": "20261106104056",
+      "name": "revoke_assessment_access_on_role_removal",
+      "statement_count": 1,
+      "recorded_sql_sha256": "4e5adfeefd3e6850cd88cb77500e3f2dfb7fecbccdfdba024a71c0cf9109b2b5",
+      "verifiedAt": "2026-11-06T10:40:57.643Z"
+    },
+    {
+      "sourceVersion": "20261105184939",
+      "sourcePath": "supabase/migrations/20261105184939_require_active_role_assignment_actor.sql",
+      "sourceSha256": "e601789e515db5466e4f9224a23f124961316e8e4d0193a7bf082f3c4bb00d67",
+      "version": "20261106104059",
+      "name": "require_active_role_assignment_actor",
+      "statement_count": 1,
+      "recorded_sql_sha256": "e601789e515db5466e4f9224a23f124961316e8e4d0193a7bf082f3c4bb00d67",
+      "verifiedAt": "2026-11-06T10:41:00.284Z"
+    },
+    {
+      "sourceVersion": "20261105184942",
+      "sourcePath": "supabase/migrations/20261105184942_atomic_student_account_activation.sql",
+      "sourceSha256": "b4ec682a917e40ba9060e14e8165bdb7a94cd71e11acba170791fd1b91afda2e",
+      "version": "20261106104101",
+      "name": "atomic_student_account_activation",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b4ec682a917e40ba9060e14e8165bdb7a94cd71e11acba170791fd1b91afda2e",
+      "verifiedAt": "2026-11-06T10:41:02.883Z"
+    },
+    {
+      "sourceVersion": "20261105191227",
+      "sourcePath": "supabase/migrations/20261105191227_notice_optimistic_versions.sql",
+      "sourceSha256": "e4b70d882d8b87fab303725bb9415d43814aae66382feec69cf096811d9d2f58",
+      "version": "20261106104125",
+      "name": "notice_optimistic_versions",
+      "statement_count": 1,
+      "recorded_sql_sha256": "e4b70d882d8b87fab303725bb9415d43814aae66382feec69cf096811d9d2f58",
+      "verifiedAt": "2026-11-06T10:41:26.642Z"
+    },
+    {
+      "sourceVersion": "20261105192540",
+      "sourcePath": "supabase/migrations/20261105192540_optimistic_assessment_mark_writes.sql",
+      "sourceSha256": "afdcc4e464e76be5ffdad3a0defa4fa8976d2efec649f4cf3568115a0b68024a",
+      "version": "20261106104127",
+      "name": "optimistic_assessment_mark_writes",
+      "statement_count": 1,
+      "recorded_sql_sha256": "afdcc4e464e76be5ffdad3a0defa4fa8976d2efec649f4cf3568115a0b68024a",
+      "verifiedAt": "2026-11-06T10:41:28.971Z"
+    },
+    {
+      "sourceVersion": "20261106065206",
+      "sourcePath": "supabase/migrations/20261106065206_governed_student_leave_requests.sql",
+      "sourceSha256": "b598ed5a8d71be48575cc1aa64b0dcd115b237244b776b9d98e45c3762e278ad",
+      "version": "20261106104130",
+      "name": "governed_student_leave_requests",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b598ed5a8d71be48575cc1aa64b0dcd115b237244b776b9d98e45c3762e278ad",
+      "verifiedAt": "2026-11-06T10:41:31.718Z"
+    },
+    {
+      "sourceVersion": "20261106072003",
+      "sourcePath": "supabase/migrations/20261106072003_govern_school_timetable.sql",
+      "sourceSha256": "f9111c67072893a24bb30a0ee4a74916529400cefb76e49aa1405c90ad1c9ccb",
+      "version": "20261106104133",
+      "name": "govern_school_timetable",
+      "statement_count": 1,
+      "recorded_sql_sha256": "f9111c67072893a24bb30a0ee4a74916529400cefb76e49aa1405c90ad1c9ccb",
+      "verifiedAt": "2026-11-06T10:41:34.540Z"
+    },
+    {
+      "sourceVersion": "20261106092647",
+      "sourcePath": "supabase/migrations/20261106092647_reviewed_assessment_results.sql",
+      "sourceSha256": "2cdb40bea5f1566d42388236ad79c3aee37a7d5473a3b6352e004f5f24638b20",
+      "version": "20261106104136",
+      "name": "reviewed_assessment_results",
+      "statement_count": 1,
+      "recorded_sql_sha256": "2cdb40bea5f1566d42388236ad79c3aee37a7d5473a3b6352e004f5f24638b20",
+      "verifiedAt": "2026-11-06T10:41:38.124Z"
+    },
+    {
+      "sourceVersion": "20261106105822",
+      "sourcePath": "supabase/migrations/20261106105822_assessment_mark_conflict_http_status.sql",
+      "sourceSha256": "e8db5d9ab150fd11da33242aa8e08d814b56dd7c3161c97265d60bc538c6a3d5",
+      "version": "20261106110534",
+      "name": "assessment_mark_conflict_http_status",
+      "statement_count": 1,
+      "recorded_sql_sha256": "e8db5d9ab150fd11da33242aa8e08d814b56dd7c3161c97265d60bc538c6a3d5",
+      "verifiedAt": "2026-11-06T11:05:36.144Z",
+      "reason": "Hosted PostgREST14.18 manual40001 caused125secHTTP504; immutable CAS now returnsPT409."
+    },
+    {
+      "sourceVersion": "20261106110537",
+      "sourcePath": "supabase/migrations/20261106110537_bound_assessment_publication_candidates.sql",
+      "sourceSha256": "2c6ef7018e441c916a9fceb80e1c0d5df888ceef23f2dd4e0312cd06ac1209ce",
+      "version": "20261106110854",
+      "name": "bound_assessment_publication_candidates",
+      "statement_count": 1,
+      "recorded_sql_sha256": "2c6ef7018e441c916a9fceb80e1c0d5df888ceef23f2dd4e0312cd06ac1209ce",
+      "verifiedAt": "2026-11-06T11:08:55.119Z",
+      "reason": "Bound ownTeacher candidate metadata before expensive permission checks; same live4rowpayload,4049ms\u2192358ms SQL."
+    }
+  ],
+  "requested_migrations": 9,
+  "followup_fixes": 2,
+  "total_applied": 11
+}

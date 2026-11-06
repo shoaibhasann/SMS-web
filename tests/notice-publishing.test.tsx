@@ -14,7 +14,7 @@ function principalClient() {
     user_roles: [{ role: "principal", school_id: "school-a" }],
     notices: [{
       id: "notice-a", title: "Class reminder", content: "Original message",
-      audience: teacherAudience, published_at: "2026-11-04T18:45:00Z",
+      audience: teacherAudience, published_at: "2026-11-04T18:45:00Z", version: "version-1",
     }],
     classes: [],
     sections: [],

@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AcademicSetup } from "@/lib/admin/academic-setup";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Year = AcademicSetup["years"][number];
 type Readiness = {
@@ -113,7 +114,7 @@ export function AcademicYearActivation({ client, schoolId, current, years, savin
           setRevision((value) => value + 1);
         }}>Refresh readiness</button>}
       </div>
-      {target && !check && <p role="status" className="text-sm muted">Checking session readiness…</p>}
+      {target && !check && <LoadingState variant="list" className="text-sm muted">Checking session readiness…</LoadingState>}
       {check?.error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{check.error}</p>}
       {readiness && target && (
         <>

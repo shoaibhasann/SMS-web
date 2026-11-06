@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:db": "vitest run tests/database"
+    "test:db": "vitest run tests/database",
+    "db:replay": "node scripts/database-recovery/replay.mjs",
+    "db:recovery:drill": "node scripts/database-recovery/drill.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

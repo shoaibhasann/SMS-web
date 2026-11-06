@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Megaphone, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Notice = {
   id: string;
@@ -12,11 +13,13 @@ type Notice = {
   published_at: string | null;
   created_at: string | null;
   audience: unknown;
+  version: string;
 };
 type Choice = { id: string; name: string };
 type SectionChoice = Choice & { class_id: string };
 const audienceChoices = ["Everyone", "Students", "Parents", "Teachers", "Staff", "Specific Class", "Specific Section"] as const;
 type AudienceKind = (typeof audienceChoices)[number] | "Existing audience";
+class NoticeVersionUnavailable extends Error {}
 const audienceForRole = new Map<string, AudienceKind>([
   ["student", "Students"], ["parent", "Parents"], ["teacher", "Teachers"], ["staff", "Staff"],
 ]);
@@ -53,6 +56,7 @@ export function AdminNoticesWorkspace() {
   const [supabase] = useState(createClient);
   const latestRequest = useRef(0);
   const mounted = useRef(true);
+  const mutationPending = useRef(false);
   const [schoolId, setSchoolId] = useState("");
   const [userId, setUserId] = useState("");
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -67,11 +71,13 @@ export function AdminNoticesWorkspace() {
   const [publishStatus, setPublishStatus] = useState<"Published" | "Draft">("Published");
   const [classes, setClasses] = useState<Choice[]>([]);
   const [sections, setSections] = useState<SectionChoice[]>([]);
-  const [editingId, setEditingId] = useState("");
+  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
+  const [conflictedId, setConflictedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const editingId = editingNotice?.id ?? "";
 
   const load = useCallback(() => {
     const request = ++latestRequest.current;
@@ -104,12 +110,19 @@ export function AdminNoticesWorkspace() {
         if (!resolvedSchoolId) throw new Error("Choose a school-linked administrator or principal to manage notices.");
 
         const [noticeResult, classResult, sectionResult] = await Promise.all([
-          supabase.from("notices").select("id,title,content,published_at,created_at,audience").eq("school_id", resolvedSchoolId).order("created_at", { ascending: false }),
+          supabase.from("notices").select("id,title,content,published_at,created_at,audience,version").eq("school_id", resolvedSchoolId).order("created_at", { ascending: false }),
           supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).order("sort_order"),
           supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
         ]);
         const failed = noticeResult.error ?? classResult.error ?? sectionResult.error;
-        if (failed) throw failed;
+        if (failed) {
+          if ((noticeResult.error?.code === "42703" || noticeResult.error?.code === "PGRST204")
+            && noticeResult.error.message.includes("version")) throw new NoticeVersionUnavailable();
+          throw failed;
+        }
+        if ((noticeResult.data ?? []).some((notice) => typeof notice.version !== "string" || !notice.version)) {
+          throw new NoticeVersionUnavailable();
+        }
         if (!isCurrent()) return;
         setUserId(auth.user.id);
         setSchoolId(resolvedSchoolId);
@@ -122,7 +135,9 @@ export function AdminNoticesWorkspace() {
         logError("Admin notices load failed", loadError);
         setSchoolId("");
         setNotices([]);
-        setError("Notices could not be loaded. Please refresh or contact your administrator.");
+        setError(loadError instanceof NoticeVersionUnavailable
+          ? "Notices need the latest database update before editing is available. Contact your administrator."
+          : "Notices could not be loaded. Please refresh or contact your administrator.");
       } finally {
         if (isCurrent()) setLoading(false);
       }
@@ -143,7 +158,9 @@ export function AdminNoticesWorkspace() {
   }, [load]);
 
   function beginEdit(notice: Notice) {
-    setEditingId(notice.id);
+    // A list refresh must not silently rebase an existing editor's snapshot.
+    setEditingNotice(structuredClone(notice));
+    setConflictedId("");
     setAudienceChanged(false);
     setTitle(notice.title);
     setContent(notice.content);
@@ -176,7 +193,9 @@ export function AdminNoticesWorkspace() {
   }
 
   function reset() {
-    setEditingId("");
+    setError("");
+    setEditingNotice(null);
+    setConflictedId("");
     setTitle("");
     setContent("");
     setAudience("Everyone");
@@ -189,7 +208,9 @@ export function AdminNoticesWorkspace() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!schoolId || !userId || !title.trim() || !content.trim() || saving || loading) return;
+    if (!schoolId || !userId || !title.trim() || !content.trim() || saving || loading || mutationPending.current
+      || (editingId && conflictedId === editingId)) return;
+    mutationPending.current = true;
     setSaving(true);
     setError("");
     setMessage("");
@@ -203,7 +224,7 @@ export function AdminNoticesWorkspace() {
       const audienceData: Record<string, string | string[]> = { roles };
       if (audience === "Specific Class" || audience === "Specific Section") audienceData.class_id = classId;
       if (audience === "Specific Section") audienceData.section_id = sectionId;
-      const original = notices.find((notice) => notice.id === editingId);
+      const original = editingNotice;
       const originalPublishTime = original?.published_at;
       const publishedAt = publishStatus === "Draft" ? null
         : originalPublishTime && schoolDate(new Date(originalPublishTime)) === publishDate
@@ -215,30 +236,40 @@ export function AdminNoticesWorkspace() {
         published_at: publishedAt,
         audience: original && !audienceChanged ? original.audience : audienceData,
       };
-      const result = editingId
-        ? await supabase.from("notices").update(payload).eq("id", editingId).eq("school_id", schoolId).select("id").maybeSingle()
+      const result = original
+        ? await supabase.from("notices").update(payload).eq("id", original.id).eq("school_id", schoolId).eq("version", original.version).select("id").maybeSingle()
         : await supabase.from("notices").insert({
             ...payload,
             school_id: schoolId,
             created_by: userId,
           }).select("id").maybeSingle();
       if (result.error) throw result.error;
-      if (!result.data) throw new Error("The notice was not saved.");
+      if (!result.data) {
+        if (editingId) {
+          setConflictedId(editingId);
+          setError("This notice changed or is no longer available. Your draft is kept. Discard it and reload the current notice before retrying.");
+          return;
+        }
+        throw new Error("The notice was not saved.");
+      }
       setMessage(editingId ? "Notice updated." : !publishedAt ? "Draft saved."
         : Date.parse(publishedAt) > Date.now() ? "Notice scheduled." : "Notice published.");
       reset();
       await load();
     } catch (saveError) {
       logError("Admin notice save failed", saveError);
-      setError("Notice could not be saved. Check your access and try again.");
+      if (editingId) setConflictedId(editingId);
+      setError("Save could not be confirmed. Your draft is kept. Reload the current notice or refresh the list before retrying.");
     } finally {
+      mutationPending.current = false;
       setSaving(false);
     }
   }
 
   async function remove(notice: Notice) {
-    if (!schoolId || saving || loading) return;
+    if (!schoolId || saving || loading || mutationPending.current) return;
     if (!window.confirm(`Delete the notice “${notice.title}”? This cannot be undone.`)) return;
+    mutationPending.current = true;
     setSaving(true);
     setError("");
     setMessage("");
@@ -248,23 +279,30 @@ export function AdminNoticesWorkspace() {
         .delete()
         .eq("id", notice.id)
         .eq("school_id", schoolId)
+        .eq("version", notice.version)
         .select("id")
         .maybeSingle();
       if (deleteError) throw deleteError;
-      if (!data) throw new Error("The notice was not deleted.");
+      if (!data) {
+        setConflictedId(notice.id);
+        setError("This notice changed or is no longer available. Nothing was deleted. Refresh and review the current notice before retrying.");
+        return;
+      }
       if (editingId === notice.id) reset();
       setMessage("Notice deleted.");
       await load();
     } catch (deleteError) {
       logError("Admin notice delete failed", deleteError);
-      setError("Notice could not be deleted. It may be protected by school access policies.");
+      setError("Deletion could not be confirmed. Refresh and check the current notice before retrying.");
     } finally {
+      mutationPending.current = false;
       setSaving(false);
     }
   }
 
   async function togglePublished(notice: Notice) {
-    if (!schoolId || saving || loading) return;
+    if (!schoolId || saving || loading || mutationPending.current) return;
+    mutationPending.current = true;
     setSaving(true);
     setError("");
     setMessage("");
@@ -273,18 +311,51 @@ export function AdminNoticesWorkspace() {
         .from("notices")
         .update({ published_at: notice.published_at ? null : new Date().toISOString() })
         .eq("id", notice.id)
-        .eq("school_id", schoolId);
-      const { data, error: updateError } = await (notice.published_at
-        ? query.eq("published_at", notice.published_at)
-        : query.is("published_at", null)).select("id").maybeSingle();
+        .eq("school_id", schoolId)
+        .eq("version", notice.version);
+      const { data, error: updateError } = await query.select("id").maybeSingle();
       if (updateError) throw updateError;
-      if (!data) throw new Error("The notice status could not be updated.");
+      if (!data) {
+        setConflictedId(notice.id);
+        setError("This notice changed or is no longer available. Its status was not changed. Refresh and review it before retrying.");
+        return;
+      }
       setMessage(notice.published_at ? "Notice moved to drafts." : "Notice published.");
       await load();
     } catch (updateError) {
       logError("Admin notice status update failed", updateError);
-      setError("Notice status could not be updated. Refresh and check the current status before retrying.");
+      setError("The status change could not be confirmed. Refresh and check the current notice before retrying.");
     } finally {
+      mutationPending.current = false;
+      setSaving(false);
+    }
+  }
+
+  async function reloadEditingNotice() {
+    if (!schoolId || !editingNotice || saving || loading || mutationPending.current) return;
+    mutationPending.current = true;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const { data, error: reloadError } = await supabase.from("notices")
+        .select("id,title,content,published_at,created_at,audience,version")
+        .eq("id", editingNotice.id).eq("school_id", schoolId).maybeSingle();
+      if (reloadError) throw reloadError;
+      if (!data) {
+        setConflictedId(editingNotice.id);
+        setError("This notice is no longer available. Your draft is kept; cancel it to start another notice.");
+        return;
+      }
+      if (typeof data.version !== "string" || !data.version) throw new NoticeVersionUnavailable();
+      beginEdit(data as Notice);
+      setNotices((current) => current.map((notice) => notice.id === data.id ? data as Notice : notice));
+      setMessage("Current notice loaded. The previous draft was discarded.");
+    } catch (reloadError) {
+      logError("Admin notice reload failed", reloadError);
+      setError("The current notice could not be loaded. Your draft is kept. Try reloading again.");
+    } finally {
+      mutationPending.current = false;
       setSaving(false);
     }
   }
@@ -313,11 +384,12 @@ export function AdminNoticesWorkspace() {
       <section className="card p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Megaphone size={19} />{editingId ? "Edit notice" : "Publish a notice"}</h2>
-          <button type="button" onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-2)]">
+          <button type="button" disabled={saving} onClick={() => void load()} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold hover:bg-[var(--surface-2)] disabled:opacity-60">
             <RefreshCw size={15} /> Refresh
           </button>
         </div>
-        <form onSubmit={save} className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={save}>
+          <fieldset disabled={loading || saving} className="grid min-w-0 gap-4 sm:grid-cols-2">
           <label className="block space-y-1.5 text-sm font-medium">Title
             <input required maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} className="field w-full" />
           </label>
@@ -343,17 +415,20 @@ export function AdminNoticesWorkspace() {
             <textarea required rows={5} value={content} onChange={(event) => setContent(event.target.value)} className="field w-full resize-y" />
           </label>
           <div className="flex flex-wrap gap-3 sm:col-span-2">
-            <button disabled={loading || saving || !schoolId} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60">
+            <button disabled={loading || saving || !schoolId || (!!editingId && conflictedId === editingId)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60">
               {editingId ? <Pencil size={16} /> : <Plus size={16} />}{saving ? "Saving…" : editingId ? "Save changes" : publishStatus === "Draft" ? "Save draft" : "Publish notice"}
             </button>
             {editingId && <button type="button" onClick={reset} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button>}
+            {editingId && conflictedId === editingId && <button type="button" onClick={() => void reloadEditingNotice()} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Discard draft and reload</button>}
           </div>
+          {editingId && conflictedId === editingId && <p className="text-sm text-amber-700 dark:text-amber-300 sm:col-span-2">Your draft is kept. Reload the current notice before saving again.</p>}
+          </fieldset>
         </form>
       </section>
 
       <section className="card overflow-hidden">
         <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="text-lg font-bold">School notices</h2></div>
-        {loading ? <p className="p-5 text-sm muted">Loading notices…</p> : notices.length === 0 ? (
+        {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading notices…</LoadingState> : notices.length === 0 ? (
           <p className="p-5 text-sm muted">No notices have been created for this school.</p>
         ) : <div className="divide-y divide-[var(--border)]">
           {notices.map((notice) => (

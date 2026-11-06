@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Setup = {
   year: { id: string; name: string; start_date: string; end_date: string };
@@ -151,7 +152,7 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
     </header>
     {sessionChanged ? <p role="alert">Your sign-in changed. Reopen this page to check coverage access.</p>
       : accessError ? <p role="alert">{accessError}</p>
-        : !access ? <p role="status" className="text-sm muted">Checking coverage access…</p>
+        : !access ? <LoadingState variant="form" className="text-sm muted">Checking coverage access…</LoadingState>
           : <>
             <label className={`${label} max-w-md`}>Coverage school
               <select className="field" value={schoolId} disabled={busy || dirty || access.schools.length === 1} onChange={(event) => {
@@ -165,7 +166,7 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
             </p>}
             {!schoolId ? <p className="text-sm muted">Select a school to manage coverage.</p>
               : loadError ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{loadError}</p>
-                : !setup ? <p role="status" className="text-sm muted">Loading substitute coverage…</p>
+                : !setup ? <LoadingState variant="list" className="text-sm muted">Loading substitute coverage…</LoadingState>
                   : <>
                     <form aria-label="Assign substitute attendance coverage" onSubmit={create} className="space-y-4 rounded-xl border border-[var(--border)] p-4">
                       <p className="text-sm muted">{setup.year.name} · Coverage starts from today or a later date in this session.</p>

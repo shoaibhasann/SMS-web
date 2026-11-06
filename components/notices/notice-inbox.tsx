@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Notice = {
   id: string;
@@ -66,7 +67,7 @@ export function NoticeInbox() {
         </button>
       </header>
       <section className="card overflow-hidden" aria-label="Recent school notices">
-        {!result ? <p role="status" className="p-5 text-sm muted">Loading notices…</p>
+        {!result ? <LoadingState variant="table" className="p-5 text-sm muted">Loading notices…</LoadingState>
           : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
           : result.notices.length === 0 ? <p className="p-5 text-sm muted">No notices are available right now.</p>
           : <div className="divide-y divide-[var(--border)]">

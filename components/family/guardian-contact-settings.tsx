@@ -8,6 +8,7 @@ import {
   readGuardianContactProviders, requestGuardianEmailChange, requestGuardianMobileChange, syncVerifiedGuardianMobile,
   type GuardianContactProviders,
 } from "@/lib/guardian-invitations/contact";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Notice = { text: string; error?: boolean };
 type ProviderState = GuardianContactProviders | "unavailable";
@@ -161,7 +162,7 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
               setAttempt((value) => value + 1);
             }}>Retry contact check</button>
           </section>
-        ) : !account ? <p role="status" className="text-sm muted">Loading your contact details…</p>
+        ) : !account ? <LoadingState variant="form" className="text-sm muted">Loading your contact details…</LoadingState>
         : <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm muted">Keep access to the inbox or number you want to verify.</p>
@@ -209,7 +210,7 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
               <p className="mt-1 break-all text-sm muted">Verified mobile · {verifiedMobile || "No mobile verified"}</p>
             </div>
             {pendingMobile && <p className="break-all rounded-xl border border-[var(--border)] p-3 text-sm">SMS verification pending for {pendingMobile}.</p>}
-            {!provider && <p role="status" className="text-sm muted">Checking contact verification availability…</p>}
+            {!provider && <LoadingState variant="form" className="text-sm muted">Checking contact verification availability…</LoadingState>}
             {smsEnabled && verifiedEmail ? (
               <div className="max-w-md space-y-4">
                 {pendingMobile && (

@@ -1,0 +1,556 @@
+{
+  "source": "Read-only Supabase catalog, project bjecfuixgqgyohttrdfr, 2026-11-06. No school records or credentials.",
+  "relations": [
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "anon=arwdDxtm/postgres",
+        "authenticated=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "name": "teacher_assessment_marks",
+      "schema": "public",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "assessment_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "student_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "marks_obtained",
+          "type": "numeric(8,2)",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "remarks",
+          "type": "text",
+          "default": null,
+          "not_null": false
+        },
+        {
+          "acl": null,
+          "name": "updated_by",
+          "type": "uuid",
+          "default": null,
+          "not_null": false
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "not_null": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "teacher_assessment_marks_set_updated_at",
+          "definition": "CREATE TRIGGER teacher_assessment_marks_set_updated_at BEFORE UPDATE ON public.teacher_assessment_marks FOR EACH ROW EXECUTE FUNCTION teacher_assessment_set_updated_at()"
+        },
+        {
+          "name": "teacher_assessment_marks_validate",
+          "definition": "CREATE TRIGGER teacher_assessment_marks_validate BEFORE INSERT OR UPDATE ON public.teacher_assessment_marks FOR EACH ROW EXECUTE FUNCTION teacher_assessment_validate_marks()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "teacher_assessment_marks_assessment_id_fkey",
+          "definition": "FOREIGN KEY (assessment_id) REFERENCES teacher_assessments(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "teacher_assessment_marks_assessment_id_student_id_key",
+          "definition": "UNIQUE (assessment_id, student_id)"
+        },
+        {
+          "name": "teacher_assessment_marks_marks_obtained_check",
+          "definition": "CHECK ((marks_obtained >= (0)::numeric))"
+        },
+        {
+          "name": "teacher_assessment_marks_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "teacher_assessment_marks_student_id_fkey",
+          "definition": "FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "teacher_assessment_marks_updated_by_fkey",
+          "definition": "FOREIGN KEY (updated_by) REFERENCES auth.users(id) ON DELETE SET NULL"
+        }
+      ]
+    },
+    {
+      "acl": [
+        "postgres=arwdDxtm/postgres",
+        "anon=arwdDxtm/postgres",
+        "authenticated=arwdDxtm/postgres",
+        "service_role=arwdDxtm/postgres"
+      ],
+      "rls": true,
+      "name": "teacher_assessments",
+      "schema": "public",
+      "columns": [
+        {
+          "acl": null,
+          "name": "id",
+          "type": "uuid",
+          "default": "gen_random_uuid()",
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "school_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "academic_year_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "class_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "section_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": false
+        },
+        {
+          "acl": null,
+          "name": "subject_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "teacher_id",
+          "type": "uuid",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "name",
+          "type": "text",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "assessment_date",
+          "type": "date",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "maximum_marks",
+          "type": "numeric(8,2)",
+          "default": null,
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "description",
+          "type": "text",
+          "default": null,
+          "not_null": false
+        },
+        {
+          "acl": null,
+          "name": "status",
+          "type": "text",
+          "default": "'scheduled'::text",
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "not_null": true
+        },
+        {
+          "acl": null,
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "default": "now()",
+          "not_null": true
+        }
+      ],
+      "triggers": [
+        {
+          "name": "teacher_assessments_set_updated_at",
+          "definition": "CREATE TRIGGER teacher_assessments_set_updated_at BEFORE UPDATE ON public.teacher_assessments FOR EACH ROW EXECUTE FUNCTION teacher_assessment_set_updated_at()"
+        },
+        {
+          "name": "teacher_assessments_validate_maximum",
+          "definition": "CREATE TRIGGER teacher_assessments_validate_maximum BEFORE UPDATE OF maximum_marks ON public.teacher_assessments FOR EACH ROW EXECUTE FUNCTION teacher_assessment_validate_maximum()"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "teacher_assessments_academic_year_id_fkey",
+          "definition": "FOREIGN KEY (academic_year_id) REFERENCES academic_years(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "teacher_assessments_class_id_fkey",
+          "definition": "FOREIGN KEY (class_id) REFERENCES classes(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "teacher_assessments_maximum_marks_check",
+          "definition": "CHECK ((maximum_marks > (0)::numeric))"
+        },
+        {
+          "name": "teacher_assessments_name_check",
+          "definition": "CHECK (((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 160)))"
+        },
+        {
+          "name": "teacher_assessments_pkey",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "teacher_assessments_section_id_fkey",
+          "definition": "FOREIGN KEY (section_id) REFERENCES sections(id) ON DELETE SET NULL"
+        },
+        {
+          "name": "teacher_assessments_status_check",
+          "definition": "CHECK ((status = ANY (ARRAY['scheduled'::text, 'completed'::text])))"
+        },
+        {
+          "name": "teacher_assessments_subject_id_fkey",
+          "definition": "FOREIGN KEY (subject_id) REFERENCES subjects(id) ON DELETE CASCADE"
+        },
+        {
+          "name": "teacher_assessments_teacher_id_fkey",
+          "definition": "FOREIGN KEY (teacher_id) REFERENCES teachers(id) ON DELETE CASCADE"
+        }
+      ]
+    }
+  ],
+  "policies": [
+    {
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM teacher_assessments ta\n  WHERE ((ta.id = teacher_assessment_marks.assessment_id) AND is_school_admin_for_school(ta.school_id))))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin_teacher_assessment_marks_all",
+      "schemaname": "public",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM teacher_assessments ta\n  WHERE ((ta.id = teacher_assessment_marks.assessment_id) AND is_school_admin_for_school(ta.school_id))))"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "(EXISTS ( SELECT 1\n   FROM teacher_assessments a\n  WHERE ((a.id = teacher_assessment_marks.assessment_id) AND teacher_assessment_is_school_admin(a.school_id))))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessment_marks_admin_manage",
+      "schemaname": "public",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM teacher_assessments a\n  WHERE ((a.id = teacher_assessment_marks.assessment_id) AND teacher_assessment_is_school_admin(a.school_id))))"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "teacher_assessment_can_manage(assessment_id)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessment_marks_delete",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessment_marks_insert",
+      "schemaname": "public",
+      "with_check": "(teacher_assessment_can_manage(assessment_id) AND teacher_assessment_student_is_enrolled(assessment_id, student_id))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "teacher_assessment_can_view(assessment_id)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessment_marks_select",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "teacher_assessment_can_manage(assessment_id)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessment_marks",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessment_marks_update",
+      "schemaname": "public",
+      "with_check": "(teacher_assessment_can_manage(assessment_id) AND teacher_assessment_student_is_enrolled(assessment_id, student_id))"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "is_school_admin_for_school(school_id)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "admin_teacher_assessments_all",
+      "schemaname": "public",
+      "with_check": "is_school_admin_for_school(school_id)"
+    },
+    {
+      "cmd": "ALL",
+      "qual": "teacher_assessment_is_school_admin(school_id)",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessments_admin_manage",
+      "schemaname": "public",
+      "with_check": "teacher_assessment_is_school_admin(school_id)"
+    },
+    {
+      "cmd": "DELETE",
+      "qual": "((teacher_id = ( SELECT t.id\n   FROM teachers t\n  WHERE (t.profile_id = ( SELECT auth.uid() AS uid)))) AND teacher_assessment_is_assigned(teacher_id, school_id, academic_year_id, class_id, section_id, subject_id))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessments_delete",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "INSERT",
+      "qual": null,
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessments_insert",
+      "schemaname": "public",
+      "with_check": "((teacher_id = ( SELECT t.id\n   FROM teachers t\n  WHERE (t.profile_id = ( SELECT auth.uid() AS uid)))) AND teacher_assessment_is_assigned(teacher_id, school_id, academic_year_id, class_id, section_id, subject_id))"
+    },
+    {
+      "cmd": "SELECT",
+      "qual": "(teacher_assessment_is_school_admin(school_id) OR teacher_assessment_is_assigned(teacher_id, school_id, academic_year_id, class_id, section_id, subject_id))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessments_select",
+      "schemaname": "public",
+      "with_check": null
+    },
+    {
+      "cmd": "UPDATE",
+      "qual": "((teacher_id = ( SELECT t.id\n   FROM teachers t\n  WHERE (t.profile_id = ( SELECT auth.uid() AS uid)))) AND teacher_assessment_is_assigned(teacher_id, school_id, academic_year_id, class_id, section_id, subject_id))",
+      "roles": [
+        "authenticated"
+      ],
+      "tablename": "teacher_assessments",
+      "permissive": "PERMISSIVE",
+      "policyname": "teacher_assessments_update",
+      "schemaname": "public",
+      "with_check": "((teacher_id = ( SELECT t.id\n   FROM teachers t\n  WHERE (t.profile_id = ( SELECT auth.uid() AS uid)))) AND teacher_assessment_is_assigned(teacher_id, school_id, academic_year_id, class_id, section_id, subject_id))"
+    }
+  ],
+  "routines": [
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_can_view",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_can_view(p_assessment_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.teacher_assessments a\r\n    where a.id = p_assessment_id\r\n      and (\r\n        public.teacher_assessment_is_school_admin(a.school_id)\r\n        or public.teacher_assessment_is_assigned(\r\n          a.teacher_id, a.school_id, a.academic_year_id,\r\n          a.class_id, a.section_id, a.subject_id\r\n        )\r\n      )\r\n  );\r\n$function$\n",
+      "volatility": "s",
+      "identity_args": "p_assessment_id uuid",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_can_manage",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_can_manage(p_assessment_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.teacher_assessments a\r\n    where a.id = p_assessment_id\r\n      and (\r\n        public.teacher_assessment_is_school_admin(a.school_id)\r\n        or (\r\n          a.teacher_id = (\r\n            select t.id from public.teachers t where t.profile_id = (select auth.uid())\r\n          )\r\n          and public.teacher_assessment_is_assigned(\r\n            a.teacher_id, a.school_id, a.academic_year_id,\r\n            a.class_id, a.section_id, a.subject_id\r\n          )\r\n        )\r\n      )\r\n  );\r\n$function$\n",
+      "volatility": "s",
+      "identity_args": "p_assessment_id uuid",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_student_is_enrolled",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_student_is_enrolled(p_assessment_id uuid, p_student_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.teacher_assessments a\r\n    join public.enrollments e\r\n      on e.student_id = p_student_id\r\n     and e.class_id = a.class_id\r\n     and e.academic_year_id = a.academic_year_id\r\n     and e.status = 'active'\r\n     and (a.section_id is null or e.section_id = a.section_id)\r\n    where a.id = p_assessment_id\r\n  );\r\n$function$\n",
+      "volatility": "s",
+      "identity_args": "p_assessment_id uuid, p_student_id uuid",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_is_assigned",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_is_assigned(p_teacher_id uuid, p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.teachers t\r\n    join public.teacher_subject_assignments tsa on tsa.teacher_id = t.id\r\n    join public.classes c on c.id = p_class_id and c.school_id = p_school_id\r\n    join public.academic_years ay on ay.id = p_academic_year_id and ay.school_id = p_school_id\r\n    where t.id = p_teacher_id\r\n      and t.profile_id = (select auth.uid())\r\n      and t.school_id = p_school_id\r\n      and tsa.academic_year_id = p_academic_year_id\r\n      and tsa.class_id = p_class_id\r\n      and tsa.subject_id = p_subject_id\r\n      and (tsa.section_id is null or tsa.section_id = p_section_id)\r\n      and (\r\n        p_section_id is null\r\n        or exists (\r\n          select 1 from public.sections s\r\n          where s.id = p_section_id and s.class_id = p_class_id\r\n        )\r\n      )\r\n  );\r\n$function$\n",
+      "volatility": "s",
+      "identity_args": "p_teacher_id uuid, p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_is_school_admin",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_is_school_admin(p_school_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.user_roles ur\r\n    where ur.user_id = (select auth.uid())\r\n      and ur.role in ('super_admin', 'school_admin')\r\n      and (ur.role = 'super_admin' or ur.school_id = p_school_id)\r\n  );\r\n$function$\n",
+      "volatility": "s",
+      "identity_args": "p_school_id uuid",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "=X/postgres",
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_set_updated_at",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_set_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\n SET search_path TO ''\nAS $function$\r\nbegin\r\n  new.updated_at := now();\r\n  return new;\r\nend;\r\n$function$\n",
+      "volatility": "v",
+      "identity_args": "",
+      "security_definer": false
+    },
+    {
+      "acl": [
+        "=X/postgres",
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_validate_maximum",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_validate_maximum()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\nbegin\r\n  if exists (\r\n    select 1\r\n    from public.teacher_assessment_marks m\r\n    where m.assessment_id = new.id\r\n      and m.marks_obtained > new.maximum_marks\r\n  ) then\r\n    raise exception 'Maximum marks cannot be lower than marks already entered.';\r\n  end if;\r\n  return new;\r\nend;\r\n$function$\n",
+      "volatility": "v",
+      "identity_args": "",
+      "security_definer": true
+    },
+    {
+      "acl": [
+        "=X/postgres",
+        "postgres=X/postgres",
+        "anon=X/postgres",
+        "authenticated=X/postgres",
+        "service_role=X/postgres"
+      ],
+      "name": "teacher_assessment_validate_marks",
+      "config": [
+        "search_path=\"\""
+      ],
+      "schema": "public",
+      "definition": "CREATE OR REPLACE FUNCTION public.teacher_assessment_validate_marks()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\r\ndeclare\r\n  assessment_max numeric(8, 2);\r\nbegin\r\n  select a.maximum_marks into assessment_max\r\n  from public.teacher_assessments a\r\n  where a.id = new.assessment_id;\r\n\r\n  if assessment_max is null then\r\n    raise exception 'Assessment not found.';\r\n  end if;\r\n  if new.marks_obtained < 0 or new.marks_obtained > assessment_max then\r\n    raise exception 'Marks must be between zero and the assessment maximum.';\r\n  end if;\r\n  if not public.teacher_assessment_student_is_enrolled(new.assessment_id, new.student_id) then\r\n    raise exception 'Student is not actively enrolled in this assessment class and section.';\r\n  end if;\r\n\r\n  new.updated_by := (select auth.uid());\r\n  return new;\r\nend;\r\n$function$\n",
+      "volatility": "v",
+      "identity_args": "",
+      "security_definer": true
+    }
+  ]
+}

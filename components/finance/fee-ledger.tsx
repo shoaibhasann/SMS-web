@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ArrowLeft, ArrowRight, RefreshCw, Scale } from "lucide-react";
 import { formatFeeMoney, getOfficeFeeLedger, type FeeLedger } from "@/lib/finance/fee-batches";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Props = { client: SupabaseClient; schoolId: string; academicYearId: string };
 const pageSize = 25;
@@ -80,7 +81,7 @@ export function FeeLedgerWorkspace({ client, schoolId, academicYearId }: Props) 
       </label>
       {authError ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{authError}</p>
         : current?.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{current.error}</p>
-          : !ledger ? <p role="status" className="text-sm muted">Loading the fee ledger…</p> : <>
+          : !ledger ? <LoadingState variant="table" className="text-sm muted">Loading the fee ledger…</LoadingState> : <>
             {invalid && <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-200">{summary!.invalid_count} record{summary!.invalid_count === 1 ? " needs" : "s need"} review for missing session mapping or inconsistent amounts. Reconciliation totals are withheld until the office resolves these records.</p>}
             {!invalid && summary && <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {[["Net demands", summary.net_amount], ["Payments applied", summary.paid_amount], ["Outstanding", summary.balance], ["Opening debt included", summary.opening_amount]].map(([label, value]) => <div key={label} className="min-w-0 rounded-xl bg-[var(--surface-2)] p-4">

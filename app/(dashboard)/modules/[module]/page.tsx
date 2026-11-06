@@ -1,12 +1,14 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
 import { useParams, useSearchParams } from "next/navigation";
 import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { canAccessModule } from "@/lib/modules";
 import { resolveUiRole, type UiRole } from "@/lib/auth/roles";
+import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { TeacherModuleView } from "@/components/teacher/teacher-views";
 import { TeacherAcademicActivityWorkspace } from "@/components/academic/teacher-activity-workspace";
 import { AdminModulePlaceholder } from "@/components/admin/admin-module-placeholder";
@@ -30,11 +32,14 @@ import { AdvanceCreditWorkspace } from "@/components/finance/advance-credit-work
 import { FamilyAdvanceCredit } from "@/components/finance/family-advance-credit";
 import { TeachingAssignmentManager } from "@/components/academic/teaching-assignment-manager";
 import { SubstituteCoverageWorkspace } from "@/components/academic/substitute-coverage-workspace";
+import { StudentLeaveWorkspace } from "@/components/family/student-leave-workspace";
+import { TimetableWorkspace } from "@/components/academic/timetable-workspace";
+import { ResultPublicationWorkspace } from "@/components/academic/result-publication-workspace";
 
 const supabase = createClient();
 
 function ModuleLoading() {
-  return <main className="min-h-screen bg-[var(--bg)] p-6 text-sm muted">Checking module access...</main>;
+  return <WorkspaceSkeleton />;
 }
 
 export default function ModulePage() {
@@ -45,7 +50,7 @@ function ModuleContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const moduleName = String(params?.module || "");
-  const guardianView = ["attendance", "notifications", "profile", "advance-credit"].includes(moduleName) && searchParams.get("view") === "guardian";
+  const guardianView = ["attendance", "notifications", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
   const initialChildId = guardianView && moduleName === "attendance" ? searchParams.get("child") ?? undefined : undefined;
   const accessKey = guardianView ? `${moduleName}?view=guardian` : moduleName;
   const [access, setAccess] = useState<{
@@ -57,34 +62,36 @@ function ModuleContent() {
 
   useEffect(() => {
     let active = true;
+    let generation = 0;
+    let currentUserId: string | null = null;
+    let authTimer: ReturnType<typeof setTimeout> | undefined;
     const loadRole = async () => {
+      if (!active) return;
+      const request = ++generation;
+      const isCurrent = () => active && request === generation;
       try {
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        if (!user) {
-          if (active) setAccess({ key: accessKey, role: null, userId: null, error: "Please sign in to access this module." });
+        const verified = await readActiveSchoolAccess(supabase);
+        if (!isCurrent()) return;
+        if (!verified) {
+          currentUserId = null;
+          setAccess({ key: accessKey, role: null, userId: null, error: "Please sign in to access this module." });
           return;
         }
-
-        const { data: roleRows, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
-        if (roleError) throw roleError;
-        const roles = roleRows ?? [];
+        currentUserId = verified.userId;
+        const roles = verified.roles;
         const role = guardianView
-          ? roles.some((row) => row.role === "parent") ? "parent" : null
+          ? roles.some((row) => row.role === "parent" && row.school_id === verified.profileSchoolId) ? "parent" : null
           : resolveUiRole(roles);
-        if (active) setAccess({
+        setAccess({
           key: accessKey,
           role,
-          userId: user.id,
+          userId: verified.userId,
           error: role ? null : guardianView
             ? "This view requires a linked guardian account."
             : "No recognized role is assigned to this login.",
         });
       } catch (error) {
-        if (active) setAccess({
+        if (isCurrent()) setAccess({
           key: accessKey,
           role: null,
           userId: null,
@@ -92,10 +99,29 @@ function ModuleContent() {
         });
       }
     };
-
+    const onFocus = () => { void loadRole(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void loadRole(); };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active || event === "INITIAL_SESSION") return;
+      generation += 1;
+      if (event === "SIGNED_OUT" || session?.user.id !== currentUserId) {
+        currentUserId = session?.user.id ?? null;
+        setAccess(null);
+      }
+      // Supabase auth callbacks must finish before starting another Auth read.
+      clearTimeout(authTimer);
+      authTimer = setTimeout(() => { void loadRole(); }, 0);
+    });
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisible);
     void loadRole();
     return () => {
       active = false;
+      generation += 1;
+      clearTimeout(authTimer);
+      subscription.unsubscribe();
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [accessKey, guardianView]);
 
@@ -115,6 +141,28 @@ function ModuleContent() {
         <div role="alert" className="rounded-2xl border border-red-500/30 bg-[var(--surface)] p-6 text-sm text-red-600">
           Your role does not allow access to this module.
         </div>
+      </AppShell>
+    );
+  }
+
+  if ((moduleName === "published-results" || ((access.role === "parent" || access.role === "student")
+    && (moduleName === "results" || moduleName === "result-report")))
+    && (access.role === "admin" || access.role === "principal" || access.role === "teacher" || access.role === "parent" || access.role === "student")) {
+    return <AppShell role={access.role}><ResultPublicationWorkspace key={`${access.userId}:${access.role}`} role={access.role} userId={access.userId} /></AppShell>;
+  }
+
+  if (moduleName === "student-leave" && (access.role === "student" || access.role === "parent" || access.role === "admin" || access.role === "principal")) {
+    return (
+      <AppShell role={access.role}>
+        <StudentLeaveWorkspace key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
+      </AppShell>
+    );
+  }
+
+  if (moduleName === "timetable" && (access.role === "admin" || access.role === "principal" || access.role === "teacher" || access.role === "parent" || access.role === "student")) {
+    return (
+      <AppShell role={access.role}>
+        <TimetableWorkspace key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
       </AppShell>
     );
   }
@@ -245,7 +293,7 @@ function ModuleContent() {
   }
 
   if (access.role === "admin" && [
-    "parents", "admissions", "timetable", "events", "notifications",
+    "parents", "admissions", "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
     "reports", "audit-logs", "settings",
   ].includes(moduleName)) {

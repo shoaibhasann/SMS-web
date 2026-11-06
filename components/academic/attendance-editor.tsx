@@ -15,6 +15,7 @@ import {
   type AttendanceSnapshot,
   type AttendanceStatus,
 } from "@/lib/attendance/types";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Props = {
   context: AttendanceContext | null;
@@ -271,7 +272,7 @@ function ScopedAttendanceEditor({
           <button type="button" onClick={reload} disabled={saving} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">{dirty ? "Discard changes and reload" : "Reload register"}</button>
         </div>
       </div>
-      {loadError ? <p role="alert" className="text-sm text-red-600">{loadError} Saving is disabled until the register loads successfully.</p> : !ready ? <p role="status" className="text-sm muted">Loading attendance register…</p> : (
+      {loadError ? <p role="alert" className="text-sm text-red-600">{loadError} Saving is disabled until the register loads successfully.</p> : !ready ? <LoadingState variant="table" className="text-sm muted">Loading attendance register…</LoadingState> : (
         <>
           <p className="text-xs muted">{students.length} students · {marked} marked · {students.length - marked} unmarked. {readOnly ? "This academic year is read-only." : historical
             ? requestHistorical ? "For past dates, request one pupil’s correction at a time." : "Past attendance changes through the correction review."

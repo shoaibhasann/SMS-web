@@ -1,0 +1,2702 @@
+{
+  "source": {
+    "project_ref": "bjecfuixgqgyohttrdfr",
+    "captured_at_utc": "2026-11-05T19:41:23.011336+00:00",
+    "server_version": "17.11",
+    "contains_application_rows": false
+  },
+  "scope": "Application schemas plus app-owned Auth/Storage hooks; managed schemas and extensions require the declared platform contract. No row backup.",
+  "counts": {
+    "tables": 99,
+    "views": 3,
+    "routines": 304,
+    "policies": 185,
+    "triggers": 61
+  },
+  "fingerprint": {
+    "format": "sms-application-catalog-fingerprint/v1",
+    "entries": [
+      {
+        "key": "default-privilege:[\"postgres\",\"public\",\"f\"]",
+        "sha256": "f1adcecc45e536ad3151746d44fda0bae78cd2a0e7770c8f76ea437d2b809572"
+      },
+      {
+        "key": "default-privilege:[\"postgres\",\"public\",\"r\"]",
+        "sha256": "e2efdf52f909f5edb008f42853b0cf5e27b3d5ffc54442d7005bf11efd129a7f"
+      },
+      {
+        "key": "default-privilege:[\"postgres\",\"public\",\"S\"]",
+        "sha256": "daffcdbb3e57a99ac174b371689704945c35692bd2a205d6e10731ee75b0ac2c"
+      },
+      {
+        "key": "default-privilege:[\"supabase_admin\",\"public\",\"f\"]",
+        "sha256": "d5c13e13cbd0d68fc8b167edcefb6a16e5be361c51558152d64972dfd2712c51"
+      },
+      {
+        "key": "default-privilege:[\"supabase_admin\",\"public\",\"r\"]",
+        "sha256": "181ca4877c154421863559b25822263b085d05184194cc3e8932b5870da5eff9"
+      },
+      {
+        "key": "default-privilege:[\"supabase_admin\",\"public\",\"S\"]",
+        "sha256": "73514c23d9b4a556505785bea544856edeaf709f927b3dfcd12d2eda05c9b9fb"
+      },
+      {
+        "key": "enum:[\"public\",\"activity_type\"]",
+        "sha256": "6fc4c3f04e87ce4175f24a2a6ade24d1c03702fff21095d264d92cf79644b64f"
+      },
+      {
+        "key": "enum:[\"public\",\"admission_status\"]",
+        "sha256": "05ebff584728159d028cf41b436dcf875ea780547866b5cbe2d5025c00b8946e"
+      },
+      {
+        "key": "enum:[\"public\",\"app_role\"]",
+        "sha256": "aee43f4e948bf3577c37f702bf9aaf675a4c06d55473d51d5d4ebfc55e473af1"
+      },
+      {
+        "key": "enum:[\"public\",\"attendance_status\"]",
+        "sha256": "5c4bc727ef6ba009545ef73cfededf20c83a57a2980bf9fd7d77fda57edc1c31"
+      },
+      {
+        "key": "enum:[\"public\",\"board_type\"]",
+        "sha256": "4bec94b5800c4fb7ec2d6974d021d0a2d0c8257f87a035e394168e6d75f2249e"
+      },
+      {
+        "key": "enum:[\"public\",\"document_status\"]",
+        "sha256": "24fac0a372846a4cc01fd7952f9ef4292ca7ad10783c4ac50a1b58b9dcc6eb98"
+      },
+      {
+        "key": "enum:[\"public\",\"exam_status\"]",
+        "sha256": "9d42856564b127dbd8c49b8af87a3e5f79a5e9e5db1d82f73f9ab788c216a3ac"
+      },
+      {
+        "key": "enum:[\"public\",\"notification_channel\"]",
+        "sha256": "5531fe618b5ef1d0387d0f8b6d3b18ba1a24694f093a9c4d856bbc2568f03212"
+      },
+      {
+        "key": "enum:[\"public\",\"notification_status\"]",
+        "sha256": "90e0aa9dceb06d2391901b9d14763e8ef1d6ce5d3e14c0b2dd9e4584e07c5396"
+      },
+      {
+        "key": "enum:[\"public\",\"payment_status\"]",
+        "sha256": "e23eb15a5d90fbcbf6e1e708a8a0bae8d5bbe621b6d209902b8fcfdd79155e6c"
+      },
+      {
+        "key": "policy:[\"public\",\"academic_years\",\"academic_years_finance_read\"]",
+        "sha256": "b72b074f828ca572488538b20a1ee039528d3135e78b691f2d60ec1c86fd10f7"
+      },
+      {
+        "key": "policy:[\"public\",\"academic_years\",\"admin_academic_years_all\"]",
+        "sha256": "7031e045ece938c28765325f4e70fee423bf0eb8452857771063495c806a32c8"
+      },
+      {
+        "key": "policy:[\"public\",\"academic_years\",\"tenant_isolation_academic_years\"]",
+        "sha256": "870b96b1f8251f85e42e2864fd6ff3e8d2e16caa0d0e395297086ba228c78953"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_guardian_read\"]",
+        "sha256": "5027741b3259c69e9127ee5491026133a4f73f1222ca87004c4e1b10350c4fe4"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_manager\"]",
+        "sha256": "5126860b9a8750ce2d7c98538db3c520de57361688c5970dd8d722dba5fa53e0"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_office_read\"]",
+        "sha256": "99e4986005f931cfd22b8d9f867ea87235a4a6d2ef9242b1452127cea530224e"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_student_insert\"]",
+        "sha256": "f5f7bb1c46b6eb4944cc9a639c8209e39ce0e504890371df8ceb1560cb307674"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_student_read\"]",
+        "sha256": "d2b0280f8ca81140355d1c10d1c8fa228271ae3fe52225b11195c115c6805203"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_student_update\"]",
+        "sha256": "fc75d6056830210916935f31358491745aa42ca18cbf5487adfb4946952046fc"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_teacher_grade\"]",
+        "sha256": "5d37766a57f9542c57923955593adef17ebba37a29359dd1b22ba5252b2f7eac"
+      },
+      {
+        "key": "policy:[\"public\",\"activity_submissions\",\"academic_submissions_teacher_read\"]",
+        "sha256": "44af640d32885f446ce9ed34773aaf3d45b8c4433ea3c5f5d63b3a7d81100952"
+      },
+      {
+        "key": "policy:[\"public\",\"admission_documents\",\"admin_admission_documents_all\"]",
+        "sha256": "bb8d943237c0023b70978caf1ed3bd7e1881f9250fbafc56c617ada1a413cc09"
+      },
+      {
+        "key": "policy:[\"public\",\"admission_documents\",\"admission_documents_school_admin_all\"]",
+        "sha256": "d887764c3b2544c1803040bf6c8ad03dd2fde6cf71743aa66f57f4d63e6fa733"
+      },
+      {
+        "key": "policy:[\"public\",\"admissions\",\"admin_admissions_all\"]",
+        "sha256": "75ba475f2090591a1b4ab954d08290a161dbfd4baa786bf63ba50a46367763e2"
+      },
+      {
+        "key": "policy:[\"public\",\"admissions\",\"admissions_school_admin_all\"]",
+        "sha256": "acbf8f7cb768cfdc523de5f5e118f43f0d0cd0b9af77a386aa15698a13ecf331"
+      },
+      {
+        "key": "policy:[\"public\",\"admissions\",\"tenant_isolation_admissions\"]",
+        "sha256": "9acca079c21f342d25281be301349f501b91567f9fe719e6b1d90ac24fdbcb4f"
+      },
+      {
+        "key": "policy:[\"public\",\"attendance\",\"admin_attendance_all\"]",
+        "sha256": "4475d2a81caa89d845fb2aeaae397533606a06e9c057b8174a38f99f5ea67c0a"
+      },
+      {
+        "key": "policy:[\"public\",\"attendance\",\"attendance_class_teacher_manage\"]",
+        "sha256": "0548c7b31ca1a21e7775ec2e7648f260d44617559709319aa23c0242460b7863"
+      },
+      {
+        "key": "policy:[\"public\",\"attendance\",\"attendance_parent_read\"]",
+        "sha256": "47d60a3b87ecd05d72f698c4724fbeb75ecb57826cac7952030874ca978984e6"
+      },
+      {
+        "key": "policy:[\"public\",\"attendance\",\"attendance_staff_all\"]",
+        "sha256": "14cacf029fd8298617f614f1efd30457789e76a6d689495efbe84cb941e10056"
+      },
+      {
+        "key": "policy:[\"public\",\"attendance\",\"attendance_student_read\"]",
+        "sha256": "25423927ee7b6fc986d0f4c65639483806b175390b5acea12ee327d5c96915e6"
+      },
+      {
+        "key": "policy:[\"public\",\"audit_logs\",\"admin_audit_logs_all\"]",
+        "sha256": "2d9c32ce3bec11574df645abc71656834d3bcc5f7fce731362ca55b62f0454bb"
+      },
+      {
+        "key": "policy:[\"public\",\"audit_logs\",\"audit_logs_school_admin_all\"]",
+        "sha256": "5998f2cabdda86619314210ca9354f3278ebe982991c4fb37ad86e38cc8e801b"
+      },
+      {
+        "key": "policy:[\"public\",\"audit_logs\",\"tenant_isolation_audit_logs\"]",
+        "sha256": "24064e973c3d121475b9ceea85a79129398dd088f02cc42f0f9a56b28aad8883"
+      },
+      {
+        "key": "policy:[\"public\",\"class_activities\",\"academic_activities_manager\"]",
+        "sha256": "d687f54e3c854f83c4ba44dc57108315f54cf25c4d114cfcdf18b8a700a3283e"
+      },
+      {
+        "key": "policy:[\"public\",\"class_activities\",\"academic_activities_read\"]",
+        "sha256": "6314af7ba75a42a275479f8e5b0134f2529623cfb23113f50f980df618042c10"
+      },
+      {
+        "key": "policy:[\"public\",\"class_activities\",\"academic_activities_teacher_delete\"]",
+        "sha256": "b0b283c0b95bfb06beea52e998bee8d16ecc386f73058fa6cfb3ef4baba9ccc5"
+      },
+      {
+        "key": "policy:[\"public\",\"class_activities\",\"academic_activities_teacher_insert\"]",
+        "sha256": "c8c4f2bfa24ec6dd53d42941d70c44b4e9f7346d92b7b157157929f4b249d16c"
+      },
+      {
+        "key": "policy:[\"public\",\"class_activities\",\"academic_activities_teacher_update\"]",
+        "sha256": "adda3db1251584c3fc98326ac9e2ebb3ce108065761377ee45959d46a13436a1"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_family\"]",
+        "sha256": "8a6646fdc7f75ce31431fcd2c4d4f3b8bf4c68fb39902025ba87bb7d1e4cda7c"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_manager\"]",
+        "sha256": "af2028977f8a6d45e6d231e619fa72aab100d6cbe6fb574103c39d98c0c0bff6"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_office_read\"]",
+        "sha256": "def0eb155a8bf0a76d06ddb945b5490a830f42f2a1c5c5b651c3aa5893d3e43f"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_teacher_delete\"]",
+        "sha256": "cec325d13cfd00a2a23e868310366fb126dc446831afb85775d10656deb84346"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_teacher_insert\"]",
+        "sha256": "4e956c31e4d54c45bb38ed1bd9c3a75f06063a837e1b4bc9959b3c5b29c14242"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_teacher_read\"]",
+        "sha256": "1fd2013a2f1604a39adee1525c9cbe02a5bbf364593ba9a5f773b09a75618a9e"
+      },
+      {
+        "key": "policy:[\"public\",\"class_logs\",\"academic_logs_teacher_update\"]",
+        "sha256": "8087d8e11d922290d95b2ccd2cdf3798d1faf80fad793ea81affe6412a798911"
+      },
+      {
+        "key": "policy:[\"public\",\"classes\",\"admin_classes_all\"]",
+        "sha256": "1f7183846eb9ed9f6cf3596d60ff334bd1d03095f5e546477617eddee5a4f8cb"
+      },
+      {
+        "key": "policy:[\"public\",\"classes\",\"classes_finance_read\"]",
+        "sha256": "f988cdbdf993fb0dd7a72a4436be632b904968309c9acd8a3bd5c475fc42fc89"
+      },
+      {
+        "key": "policy:[\"public\",\"classes\",\"tenant_isolation_classes\"]",
+        "sha256": "61f4d0dcdb915bfee01b8af0f38e0c50afaaf62e255ce2e8daae0371096a3ad2"
+      },
+      {
+        "key": "policy:[\"public\",\"communication_logs\",\"tenant_isolation_communication_logs\"]",
+        "sha256": "0a65419e8f30c3c21e110daa0f5bdbacd3a01b64b0ea4dbac3e6ffb5869c481c"
+      },
+      {
+        "key": "policy:[\"public\",\"documents\",\"tenant_isolation_documents\"]",
+        "sha256": "433963d1c1ff6dbeef614e07800049587b7bb65ad865ddef925a14d89e82112d"
+      },
+      {
+        "key": "policy:[\"public\",\"employees\",\"tenant_isolation_employees\"]",
+        "sha256": "24e5cfc152db49dfe5020c61b45f2bec75575ff502dda8a8099f40d60b187f0e"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"admin_enrollments_all\"]",
+        "sha256": "039e256174347391106f81bb5bcf764f81c420a6d81cce5414b0176b9d94ab6e"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"enrollments_parent_children\"]",
+        "sha256": "3de8da8865de99d236338a5c36907fbe597a55a5ec2ef169f1656f115c0cfa9c"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"enrollments_staff_all\"]",
+        "sha256": "087a31830aca6504c388caf4cd3854e56607ac6c9bd033f98a40ff73beaf019c"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"enrollments_student_own\"]",
+        "sha256": "0f59ca7ed721d9219bee8c146328299ebab1f37d8cc10622a850db29b6fea0fe"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"enrollments_substitute_attendance_read\"]",
+        "sha256": "fc0ce5fa5f949d74886b43feca7cb9535d72053edb0eb6e7bdf0c9c584155976"
+      },
+      {
+        "key": "policy:[\"public\",\"enrollments\",\"enrollments_teacher_assigned_read\"]",
+        "sha256": "4cd8b93004fc9981294748e757893b8ca0297cf1396a19a31d043449c91654c6"
+      },
+      {
+        "key": "policy:[\"public\",\"events\",\"tenant_isolation_events\"]",
+        "sha256": "13956694dc5e6a72f9861c24e0ad430ef02543c2f33ebaf881fb333a7977dfab"
+      },
+      {
+        "key": "policy:[\"public\",\"exam_subjects\",\"exam_subjects_tenant\"]",
+        "sha256": "6a41a44e9c5a89b51b1a2576560875b5589303f864567be072346c847b0599dc"
+      },
+      {
+        "key": "policy:[\"public\",\"exams\",\"tenant_isolation_exams\"]",
+        "sha256": "0599d23013d7e1d2c8ca40ba7d01b1a5ce4c09eee44dff64b0f01f4ddf931743"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_discounts\",\"fee_discounts_scoped_read\"]",
+        "sha256": "2e4a15d4f5d071ae697944d1bf947239caccdadca5640c285ec66999c4cc3485"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_payments\",\"admin_fee_payments_all\"]",
+        "sha256": "c2df6ecdeed6e2d2a5d0e3e8bbad846ce6066b4a69d087f81fed682890937887"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_payments\",\"fee_payments_admin_all\"]",
+        "sha256": "26519f98dd7ea2937a14529cb492c735422cd152b1bf423966d0b84b585a01f5"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_payments\",\"fee_payments_finance_all\"]",
+        "sha256": "bb1d69719aae970eb765e986d35e0c03416e11870c8b7b223a193e19b1584ad8"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_payments\",\"fee_payments_parent_read\"]",
+        "sha256": "5a7daac47ce467634ffe394cbc15fea098a34fafd33576161ebf12ed719b9df0"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_payments\",\"fee_payments_student_read\"]",
+        "sha256": "293bf33ef7df0e18c2d0aca98ed3858a1641f82d7bce6110a05036c6fd0e4385"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_refunds\",\"fee_refunds_scoped_read\"]",
+        "sha256": "9f06f8361cc0a71fa9afeaa72a450d7cc8769daf64c5a261d171f08bddc8f831"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_structures\",\"admin_fee_structures_all\"]",
+        "sha256": "4978816425a1f3b4e9a8885813bdad7b5ef5212457c78d5d16abd1dda6b27ae3"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_structures\",\"fee_structures_admin_all\"]",
+        "sha256": "a1c4ee711977c1a7b44ee6631f55630c7cf7c6dc9582716607f0b493deaa08c7"
+      },
+      {
+        "key": "policy:[\"public\",\"fee_structures\",\"fee_structures_finance_all\"]",
+        "sha256": "02d9c0af9835e0254ded48cbab5c01566b66573c51c49cf0c1e1baa35b8431ec"
+      },
+      {
+        "key": "policy:[\"public\",\"hr_employees\",\"admin_hr_employees_all\"]",
+        "sha256": "999e699417ffc7cda665505f3429328e7bfca89107ccf56d1fa90cb7341e4204"
+      },
+      {
+        "key": "policy:[\"public\",\"hr_employees\",\"hr_employees_school_admin_all\"]",
+        "sha256": "d6211afa85fab91e73e95f5ad982eae83ae022cc1663dfcc1835611411882b73"
+      },
+      {
+        "key": "policy:[\"public\",\"hr_payroll\",\"admin_hr_payroll_all\"]",
+        "sha256": "ffb3438c9f836f9a577e48ff4f30f71935c9362eb0250f0d0dd9f4b5774cc5f1"
+      },
+      {
+        "key": "policy:[\"public\",\"hr_payroll\",\"hr_payroll_school_admin_all\"]",
+        "sha256": "4f60d8b7f56180f6f22825a6d43c594f35598eab9642c535a5cda7676a9655a2"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_items\",\"admin_inventory_items_all\"]",
+        "sha256": "dfd912ffd6c5b5b23a8b770d24da1bc116087e7a33ff900c86f86eb71c3d83d7"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_items\",\"inventory_items_school_admin_all\"]",
+        "sha256": "79f353a01fadd449a83f3c5b1916e8d250d8ac7e766b96419fa92e8074772779"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_items\",\"tenant_isolation_inventory_items\"]",
+        "sha256": "a56292e2635ece2f76003caee69734619530f7c8be31a745ff727ed53a2c6961"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_movements\",\"admin_inventory_movements_all\"]",
+        "sha256": "84b44d43cfaefb0e4793e984a914fd7745c26b25187092e4826c3a4fec522bf5"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_movements\",\"inventory_movements_school_admin_all\"]",
+        "sha256": "34b5541b979b6e1da5293208717cfb31f552283dccada5624353dfab585784de"
+      },
+      {
+        "key": "policy:[\"public\",\"inventory_transactions\",\"inventory_transactions_school_member\"]",
+        "sha256": "d2b24e7fd5897a0dbec30e20bd3fff7298ad5288992cf51c7c5c43c4d4c6d748"
+      },
+      {
+        "key": "policy:[\"public\",\"leave_balances\",\"leave_balances_school_member\"]",
+        "sha256": "88e5d2116d0a5faef93d5da60141e9812df84ed6b9f9cdc4f95fd5dd2cde60c2"
+      },
+      {
+        "key": "policy:[\"public\",\"leave_requests\",\"tenant_isolation_leave_requests\"]",
+        "sha256": "5250f838661b962ed8f91ec805dbd08f62117eaab1167a48c5bb8e0023352483"
+      },
+      {
+        "key": "policy:[\"public\",\"library_books\",\"admin_library_books_all\"]",
+        "sha256": "d39aadd83e3759878313aa500f5a05f960c3f5c1751a95c8d26d3696671ecdcd"
+      },
+      {
+        "key": "policy:[\"public\",\"library_books\",\"library_books_school_admin_all\"]",
+        "sha256": "f5e0df08d1e9585d2504409d168b95031abcfccd73eee7dbc1f94c748d1afe06"
+      },
+      {
+        "key": "policy:[\"public\",\"library_books\",\"tenant_isolation_library_books\"]",
+        "sha256": "b685e4bbdacd02a685a79780c8a6ac4b50f8f42753d1586e109eb1098728f91f"
+      },
+      {
+        "key": "policy:[\"public\",\"library_issues\",\"admin_library_issues_all\"]",
+        "sha256": "ee2442144b25be42d836af5bde46f49bfbdbab0d6e60968ffeea6bfe7ce7e688"
+      },
+      {
+        "key": "policy:[\"public\",\"library_issues\",\"library_issues_school_admin_all\"]",
+        "sha256": "b5b470b408a0368c901f69fa0b0003e28c3dc9327e1748f3bc0355a640a173dc"
+      },
+      {
+        "key": "policy:[\"public\",\"library_issues\",\"tenant_isolation_library_issues\"]",
+        "sha256": "d105b33b9f70b4b34a6254853a974f3f5f08c1bbd75b76cb7d6d85372959771f"
+      },
+      {
+        "key": "policy:[\"public\",\"marks\",\"marks_tenant\"]",
+        "sha256": "833af31e08fd6ced90b8eaf598cdf647173da94d036587403c61ce8952131efb"
+      },
+      {
+        "key": "policy:[\"public\",\"notices\",\"notices_school_read\"]",
+        "sha256": "4dbda3004cc52f018d7af71ef6da4c7f2120015e5e5cb9aafc98fb4c9cd1d76e"
+      },
+      {
+        "key": "policy:[\"public\",\"notices\",\"notices_staff_all\"]",
+        "sha256": "b6af7e4ee3c09f85a5a0d0c3736da57e1d80f32c4cd01c58ed36bc6bc5103f58"
+      },
+      {
+        "key": "policy:[\"public\",\"notices\",\"notices_teacher_own\"]",
+        "sha256": "ccb1866085b6b61cbe25d20fff81bad3f74dc79d05f013d6df7ae1e0f500e6a6"
+      },
+      {
+        "key": "policy:[\"public\",\"notification_logs\",\"notification_logs_school_member\"]",
+        "sha256": "d615a259e3b77e27acd2b0f8c78c83a63f375347313b5f6ad0da22eb848c3539"
+      },
+      {
+        "key": "policy:[\"public\",\"notification_templates\",\"tenant_isolation_notification_templates\"]",
+        "sha256": "de122d33aed3759d5ebcd6d262485621013e8c1038edcbc3a42fb8c495c392ef"
+      },
+      {
+        "key": "policy:[\"public\",\"notifications\",\"tenant_isolation_notifications\"]",
+        "sha256": "9a295f1caa1351883e459c96b531ecf5cec88de0d89d11487379622431c3c93c"
+      },
+      {
+        "key": "policy:[\"public\",\"parents\",\"admin_parents_all\"]",
+        "sha256": "efecd2d1368195bf2ac6d65e94cc94866a52386785b681d61bb676982a3afff9"
+      },
+      {
+        "key": "policy:[\"public\",\"parents\",\"parents_admin_all\"]",
+        "sha256": "c11345c42f62d9d79e7ec0099590f8012fe95a60fc65c25e4950aaec76f75150"
+      },
+      {
+        "key": "policy:[\"public\",\"parents\",\"parents_parent_own\"]",
+        "sha256": "e8be98d3469ba941d921c9a4563bafcf838050628d0697c6abbe4365fc18cc0b"
+      },
+      {
+        "key": "policy:[\"public\",\"payment_orders\",\"payment_orders_school_access\"]",
+        "sha256": "cf5bd6b4bbfd00505d428b87c4f267d020b2a4818f0d41c2e3d378acb7975b2c"
+      },
+      {
+        "key": "policy:[\"public\",\"payroll\",\"tenant_isolation_payroll\"]",
+        "sha256": "2aa7bcfc45c55c0c6ce2a6d3530e8acccefcabb9b1df9599046cf2b5fbf1b1aa"
+      },
+      {
+        "key": "policy:[\"public\",\"permissions\",\"permissions_read_authenticated\"]",
+        "sha256": "bf18a84d89e60af6d850285b8994728db056339f2872b6a283bc2c30467e6d34"
+      },
+      {
+        "key": "policy:[\"public\",\"profiles\",\"admin_profiles_all\"]",
+        "sha256": "01ba46ea29599ebfabe30a6eef9eb8d856dfb7e1f5a6e0aad0cc158346d50b2f"
+      },
+      {
+        "key": "policy:[\"public\",\"profiles\",\"profiles_select_own\"]",
+        "sha256": "1edb91a246c9ac20f69b0130974d4e5a973773366816d18052ae3bc50ee1ba39"
+      },
+      {
+        "key": "policy:[\"public\",\"profiles\",\"profiles_update_own\"]",
+        "sha256": "d3d74ca19bef0330f265f0e77b7c6457c37240fe59988aa0ea8f496cd4ad0e6f"
+      },
+      {
+        "key": "policy:[\"public\",\"profiles\",\"tenant_isolation_profiles\"]",
+        "sha256": "41391a671cdc7151e705dfb1447d8730ffa71d0f6dbf7efd2ef949af5afd2be3"
+      },
+      {
+        "key": "policy:[\"public\",\"report_cards\",\"report_cards_school_member\"]",
+        "sha256": "0a7328bde23925449ff1adefbc22bd37d2651fb16b8563425fc7f995aa8d94ab"
+      },
+      {
+        "key": "policy:[\"public\",\"role_activation_requests\",\"tenant_isolation_role_activation_requests\"]",
+        "sha256": "c18f8cd4fbaf66d9d86d162b5955caf190c5094165b745f64de712ce3df45dc8"
+      },
+      {
+        "key": "policy:[\"public\",\"role_permissions\",\"role_permissions_read_authenticated\"]",
+        "sha256": "cbb05f6e4092cec7156866cf30cb45fe701ee366e331241135c63e44095d0b39"
+      },
+      {
+        "key": "policy:[\"public\",\"school_documents\",\"admin_school_documents_all\"]",
+        "sha256": "003b3fc425541b9b4adfd2baf454219083985207f9e06ef9d20dedcb1de0c7ef"
+      },
+      {
+        "key": "policy:[\"public\",\"school_documents\",\"documents_school_admin_all\"]",
+        "sha256": "eca3906327b8e95f3f84a6db57d798438b83197fbcfbc169e28b94200be56047"
+      },
+      {
+        "key": "policy:[\"public\",\"school_events\",\"admin_school_events_all\"]",
+        "sha256": "2437504d60a58766080b61572eb5d2cd8d9c48ed491c2727b35c4d776154a43b"
+      },
+      {
+        "key": "policy:[\"public\",\"school_events\",\"events_school_admin_all\"]",
+        "sha256": "5e970bcc0c0b23253d25874b6ee9e5d5c881859cb59c90a27472f78d01cddeae"
+      },
+      {
+        "key": "policy:[\"public\",\"school_holidays\",\"school members can view holidays\"]",
+        "sha256": "18cfdf40df3f6270c0c055d3437d91506c2abc9899eb975d0fce476b077ce56b"
+      },
+      {
+        "key": "policy:[\"public\",\"school_holidays\",\"teachers can create holidays\"]",
+        "sha256": "3021ed61a5dbc792de2f4e235619c077063157b9264845c17c77e35d1a9bdfa9"
+      },
+      {
+        "key": "policy:[\"public\",\"school_holidays\",\"teachers can delete holidays\"]",
+        "sha256": "683fafb865da54ab4049b2d6e8b0464bebc18ef285a10a53d2adce46fcf9538d"
+      },
+      {
+        "key": "policy:[\"public\",\"school_holidays\",\"teachers can update holidays\"]",
+        "sha256": "fd54e3c7768402cc534729e83caf0697ba7153669349c2358cef8637ba97891a"
+      },
+      {
+        "key": "policy:[\"public\",\"school_notifications\",\"admin_school_notifications_all\"]",
+        "sha256": "db8b4a3690aa415cb7375f413d54540c896b54e39fd84b97c5fb70c2d5d81728"
+      },
+      {
+        "key": "policy:[\"public\",\"school_notifications\",\"notifications_school_admin_all\"]",
+        "sha256": "cb85220a1df80b9f5cf22f8566a101756d69e1878e7959fde8c625772c5badf2"
+      },
+      {
+        "key": "policy:[\"public\",\"school_settings\",\"admin_school_settings_all\"]",
+        "sha256": "f5d40b0fce4ce801ef2a54878f09a9e7cb0d4802097a8fb5266778c884b5d045"
+      },
+      {
+        "key": "policy:[\"public\",\"school_settings\",\"settings_school_admin_all\"]",
+        "sha256": "02294580b331f49a2c5128d61227bae39b66950157ba2ef21b079d2d4ab680b5"
+      },
+      {
+        "key": "policy:[\"public\",\"school_settings\",\"tenant_isolation_school_settings\"]",
+        "sha256": "aac24fe09d4c8ccb59e67e9e8ce1aa19399a3a1776203403c2d5fe21ae18c71a"
+      },
+      {
+        "key": "policy:[\"public\",\"schools\",\"admin_schools_all\"]",
+        "sha256": "91c59599a19b2335ef0aae10beb9f7593339e60995b6721cc40e01b2acd37b86"
+      },
+      {
+        "key": "policy:[\"public\",\"schools\",\"schools_academic_member_select\"]",
+        "sha256": "d4d86cc20c141a71a3b36c4a51b29d16958eac2b0427a83edaf513b6eebcb7f4"
+      },
+      {
+        "key": "policy:[\"public\",\"schools\",\"schools_admin_all\"]",
+        "sha256": "5f0c0f299e206d0e64e0082d0227eacd5beea55afe91a2f711190c09208229b0"
+      },
+      {
+        "key": "policy:[\"public\",\"schools\",\"schools_member_select\"]",
+        "sha256": "ef2cf5a733e17c34ac9b0f4adfed86494f415341b02c4bc7224eaa6f508e98b5"
+      },
+      {
+        "key": "policy:[\"public\",\"schools\",\"schools_parent_select\"]",
+        "sha256": "ca3c6c6850bd03cfafe94f77070459cd0d21813763027ba8f8171f00d2a59142"
+      },
+      {
+        "key": "policy:[\"public\",\"sections\",\"admin_sections_all\"]",
+        "sha256": "e0bd1a3a3adabdcafb87ce74612ddc63393a1afdabb3fde9e4df0b5fc181ca8b"
+      },
+      {
+        "key": "policy:[\"public\",\"sections\",\"sections_finance_read\"]",
+        "sha256": "be5f6ed21df50e75df84d574b5e43e6301a915e366dab97fabdeaf93210c6939"
+      },
+      {
+        "key": "policy:[\"public\",\"sections\",\"tenant_isolation_sections\"]",
+        "sha256": "df00305bff36043e55aab769d28c71e67d445d605d215269af873ae89e2485d2"
+      },
+      {
+        "key": "policy:[\"public\",\"staff_leave_requests\",\"admin_leave_requests_all\"]",
+        "sha256": "b653850e1770241ba5e671fbd14411b8d9759c26e796131dbc00ad630585379f"
+      },
+      {
+        "key": "policy:[\"public\",\"staff_leave_requests\",\"staff_leave_school_admin_all\"]",
+        "sha256": "05ed7b0bcf89c3a36685a7d4c0073fbf950a4804857c462dfc2a6a18b0fcea9f"
+      },
+      {
+        "key": "policy:[\"public\",\"staff\",\"staff_directory_manager_read\"]",
+        "sha256": "faddd0b66ca807f1b4bf79b931867cbde0c2809c775ab7162b5c0823e17d153c"
+      },
+      {
+        "key": "policy:[\"public\",\"streams\",\"tenant_isolation_streams\"]",
+        "sha256": "8b563c865c17d856d2256853890cd41550dc6d6fab8c5eedee13bf0ccbdf0a9c"
+      },
+      {
+        "key": "policy:[\"public\",\"student_fees\",\"admin_student_fees_all\"]",
+        "sha256": "34eb558b204fe1060d9a17108d925385a825a754d158d34dd605af237ac12a4e"
+      },
+      {
+        "key": "policy:[\"public\",\"student_fees\",\"student_fees_admin_all\"]",
+        "sha256": "72ca149e7483e83457d557f250388b5a8bc13c7d0d20021abd9c085b04045e43"
+      },
+      {
+        "key": "policy:[\"public\",\"student_fees\",\"student_fees_finance_all\"]",
+        "sha256": "63f596a0ab795b7739327f6ab60775ecb0f6297806aa6a667f277341bd260281"
+      },
+      {
+        "key": "policy:[\"public\",\"student_fees\",\"student_fees_parent_read\"]",
+        "sha256": "d7efbbf1ac4964ad399fc49bf93c4739f2ad5b9cfa03b52ff9a98779c61e0a54"
+      },
+      {
+        "key": "policy:[\"public\",\"student_fees\",\"student_fees_student_read\"]",
+        "sha256": "f487f0c1972709f79e86cdd73f43a37454e7fecdcd8080864c316036cd2e22ed"
+      },
+      {
+        "key": "policy:[\"public\",\"student_parents\",\"student_parents_parent_own\"]",
+        "sha256": "f7af9a567fbec4aa18351583647dbb52a71bac3eb1e7c5fda45fca0ab6471329"
+      },
+      {
+        "key": "policy:[\"public\",\"student_parents\",\"student_parents_staff_all\"]",
+        "sha256": "85ef636c47bd346cf0f54b6078dc3d1c8e1da198a222348ad874e733ea99347e"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"admin_students_all\"]",
+        "sha256": "6fdc2a6f42a20f07d0344904f271ae8cddab7f87de80b7979c4d9e8ad1a9d607"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_finance_read\"]",
+        "sha256": "edf235d3488f14840c333e08a9bfea7a0e9bd49f0a12e82b1a949c6a06fbe983"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_parent_children\"]",
+        "sha256": "20f8b9ef3b828abdf076539751d896f3240fca61e938eb9e0dcbc3bd25c73917"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_staff_all\"]",
+        "sha256": "44c58e0f06ac77b1f99d6689fd5bb6050f20a75abc06fd5cc87e450ad5eec9c4"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_student_own\"]",
+        "sha256": "386bf8b170d317ad2e88f89e3189aebebf43fbe4102e492a481f813da6f52ba8"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_substitute_attendance_read\"]",
+        "sha256": "46dc75d745ba551e3f1785737ef87eab3cb73220d4a7676fb39f3f36622345f7"
+      },
+      {
+        "key": "policy:[\"public\",\"students\",\"students_teacher_assigned_read\"]",
+        "sha256": "0a6c4a03661d38da5f565a05d9e96e6e2177fc32dad676df3f2ff287fdce0f97"
+      },
+      {
+        "key": "policy:[\"public\",\"study_materials\",\"academic_materials_family\"]",
+        "sha256": "76d3c328c002aabc809fdc6318d173e958dc37f14ae76a309cf85241c2cb8d3a"
+      },
+      {
+        "key": "policy:[\"public\",\"study_materials\",\"academic_materials_manager\"]",
+        "sha256": "e563dbce741397ae5e82258f3a839f204bd6bf40a1c90c740867145614f14436"
+      },
+      {
+        "key": "policy:[\"public\",\"study_materials\",\"academic_materials_office_read\"]",
+        "sha256": "871a10c03406e38f3e8e88b15d9105c7fe5e463563c6a703dfd1e635a85d6f37"
+      },
+      {
+        "key": "policy:[\"public\",\"study_materials\",\"academic_materials_teacher\"]",
+        "sha256": "738269b9d0021a602d7119f147fac71350d38b6efd2a83024d30c5def685b588"
+      },
+      {
+        "key": "policy:[\"public\",\"subjects\",\"admin_subjects_all\"]",
+        "sha256": "0b61688b5882288450dc3ac3c1103adc509bcadce1bb45c08eed20b3a38a9d91"
+      },
+      {
+        "key": "policy:[\"public\",\"subjects\",\"tenant_isolation_subjects\"]",
+        "sha256": "9042fa1d962145ac378329dc2288ef1f723984d2833d59a903f59e73c505dcfd"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"admin_teacher_assessment_marks_all\"]",
+        "sha256": "960d999dc62340af57c5eea0ee3791d1847862527382a65d047b77eac8b08820"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_admin_manage\"]",
+        "sha256": "b16a5a9a01b83d52632c77dd52c5c126ebed991038cb2b1a191676d3aeadb037"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_delete\"]",
+        "sha256": "1f416c79d1bb39a878d60ba9b36e8abcdf44cbbc0829947f3516db40b3bf4b01"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_insert\"]",
+        "sha256": "893c32dd7931fde33f2407e6b78481e9199930df9bbc54706a7701b6a0b966d4"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_select\"]",
+        "sha256": "70a78e005edce23650b5f8b5de9136912135934167f03554daa64c97ba6faf0e"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_update\"]",
+        "sha256": "0767b75f769b8aed2ed04af73a07fe2d8c4079b5093cab0b107b378b423601e0"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"admin_teacher_assessments_all\"]",
+        "sha256": "e42042d6e653822872168c6d08662b559ea8377adae9ea4c8ba7baea4faea69c"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"teacher_assessments_admin_manage\"]",
+        "sha256": "83df0864312822503826412fff924a6ab8e05c7956d347531c87778d6677f262"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"teacher_assessments_delete\"]",
+        "sha256": "69e255ec8b4990f1f06b2afc825e26b8ca2776ee0904ff419679ee3b2bee3a4d"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"teacher_assessments_insert\"]",
+        "sha256": "abd78c9ef9da89be05500e5bdbb31a49806d2f08e5972767c6c304a7ab878d44"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"teacher_assessments_select\"]",
+        "sha256": "0e83acc71d73443f4feb73a743ccc5a02f45ca7d452e8688b2f1781900374f81"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_assessments\",\"teacher_assessments_update\"]",
+        "sha256": "7aaa0299bd2d744c97bdb89a1b248695f79c433aef7942f308cd94536d2b51a1"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_attendance\",\"tenant_isolation_teacher_attendance\"]",
+        "sha256": "5240f3b7ff3b4fbd76c39351cbc8fdc220fab3e254ed960840a8908d8b42e5b6"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_subject_assignments\",\"admin_teacher_assignments_all\"]",
+        "sha256": "9137ac36f7b141aa66ea559de2cdec6b3b99bb406e9dfb77fefa4ffefb4d07c4"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_subject_assignments\",\"teacher_assignments_staff_read\"]",
+        "sha256": "fb1610bf47a51074a37e8d1859852ca140b6528430161e270fd6ef54cf748427"
+      },
+      {
+        "key": "policy:[\"public\",\"teacher_subject_assignments\",\"teacher_assignments_teacher_own_select\"]",
+        "sha256": "e14fa5f1bf25d01ff86c5f742bf2efe19ffd1235189b61ed83e159da951a58c7"
+      },
+      {
+        "key": "policy:[\"public\",\"teachers\",\"admin_teachers_all\"]",
+        "sha256": "516342ffae9d913e1b3cabe41992d62caccaf8bfe46366bf11b3eb951561ebbc"
+      },
+      {
+        "key": "policy:[\"public\",\"teachers\",\"teachers_select_own\"]",
+        "sha256": "90c5fb83966d83073687f9727aaae538c399b1a583f124f2ffa915896ca2330c"
+      },
+      {
+        "key": "policy:[\"public\",\"teachers\",\"tenant_isolation_teachers\"]",
+        "sha256": "622014ddb476cc798748b47b4b3f69fd5c8f83730bfda9ec2f6f1d40bd3b6df8"
+      },
+      {
+        "key": "policy:[\"public\",\"timetable_entries\",\"admin_timetable_all\"]",
+        "sha256": "0a97be5e59ba4e34b42af4dc8f279c771522fa47a2d548fb6abee3da21443629"
+      },
+      {
+        "key": "policy:[\"public\",\"timetable_entries\",\"timetable_school_admin_all\"]",
+        "sha256": "8576543c1999ab5b8d3e60b6fcbba94ee8d3d63ab4f21a124d54c5a31c42a826"
+      },
+      {
+        "key": "policy:[\"public\",\"timetables\",\"timetables_parent_read\"]",
+        "sha256": "a76414637259a6d76c5ceaa9d8eaff0fac35945624da49b71bcef3b8c32f3dcb"
+      },
+      {
+        "key": "policy:[\"public\",\"timetables\",\"timetables_staff_all\"]",
+        "sha256": "f04b80cbda7b41e7ccc5cf550d9aa4ebf3471e795fe733a6d1737c1a3637cfaf"
+      },
+      {
+        "key": "policy:[\"public\",\"timetables\",\"timetables_student_read\"]",
+        "sha256": "4a72e705893eda4170e2c518aa0130e5cda7816a4f71d3e6ae616225cbd72b25"
+      },
+      {
+        "key": "policy:[\"public\",\"timetables\",\"timetables_teacher_read\"]",
+        "sha256": "105045b1fce635a5cde40b06d3ad2ccbb395b495c5153c788ae5e50920d9d6b8"
+      },
+      {
+        "key": "policy:[\"public\",\"transport_allocations\",\"transport_allocations_school_admin_all\"]",
+        "sha256": "e9d7a5d6bbc64897f6e11483a2baf7b907dccdd2e77bc1964f90fccaa2a79128"
+      },
+      {
+        "key": "policy:[\"public\",\"transport_assignments\",\"transport_assignments_school_member\"]",
+        "sha256": "ae3bf6458d877154592ac7fb6424d629bc31d5513953a4c820ccd12d756b05e6"
+      },
+      {
+        "key": "policy:[\"public\",\"transport_routes\",\"tenant_isolation_transport_routes\"]",
+        "sha256": "076b8a0cbbe0bdc08e72687beb22d30200055ce9a3bba5935a413c481a1454f2"
+      },
+      {
+        "key": "policy:[\"public\",\"transport_routes\",\"transport_routes_school_admin_all\"]",
+        "sha256": "f22389383640699c8b1f0ce0f5a7126d38627b26ad7e42211b8df828360453a0"
+      },
+      {
+        "key": "policy:[\"public\",\"transport_vehicles\",\"transport_vehicles_school_admin_all\"]",
+        "sha256": "86c540b06bad6603711418b19fed53c659ee3eb21a441257ee0142e07860f8d0"
+      },
+      {
+        "key": "policy:[\"public\",\"user_roles\",\"user_roles_read_own_or_school_admin\"]",
+        "sha256": "4e050dfb61cc1301c6d158e642e3200f79a2093c1f5b076ba4979e41a0bd7b58"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"academic_material_files_delete\"]",
+        "sha256": "dac59cdee5d414646b1796d18a95263b177c37a87f4f469bed56c1a8801c5268"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"academic_material_files_insert\"]",
+        "sha256": "969036786f3c40ac258c10242b3c2935586640906bbeb0152ab77bc0d00dc62b"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"academic_material_files_read\"]",
+        "sha256": "e9a27d10644ce1c54ff62150bb959040eaf03e861d170749ee428bdcf1cba462"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"academic_material_files_update\"]",
+        "sha256": "6fe21ace3a6972a290feeeff9529f40ff36ef65dce9669da9bc02f8fbd6944f3"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"homework_files_pending_delete\"]",
+        "sha256": "d3e9bc774d76468050ee466f94842747ae6e3f5e9d3eaca141b68fb7ac0678d5"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"homework_files_read\"]",
+        "sha256": "45b18e9c24b57afbc633e02b9877b5d01b41053091cbf64b77388cabb25d94c2"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"homework_files_upload\"]",
+        "sha256": "7bda37978a66503de6f88d22a217bc3d437199f33abf9325f707da6029bdac18"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"report_cards_authenticated_access\"]",
+        "sha256": "36bf0d4b02cb9cc5c4608097718dd4aaffc596349144d609200b1c3b5bffdca4"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"school_assets_authenticated_access\"]",
+        "sha256": "af5bea5244eb0289c723e7c4576cf936ada4ac065fb622d3dd96d5f9992383cc"
+      },
+      {
+        "key": "policy:[\"storage\",\"objects\",\"student_documents_authenticated_access\"]",
+        "sha256": "a9120bf24d8c4db6a0180e790b3a878716e18d48f0ff3f014e3698577783d5b0"
+      },
+      {
+        "key": "relation:[\"app_private\",\"academic_setup_import_receipts\"]",
+        "sha256": "97a1da538e2a2bf9ae285dc84c6db95b548bfdf51955c2b8532b295bb7d1bbc1"
+      },
+      {
+        "key": "relation:[\"app_private\",\"academic_year_activations\"]",
+        "sha256": "dbdff196799c495c4fb1b41405dcbe258cd0d045e72df899841f9b750c04ded6"
+      },
+      {
+        "key": "relation:[\"app_private\",\"attendance_corrections\"]",
+        "sha256": "bc7a32c6aa72ab411cfbae6935cc41e7b683df647e5da9941849096c5b169310"
+      },
+      {
+        "key": "relation:[\"app_private\",\"attendance_submission_settings_audit\"]",
+        "sha256": "5a13abfeda862fa01110f35ad39d886d692e1bf2a3e359bc0ae5cf8eb7db992b"
+      },
+      {
+        "key": "relation:[\"app_private\",\"attendance_submission_settings\"]",
+        "sha256": "b71607648469fb76df0faefcc603d32f04d2f289b5baaaf4e6dc45fa2cb0c522"
+      },
+      {
+        "key": "relation:[\"app_private\",\"enrollment_withdrawals\"]",
+        "sha256": "1a9fb75df6ce7d7747ba6b34046353cb9ea32feb3c68127e74e75d65767c33d7"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_absence_alerts\"]",
+        "sha256": "f96c81ebd94a81c0c3c6f006c11bf9808aa958d2b456c719724dc3b9a606cd23"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_access_audit\"]",
+        "sha256": "3001a4e1b1b1001ac6864f38ccb88d77cc8dee268d49e044c0cde70e4ba78a73"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_contact_audit\"]",
+        "sha256": "36936ead40369c7222e9576c52bb5b71092cf75e3a92a7c849888790b1eab91a"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_invitation_imports\"]",
+        "sha256": "3f456b1a31a5b320706eabcc38819129740f7478f537ab8aa0266eca528cbc9a"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_invitations\"]",
+        "sha256": "cd2d86b7f0c6882e23e9959e167acd76de39b6d8e15161fb21b5f4252f2d56f9"
+      },
+      {
+        "key": "relation:[\"app_private\",\"guardian_phone_change_authorizations\"]",
+        "sha256": "47bb336c39287b46c564ed2cb3216d0c08d8b9d1c6fd845380ed658f23aaea7c"
+      },
+      {
+        "key": "relation:[\"app_private\",\"homework_write_receipts\"]",
+        "sha256": "a35693a5c3348d54e45e7d3f944d294cad3abbe6a53b57cb337fe401a4993504"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_credit_change_requests\"]",
+        "sha256": "8b037e3e5eac6b519d0ba0b8e327dbab049ca244725545d377320133fe959b2f"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_adjustment_entries\"]",
+        "sha256": "562dd9c08c24499452be026384018d6044d30cc7aa6c1fe7644b9b1b723a8911"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_batch_items\"]",
+        "sha256": "e6637d5ae893a9ee42c64d37c92f67578c8c020279de370f70a7716eaa16f579"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_batches\"]",
+        "sha256": "11e9eaf01cb7e08e2e2653d98a53420768fa324cea8ebdd803eef52dba45cf15"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_change_requests\"]",
+        "sha256": "09017bf3cc4b61535b9cac7c901358f613f2b1487eb22dbec216875f0b5e54d3"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_days\"]",
+        "sha256": "685827441b59490a4784af202d4c1d41f718bc740ddbfc03422f6b8a12419eab"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_opening_structures\"]",
+        "sha256": "1b9fa6a313e13dccf0960e8bd6d1bc9c74ad23edde87ed959bcd695c89a2cf00"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_openings\"]",
+        "sha256": "54c1ca466f7c254746320c31bde8fe193b7bb8fcaf57e582b942fce874e5ae7d"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_fee_payment_reversals\"]",
+        "sha256": "4538374ef0eb127c328cd3ef442f199dcd1cbeb5f0438587fac756d5318adc1b"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_student_credit_accounts\"]",
+        "sha256": "d7af675e94d08e4794bbabeb83a5dbf792703bc3085b16c22614ac87315b4e3e"
+      },
+      {
+        "key": "relation:[\"app_private\",\"office_student_credit_entries\"]",
+        "sha256": "6a07ea9a1ab4e9d1720cb183c464370eeaf392be70f33e21324e7838636da07f"
+      },
+      {
+        "key": "relation:[\"app_private\",\"roster_import_receipts\"]",
+        "sha256": "3b8f8ef9fb4b45de2e6d9a8ce5cc41cc818e68d4f9baa27a86e9c011fb172b67"
+      },
+      {
+        "key": "relation:[\"app_private\",\"roster_placement_changes\"]",
+        "sha256": "bdd56f98816788c5b1465f92793239d733a102bb97bc240fef79aa70a6e68417"
+      },
+      {
+        "key": "relation:[\"app_private\",\"staff_import_receipts\"]",
+        "sha256": "8b7d3445fe3f99c75763b01f0d251ae9b896752db7cc36d2b8457700c8a1a144"
+      },
+      {
+        "key": "relation:[\"app_private\",\"substitute_attendance_coverages\"]",
+        "sha256": "6734c43418d1488b9779bd30fce20589bf111b804002fbf53b0e416c9eed478d"
+      },
+      {
+        "key": "relation:[\"app_private\",\"teacher_assignment_imports\"]",
+        "sha256": "d624ee2d9879c78f7fa6678ff1e6bd5ed3708c87e9e10e20ed31199bf5645e65"
+      },
+      {
+        "key": "relation:[\"app_private\",\"teacher_invitations\"]",
+        "sha256": "d376a401384b8f9093451b06a77338fa7799139b540e8d9e4e37300a5a8c7627"
+      },
+      {
+        "key": "relation:[\"public\",\"academic_years\"]",
+        "sha256": "800af829be663f2160b19ebad37c552c14db7cba91ce0a845b512a3bea8c2d6d"
+      },
+      {
+        "key": "relation:[\"public\",\"activity_submissions\"]",
+        "sha256": "470aaa097147122c739896023665c9e8d4982d1b20376e7b7cd88ef85f6dd0f5"
+      },
+      {
+        "key": "relation:[\"public\",\"admission_documents\"]",
+        "sha256": "c6e61aa0561859c6ef20d8f0138ebc02a5411c276bc4fd92c352bf6f317f457d"
+      },
+      {
+        "key": "relation:[\"public\",\"admissions\"]",
+        "sha256": "fee9e9ebfdb6f0c048ee089a000527aba519c772dce8e6d4a8fb4de77acbdd47"
+      },
+      {
+        "key": "relation:[\"public\",\"attendance\"]",
+        "sha256": "f7d9a60e74138281cca1324341307f51da99357d0f5b55caed70b1dfa12bd6b3"
+      },
+      {
+        "key": "relation:[\"public\",\"audit_logs\"]",
+        "sha256": "ec09db2df7c4b81a2440f7d1602176495f8947fca19e6511eac4da14eb41ba6b"
+      },
+      {
+        "key": "relation:[\"public\",\"class_activities\"]",
+        "sha256": "c5111a1612abfb676ea49eb9b44d7c738f6044c2b5b62b0013e5c4fc630cdbc6"
+      },
+      {
+        "key": "relation:[\"public\",\"class_logs\"]",
+        "sha256": "db63b7e7bdf8eb2226982a2140e11733de38afdf1ba48343d48d7503cab4c102"
+      },
+      {
+        "key": "relation:[\"public\",\"classes\"]",
+        "sha256": "bd2157ba82db3d50a850f86dfdb30b594263e915d8f19a473fa765ff06f87e67"
+      },
+      {
+        "key": "relation:[\"public\",\"communication_logs\"]",
+        "sha256": "626cbde8ed0717c950100a6893908249901e0835a00b933fd7b3b06674f2ac3e"
+      },
+      {
+        "key": "relation:[\"public\",\"documents\"]",
+        "sha256": "bbd03e87a01d85fb2546af4da17308ff0030829fc0ba1db8345b40696ce0b126"
+      },
+      {
+        "key": "relation:[\"public\",\"employees\"]",
+        "sha256": "fb3c3551ef5e4b42346b5f84815aaa2d54a7f48a08fc820f67cb44f4a9675dff"
+      },
+      {
+        "key": "relation:[\"public\",\"enrollments\"]",
+        "sha256": "d771b2a012d1a7fd5d8227575ceb9710d1144ba9f0d4858fc605c6cc22ecd27b"
+      },
+      {
+        "key": "relation:[\"public\",\"events\"]",
+        "sha256": "a7cb72f6c6197e1bb4fa830c70aececed2167e5986a92c66ed31b9a6451dbb85"
+      },
+      {
+        "key": "relation:[\"public\",\"exam_subjects\"]",
+        "sha256": "6a20cbb0e3f03e94ebfbf8c47d984d97366f408d25d8b4c8445f0184a3d26b75"
+      },
+      {
+        "key": "relation:[\"public\",\"exams\"]",
+        "sha256": "67e464d63bfe4fb0be7d7210f2f8a7d600ee7e07edf815d94f0920497e72947e"
+      },
+      {
+        "key": "relation:[\"public\",\"fee_discounts\"]",
+        "sha256": "733c8550c11b495edbbe295d4df898748d894af810c0e3de879c5a7b166f1efd"
+      },
+      {
+        "key": "relation:[\"public\",\"fee_payments\"]",
+        "sha256": "4b5ac4f2b5d431ddb0476ce6ce134829f35ffe91ec1b8cc08926ceb60351a458"
+      },
+      {
+        "key": "relation:[\"public\",\"fee_refunds\"]",
+        "sha256": "0e48b4ea8f5f922a1e747324859d871c80202ea46d9152b48678352cd2188f63"
+      },
+      {
+        "key": "relation:[\"public\",\"fee_structures\"]",
+        "sha256": "02ee10b79cd8c3a28ccc717eb1ca8e704a2641fc1549872c23b0ab20ac20efcf"
+      },
+      {
+        "key": "relation:[\"public\",\"hr_employees\"]",
+        "sha256": "a26b4df7424144b6534139b8d3e4ccea9ad145b15d82985a896daed8bdc210fb"
+      },
+      {
+        "key": "relation:[\"public\",\"hr_payroll\"]",
+        "sha256": "95e31708790c48fa31c2bf8820241fcdf1a1311818e5ec6b6b91d6643c8afcbf"
+      },
+      {
+        "key": "relation:[\"public\",\"inventory_items\"]",
+        "sha256": "91598f06891f79e2147bb1d8acea2797b90dc930efad3bc4d82723e05960a65f"
+      },
+      {
+        "key": "relation:[\"public\",\"inventory_movements\"]",
+        "sha256": "ead0073a0f80011cdde3b455233ed4ce5a0b753e1ef1f35261d8ae0ca8ac6eda"
+      },
+      {
+        "key": "relation:[\"public\",\"inventory_transactions\"]",
+        "sha256": "4515c588f5883c32f1f2a62a32a949bb367b245b702606f38ede99af787506fb"
+      },
+      {
+        "key": "relation:[\"public\",\"leave_balances\"]",
+        "sha256": "396f63d16891cdb4c91acd5a13cb96678dbee00f12d20c817507ab0c8a95a37d"
+      },
+      {
+        "key": "relation:[\"public\",\"leave_requests\"]",
+        "sha256": "71a60cc70bae1a7282c1ee1fdbf503369ea9d2493f55a441c91dfdba8c550cec"
+      },
+      {
+        "key": "relation:[\"public\",\"library_books\"]",
+        "sha256": "29e646424c371af690bd02524821d1233b7d2dfa5b89259b3f6d8c0356f04e8b"
+      },
+      {
+        "key": "relation:[\"public\",\"library_issues\"]",
+        "sha256": "9d3f36712a3fe6565ab24def70f3858b61c086cf38a037ed935a1011e677cd6a"
+      },
+      {
+        "key": "relation:[\"public\",\"marks\"]",
+        "sha256": "197b9a14eebf392fbdcf2d9819edf784f2361c3fb2d5999888c57f56645d94f9"
+      },
+      {
+        "key": "relation:[\"public\",\"notices\"]",
+        "sha256": "d1312bf6d97b90210faf3091881aee43a8287dd12277a466a8f8331f9d7dea55"
+      },
+      {
+        "key": "relation:[\"public\",\"notification_logs\"]",
+        "sha256": "8ed78191d9782b45973b0670efc5556a4b57176e8bf3336c88a8c956370d7f67"
+      },
+      {
+        "key": "relation:[\"public\",\"notification_templates\"]",
+        "sha256": "8b4c4d4f3844c00cdb47da288bb0a38b32f780324e1ee3915416b569e5845a4d"
+      },
+      {
+        "key": "relation:[\"public\",\"notifications\"]",
+        "sha256": "773f1c4ffb912838b05b9c7d2693ebd4a72707db368fae089b5aa98459994415"
+      },
+      {
+        "key": "relation:[\"public\",\"parents\"]",
+        "sha256": "cd2169af9daeaee0addaa32a3b2d9a2f2214d42190887e6783ece3eaa5b3cf49"
+      },
+      {
+        "key": "relation:[\"public\",\"payment_orders\"]",
+        "sha256": "f17318ce24fd82ef03926afecc51bd59a572deb40809edef68d9fccfd90cf08c"
+      },
+      {
+        "key": "relation:[\"public\",\"payroll\"]",
+        "sha256": "6392f36a32ff1847a73b0d12b7468a9497d66b1879317d0e172d1aabc270f76c"
+      },
+      {
+        "key": "relation:[\"public\",\"permissions\"]",
+        "sha256": "7323e41f096817ecda36e7f91976589c7e3278311911000c515d19b99c4cd53b"
+      },
+      {
+        "key": "relation:[\"public\",\"profiles\"]",
+        "sha256": "90e2eaf87e267b55f8d7139970cba393fca5c34cd88c103aaf5c2654250b7301"
+      },
+      {
+        "key": "relation:[\"public\",\"report_card_subject_summary\"]",
+        "sha256": "5df2c8d5968871d129be96e3dd369b15916130d9d200ceaae8afeffffbe755b8"
+      },
+      {
+        "key": "relation:[\"public\",\"report_cards\"]",
+        "sha256": "03e379ecad991157bc72ab85102c14fd880143810186cbdba5f2326107cb502a"
+      },
+      {
+        "key": "relation:[\"public\",\"role_activation_requests\"]",
+        "sha256": "5f78c0a61d452f66e51bb1f14dc39fcd8da03d051e6c96145dc05f81c57e76b7"
+      },
+      {
+        "key": "relation:[\"public\",\"role_permissions\"]",
+        "sha256": "0e1d698b873a10b8316ea22c7ff247d9664539a3698683ff914ee4ccaa715c58"
+      },
+      {
+        "key": "relation:[\"public\",\"school_documents\"]",
+        "sha256": "16fdf257dbc19dbaea81dcda06907e6bfde4b3e4668aac5e08e00bcb99f9ceb8"
+      },
+      {
+        "key": "relation:[\"public\",\"school_events\"]",
+        "sha256": "5291c9a5bd6549623139fa27cc9e5921f57ab9337c30c034519df8a70bef0670"
+      },
+      {
+        "key": "relation:[\"public\",\"school_holidays\"]",
+        "sha256": "579324dcaf1e94a3c161d97f925452850bfc20e3831d2267178003e8ce7b79dd"
+      },
+      {
+        "key": "relation:[\"public\",\"school_notifications\"]",
+        "sha256": "a6cf8b54c4294a04978953879a307ad3ae9ceba5ae3b3137e66a86e95a0a7364"
+      },
+      {
+        "key": "relation:[\"public\",\"school_settings\"]",
+        "sha256": "d254c51cb9cbfdc588c3deb923e3fd15709c94009c47ae1f0a700caada370f04"
+      },
+      {
+        "key": "relation:[\"public\",\"schools\"]",
+        "sha256": "80ef5f1d416ac7dff2cbdbce1b9be1a93ba2f02799f98a666ac773da5fdfa75a"
+      },
+      {
+        "key": "relation:[\"public\",\"sections\"]",
+        "sha256": "81c927df3bcec54c83867f54b6148f12cfd0a196253000531ebeac9c60308d1d"
+      },
+      {
+        "key": "relation:[\"public\",\"staff_leave_requests\"]",
+        "sha256": "a9a9024928aa6a4e9c294152351647ed9d596d17b6e52d948de7d0de894b1a24"
+      },
+      {
+        "key": "relation:[\"public\",\"staff\"]",
+        "sha256": "cc0228c878ed236dc4051ec323ddba71cb120c78b451cc75c2f10bf6a0202068"
+      },
+      {
+        "key": "relation:[\"public\",\"streams\"]",
+        "sha256": "87b910fdca77d630543d640deadc19b69bb6e040fe19b491f9f9e371bf31e139"
+      },
+      {
+        "key": "relation:[\"public\",\"student_fee_summary\"]",
+        "sha256": "700a9adf8cadfd2b165ad6c3889be0cdf4585a0b6263cf5019a7a7969156b2da"
+      },
+      {
+        "key": "relation:[\"public\",\"student_fees\"]",
+        "sha256": "72b476345e18f19b6a3bd4c2ed872454f6db9d1105d66202fc2379cf64d13ba3"
+      },
+      {
+        "key": "relation:[\"public\",\"student_missed_activities\"]",
+        "sha256": "469f457fd0f5efe26cd34d1337f1870835853432b71adfde891764e0bfaa47a4"
+      },
+      {
+        "key": "relation:[\"public\",\"student_parents\"]",
+        "sha256": "21eb11b2ea3f09ea35183b29946cab637faaba062c1cf0c60baa3ed4a7712d63"
+      },
+      {
+        "key": "relation:[\"public\",\"students\"]",
+        "sha256": "cf3e8c052a98dfd78779aec06e8fb3eaf93c38f2835b0e57eafd6c60bd539df1"
+      },
+      {
+        "key": "relation:[\"public\",\"study_materials\"]",
+        "sha256": "0e390f3055d6dc2e9bd2c4238404263a580b98bcba8aeac0e10d93d73888637b"
+      },
+      {
+        "key": "relation:[\"public\",\"subjects\"]",
+        "sha256": "b2f5a41152514a811a8fdfd1cc415955e5e1009050c145392ef0b3848b3bb2ff"
+      },
+      {
+        "key": "relation:[\"public\",\"teacher_assessment_marks\"]",
+        "sha256": "ad8784cfb1e50488653f509fad0fd50c4ed2599ca6ed3952a98e9c31b5659fc7"
+      },
+      {
+        "key": "relation:[\"public\",\"teacher_assessments\"]",
+        "sha256": "70bcde6c6710d6bca3aa98b1ff3d018d48f2bd84f02d735abf3476b6d5cca9f9"
+      },
+      {
+        "key": "relation:[\"public\",\"teacher_attendance\"]",
+        "sha256": "3d2ba2e13548c449769be9b959af345ef5a77167e4b3fbf45f1838cab82d5aaa"
+      },
+      {
+        "key": "relation:[\"public\",\"teacher_subject_assignments\"]",
+        "sha256": "7d1d359fc92b6b29b35965a4b600498cc7289e21aaeac69b2736df66e192c876"
+      },
+      {
+        "key": "relation:[\"public\",\"teachers\"]",
+        "sha256": "c3dc833dd23b108f4c09468cfb77aa6b8ba666ecddde03efe6450f1393e711db"
+      },
+      {
+        "key": "relation:[\"public\",\"timetable_entries\"]",
+        "sha256": "fccf37601b6ca169f800dcd684e86378e1044551c0f9a8e84ea1005ce0846161"
+      },
+      {
+        "key": "relation:[\"public\",\"timetables\"]",
+        "sha256": "36831691ac5f9c026ffadaad623a0c96fffde1b6d2de69a223a714edee7b4659"
+      },
+      {
+        "key": "relation:[\"public\",\"transport_allocations\"]",
+        "sha256": "20d08915c04446dcd99df102fc66b9a3527ba368d16d98452a6973ec646c5632"
+      },
+      {
+        "key": "relation:[\"public\",\"transport_assignments\"]",
+        "sha256": "b364532d3e74cfbc01627e6dac02204c53f921a7265e810e4164e55ab62eec1a"
+      },
+      {
+        "key": "relation:[\"public\",\"transport_routes\"]",
+        "sha256": "551db35df8c951ef5f74a03a3ca3f71386d06102566f70ee90108025314fa364"
+      },
+      {
+        "key": "relation:[\"public\",\"transport_vehicles\"]",
+        "sha256": "dfa2a337d08bc33bb8444c17c2775a171eedf7c0de596f6f6dfc575852cb6744"
+      },
+      {
+        "key": "relation:[\"public\",\"user_roles\"]",
+        "sha256": "a69ca21a44a6d4b59cceef602c1fdea6297cb1f03ce724e189b2608b5d760eb4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_family_scope\",\"p_school_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "3ab377e8f29f61e30eb897d27d1f854ee3adb8d671970feecc9108ecdd9678ec"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_log_manager\",\"p_log_id uuid\"]",
+        "sha256": "721a80284b114e1b9b6915f62c10962481caa6cde74d33dbc15587af53e16629"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_manager\",\"p_school_id uuid\"]",
+        "sha256": "9c9fcd636d789de5dd77cf25a3880e455c31ef0aa0a302c103d7e244f9cdbd65"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_office_read\",\"p_school_id uuid\"]",
+        "sha256": "d11fc7ea5d9223a54e5daed795ad3f443e434543e00b8e4909490f3a732befed"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_submission_cohort\",\"p_activity_id uuid, p_student_id uuid\"]",
+        "sha256": "ebdee9556547d12c9237bae0f40f60c987c15bdeb4dcc97bce64c3b9fbbdba54"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_submission_office\",\"p_activity_id uuid, p_student_id uuid, p_write boolean\"]",
+        "sha256": "7863d44ca7386d6483135258b32be069ea49b3bc1c433096ed1e761c66ef3c9f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_teacher_labels\",\"p_teacher_ids uuid[]\"]",
+        "sha256": "a9e9307218e3738a9c8d21429ec00c044f1c65233eccdd41606cbfe2197f3eab"
+      },
+      {
+        "key": "routine:[\"app_private\",\"academic_year_activation_checks\",\"p_school_id uuid, p_previous_year_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "5e91d3e24b8665660368d3e259ed595e95baa722eb8c28b4bcf59290940d3f7a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"accept_guardian_invitation\",\"p_token text\"]",
+        "sha256": "493571c8a4458a9fc094381861045acfcb056912c9ca53345efc02ee0c7ff7f3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"accept_teacher_invitation\",\"p_token text\"]",
+        "sha256": "0bdef126683d1459e39b8e0a12d903568a0dc3f63944a03b53daf3c9f6f474ac"
+      },
+      {
+        "key": "routine:[\"app_private\",\"activate_academic_year\",\"p_school_id uuid, p_previous_year_id uuid, p_academic_year_id uuid, p_reason text\"]",
+        "sha256": "6b3bd342036f446f85caaa667de045a00da677a6b5fa34721b7904744281af02"
+      },
+      {
+        "key": "routine:[\"app_private\",\"admit_roster_student\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_admission_no text, p_first_name text, p_last_name text\"]",
+        "sha256": "a4563e36408a69ff14a1d00a3a1b7b9b47db9a2cd207516fd84ba98096d96ed3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"allocate_office_credit\",\"p_school_id uuid, p_student_id uuid, p_fee_id uuid, p_amount numeric, p_expected_credit_token text, p_expected_fee_token text, p_reason text, p_request_id uuid\"]",
+        "sha256": "c4bdb9d7dbccb45d051af170e79fc950dffb20c347305d078355f8f414e4050a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"assign_school_role\",\"p_user_id uuid, p_school_id uuid, p_role app_role\"]",
+        "sha256": "5fcbd65acd2d8346237d366c67bff863fbaa8ecab301191bce366dedda1bf1b7"
+      },
+      {
+        "key": "routine:[\"app_private\",\"assignment_scope_is_coherent\",\"p_teacher_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid, p_is_class_teacher boolean\"]",
+        "sha256": "dfdb2d96d2cc9f1d16f06ee73474a08c16849b1cf5be5f755a1c0c79a28e93f8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"attendance_scope_is_current\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date\"]",
+        "sha256": "c2ef617f33d458b0c4f466184b14250ce27abaa47f1b4bd577493e70789d5fab"
+      },
+      {
+        "key": "routine:[\"app_private\",\"authorize_my_guardian_phone_change\",\"p_phone text\"]",
+        "sha256": "dd5f7b140b56ec557f71bae7f43e074e52e08c0d5a97700d103a5577baea8eb4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"bump_academic_parent_version\",\"\"]",
+        "sha256": "b311b395a63a67da31d49c068ce49f8c22db313971ccf15b95a341870f444e83"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_attendance_submission\",\"p_school_id uuid, p_require_admin boolean\"]",
+        "sha256": "437d5bfecf6fd115a2c00aba78fb1a46b0c3891516002fd0ddbf28b754ee53a1"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_guardian_invitations\",\"p_user_id uuid, p_school_id uuid\"]",
+        "sha256": "ea0708ed932e416c87c70cc4987a9191551ec35715fff9c5bbdd9506b261be46"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_office_fees\",\"p_school_id uuid\"]",
+        "sha256": "6be7dc6c1a76032ab23f5549f798b4d295bfc3fe73967e33f29f683df1833b4f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_school_roles\",\"p_school_id uuid\"]",
+        "sha256": "000153a92eaa11ceabb1ae4fa5b07fc8311e7973331f4fba7bfcba608f657c57"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_substitute_attendance\",\"p_school_id uuid\"]",
+        "sha256": "5ac2e5bbdb8b2a21aa86aaa5d0e12b2707d6a5a958538171ffbc7970412504e2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_manage_teachers\",\"p_actor_id uuid, p_school_id uuid\"]",
+        "sha256": "e1f158bc3a80405d135ebb1cdd25dc63644d9e0819fbaa8b8bd411dc682ac313"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_read_academic_log\",\"p_log_id uuid\"]",
+        "sha256": "e7da600112cb4ca278c86fcc0764815645f5be8c847c9da96cded00ff26d21f1"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_read_family_fee_student\",\"p_student_id uuid\"]",
+        "sha256": "69be9550467f0b2236c0a5e9bb09dc0abe36140413643652596e6526d9b16912"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_read_fee_adjustment\",\"p_school_id uuid, p_student_id uuid, p_student_fee_id uuid, p_payment_id uuid\"]",
+        "sha256": "42b4a270b9f54271d0d71d132e11d726c6c3cd8f5f9b7e7ee49360aecc0ccab9"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_read_notice_audience\",\"p_school_id uuid, p_audience jsonb\"]",
+        "sha256": "6be5f1e1846b5f9e14624926110d6d631653d65398d0b375c16dc18913c1e24a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_read_staff_directory\",\"p_school_id uuid\"]",
+        "sha256": "d95605dcc27a418c05549d7258ec5a9f1e83312aef677b0c135652f8c24f2ab8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_review_attendance_corrections\",\"p_school_id uuid\"]",
+        "sha256": "43a2ec0ddbdecc32e8e11df0ea81002fd66eb0e705b20d9ea0995d182014c4b2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"can_review_office_fee_changes\",\"p_school_id uuid\"]",
+        "sha256": "9820ea9fa4f026b4c553fa6973c0edd74ca758fa941ed2a698472338a5703e23"
+      },
+      {
+        "key": "routine:[\"app_private\",\"cancel_office_credit_refund\",\"p_request_id uuid, p_reason text\"]",
+        "sha256": "c464d587271fc4c78d51e365b5e990f65209e45641c7b4805bbbcf809f2616d7"
+      },
+      {
+        "key": "routine:[\"app_private\",\"cancel_staged_roster_promotion\",\"\"]",
+        "sha256": "341237b12002d82c7a0ba71253bc8411fa045287ace5aafd95b2e8ae3a3133df"
+      },
+      {
+        "key": "routine:[\"app_private\",\"change_roster_placement\",\"p_school_id uuid, p_source_enrollment_id uuid, p_expected_class_id uuid, p_expected_section_id uuid, p_destination_academic_year_id uuid, p_destination_class_id uuid, p_destination_section_id uuid, p_reason text, p_request_id uuid\"]",
+        "sha256": "799888fb7199a3889b5a4a390143fb3172b6bb0ffd3e79be22a57131db1a09f7"
+      },
+      {
+        "key": "routine:[\"app_private\",\"close_office_fee_day\",\"p_school_id uuid, p_day date, p_revision bigint, p_counted_cash numeric, p_note text\"]",
+        "sha256": "91626d9a555565bf1306deae9aaaa1615e9f3528302c1fcfe33fd5c6a87e7b7c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"coherent_office_fee_payment\",\"p_payment_id uuid\"]",
+        "sha256": "70878ca65cffac9bba48be19d67c6c9b06592bda99cc72c35d00fed7308ca536"
+      },
+      {
+        "key": "routine:[\"app_private\",\"coverage_scope_is_current\",\"p_coverage_id uuid\"]",
+        "sha256": "ebe247da8323852800ef0fac31ffbba04c72c3a0c65cfeadff895e19c197c11c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"create_substitute_attendance_coverage\",\"p_school_id uuid, p_source_assignment_id uuid, p_substitute_teacher_id uuid, p_starts_on date, p_ends_on date, p_reason text, p_request_id uuid\"]",
+        "sha256": "16b5cee7cd9465220f113e56400f9e0d967418af8a03b48cd4725d802e497712"
+      },
+      {
+        "key": "routine:[\"app_private\",\"create_teacher_record\",\"p_school_id uuid, p_employee_id text, p_full_name text\"]",
+        "sha256": "e550e4e5198130bb317fbed0574a83fa3b08aa2f97a26356490284fc7e3fd00b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"create_unlinked_school_employee\",\"p_school_id uuid, p_employee_id text, p_full_name text, p_staff_type text\"]",
+        "sha256": "5742b6d47baa290a84aa87cae3b20b9cbf00bdfa57a8b635da379c9af394051f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"current_parent_id\",\"\"]",
+        "sha256": "77f04904bb0080823b0cba16895746368e4750d3e45e2b64809e49e337394926"
+      },
+      {
+        "key": "routine:[\"app_private\",\"current_roles\",\"\"]",
+        "sha256": "e0f5fe50daa216391a24f912e308f8217d59921f6c6c77e3d560d58348d71085"
+      },
+      {
+        "key": "routine:[\"app_private\",\"current_student_id\",\"\"]",
+        "sha256": "5301fe0827ca12775876c67a25a5e8276c64a626bae0072e07803192ef2bfe3e"
+      },
+      {
+        "key": "routine:[\"app_private\",\"current_teacher_id\",\"\"]",
+        "sha256": "f4973e0378ca82ca2d37641afa4d927dd08fc76e0c571235cf00d6996270f422"
+      },
+      {
+        "key": "routine:[\"app_private\",\"eligible_guardian_absence_alerts\",\"p_alert_id uuid\"]",
+        "sha256": "bdea6a18a6d7f3439ce4dcf67464aef8bf1ddce3cac61e99f45b99ec2c4ac217"
+      },
+      {
+        "key": "routine:[\"app_private\",\"follow_guardian_auth_contact\",\"\"]",
+        "sha256": "d84c7eb4ac7964f02df1aa283ef73ec66f395d27694452dd9f2b115b188efa88"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_attendance_submission_monitor\",\"p_school_id uuid\"]",
+        "sha256": "fa472a925b4de3dc207b47d96917434e9896b39323de53b9c52a17ebc1530282"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_family_fee_ledger\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "da315727c85115f9b93c22f033ebad3779e87a2b6588e61ae474876f17f2dbbf"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_family_student_credit\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "cace3defc7347650aba72b09e9ddbba96d1f0efbe30979746edb5b18490f3b55"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_guardian_absence_inbox\",\"\"]",
+        "sha256": "18a179ef4d36e5ab3481c10ce0251529adac61d412eeef2b110a8fa63df41667"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_office_fee_day\",\"p_school_id uuid, p_day date\"]",
+        "sha256": "a48524344b58bc06f51023af385a4371e0d8f72fae0b4b6c4ade0891d53512c5"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_office_fee_ledger\",\"p_school_id uuid, p_year_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "f0da46b6a56d5173cbe051236aa20932491f41d9421321cd13f29220287f7700"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_office_finance_summary\",\"p_school_id uuid\"]",
+        "sha256": "9533401f15ad04c5afba43624f59015053744d6cce6d77bb4303cd6f7eb71866"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_office_student_credit\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "62c7bb4ecce5c87063a94dcd1959e83794513262aa84396535ae0fb253e02f1c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"get_substitute_attendance_setup\",\"p_school_id uuid\"]",
+        "sha256": "4a99fc43c36bacae325eb4026548df8faa9cf71e95218e05f94aeb0aa5c9a6d9"
+      },
+      {
+        "key": "routine:[\"app_private\",\"grade_homework\",\"p_submission_id uuid, p_marks numeric, p_feedback text, p_expected_revision bigint, p_request_id uuid\"]",
+        "sha256": "dc7c7b84ac14085c25600726bf8b8e50799f384d86a0e018c716f2a0c3762f4f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_activity_write\",\"\"]",
+        "sha256": "be57120665fe099c17134020be1001528b561cc4965085cd842fa061b0180db8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_identity\",\"\"]",
+        "sha256": "7512b7399b15c4c79c12146abee43e9f4f39a3d705a6090a47a4123bd8274876"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_log_write\",\"\"]",
+        "sha256": "53c86854579ac893129f197bf9cc76f519a8417770bc802fd027444699076fba"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_material_write\",\"\"]",
+        "sha256": "baea4550dace43c3f8a6a64ccd2527d9cfa969d2aa2ce72019b8a751ddd8097a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_submission_write\",\"\"]",
+        "sha256": "98c9b7fb86d8529abd99be24465f5fb3c545190174f26658766f7e7f38d69c81"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_academic_year_calendar\",\"\"]",
+        "sha256": "71e7d06e2a2121ab842d75daea2a4f2e63a8d63729eb8a58dde05a156c37ca80"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_billed_fee_structure_identity\",\"\"]",
+        "sha256": "c6af0965bd625569d71579f187eff47517849724c3ef66511b562869f2fb63f7"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_daily_attendance_write\",\"\"]",
+        "sha256": "70f8221a2fb299bd446daed4b4e729753e254c7f6a662d478eb22f706f59b566"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_guardian_auth_contact\",\"\"]",
+        "sha256": "67ff4d4f9c04f26d0f5482270fc0018cbacbcb689b34fcb89189a91dd1dc961e"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_guardian_invitation_recipient\",\"\"]",
+        "sha256": "d99f02c7284a45389824b612cd72b25df6b413588b1529775a70418c37c4c829"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_homework_submission_version\",\"\"]",
+        "sha256": "2a3cf5019ca5a5c24cb455042648c987af8541764a8039556adb6e4e5c6b2393"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_immutable_fee_counterentry\",\"\"]",
+        "sha256": "b8466e01ccf34e5886fb423524f40ae2e964e5e8dedaa318140ff3e86c9bbf07"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_office_credit_cash_day\",\"\"]",
+        "sha256": "8ee17ba0cb392dec2b03f6659dc8b208388fc0cdc1deacac6f28bf4fa1997f5a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_office_fee_day\",\"\"]",
+        "sha256": "16893e4d6d24363aca4389b494b0a30a99e767c4fea65dbc051d577adbf86163"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_office_fee_reversal_day\",\"\"]",
+        "sha256": "9f022ebfea92a651088fdac7859b217b46b72d76d0e0be95a2b3c0d061e6ca65"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_opening_fee_debt\",\"\"]",
+        "sha256": "e9b4a381c794611a7ef796a3c42fe860815dc078b835794aeb386ff6664b17b4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_opening_fee_structure\",\"\"]",
+        "sha256": "e25b708cbc7ac611d282a9a880960e138dcf9a4654bdc77bf61f09e5369b882b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_roster_placement\",\"\"]",
+        "sha256": "862e37e2ffba0404b744169cc7ac1d83f710d83d7a85e89727368db77fcc96cb"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_roster_withdrawal_status\",\"\"]",
+        "sha256": "412830e201b3c3863388fe530bfc6a6a16a3c050838b39b1dcb07d59dad345d5"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_school_employee_id\",\"\"]",
+        "sha256": "263ae062bd7ec333fe520d715b30bcd89c7456eadc86757114c481b8c4df8eb8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_submitted_homework_file\",\"\"]",
+        "sha256": "ed9dd97caede2f58c5accf619cb4545cafa9e68ab2836c21e894817c3fb3b9a0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_substitute_attendance_write\",\"\"]",
+        "sha256": "b54d85131bdad96b61bd015923596ec7096bbce2b78f44b162b90593dd81cb11"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guard_teacher_auth_link\",\"\"]",
+        "sha256": "64e4fa1731d136f267ad16c591d9fef7e01189c201a3793008e9a4ab218d3f8a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guardian_academic_submission\",\"p_activity_id uuid, p_student_id uuid\"]",
+        "sha256": "e8f45dbb229fae2005c61704a4d39c9773d97035a79701c58ff8e16c73a31197"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guardian_contact_parent\",\"p_user_id uuid\"]",
+        "sha256": "c40ff444452a4fa16cee54bfc8b35bbe2f2a6b163935d90fda0dfc101832b7e1"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guardian_e164_phone\",\"p_phone text\"]",
+        "sha256": "b78f051518f35560c3084c77a7522c633f63daaa1604c3dd636fe02b802a6f6a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guardian_import_pair_error\",\"p_school_id uuid, p_student_id uuid, p_email text\"]",
+        "sha256": "865dcaaa3c0838cdb091f4a8c53bd97866acf447899b5ca255c0993fb60352a2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"guardian_import_token\",\"p_delivery_key text, p_delivery_salt bytea, p_invitation_id uuid\"]",
+        "sha256": "1e85f6e15f7ad4dff1af718c86c6f4ceb7e610ca9f636f65dd62a0b7e8ed475c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"has_school_roles_for_class_log\",\"p_class_log_id uuid, p_roles app_role[]\"]",
+        "sha256": "54b68f7d0ef4193e63d01262094c99245e43d18e89f620fd7303ef5470ca0a1b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"has_school_roles_for_student_parent\",\"p_student_id uuid, p_parent_id uuid, p_roles app_role[]\"]",
+        "sha256": "54f1e51f83dfe1893cfbb321535b5e9d89c5881af01ddbef4165b1bf4744f1db"
+      },
+      {
+        "key": "routine:[\"app_private\",\"has_school_roles_for_student\",\"p_student_id uuid, p_roles app_role[]\"]",
+        "sha256": "f5432383fcdf0c6b8ab7cb1dbf977aff70b06cc43f1158f490596c37e3fe6c87"
+      },
+      {
+        "key": "routine:[\"app_private\",\"has_school_roles_for_teacher\",\"p_teacher_id uuid, p_roles app_role[]\"]",
+        "sha256": "172862426dd34482ea5fed6c33c3180bd7e93c0e42abceea7b2eb5dda5ed15d5"
+      },
+      {
+        "key": "routine:[\"app_private\",\"has_school_roles\",\"p_school_id uuid, p_roles app_role[]\"]",
+        "sha256": "d3e25f989edab12eef899aff3fc42c28bc25442569e7058e345060b80d2fe33c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_link_visible\",\"p_name text\"]",
+        "sha256": "b02df541a4dd0254ef645abc9d2551b9c3fdb0d66e3f18ef295c571239c7ff15"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_location\",\"p_name text\"]",
+        "sha256": "4820112b734a0e8f34605206fe37703626a3ccd821b40878fb077ca916e094ba"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_name\",\"p_name text\"]",
+        "sha256": "8508208b6e9670b60b34d320b491f85fe6c575060dc9dc4b3b40abc6f0d18e1d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_owner\",\"p_name text, p_owner text, p_write boolean\"]",
+        "sha256": "2ac61a251cd69c71dba4c101533fe61c573d62c9e60d67e9e7e2797e76854f82"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_referenced\",\"p_name text\"]",
+        "sha256": "73d3dfb7d5aaa53894b90a3c137f74ed9be97fd0391ab712e371711264ddce76"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_file_scope\",\"p_path text\"]",
+        "sha256": "d7b00073ef9772faafeb79c85d3af1d9574c1f4c67a621690d0e0134725d1e06"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_student_scope\",\"p_activity_id uuid, p_student_id uuid, p_write boolean\"]",
+        "sha256": "341290f3300e1f3f8b9277a4c49e52bde776ac2eb159c1cdd84ee7431d38aa64"
+      },
+      {
+        "key": "routine:[\"app_private\",\"homework_teacher_scope\",\"p_activity_id uuid, p_write boolean\"]",
+        "sha256": "f0dd804ff09cdc17530aa8d6cb186af08113e73d534ebfba304472dc5b8c5ebd"
+      },
+      {
+        "key": "routine:[\"app_private\",\"import_academic_setup_records\",\"p_school_id uuid, p_kind text, p_request_id uuid, p_records jsonb\"]",
+        "sha256": "e97a1dc44fe6d6ced1cc7cafbf0c5df5f6325d6ff314d8c1bc6398d5a5e100c2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"import_guardian_invitations\",\"p_school_id uuid, p_request_id uuid, p_delivery_key text, p_rows jsonb\"]",
+        "sha256": "96b6ce57492539ebc365d8a15f7bfb46a31221fbbe02e5ac100c7ab101b30115"
+      },
+      {
+        "key": "routine:[\"app_private\",\"import_roster_students\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_request_id uuid, p_students jsonb\"]",
+        "sha256": "043326bb60a03b554d7a473347e2ad4f70c7d80a971f813a591d438d463d766b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"import_school_staff\",\"p_school_id uuid, p_request_id uuid, p_staff jsonb\"]",
+        "sha256": "0b421e80d160205e5bb6782ccf70a1e179c3df3b541f9f5321beca68d64c435a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"import_teacher_assignments\",\"p_school_id uuid, p_academic_year_id uuid, p_request_id uuid, p_rows jsonb\"]",
+        "sha256": "6bd1cbd6a473c3fd2a20fe8a1b3034eb8f4b86dad17bbd150e286c5a87661e55"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_finance\",\"\"]",
+        "sha256": "6fe7e41c37b0858cd2b5a8a6411bfb38752867c37a79cb56ceac59a03d8a8a89"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_guardian_access_admin\",\"p_actor_id uuid, p_school_id uuid\"]",
+        "sha256": "a811feca84903fcbecd44b5969674ae5a11dacbfa699124b4bf14a60a6a3b440"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_own_school_teacher\",\"p_teacher_id uuid\"]",
+        "sha256": "37919c7d4683298e63e1911a31f497057442b6341563a8b670e012d2ca281b69"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_own_teacher_notice_audience\",\"p_school_id uuid, p_audience jsonb\"]",
+        "sha256": "7d33c38ea6632966cc170ec21ad8ade904bd588cb245090bcf2ab31f1e84a0d8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_school_admin\",\"\"]",
+        "sha256": "c609dc17edd1454b7f19608f89deefe1c69744ec1dd1a9910671ecdeac81fc77"
+      },
+      {
+        "key": "routine:[\"app_private\",\"is_teacher\",\"\"]",
+        "sha256": "10ec088ae49c2507d39fa12c27a8c23f893693dc285a39ec87fee50c5b6f226b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"issue_guardian_invitation\",\"p_school_id uuid, p_student_id uuid, p_email text\"]",
+        "sha256": "01d51860e217ac8495bcfaae2d4a7d97ba167459da045ea21fb3b0184ba686b7"
+      },
+      {
+        "key": "routine:[\"app_private\",\"issue_office_fee_demand\",\"p_school_id uuid, p_student_id uuid, p_fee_structure_id uuid, p_billing_period text, p_due_date date\"]",
+        "sha256": "2ddeae9fbe92073d6b0d2ad750ff8450af32d608255c372d270944524297f9c0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"issue_teacher_invitation\",\"p_teacher_id uuid, p_email text\"]",
+        "sha256": "30cd6c1856c576c6b7b4770b6dd670b11e7f9008a232a75e1760087caf500485"
+      },
+      {
+        "key": "routine:[\"app_private\",\"latest_guardian_access_revocation\",\"p_school_id uuid, p_student_id uuid, p_guardian_user_id uuid\"]",
+        "sha256": "6453a994e35b9f84124d76836c0c05387b68fefed18eaacc23c61af55764fc96"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_academic_setup_imports\",\"p_school_id uuid, p_kind text\"]",
+        "sha256": "f3c5bc4cfbafbc503e82d78ee354a19879846cc039cd5e07b62b274ba7078df8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_attendance_corrections\",\"p_school_id uuid, p_offset integer, p_own boolean\"]",
+        "sha256": "9c02561ddd88047a086299af28007d113583f1556c9f396aabadb7baa86142fa"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_attendance_register_students\",\"p_school_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid, p_day date\"]",
+        "sha256": "4be5345006961bc60e7b5b9ef1ec4e8273660033b361224931b5b1768dca1eff"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_family_fee_receipts\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "eac74f7076e8c3d0e498cdadb94e5043f8ea3bcb1243c52c8332e040ce6b40ea"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_guardian_absence_alerts\",\"\"]",
+        "sha256": "466bc2f97353fe0b2f95ad81402a6e5e71d30bf3e5c4a958aded2527bf7ac005"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_guardian_invitations\",\"p_school_id uuid, p_student_id uuid\"]",
+        "sha256": "f839fb27f2bf6cb06ba1b2cf1f942b8734e7b4cd48bf1cb13b8d1a8238b09074"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_homework_submissions_for_grading\",\"p_activity_id uuid\"]",
+        "sha256": "c79a9df10aca3a5d25b8ad4fa92c71f9357e8bab9eb96d369d5966c51bab0992"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_my_effective_attendance_assignments\",\"\"]",
+        "sha256": "3dea8ad29d6f3aec230529ae1a3fcb637b6f53aa4b936ec73c166229c6397701"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_my_homework_submissions\",\"p_activity_ids uuid[]\"]",
+        "sha256": "f3ca121a02af6f2601fb5ade2e141dd672cd2eab9b58c6c58be92d66d74f2320"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_office_credit_changes\",\"p_school_id uuid, p_student_id uuid, p_state text, p_limit integer, p_offset integer\"]",
+        "sha256": "36c173413cbf13789619629c615c19f45567bcaa78545111c8603d320074a47b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_office_fee_batches\",\"p_school_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "19e01120e7a275b707575cb544e10245db5af1e291b4c3efcff6316201c9d149"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_office_fee_changes\",\"p_school_id uuid, p_state text, p_limit integer, p_offset integer\"]",
+        "sha256": "36e0d2ff917bb02d026b75dbed2bec0b7a51a90ed27899ffd9314433f274c256"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_office_fee_receipts\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "eacf2208209683bee45c015b2eba4ecba47120e9b531c041f6d75a94cebdb45d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_roster_placement_changes\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "f745c25c36228ec65b516197f528550e03ca4ab2f49ca079c215da6b081bd608"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_roster_withdrawals\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "a6ee8062bfc9971df8745897d3a48916a76d42bf437a477289e178260fc0bed2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_school_staff_imports\",\"p_school_id uuid\"]",
+        "sha256": "25c50d5b33ab3c7c300cfdff2f7ae3b956a353a87634708fd7e11af8c1a75d0c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_teacher_assignment_imports\",\"p_school_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "16747a539e1364df1f1e5d8e042d0d2fa8a067e5f41155d04541f591d16b96f9"
+      },
+      {
+        "key": "routine:[\"app_private\",\"list_teacher_invitations\",\"p_teacher_id uuid\"]",
+        "sha256": "b611d4bfa41607f932940ab10fadc4be5869b1c22ca000f7fe55d56daa50f7b9"
+      },
+      {
+        "key": "routine:[\"app_private\",\"lock_academic_write_scope\",\"p_teacher_id uuid, p_school_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid\"]",
+        "sha256": "50d97f329f07bc90b824c0544e19191f5979ee513e0a5967f61f3fc333880332"
+      },
+      {
+        "key": "routine:[\"app_private\",\"lock_attendance_correction_scope\",\"p_teacher_user uuid, p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date\"]",
+        "sha256": "53b3f641a91b27644b98fcdeae29f7239936713aae9c8fa8bc796ee266b7fa70"
+      },
+      {
+        "key": "routine:[\"app_private\",\"lock_office_credit_actor\",\"p_school_id uuid, p_reviewer boolean\"]",
+        "sha256": "4917593b708d01fd09f2f067b17ad26be52f2ddb97e003bca6ad78a076531d4d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"lock_office_student_credit\",\"p_school_id uuid, p_student_id uuid\"]",
+        "sha256": "9430172ac1a66430074cc56578264b31407f1aff7c8369bfe48453a91ca1721b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"locked_office_fee_financial_state\",\"p_school_id uuid, p_fee_id uuid\"]",
+        "sha256": "80d9945d2fbcdcc03a05215df8bc66f460559d16eb5ad7dfec7048e84cbc5645"
+      },
+      {
+        "key": "routine:[\"app_private\",\"locked_office_student_credit_state\",\"p_school_id uuid, p_student_id uuid\"]",
+        "sha256": "902a9cb99c9da963f6e0d585629d0840ac2945e01ac0ad459cedc8f53fd5a732"
+      },
+      {
+        "key": "routine:[\"app_private\",\"lookup_guardian_access\",\"p_school_id uuid, p_admission_no text\"]",
+        "sha256": "71f1215658da7bf7eb25d686f8adb5b414ebe81fb2013002d927d22c659abbf0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"mark_all_guardian_absence_alerts_read\",\"\"]",
+        "sha256": "6dfaa9c374b1993fde756819d69f629a74babf84945e9a3c0a1e7519d366c6c3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"mark_guardian_absence_alert_read\",\"p_alert_id uuid\"]",
+        "sha256": "a5ddbda0f71901e04e0a19ce52e081e6114a56e5792c7afce3fbb376764c8c62"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_key\",\"p_url text\"]",
+        "sha256": "035c53f9560f88c6f79a85b3d4dd27361e3c8cea54bb7e0b4e1c24abdbebdec6"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_link_visible\",\"p_name text\"]",
+        "sha256": "f62b1baec4cfd1c02b7b8aa049c50b9197b398ab87a85b48b44b4d31345f7547"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_manager\",\"p_name text\"]",
+        "sha256": "55d009032218515648c1099450444edaa54bcb8c5a6e93610c15fcded9f10c99"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_owner\",\"p_name text, p_owner text, p_write boolean\"]",
+        "sha256": "81bc4d2b0876d81b37a20a0e2524ff036ee328598a2ab5918e3b0edd3b7ae1c2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_reference\",\"p_url text, p_name text\"]",
+        "sha256": "5ed2aeee85b3d22ca1fd712dd44e159ca611c5c714169d8eb922c5a4de39cd07"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_referenced\",\"p_name text\"]",
+        "sha256": "fa78ac4d8818fc66c1b7b734c92ce8eeb6142c43f5eee90da2b73b4e24ffaca0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_scope\",\"p_name text\"]",
+        "sha256": "4091e2c572d0cdd6c1246001a2f457f451a5aad97fbe99f4bc98a4daa52b7882"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_shared_school\",\"p_name text\"]",
+        "sha256": "3284d6b7995e9912456f0f9f7e95788e747f50b6889e07af737e562afaab287b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"material_file_submission_referenced\",\"p_name text\"]",
+        "sha256": "b091e8c41d3f26b74212aa085a340fb02a4034bad0e8960eaee8829815332253"
+      },
+      {
+        "key": "routine:[\"app_private\",\"my_active_attendance_coverages\",\"p_day date\"]",
+        "sha256": "c66dd9cb0680535508e6566190fb835c421280e7b3cc69490ee31dcb543d927b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"notice_audience_is_valid\",\"p_school_id uuid, p_audience jsonb\"]",
+        "sha256": "74504a66e32e8102c2153a7b815402fe1437049d88bc674574a4bd24f55026f3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_credit_activity\",\"p_id uuid, p_context boolean\"]",
+        "sha256": "624bcf7bf7669432610dc361e0e21127c352073428d03bf26b4f413ef2838cab"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_credit_change_result\",\"p_id uuid\"]",
+        "sha256": "a0a34c2526c3fe03a33696e188a606c0e9356027f2686896e3a8daf23233ceda"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_change_result\",\"p_id uuid\"]",
+        "sha256": "daf22221f22684840cfaf852887567a5a77e2a271f15c16d87589cc31d936f00"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_collection_totals\",\"p_school_id uuid\"]",
+        "sha256": "679120fa5942a8ae28e9a948cc7230ce512e492848c8b2b605546a6c8ced35ba"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_day_result\",\"day_record app_private.office_fee_days, day_summary jsonb\"]",
+        "sha256": "57630824897fac396009de8978492f802ab17c14c9b391037faa4b2b2e99bca2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_financial_state\",\"p_school_id uuid, p_fee_id uuid\"]",
+        "sha256": "578ca6168ee848991efb82c85c840f720bed64d13d63cc3fd80ad669a68505e4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_ledger_result\",\"p_school_id uuid, p_year_id uuid, p_student_id uuid, p_limit integer, p_offset integer, p_family boolean\"]",
+        "sha256": "3e33c844b12997a00e59be969c012d5634b65eb89156267466d6edab307e6fa8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_positions\",\"p_school_id uuid, p_fee_id uuid, p_student_id uuid\"]",
+        "sha256": "76b2b902e27974cb77c1868ffb39259fcb64f5917790efa01614c0f94d4ac792"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_fee_receipts_result\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer, p_family boolean\"]",
+        "sha256": "12db1d0387851b7c11db73c9732aca3a8bf2e5d096efc792efcf1c661d12c067"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_school_credit_summary\",\"p_school_id uuid\"]",
+        "sha256": "6fb1bf3637ee6c5ec8cbefa4220e6378052215305f9b5bc838a9ef2fb0aa261b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_student_credit_result\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer, p_family boolean\"]",
+        "sha256": "36c8c02de11908714537c2a9166142ff58347eb5789c5f16f3c41fd8f7919cc4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"office_student_credit_state\",\"p_school_id uuid, p_student_id uuid\"]",
+        "sha256": "e2a0a759ddbc31580126866e351009b397b37b4aa18f3d50172f9fa1d7d793f6"
+      },
+      {
+        "key": "routine:[\"app_private\",\"pay_office_credit_refund\",\"p_request_id uuid, p_payment_method text, p_reference text, p_reason text, p_payout_id uuid\"]",
+        "sha256": "1d3c355f20579fe867cf5149fa717df81d8aef563da5fce67d893347821fbe9f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"post_office_fee_batch\",\"p_school_id uuid, p_kind text, p_payload jsonb, p_preview_token text, p_request_id uuid\"]",
+        "sha256": "e3feb4ffb2efc1b767aa1919557636df2609509194e8a9e24e52cf313276ff8e"
+      },
+      {
+        "key": "routine:[\"app_private\",\"preview_academic_year_activation\",\"p_school_id uuid, p_previous_year_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "d6a8946c8011c54054d9cbe99559ae92e1943e530fe72fe4cfb561b580dfc665"
+      },
+      {
+        "key": "routine:[\"app_private\",\"preview_guardian_invitation_import\",\"p_school_id uuid, p_rows jsonb\"]",
+        "sha256": "91cca6de36b945cee4bb95c0c95dd2bf8418966ee87f3d02cad63fdd8ac86524"
+      },
+      {
+        "key": "routine:[\"app_private\",\"preview_office_fee_batch\",\"p_school_id uuid, p_kind text, p_payload jsonb\"]",
+        "sha256": "c4d819c50f750f43f4dc898c6f429794952ebd85a55e14e0f270ebd0af4663e2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"preview_teacher_assignment_import\",\"p_school_id uuid, p_academic_year_id uuid, p_rows jsonb\"]",
+        "sha256": "806a255e0e6e1256ce018d393308ea6c27f497622dba5b68c7e08248e6e4312c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"record_guardian_absence_alerts\",\"\"]",
+        "sha256": "cdec45b62467fe813f0ec5dbff2f7b2685a1b16f656684fa57039c6652ffb2da"
+      },
+      {
+        "key": "routine:[\"app_private\",\"record_office_credit_receipt\",\"p_school_id uuid, p_student_id uuid, p_amount numeric, p_payment_method text, p_reference text, p_reason text, p_request_id uuid\"]",
+        "sha256": "18ee41e8b61dfd62622ddc7fe377c7719c8b1e16a1afc35703a7ddacca6a78c3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"record_office_fee_payment\",\"p_school_id uuid, p_student_fee_id uuid, p_amount numeric, p_payment_method text, p_request_id uuid, p_reference text\"]",
+        "sha256": "7b34daaaa2a94004cede944de010c852a32cc6c1be2ac3f52ab0bff5fc5beaf0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"reinvite_guardian_access\",\"p_school_id uuid, p_student_id uuid, p_revocation_id uuid\"]",
+        "sha256": "59871d6b19a9d84c5b58d32326eb4993b7a281e7bd7e1827318cb7ffff2825d2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"request_attendance_correction\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date, p_expected_id uuid, p_expected_revision bigint, p_status attendance_status, p_reason text, p_request_id uuid\"]",
+        "sha256": "2dfad564bec81cd485472ff8ba940d8121e83ac3537eeef4c6bcee3578ea4c63"
+      },
+      {
+        "key": "routine:[\"app_private\",\"request_office_credit_change\",\"p_school_id uuid, p_student_id uuid, p_kind text, p_entry_id uuid, p_amount numeric, p_expected_credit_token text, p_expected_fee_token text, p_reason text, p_request_id uuid\"]",
+        "sha256": "7a3df46f975ba9b550088f3968e042f7e8c72dd5cb357b53ad146bf94aa9be2c"
+      },
+      {
+        "key": "routine:[\"app_private\",\"request_office_fee_change\",\"p_school_id uuid, p_fee_id uuid, p_kind text, p_amount numeric, p_payment_id uuid, p_reason text, p_expected_token text, p_request_id uuid\"]",
+        "sha256": "c5bce649cb3936a1161b74c9eadf4f824355d1e3c1628eeb54a9d8fb5af94bc3"
+      },
+      {
+        "key": "routine:[\"app_private\",\"review_attendance_correction\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "e72065e0b44982bee3c04d9baa807fea4714797c7bdc928c72651050b5c42eb5"
+      },
+      {
+        "key": "routine:[\"app_private\",\"review_office_credit_change\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "49a2cea38ca28a8d80bea9eb706aff48ad5154bb4aa7ccf698b4544ae3e3964d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"review_office_fee_change\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "46f421cc59be32c79cb757f1b64b89dc7f1ce50fe9fffb1a722599f437c27c76"
+      },
+      {
+        "key": "routine:[\"app_private\",\"revoke_guardian_access\",\"p_school_id uuid, p_student_id uuid, p_parent_id uuid, p_reason text\"]",
+        "sha256": "7eb4e370786ae1330ade7d6bf9f63374a4ba06a73e3c5e4e81ba4c93c2cb9ba0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"revoke_guardian_invitation\",\"p_invitation_id uuid\"]",
+        "sha256": "16ad4900a8724c49981b66ea9eb04a1a8e53c9e1ad43a0a6c83802f7cedce914"
+      },
+      {
+        "key": "routine:[\"app_private\",\"revoke_substitute_attendance_coverage\",\"p_school_id uuid, p_coverage_id uuid, p_reason text\"]",
+        "sha256": "9b14c97a725ebd8c856ceff0fd297caeb833c227b007a52e0f838c65d701de3f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"revoke_teacher_invitation\",\"p_invitation_id uuid\"]",
+        "sha256": "d0894370e9678bd043963aa0737f7f280f746d9ed614a0ba907e2fa4767c1065"
+      },
+      {
+        "key": "routine:[\"app_private\",\"save_academic_log\",\"p_log jsonb, p_activities jsonb\"]",
+        "sha256": "338ab59b2fb68e5c1d02f64f44911de4be9f13624fd0813f24d48bb6d9381e9e"
+      },
+      {
+        "key": "routine:[\"app_private\",\"student_academic_submission\",\"p_activity_id uuid, p_student_id uuid, p_write boolean\"]",
+        "sha256": "60c69a6ff74b8e20b83beb8ea03299b2272ed813302b9d64e6d4bada96e1a2d2"
+      },
+      {
+        "key": "routine:[\"app_private\",\"submit_homework\",\"p_activity_id uuid, p_text_response text, p_file_path text, p_expected_revision bigint, p_request_id uuid, p_file_name text\"]",
+        "sha256": "b44611cb62e9d55e323375ae2506e42be84c32043972f91a2fe0b302a33abe2a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"substitute_roster_access\",\"p_student_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "e18d547ca252aa40407b7e625d056e79f1ab754d8def326c6b0c53f1f8a7a6a4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"summarize_office_fee_day\",\"p_school_id uuid, p_day date\"]",
+        "sha256": "3a9e3e201716a13f442fb155339ff029d9dc541574835e4d539d6eee3d5d004f"
+      },
+      {
+        "key": "routine:[\"app_private\",\"sync_my_guardian_mobile\",\"\"]",
+        "sha256": "3611eb2d309d934b0473974febd10fdd2d1bf9ffef82def5b3567f0bd9aa1e8a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_academic_activity\",\"p_activity_id uuid, p_write boolean\"]",
+        "sha256": "5bf33b3951d72649df249f998bd2172e059654bbb52d2051a45161572818a3e8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_academic_log\",\"p_log_id uuid, p_write boolean\"]",
+        "sha256": "fe82e0a00a8fe80f552ab0bee5a7937f68881dd413c683f51647b345a328e57d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_academic_scope\",\"p_teacher_id uuid, p_school_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid, p_write boolean\"]",
+        "sha256": "f5bf9b8f972670558861a115a8f299cd5bb31983cf03c056c56888bd5c8def5b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_academic_submission\",\"p_activity_id uuid, p_student_id uuid, p_write boolean\"]",
+        "sha256": "fe7b7c4bf5528a7eaaa81cb4c73f2eb13bccd1c2bc4408057e43d333e8fba141"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_assignment_exists\",\"p_class_id uuid, p_section_id uuid, p_subject_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "42f8e176cee76dcd3784ba3aedb9ab15a97c71d37dc339293ba4f09b3ac396fe"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_has_attendance_coverage\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date\"]",
+        "sha256": "91c3af821dbf559ab8a364888b177cc1a01a34f16afd7c17a39f15445e179057"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_owns_attendance_register_on\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date\"]",
+        "sha256": "44cc2148b9143d9d1633c6efa8314c3b158df8befb8a2ea8f8e6ff0ee4827dcb"
+      },
+      {
+        "key": "routine:[\"app_private\",\"teacher_owns_attendance_register\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid\"]",
+        "sha256": "965cdc6021f3f69c95880651a3dcf3f477a87ffa8664c89605074f4efe7729f8"
+      },
+      {
+        "key": "routine:[\"app_private\",\"update_attendance_submission_cutoff\",\"p_school_id uuid, p_cutoff_time text, p_expected_revision bigint, p_reason text\"]",
+        "sha256": "6decec12445d04ec6861a6c246402e9d95dc8d0433283d8a572e7b983934c62d"
+      },
+      {
+        "key": "routine:[\"app_private\",\"valid_office_credit_entry\",\"p_id uuid\"]",
+        "sha256": "1c366920254854ca40d34f2dfff049a5a31946869a064c9a896b1509b606d880"
+      },
+      {
+        "key": "routine:[\"app_private\",\"validate_homework_file\",\"p_activity_id uuid, p_student_id uuid, p_path text\"]",
+        "sha256": "1dd37fd6662f0b486136c5cc64bc94304c32d457dbeb57e0ce146c60ce868c1b"
+      },
+      {
+        "key": "routine:[\"app_private\",\"validate_teacher_assignment_csv\",\"p_rows jsonb\"]",
+        "sha256": "d6359dc34a9d8cdeb298e2f3e8716a631deefdef889719e1958dfafa3fdaa32a"
+      },
+      {
+        "key": "routine:[\"app_private\",\"validate_teacher_assignment\",\"\"]",
+        "sha256": "143515a751e74b7dd0da133f61f42ef155a1254e56e62eb42453c09ae8dc7fd0"
+      },
+      {
+        "key": "routine:[\"app_private\",\"withdraw_roster_enrollment\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_student_id uuid, p_reason text\"]",
+        "sha256": "45728b9b91b38a32ba4584a4e02a70053cf9e9e143bb591d42a159608363f6e4"
+      },
+      {
+        "key": "routine:[\"app_private\",\"write_guardian_invitation\",\"p_school_id uuid, p_student_id uuid, p_email text, p_actor_id uuid, p_revocation_id uuid\"]",
+        "sha256": "8f3e058c7971a1372e5b8e5c1d1d2a6015a36e21ac0fb54c06e37d4bf1ded09d"
+      },
+      {
+        "key": "routine:[\"public\",\"academic_teacher_labels\",\"p_teacher_ids uuid[]\"]",
+        "sha256": "349956b5ee7772909dc6edb1b5e2c21117e0b85640c5ed9dd0742dd6ea7f2459"
+      },
+      {
+        "key": "routine:[\"public\",\"accept_guardian_invitation\",\"p_token text\"]",
+        "sha256": "7eff9e8455a74ae7fe0f6cf159b89af02aa0282332a6040711a64547a034c80b"
+      },
+      {
+        "key": "routine:[\"public\",\"accept_teacher_invitation\",\"p_token text\"]",
+        "sha256": "2455be985d1855bc88958577c12443cdeb2a3e68587bbdf2e372904d91342d78"
+      },
+      {
+        "key": "routine:[\"public\",\"activate_academic_year\",\"p_school_id uuid, p_previous_year_id uuid, p_academic_year_id uuid, p_reason text\"]",
+        "sha256": "40fca0898f90b089442c0ede08edcd1a7c80ac7528e871c2f8c0b8efd2ba2c48"
+      },
+      {
+        "key": "routine:[\"public\",\"activate_accountant\",\"p_employee_id text, p_mobile text\"]",
+        "sha256": "5151f22f095c7af941ec3867bbe8390b9b14e6ef88db6537133297e18fd741e7"
+      },
+      {
+        "key": "routine:[\"public\",\"activate_parent\",\"p_parent_code text, p_mobile text\"]",
+        "sha256": "0692c8b4e684dc89910ff472a061f98f3d145650a5bcff6096a0565f38080022"
+      },
+      {
+        "key": "routine:[\"public\",\"activate_student\",\"p_admission_no text, p_dob date, p_mobile text\"]",
+        "sha256": "9cf56f6b1fc8494a35341cda702786756d66d82f84bec75862e206f9a1c9aba4"
+      },
+      {
+        "key": "routine:[\"public\",\"activate_teacher\",\"p_employee_id text, p_mobile text\"]",
+        "sha256": "c69146d0f113fd0449003e70ca3f34d4ce6b5713edb91e78db718df0f47223fc"
+      },
+      {
+        "key": "routine:[\"public\",\"admit_roster_student\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_admission_no text, p_first_name text, p_last_name text\"]",
+        "sha256": "9db1d2e7d816484e17c1296eba7c219762840cbd9064c262dabf209105685c53"
+      },
+      {
+        "key": "routine:[\"public\",\"allocate_office_credit\",\"p_school_id uuid, p_student_id uuid, p_fee_id uuid, p_amount numeric, p_expected_credit_token text, p_expected_fee_token text, p_reason text, p_request_id uuid\"]",
+        "sha256": "d2d36f8e8fcc3abef6dceb9af4b21fc23e091a1c6cf6bfd080b0aa058fc78558"
+      },
+      {
+        "key": "routine:[\"public\",\"assign_school_role\",\"p_user_id uuid, p_school_id uuid, p_role app_role\"]",
+        "sha256": "323dbdd16fc63b7d510503664b6fcbab9dfb5e5941f59062a4e566eeee704303"
+      },
+      {
+        "key": "routine:[\"public\",\"authorize_my_guardian_phone_change\",\"p_phone text\"]",
+        "sha256": "baf3394bd835a251df60d4f2b06e94883249a9f264b2ded886d55ada09450df0"
+      },
+      {
+        "key": "routine:[\"public\",\"cancel_office_credit_refund\",\"p_request_id uuid, p_reason text\"]",
+        "sha256": "64fe6b0d82743806f1758b0975110ff729286945a94b78fbc71b92100c74be4a"
+      },
+      {
+        "key": "routine:[\"public\",\"change_roster_placement\",\"p_school_id uuid, p_source_enrollment_id uuid, p_expected_class_id uuid, p_expected_section_id uuid, p_destination_academic_year_id uuid, p_destination_class_id uuid, p_destination_section_id uuid, p_reason text, p_request_id uuid\"]",
+        "sha256": "9cb9fb9a06c38d03188530367edebeea5da09b43d84176911d6babd036b753aa"
+      },
+      {
+        "key": "routine:[\"public\",\"close_office_fee_day\",\"p_school_id uuid, p_day date, p_revision bigint, p_counted_cash numeric, p_note text\"]",
+        "sha256": "4382629efa5f835600acd863d079a964fb7d03d4e02d5a24cc859b5e5c8cc23c"
+      },
+      {
+        "key": "routine:[\"public\",\"create_substitute_attendance_coverage\",\"p_school_id uuid, p_source_assignment_id uuid, p_substitute_teacher_id uuid, p_starts_on date, p_ends_on date, p_reason text, p_request_id uuid\"]",
+        "sha256": "ecc58a1da7d10ecf373a533c48c6939d2a3f77933f80892eb76e7c6a73a466e7"
+      },
+      {
+        "key": "routine:[\"public\",\"create_teacher_record\",\"p_school_id uuid, p_employee_id text, p_full_name text\"]",
+        "sha256": "192b6f4e1a80f63e4dcc7095a776b4f3325076d65373982a41a7614ae6a64fc9"
+      },
+      {
+        "key": "routine:[\"public\",\"current_admin_school_id\",\"\"]",
+        "sha256": "329e4d931bcfca2cbd447cb8768e6d0f4dc16409042f76ae96483ca4994c3a75"
+      },
+      {
+        "key": "routine:[\"public\",\"current_user_has_any_role\",\"p_roles app_role[]\"]",
+        "sha256": "cf7f20febb5d1b96d7a0f1eccf0b2304a4e53316197921cc66fad6b217a14c62"
+      },
+      {
+        "key": "routine:[\"public\",\"current_user_has_role\",\"p_role app_role\"]",
+        "sha256": "e600f886c69612f9ea53477647a385b612c6e3f7441175f8b688e6b32c69ff98"
+      },
+      {
+        "key": "routine:[\"public\",\"current_user_id\",\"\"]",
+        "sha256": "2c4380426e2e286598627e9f30d5cce3f3463297d74f62f8926d28f3e2e12c2e"
+      },
+      {
+        "key": "routine:[\"public\",\"current_user_school_ids\",\"\"]",
+        "sha256": "dc1930c0875eb9a51255e334127bb04df7dbd6a63907837ba774ccb92c95332d"
+      },
+      {
+        "key": "routine:[\"public\",\"enforce_public_rls\",\"\"]",
+        "sha256": "350ac0da47a625f654d504fb82ea860b0ee2e2814d461d05093fed9bc5b03a05"
+      },
+      {
+        "key": "routine:[\"public\",\"get_attendance_submission_monitor\",\"p_school_id uuid\"]",
+        "sha256": "763eec6a49357fd5c7ffc85eb7e2ebf1bbde7494531f102224c7406ee8375700"
+      },
+      {
+        "key": "routine:[\"public\",\"get_family_fee_ledger\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "75ea7509288fbcdd6f4e015d1f8c88a3de48f7e2fe792c2647d08a62a983f8e6"
+      },
+      {
+        "key": "routine:[\"public\",\"get_family_student_credit\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "51fe1172229f52278e704a7d1dd8f3ae3fb3d001626606effe07f737df56e7fa"
+      },
+      {
+        "key": "routine:[\"public\",\"get_guardian_absence_inbox\",\"\"]",
+        "sha256": "199cbe0e8ef3b6690d89d82f36a0921e8aa34015328fd9d8663f2a4259b96cdf"
+      },
+      {
+        "key": "routine:[\"public\",\"get_office_fee_day\",\"p_school_id uuid, p_day date\"]",
+        "sha256": "371cb341b29a087547725c813510186f9b838e1a2af85822af985b83c32ace4a"
+      },
+      {
+        "key": "routine:[\"public\",\"get_office_fee_ledger\",\"p_school_id uuid, p_year_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "c9d06c17bb4ccd623bd5efa6db4d14fbdd31dc082b3c3947b300deae759f9614"
+      },
+      {
+        "key": "routine:[\"public\",\"get_office_finance_summary\",\"p_school_id uuid\"]",
+        "sha256": "d4a0590c244025458a56141694fca6105a4237aa19f366d4d741375106b276f3"
+      },
+      {
+        "key": "routine:[\"public\",\"get_office_student_credit\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "92eb449e92c2a9b63cc292a49cd821a0796fc36a15c624855db024e3ff105f3f"
+      },
+      {
+        "key": "routine:[\"public\",\"get_substitute_attendance_setup\",\"p_school_id uuid\"]",
+        "sha256": "1107fbdf2e4d9b31186370609e33a45d654b68b1144d4406e05673b6c7bb6376"
+      },
+      {
+        "key": "routine:[\"public\",\"grade_homework\",\"p_submission_id uuid, p_marks numeric, p_feedback text, p_expected_revision bigint, p_request_id uuid\"]",
+        "sha256": "5a68b55415dd79041aaf3ba20dc41ac8986b120f850f1b5a05944fd3d11ec390"
+      },
+      {
+        "key": "routine:[\"public\",\"handle_new_user\",\"\"]",
+        "sha256": "b3c2a557d22e610e0f4fdb6835115cfcf678d3566603c4e4d8d47015424b2e6b"
+      },
+      {
+        "key": "routine:[\"public\",\"has_role\",\"p_role app_role, p_school uuid\"]",
+        "sha256": "79af8d858553cb87637f7db31083195c034d8a1a9cfdb2e7617fae577af6ffe2"
+      },
+      {
+        "key": "routine:[\"public\",\"import_academic_setup_records\",\"p_school_id uuid, p_kind text, p_request_id uuid, p_records jsonb\"]",
+        "sha256": "cc99a30494f3b814ba109cf7f7020f25de3b1987edb2aa293bfe12a1274552c1"
+      },
+      {
+        "key": "routine:[\"public\",\"import_guardian_invitations\",\"p_school_id uuid, p_request_id uuid, p_delivery_key text, p_rows jsonb\"]",
+        "sha256": "75bb732df86eb59de7b0d461e83f5cca7d73aeafee96ae9f6333f345452bbab5"
+      },
+      {
+        "key": "routine:[\"public\",\"import_roster_students\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_request_id uuid, p_students jsonb\"]",
+        "sha256": "66b6cae23f369066c1bf4a7c4fe3419f7e00a04fc4a5e4619e776eba6e387653"
+      },
+      {
+        "key": "routine:[\"public\",\"import_school_staff\",\"p_school_id uuid, p_request_id uuid, p_staff jsonb\"]",
+        "sha256": "fc873eb660c2f02d6c418879e1c4db87beef372000be4c1960b7db19229253f5"
+      },
+      {
+        "key": "routine:[\"public\",\"import_teacher_assignments\",\"p_school_id uuid, p_academic_year_id uuid, p_request_id uuid, p_rows jsonb\"]",
+        "sha256": "1862cb931224ddfa22be180d98bdddbfe86024d83abfacfd5e61e816db5e4ad4"
+      },
+      {
+        "key": "routine:[\"public\",\"is_school_admin_for_school\",\"p_school_id uuid\"]",
+        "sha256": "1d580e617abbea92a5f4d775937e3de530b74f6a1c769961fd709124635d9cd8"
+      },
+      {
+        "key": "routine:[\"public\",\"issue_guardian_invitation\",\"p_school_id uuid, p_student_id uuid, p_email text\"]",
+        "sha256": "305065da112b2dc0de058a00d85ddf8305fb6f6fbc4d4ffbc65a3ecbc60fc1ff"
+      },
+      {
+        "key": "routine:[\"public\",\"issue_office_fee_demand\",\"p_school_id uuid, p_student_id uuid, p_fee_structure_id uuid, p_billing_period text, p_due_date date\"]",
+        "sha256": "6dc69f5a93c4dcc6caf366e4d5db8cba0b6250de5e7685d605dfe5d548de0e2e"
+      },
+      {
+        "key": "routine:[\"public\",\"issue_teacher_invitation\",\"p_teacher_id uuid, p_email text\"]",
+        "sha256": "a86d5a28c5102603892977764303635a29e91ac3343a1d4b5f329f7c56892c55"
+      },
+      {
+        "key": "routine:[\"public\",\"list_academic_setup_imports\",\"p_school_id uuid, p_kind text\"]",
+        "sha256": "8434797c8b680a6e8100dba189eec57f4ed6ed955f3f0399929d508f9504a252"
+      },
+      {
+        "key": "routine:[\"public\",\"list_attendance_corrections\",\"p_school_id uuid, p_offset integer, p_own boolean\"]",
+        "sha256": "28c73affdeb11eaf1472e00a9e081363275928a0b83d58d46990f1199aac3343"
+      },
+      {
+        "key": "routine:[\"public\",\"list_attendance_register_students\",\"p_school_id uuid, p_year_id uuid, p_class_id uuid, p_section_id uuid, p_day date\"]",
+        "sha256": "758fc1cc5dedef6fb34db5c9f1573feb5df70e76c17e22e4b194cfe08c772308"
+      },
+      {
+        "key": "routine:[\"public\",\"list_family_fee_receipts\",\"p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "1e2ebaaabdb9f8e0dfb497a2b4f8ab5ae310ecb71a9e5a2020f8d052a28c773f"
+      },
+      {
+        "key": "routine:[\"public\",\"list_guardian_absence_alerts\",\"\"]",
+        "sha256": "5944ff5d64a4cfbae176cb0e9a006f745c834953b823c9b261ae49d431c9dfbc"
+      },
+      {
+        "key": "routine:[\"public\",\"list_guardian_invitations\",\"p_school_id uuid, p_student_id uuid\"]",
+        "sha256": "98ecd2335db50ca90357f4736d8545354f267f91903151bd47cda30d8872f154"
+      },
+      {
+        "key": "routine:[\"public\",\"list_homework_submissions_for_grading\",\"p_activity_id uuid\"]",
+        "sha256": "8352084d2deeea92fc3e64e887a5ab620c81d15f88d6d478f0e24d8923c8aca3"
+      },
+      {
+        "key": "routine:[\"public\",\"list_my_effective_attendance_assignments\",\"\"]",
+        "sha256": "a3d53540bc419e30a810bc72896dee1e268a7279230afe35532caf440bec1799"
+      },
+      {
+        "key": "routine:[\"public\",\"list_my_homework_submissions\",\"p_activity_ids uuid[]\"]",
+        "sha256": "f1a38f1240b1453897791675074cd48e149bf525fda688834e6f819631ed7e6e"
+      },
+      {
+        "key": "routine:[\"public\",\"list_office_credit_changes\",\"p_school_id uuid, p_student_id uuid, p_state text, p_limit integer, p_offset integer\"]",
+        "sha256": "d42941dcb1e03a2d9d5e4d86aed56c928a545ce2edb2c0514cad7900b23b0fdf"
+      },
+      {
+        "key": "routine:[\"public\",\"list_office_fee_batches\",\"p_school_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "b4656d8cd7a139b49764f343c61865f2def8080fbd31332601a8d332b382b851"
+      },
+      {
+        "key": "routine:[\"public\",\"list_office_fee_changes\",\"p_school_id uuid, p_state text, p_limit integer, p_offset integer\"]",
+        "sha256": "c7da3dd54d1bc5243c33ea28d315d6e810680116da92e168723472417bb91606"
+      },
+      {
+        "key": "routine:[\"public\",\"list_office_fee_receipts\",\"p_school_id uuid, p_student_id uuid, p_limit integer, p_offset integer\"]",
+        "sha256": "25bae3723530287be656b18c2bb9e6d4497af553d19d1a795a519141a5f7aceb"
+      },
+      {
+        "key": "routine:[\"public\",\"list_roster_placement_changes\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "1c01a0f09e8d30cdee5fa3203a81746456af38ce0100f486ccf9d429e56a6a73"
+      },
+      {
+        "key": "routine:[\"public\",\"list_roster_withdrawals\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid\"]",
+        "sha256": "5813efe053d5501b9d0f3f1fd505c0fb59e8b5d7f1190556dccd7d06b71a70c6"
+      },
+      {
+        "key": "routine:[\"public\",\"list_school_staff_imports\",\"p_school_id uuid\"]",
+        "sha256": "31ff443f7fd50be2bfbe4240b4202966fb924acdba3eb6f585375b8b873a799f"
+      },
+      {
+        "key": "routine:[\"public\",\"list_teacher_assignment_imports\",\"p_school_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "19f3bcb15a051c109f16bc8eebb7188960daea50e90c79e93cc3f6bf1cb81bf3"
+      },
+      {
+        "key": "routine:[\"public\",\"list_teacher_invitations\",\"p_teacher_id uuid\"]",
+        "sha256": "1c559534ebf97c552429672f228f2566337be167de2a69092abd692c7257b626"
+      },
+      {
+        "key": "routine:[\"public\",\"lookup_guardian_access\",\"p_school_id uuid, p_admission_no text\"]",
+        "sha256": "4f19c5c7026200907e9f4b28783177a40513e912f8f5188f0df8ba099993a349"
+      },
+      {
+        "key": "routine:[\"public\",\"mark_all_guardian_absence_alerts_read\",\"\"]",
+        "sha256": "c58459db878a87b2298c03fd207c2846e6390c149aa89e470523565aec236ddc"
+      },
+      {
+        "key": "routine:[\"public\",\"mark_guardian_absence_alert_read\",\"p_alert_id uuid\"]",
+        "sha256": "204604c0cd31d4c961dcef1fd886613bbc865e0a222c5c7152626870c76b43bd"
+      },
+      {
+        "key": "routine:[\"public\",\"pay_office_credit_refund\",\"p_request_id uuid, p_payment_method text, p_reference text, p_reason text, p_payout_id uuid\"]",
+        "sha256": "7fa2ad15102483e0b699c101dfdac804da510e6107753337a3a88dd7e31c9540"
+      },
+      {
+        "key": "routine:[\"public\",\"post_office_fee_batch\",\"p_school_id uuid, p_kind text, p_payload jsonb, p_preview_token text, p_request_id uuid\"]",
+        "sha256": "e246755c01b591fe33e4d519d210b13f427380fdf3d49e662fcc9ef83228414a"
+      },
+      {
+        "key": "routine:[\"public\",\"preview_academic_year_activation\",\"p_school_id uuid, p_previous_year_id uuid, p_academic_year_id uuid\"]",
+        "sha256": "7dee2cd54540843c20f252b65d79e0c0f052156c754508bab161c32bea9644ee"
+      },
+      {
+        "key": "routine:[\"public\",\"preview_guardian_invitation_import\",\"p_school_id uuid, p_rows jsonb\"]",
+        "sha256": "f37a082b091e871e12d4d0a2d6a7731f3a18cc2ccfc721a8faa28234c24b45a4"
+      },
+      {
+        "key": "routine:[\"public\",\"preview_office_fee_batch\",\"p_school_id uuid, p_kind text, p_payload jsonb\"]",
+        "sha256": "9ad159d0b4fc0d0951a44f68637d9566ff12ecad48455f18a16b770f5ace8b1f"
+      },
+      {
+        "key": "routine:[\"public\",\"preview_teacher_assignment_import\",\"p_school_id uuid, p_academic_year_id uuid, p_rows jsonb\"]",
+        "sha256": "852c8404b09780563c700981c31a79798f5ef58205bd7508cd0d359af5edd3b4"
+      },
+      {
+        "key": "routine:[\"public\",\"record_office_credit_receipt\",\"p_school_id uuid, p_student_id uuid, p_amount numeric, p_payment_method text, p_reference text, p_reason text, p_request_id uuid\"]",
+        "sha256": "af54402876eb04aa1d94cdd721cb668c0793074e7355c6e86d031e489bb698fe"
+      },
+      {
+        "key": "routine:[\"public\",\"record_office_fee_payment\",\"p_school_id uuid, p_student_fee_id uuid, p_amount numeric, p_payment_method text, p_request_id uuid, p_reference text\"]",
+        "sha256": "43efcb92bbd6f073b8c50372aaa41a06dbb8b332d64f83a17c058d18c5774c7a"
+      },
+      {
+        "key": "routine:[\"public\",\"register_student_for_class_teacher\",\"p_full_name text\"]",
+        "sha256": "29a94cdc97b2171bafb895872cb0170853d0b6af4a1b83e6a5aea8d704600343"
+      },
+      {
+        "key": "routine:[\"public\",\"reinvite_guardian_access\",\"p_school_id uuid, p_student_id uuid, p_revocation_id uuid\"]",
+        "sha256": "34ce0d1d76284474fbce562e434edf66ce89e3770788d6143a551c2d1924b16f"
+      },
+      {
+        "key": "routine:[\"public\",\"request_attendance_correction\",\"p_school_id uuid, p_year_id uuid, p_section_id uuid, p_student_id uuid, p_day date, p_expected_id uuid, p_expected_revision bigint, p_status attendance_status, p_reason text, p_request_id uuid\"]",
+        "sha256": "958191cb44af7b610c45eff7db7f7c0dd0ee4a8695bd13d2f1490c84934e87ce"
+      },
+      {
+        "key": "routine:[\"public\",\"request_office_credit_change\",\"p_school_id uuid, p_student_id uuid, p_kind text, p_entry_id uuid, p_amount numeric, p_expected_credit_token text, p_expected_fee_token text, p_reason text, p_request_id uuid\"]",
+        "sha256": "21a01f68b74171f359ae80c0082a1a2f4ccbcf68cbe68c22686d0600d4a9c842"
+      },
+      {
+        "key": "routine:[\"public\",\"request_office_fee_change\",\"p_school_id uuid, p_fee_id uuid, p_kind text, p_amount numeric, p_payment_id uuid, p_reason text, p_expected_token text, p_request_id uuid\"]",
+        "sha256": "2aac2c4273bbede33540f192df1e6a8bcbe5a5413918572047b7a42ff4f4e2b5"
+      },
+      {
+        "key": "routine:[\"public\",\"review_attendance_correction\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "29d26ed985f69a5dcc863d4a87badbebb16d3869b3ae54bf902a43dfb17fd1c8"
+      },
+      {
+        "key": "routine:[\"public\",\"review_office_credit_change\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "66a885ded24f4eaa94c81454d497bfa19f16438b58dc5d270ac5205471c60256"
+      },
+      {
+        "key": "routine:[\"public\",\"review_office_fee_change\",\"p_request_id uuid, p_decision text, p_reason text\"]",
+        "sha256": "158ae0e7430057681a0f018eceb69c064bc838f83d6831d1f943c30c91bc6898"
+      },
+      {
+        "key": "routine:[\"public\",\"revoke_guardian_access\",\"p_school_id uuid, p_student_id uuid, p_parent_id uuid, p_reason text\"]",
+        "sha256": "c082de053fb04c1abe32be1745953282c703c3aa0282499a14e9ecb651846a41"
+      },
+      {
+        "key": "routine:[\"public\",\"revoke_guardian_invitation\",\"p_invitation_id uuid\"]",
+        "sha256": "a705b3b4f786f1b67fbeed2ef398f6c42b641cc90ec7a3de870c0a02439abfe1"
+      },
+      {
+        "key": "routine:[\"public\",\"revoke_substitute_attendance_coverage\",\"p_school_id uuid, p_coverage_id uuid, p_reason text\"]",
+        "sha256": "61c6b5d30e9431b9cabf8471a123d65b9126010afe245f3c6b8b3939c353eb9b"
+      },
+      {
+        "key": "routine:[\"public\",\"revoke_teacher_invitation\",\"p_invitation_id uuid\"]",
+        "sha256": "6a8929e292cddb1ee25f17df1a7383ce39dc2c5d112b6d812a10559c6d426b92"
+      },
+      {
+        "key": "routine:[\"public\",\"save_academic_log\",\"p_log jsonb, p_activities jsonb\"]",
+        "sha256": "6b31f87b65d5755ba8f681a4ce222afb9c39750c32e25244bcd37adcfe4911bd"
+      },
+      {
+        "key": "routine:[\"public\",\"set_updated_at\",\"\"]",
+        "sha256": "91791b0ca4b4f58936cff556fe28b514eba3ed713cfc6bdfe11756dbcb8fe84d"
+      },
+      {
+        "key": "routine:[\"public\",\"submit_homework\",\"p_activity_id uuid, p_text_response text, p_file_path text, p_expected_revision bigint, p_request_id uuid, p_file_name text\"]",
+        "sha256": "ea6022b0d7a6f9627435763fab45d86c1e2c308f198be43034cac7747a15a915"
+      },
+      {
+        "key": "routine:[\"public\",\"sync_my_guardian_mobile\",\"\"]",
+        "sha256": "eb5ec7efa387787ed1e2ccbcf35c9f67a7b3a25985de42e1c850081ca0e54e43"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_can_manage\",\"p_assessment_id uuid\"]",
+        "sha256": "1c6313c248566bb294859e24673ea9b8e164835051c85d5c1fcf06510fcc7df2"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_can_view\",\"p_assessment_id uuid\"]",
+        "sha256": "e015a4d3cf9ccd8ed46977cc28b8674b7b99cba3ab506e185450a68b4a126add"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_is_assigned\",\"p_teacher_id uuid, p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_subject_id uuid\"]",
+        "sha256": "d9241ea40bfef23917576bfd75146e97c6fbc9eb3834e975bb7364990ec5e73f"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_is_school_admin\",\"p_school_id uuid\"]",
+        "sha256": "ddb5b1cbfa1bc7508f9ac43fc8466978348fa040b24634e0f95ce5e224398ab4"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_set_updated_at\",\"\"]",
+        "sha256": "d86d086121ac5b5e56a1881eb0600f165384df1f80da871eff8fd7933226b272"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_student_is_enrolled\",\"p_assessment_id uuid, p_student_id uuid\"]",
+        "sha256": "763c21506ec457aec3666432bbe720cc624ce9ec1ca7d870c18ca6f3c6fd5e4e"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_validate_marks\",\"\"]",
+        "sha256": "89729431b19d3eb331e7cc4e235be927bcf2580023a93926644e77070d54e5cd"
+      },
+      {
+        "key": "routine:[\"public\",\"teacher_assessment_validate_maximum\",\"\"]",
+        "sha256": "df60ac10e456292ed7cec6dc1d8edcd46c140f02e0df0639a7853e0a6e5cc481"
+      },
+      {
+        "key": "routine:[\"public\",\"update_attendance_submission_cutoff\",\"p_school_id uuid, p_cutoff_time text, p_expected_revision bigint, p_reason text\"]",
+        "sha256": "9bfccb73cdeebe6794bc9f215aedaf7993e2e4280a15325678f0664b9660a43b"
+      },
+      {
+        "key": "routine:[\"public\",\"update_my_teacher_phone\",\"p_registered_mobile text\"]",
+        "sha256": "beca8981f6dd45c87d29d509f3aa3b23a00424efd21e10dc09ef0eb1922c0391"
+      },
+      {
+        "key": "routine:[\"public\",\"withdraw_roster_enrollment\",\"p_school_id uuid, p_academic_year_id uuid, p_class_id uuid, p_section_id uuid, p_student_id uuid, p_reason text\"]",
+        "sha256": "33bfbca6892455a3938d79fa2a862176ca485f5d1b1c6de2b41a54ebb9705e30"
+      },
+      {
+        "key": "routine:[\"public\",\"write_audit_log\",\"p_school_id uuid, p_action text, p_module text, p_entity_type text, p_entity_id uuid, p_description text, p_metadata jsonb\"]",
+        "sha256": "38cd9c49434f4a5f995aa125465240152b21b1f8e712e242cfcf7776159a0232"
+      },
+      {
+        "key": "schema:[\"app_private\"]",
+        "sha256": "35a97d2f1b7db5f24b2bfcdfcc7430a1d009bab83922275db724612b9b701229"
+      },
+      {
+        "key": "schema:[\"public\"]",
+        "sha256": "abf7abf6dccfcc9faa4cb7584135ec17145081c9737175efa34975a398c10c41"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"guardian_invitations\",\"guard_guardian_invitation_recipient\"]",
+        "sha256": "9223d38d79460dc16eaa2056b0eb79e6041ce527b43ed70478d1ff5656cabaf7"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"office_fee_adjustment_entries\",\"immutable_office_fee_adjustment_entries\"]",
+        "sha256": "acef9bd57ef79ad316952cea1583acf3b1becf415aa4f9840c4ad315f48061d4"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"office_fee_payment_reversals\",\"guard_office_fee_reversal_day\"]",
+        "sha256": "71cea3ae8d5c1f377f056ceab2d1712756051c821d680be6628d357874a5fbf1"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"office_fee_payment_reversals\",\"immutable_office_fee_payment_reversals\"]",
+        "sha256": "20746a5798c9b80852a75f780552d4832f8c04cf4eb8f766e9398754b81c7b9f"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"office_student_credit_entries\",\"guard_office_credit_cash_day\"]",
+        "sha256": "9b634ec1c7f793a33e3755962e71535719791e0e729c9b0343ce98550679375c"
+      },
+      {
+        "key": "trigger:[\"app_private\",\"office_student_credit_entries\",\"immutable_office_student_credit_entries\"]",
+        "sha256": "e76731b69ac791123ceb260853e3265747bcc861c55d60684b8956286a635fa4"
+      },
+      {
+        "key": "trigger:[\"auth\",\"users\",\"follow_guardian_auth_contact\"]",
+        "sha256": "788d4c9eeade7bacca6f096b0e8f1479eb81bdedd510fd107c4ddaba16d51bb7"
+      },
+      {
+        "key": "trigger:[\"auth\",\"users\",\"guard_guardian_auth_contact\"]",
+        "sha256": "bc3a0f19793d4043f43ca4bd927cf2d4aef7a775e2c410dbfb1bd46288fbaf46"
+      },
+      {
+        "key": "trigger:[\"auth\",\"users\",\"on_auth_user_created\"]",
+        "sha256": "26228dab2b5a2c5279b2ea08b62b076ffe57db792c4b7e60a932e6570d998b65"
+      },
+      {
+        "key": "trigger:[\"public\",\"academic_years\",\"guard_academic_year_calendar\"]",
+        "sha256": "bbc1bfdc79743766551d3cb11390d97e7160afb9f9b3109dbcaeb5d021bd67a6"
+      },
+      {
+        "key": "trigger:[\"public\",\"academic_years\",\"trg_guard_academic_identity\"]",
+        "sha256": "b7e67eb318858a4103531ba81e214ccfa3c9109b3ed94a3f73e62d02a806d4d1"
+      },
+      {
+        "key": "trigger:[\"public\",\"activity_submissions\",\"guard_academic_submission_write\"]",
+        "sha256": "c935299e2dc0aa3f46e7a0ddbf86e9611321a3469255ed56c1730fa661f7668a"
+      },
+      {
+        "key": "trigger:[\"public\",\"activity_submissions\",\"zz_guard_homework_submission_version\"]",
+        "sha256": "03f6115c7c43576eece44f191c3ef25d503061d8e0421c0bd87855b9887021b7"
+      },
+      {
+        "key": "trigger:[\"public\",\"admissions\",\"updated_at_admissions\"]",
+        "sha256": "be7e12bd46eb82eda098758bf19f971d89cef946b897260ac0701509bd07f628"
+      },
+      {
+        "key": "trigger:[\"public\",\"attendance\",\"guard_daily_attendance_write\"]",
+        "sha256": "e9169843917d4af225ca7c0c99f6aaa1f7ff2ef8710fe3ee4e80d4e9ca62a598"
+      },
+      {
+        "key": "trigger:[\"public\",\"attendance\",\"guard_substitute_attendance_write\"]",
+        "sha256": "eef331db55e1db58dec22fa73f408acbb6f9cffc30d07a247c8aaabf254e20b6"
+      },
+      {
+        "key": "trigger:[\"public\",\"attendance\",\"record_guardian_absence_alerts\"]",
+        "sha256": "c62fde4530d93481e770fec7bf11947b73d156602141da03aca5dd0d17a0339a"
+      },
+      {
+        "key": "trigger:[\"public\",\"class_activities\",\"bump_academic_parent_version\"]",
+        "sha256": "2bc2611f93d28a3221afc2df7d6968d43968fa414ab03ad268c66b04fa6f496e"
+      },
+      {
+        "key": "trigger:[\"public\",\"class_activities\",\"guard_academic_activity_write\"]",
+        "sha256": "e7adfb9ec78a533b6b80ee236c600343197584a9f1d6b19b11f240b6da97a79c"
+      },
+      {
+        "key": "trigger:[\"public\",\"class_logs\",\"trg_class_logs_updated\"]",
+        "sha256": "9495f50fd44c84c0834042572398f2bf67371e16bf57309758f6c52f46786df8"
+      },
+      {
+        "key": "trigger:[\"public\",\"class_logs\",\"zz_guard_academic_log_write\"]",
+        "sha256": "e529c7023d268c34e91f1867ff1324a60227bb6060aa35877a1e8377b81e1070"
+      },
+      {
+        "key": "trigger:[\"public\",\"classes\",\"trg_guard_academic_identity\"]",
+        "sha256": "90134523ae83a34d6662b0b676bda61568050cf3060ef8c0e9dfa7ba6c79e280"
+      },
+      {
+        "key": "trigger:[\"public\",\"enrollments\",\"cancel_staged_roster_promotion\"]",
+        "sha256": "f92033aceb0a739eff02fc7b0c776836d33c811370fc1dafefb64a5d7d8d4676"
+      },
+      {
+        "key": "trigger:[\"public\",\"enrollments\",\"guard_roster_placement\"]",
+        "sha256": "ce742932cd5774011847a48880a11e5be272f249d27c956cb602b058a4f725ed"
+      },
+      {
+        "key": "trigger:[\"public\",\"enrollments\",\"guard_roster_withdrawal_status\"]",
+        "sha256": "46c8fbeda55f3eaf0f2e2c8ce0f896952d93a9925a5b0377a26c4adf0d877f70"
+      },
+      {
+        "key": "trigger:[\"public\",\"fee_payments\",\"guard_office_fee_day\"]",
+        "sha256": "5a8a55471661a89c054abd84332f115bc3c10a1cef786c1f9043b8f25fc01324"
+      },
+      {
+        "key": "trigger:[\"public\",\"fee_structures\",\"guard_billed_fee_structure_identity\"]",
+        "sha256": "59c4303cb327124c835042ba3a63882ee4ee3fee6bdf89ccc5d9b4d3e7b8e61d"
+      },
+      {
+        "key": "trigger:[\"public\",\"fee_structures\",\"guard_opening_fee_structure\"]",
+        "sha256": "00fb71b4d0d71af3901d35601d47580944af7b5a517cd520c326c941af0db21c"
+      },
+      {
+        "key": "trigger:[\"public\",\"hr_employees\",\"updated_at_hr_employees\"]",
+        "sha256": "d1a2c31accd046c17238400bf8ba4b3a2bc8bb11788bdd18be1b7b2dd0d8c695"
+      },
+      {
+        "key": "trigger:[\"public\",\"hr_payroll\",\"updated_at_hr_payroll\"]",
+        "sha256": "010f53a34f80a5f146fe0cff490143c3344b760ffa1e2536a4dcf700e08602ee"
+      },
+      {
+        "key": "trigger:[\"public\",\"inventory_items\",\"updated_at_inventory_items\"]",
+        "sha256": "82d12c50626faed8595a0574bbb2aa8caed64735ad8850b9f7f90f2ac8beaf18"
+      },
+      {
+        "key": "trigger:[\"public\",\"library_books\",\"updated_at_library_books\"]",
+        "sha256": "7e35cd27603ad07cdd8be6acdea94f4c36c5b1d3a0a90b9168eda8f62d10e779"
+      },
+      {
+        "key": "trigger:[\"public\",\"library_issues\",\"updated_at_library_issues\"]",
+        "sha256": "f1ade20da8e6fd11623cc5330f047c5b04f458900357fc74f6192118691e090d"
+      },
+      {
+        "key": "trigger:[\"public\",\"profiles\",\"trg_guard_academic_identity\"]",
+        "sha256": "19dac549e924841eb12f92dafa791b7fcb007b2147a2af8f8ef5b6302485a9f9"
+      },
+      {
+        "key": "trigger:[\"public\",\"profiles\",\"trg_profiles_updated\"]",
+        "sha256": "3fd2f11d0147fbbea97e4e6203c57b833d04da7cfb48bc44bb77df38d0d27ee2"
+      },
+      {
+        "key": "trigger:[\"public\",\"school_documents\",\"updated_at_school_documents\"]",
+        "sha256": "178bd98f436d3bf529506041ef21c00ab40efef0a74f1d6e039b7dd50e4c8d33"
+      },
+      {
+        "key": "trigger:[\"public\",\"school_events\",\"updated_at_school_events\"]",
+        "sha256": "d2d89d07d94d84cf5af6f77c9d370eeaf24543b8520d395ea16918ed91687bbc"
+      },
+      {
+        "key": "trigger:[\"public\",\"school_notifications\",\"updated_at_school_notifications\"]",
+        "sha256": "92bfbe87f8a6ee0a47e0cf528846e22535ade20897599acb1f285077c56a003f"
+      },
+      {
+        "key": "trigger:[\"public\",\"school_settings\",\"updated_at_school_settings\"]",
+        "sha256": "07e529f201ed25805bfc7b740c655c09aa6b1eea5aed3a210f872735a0c4384b"
+      },
+      {
+        "key": "trigger:[\"public\",\"schools\",\"trg_schools_updated\"]",
+        "sha256": "995d213a7914da8b928a55a455cf942cced83172fadf25819e7e17cfe77c1583"
+      },
+      {
+        "key": "trigger:[\"public\",\"sections\",\"trg_guard_academic_identity\"]",
+        "sha256": "a56dbb29d16981e6a8856168df151a70a5fac1182b52c994631070aa54485e2e"
+      },
+      {
+        "key": "trigger:[\"public\",\"staff_leave_requests\",\"updated_at_staff_leave_requests\"]",
+        "sha256": "f3cf2c2075206d07039d6426b1f944631ea10d35f4c7070ec13543a8fd745081"
+      },
+      {
+        "key": "trigger:[\"public\",\"staff\",\"guard_staff_employee_id\"]",
+        "sha256": "9c2b22584e356f19575c1d3bfe77cdeeac1df1fa295256c9930a3a8810daaa7b"
+      },
+      {
+        "key": "trigger:[\"public\",\"student_fees\",\"guard_opening_fee_debt\"]",
+        "sha256": "6d44d462e2178ad507b5781938cb305e27860653f8973063578bf39430295b34"
+      },
+      {
+        "key": "trigger:[\"public\",\"students\",\"trg_students_updated\"]",
+        "sha256": "073376874768a99190a165fecaff7c8455c90fb363578c4d49a6498d6b623ff8"
+      },
+      {
+        "key": "trigger:[\"public\",\"study_materials\",\"guard_academic_material_write\"]",
+        "sha256": "a9ab9c94d445867c5860edecda83146f322a8a6006e9600ea3e539d231e12ef6"
+      },
+      {
+        "key": "trigger:[\"public\",\"subjects\",\"trg_guard_academic_identity\"]",
+        "sha256": "bcaf5005ab3dcb44a7b586ab26b761d0b492afd4d358b26f216a6fa58ad59af0"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_set_updated_at\"]",
+        "sha256": "3f3071e6d5f490d928c64b99dc742a2b5d75cd71268ccde353b9cdb9397ea09d"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_assessment_marks\",\"teacher_assessment_marks_validate\"]",
+        "sha256": "fe8f3a960d19ba5cc85fa42409b7076545bee7809d4d635efd82688b45afcecd"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_assessments\",\"teacher_assessments_set_updated_at\"]",
+        "sha256": "026e14f554ecf7258f3c4a7e68122fe41eb1e0deaa685724aaa1601f69972289"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_assessments\",\"teacher_assessments_validate_maximum\"]",
+        "sha256": "3a23f3ef791db7af050e261bd4b78d46ff4bfa47aa9b49cca43b6973e9881961"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_subject_assignments\",\"trg_guard_academic_identity\"]",
+        "sha256": "4a430314e03a3b95398d031462b0cc19c696a7a7bd8d3117031fdc83b3cf2e48"
+      },
+      {
+        "key": "trigger:[\"public\",\"teacher_subject_assignments\",\"trg_validate_teacher_assignment\"]",
+        "sha256": "52a9a5a82636109b392f014a69f38833944aaa0c79997d9488bdba791c6dcc2b"
+      },
+      {
+        "key": "trigger:[\"public\",\"teachers\",\"guard_teacher_employee_id\"]",
+        "sha256": "798130070e011037bd3e6cede8874830bea6494bb625a8737acd1f8b297d2eb0"
+      },
+      {
+        "key": "trigger:[\"public\",\"teachers\",\"trg_guard_academic_identity\"]",
+        "sha256": "66debf754c5d4fe992395c88644df2c3bb6dc2193f1f0a86467304c5e21f2787"
+      },
+      {
+        "key": "trigger:[\"public\",\"teachers\",\"trg_guard_teacher_auth_link\"]",
+        "sha256": "1d1dfb2b1aed356354d5335d630c2bd2d8c32066ad575a9835918e54e8910ef4"
+      },
+      {
+        "key": "trigger:[\"public\",\"timetable_entries\",\"updated_at_timetable_entries\"]",
+        "sha256": "120fc57c7c99b792650f977e9ed526252edc62e1967fe699c5b028a7c9d0ba63"
+      },
+      {
+        "key": "trigger:[\"public\",\"transport_allocations\",\"updated_at_transport_allocations\"]",
+        "sha256": "4d4edabc79c7a638bc27a9dff31c0ba1ce8f9bad1e2b0c9c10cabb7ebcf97a4d"
+      },
+      {
+        "key": "trigger:[\"public\",\"transport_routes\",\"updated_at_transport_routes\"]",
+        "sha256": "d4a940699d37c37087319d5405b91bfb7d7e4999ea7a138ad3ce7adcde2976a3"
+      },
+      {
+        "key": "trigger:[\"public\",\"transport_vehicles\",\"updated_at_transport_vehicles\"]",
+        "sha256": "8b5ac9aaaaa794ab7870ac4be85f673be613500f8b9243da6c2f26a697b88123"
+      },
+      {
+        "key": "trigger:[\"storage\",\"objects\",\"guard_submitted_homework_file\"]",
+        "sha256": "bc0a4b890232927de2ed9e1700b4fdea5ebfcddb84cb20f1c64330a451618219"
+      }
+    ],
+    "sha256": "413785423d6c79644ba3affa6289a41a4faea573a937f2ccba38806d0db6c2d6"
+  }
+}

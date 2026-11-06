@@ -17,6 +17,7 @@ import { createClient } from "@/lib/supabase/client";
 import { academicAuthoringError, canEditAcademicLog, matchesAcademicScope } from "@/lib/academic-permissions";
 import { TeacherHomeworkGrading } from "@/components/academic/homework-grading";
 import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type ActivityModule = "classwork" | "homework";
 
@@ -73,6 +74,7 @@ export function TeacherAcademicActivityWorkspace({ module }: { module: ActivityM
 
 function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const loadVersion = useRef(0);
+  const historyFilters = useRef({ yearId: "current", date: "", classId: "all", sectionId: "all", subjectId: "all" });
   const label = activityName(module);
   const [teacherId, setTeacherId] = useState("");
   const [teacherSchoolId, setTeacherSchoolId] = useState("");
@@ -92,11 +94,13 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const [selectedSectionId, setSelectedSectionId] = useState("");
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [editingActivityId, setEditingActivityId] = useState("");
+  const [editingEntry, setEditingEntry] = useState<SubmittedEntry | null>(null);
   const [date, setDate] = useState(todayISO());
   const [details, setDetails] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [maximumMarks, setMaximumMarks] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [filterYear, setFilterYear] = useState("current");
   const [filterClass, setFilterClass] = useState("all");
   const [filterSection, setFilterSection] = useState("all");
   const [filterSubject, setFilterSubject] = useState("all");
@@ -117,7 +121,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const historySectionScope = `${teacherSchoolId}:${filterClass}`;
   const filterSections = filterClass !== "all" && historySectionResult?.scope === historySectionScope ? historySectionResult.rows : [];
 
-  const selectedEntry = entries.find((entry) => entry.activity.id === editingActivityId);
+  const selectedEntry = editingEntry?.activity.id === editingActivityId ? editingEntry : undefined;
   const assignmentsForSelectedClass = assignments.filter((assignment) =>
     assignment.class_id === selectedClassId &&
     assignment.academic_year_id === academicYearId,
@@ -134,7 +138,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       if (!currentTeacherId) throw new Error("Teacher profile was not found for this login.");
 
       const supabase = createClient();
-      const [{ data: { user }, error: authError }, { data: teacher, error: teacherError }, ownAssignments, ownLogs] = await Promise.all([
+      const [{ data: { user }, error: authError }, { data: teacher, error: teacherError }, ownAssignments] = await Promise.all([
         supabase.auth.getUser(),
         supabase
           .from("teachers")
@@ -142,7 +146,6 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
           .eq("id", currentTeacherId)
           .single(),
         getCurrentTeacherAssignments({ currentYearOnly: true }),
-        loadAcademicLogs({ teacherId: currentTeacherId }),
       ]);
       if (authError) throw authError;
       if (teacherError) throw teacherError;
@@ -167,6 +170,17 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       if (yearError) throw yearError;
       if (classError) throw classError;
       if (subjectError) throw subjectError;
+      const filters = historyFilters.current;
+      const currentYear = yearRows?.find((year) => year.is_current);
+      if (filters.yearId === "current" && !currentYear) throw new Error("Select an academic year to load history; no current year is configured.");
+      const ownLogs = await loadAcademicLogs({ teacherId: currentTeacherId,
+        academicYearId: filters.yearId === "current" ? currentYear?.id : filters.yearId === "all" ? undefined : filters.yearId,
+        logDate: filters.date || undefined,
+        classIds: filters.classId === "all" ? undefined : [filters.classId],
+        sectionIds: filters.sectionId === "all" ? undefined : [filters.sectionId],
+        subjectId: filters.subjectId === "all" ? undefined : filters.subjectId,
+        activityType: module,
+      });
       const ownActivities = await loadAcademicActivities(ownLogs.map((log) => log.id));
       const logsById = new Map(ownLogs.map((log) => [log.id, log]));
       const submitted = ownActivities
@@ -266,6 +280,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   ), [entries, filterClass, filterDate, filterSection, filterSubject]);
 
   const resetForm = () => {
+    setEditingEntry(null);
     setEditingActivityId("");
     setDate(todayISO());
     setDetails("");
@@ -280,6 +295,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
 
   const editEntry = (entry: SubmittedEntry) => {
     if (!canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log)) return;
+    setEditingEntry(entry);
     setEditingActivityId(entry.activity.id);
     setDate(entry.log.log_date);
     setDetails(entry.activity.title);
@@ -385,6 +401,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       }, rows);
 
       setEditingActivityId("");
+      setEditingEntry(null);
       setDetails("");
       setDueDate("");
       setMaximumMarks("");
@@ -419,34 +436,8 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       if (deleteError) throw deleteError;
       if (!deletedActivity) throw new Error("This activity was not deleted; it may no longer belong to your workspace.");
 
-      const isGeneratedLog = entry.log.summary === `${label} was submitted.`;
-      if (isGeneratedLog) {
-        const { data: remainingActivities, error: remainingError } = await supabase
-          .from("class_activities")
-          .select("id")
-          .eq("class_log_id", entry.log.id)
-          .limit(1);
-        if (remainingError) {
-          await load();
-          throw remainingError;
-        }
-        if (!remainingActivities?.length) {
-          const { data: deletedLog, error: logDeleteError } = await supabase
-            .from("class_logs")
-            .delete()
-            .eq("id", entry.log.id)
-            .select("id")
-            .maybeSingle();
-          if (logDeleteError) {
-            await load();
-            throw new Error(`The activity was deleted, but its empty log could not be removed: ${logDeleteError.message}`);
-          }
-          if (!deletedLog) {
-            await load();
-            throw new Error("The activity was deleted, but its empty log was not removed.");
-          }
-        }
-      }
+      // Keep the parent: an independent empty check could erase new work added
+      // by another session before a cascading parent delete.
       if (editingActivityId === entry.activity.id) resetForm();
       setPendingDelete(null);
       setMessage(`${label} deleted.`);
@@ -497,6 +488,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
 
       <form onSubmit={submit} className="card max-w-5xl space-y-5 p-5 sm:p-6">
+        <fieldset disabled={saving} aria-label={`${label} editor`} className="min-w-0 space-y-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold">{editingActivityId ? `Edit ${label}` : `Add ${label}`}</h2>
           {editingActivityId && <button type="button" onClick={resetForm} className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600"><X size={16} />Cancel</button>}
@@ -585,6 +577,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
             </div>
           </div>
         )}
+        </fieldset>
       </form>
 
       <section className="card overflow-hidden">
@@ -592,13 +585,18 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
           <h2 className="font-bold">Submitted {label}</h2>
           <p className="mt-1 text-xs muted">Records are stored in the existing academic log and class activity tables.</p>
         </div>
-        <div className="grid gap-4 border-b border-[var(--border)] p-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 border-b border-[var(--border)] p-5 sm:grid-cols-2 lg:grid-cols-5">
+          <label className="block text-sm font-semibold">History year<select value={filterYear} onChange={(event) => setFilterYear(event.target.value)} className="field mt-2"><option value="current">Current year</option><option value="all">All available years</option>{academicYears.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Date<input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="field mt-2" /></label>
           <label className="block text-sm font-semibold">Class<select value={filterClass} onChange={(event) => { setFilterClass(event.target.value); setFilterSection("all"); }} className="field mt-2"><option value="all">All Classes</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Section<select value={filterSection} onChange={(event) => setFilterSection(event.target.value)} className="field mt-2" disabled={filterClass === "all"}><option value="all">All Sections</option>{filterSections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="block text-sm font-semibold">Subject<select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field mt-2"><option value="all">All Subjects</option>{subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <div className="sm:col-span-2 lg:col-span-5"><button type="button" disabled={saving || loading} onClick={() => {
+            historyFilters.current = { yearId: filterYear, date: filterDate, classId: filterClass, sectionId: filterSection, subjectId: filterSubject };
+            setLoading(true); setEntries([]); setError(""); void load();
+          }} className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Apply history filters</button><p className="mt-2 text-xs muted">Apply to load all matching saved work, including older years. Your open draft is kept.</p></div>
         </div>
-        {loading ? <p className="p-5 text-sm muted">Loading submitted {label.toLowerCase()}...</p> : visibleEntries.length === 0 ? (
+        {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading complete {label.toLowerCase()} history for the selected scope...</LoadingState> : visibleEntries.length === 0 ? (
           <div className="p-8 text-center">
             <h3 className="font-bold">No {label} Yet</h3>
             <p className="mt-1 text-sm muted">You haven&apos;t submitted any {label.toLowerCase()} yet.</p>

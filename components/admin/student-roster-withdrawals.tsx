@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { studentName, type AttendanceContext, type AttendanceStudent } from "@/lib/attendance/types";
 import { listRosterWithdrawals, withdrawRosterStudent, type RosterWithdrawal } from "@/lib/students/withdrawals";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const historyDate = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
@@ -109,7 +110,7 @@ export function StudentWithdrawalHistory({ client, context, revision }: {
     <details className="card p-4">
       <summary className="cursor-pointer text-lg font-bold">Withdrawal history</summary>
       <div className="mt-3">
-        {!history ? <p role="status" className="text-sm muted">Loading withdrawals…</p>
+        {!history ? <LoadingState variant="list" className="text-sm muted">Loading withdrawals…</LoadingState>
           : history.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-400">{history.error}</p>
           : !history.records.length ? <p className="text-sm muted">No withdrawals recorded for this section.</p>
           : <ul className="divide-y divide-[var(--border)]">

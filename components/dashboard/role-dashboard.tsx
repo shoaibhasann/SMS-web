@@ -18,6 +18,8 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import "./dashboard.css";
+import { DashboardActions, DashboardGreeting, DashboardIdentity, DashboardMetric, DashboardPanel, DashboardViewAll, AttendanceComposition, AttendanceSegments, RecentLogChart } from "./dashboard-primitives";
 import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
@@ -37,8 +39,10 @@ import {
   type FamilyStudent,
 } from "@/lib/attendance/family";
 import { attendanceLabels, schoolDate } from "@/lib/attendance/types";
+import { upcomingAssessmentEndDate } from "@/lib/dashboard/dates";
 import { formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow, type FeeMoney } from "@/lib/finance/fee-batches";
 import { getFamilyFeeLedger, getOfficeFinanceSummary } from "@/lib/finance/fee-changes";
+import { LoadingState, Skeleton } from "@/components/ui/skeleton";
 
 type Assignment = {
   id: string;
@@ -246,41 +250,12 @@ function displayDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function Card({
-  title,
-  icon,
-  children,
-  right,
-}: {
-  title: string;
-  icon?: React.ReactNode;
-  children: React.ReactNode;
-  right?: React.ReactNode;
-}) {
-  return (
-    <section className="card overflow-hidden">
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
-            {icon ?? <School size={18} />}
-          </div>
-          <h2 className="font-bold">{title}</h2>
-        </div>
-        {right}
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
+function Card({ title, icon, children, right }: { title: string; icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
+  return <DashboardPanel title={title} icon={icon ?? <School size={18} />} right={right}>{children}</DashboardPanel>;
 }
-
-function Stat({ label, value, tone = "blue" }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple" }) {
-  const bg = tone === "green" ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950" : tone === "orange" ? "bg-orange-50 text-orange-700 dark:bg-orange-950" : tone === "purple" ? "bg-purple-50 text-purple-700 dark:bg-purple-950" : "bg-blue-50 text-blue-700 dark:bg-blue-950";
-  return (
-    <div className="card p-5">
-      <div className="text-xs muted">{label}</div>
-      <div className={`mt-2 inline-flex rounded-xl px-3 py-2 text-2xl font-black ${bg}`}>{value}</div>
-    </div>
-  );
+function Stat({ label, value, tone = "blue", loading = false }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple"; loading?: boolean }) {
+  const icon = tone === "green" ? CalendarCheck : tone === "orange" ? IndianRupee : tone === "purple" ? ClipboardList : BookOpen;
+  return <DashboardMetric label={label} value={value} icon={icon} loading={loading} tone={tone === "purple" ? "violet" : tone === "orange" ? "amber" : tone} featured={tone === "green"} context={tone === "green" ? "Present or late / retained records" : "Available school records"} />;
 }
 
 export function RoleDashboard({
@@ -296,6 +271,7 @@ export function RoleDashboard({
 }) {
   return (
     <AppShell role={role}>
+      <div className="sms-dashboard">
       {hasGuardianRole && role !== "parent" && (
         <Link href={guardianAttendancePath}
           className="mb-5 inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-2.5 text-sm font-semibold">
@@ -314,8 +290,9 @@ export function RoleDashboard({
       ) : role === "reception" ? (
         <ReceptionDashboard />
       ) : (
-        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} userId={userId} />
+        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} userId={userId} role={role} />
       )}
+      </div>
     </AppShell>
   );
 }
@@ -331,7 +308,7 @@ function ReceptionDashboard() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 dashboard-role-flow">
       <Header role="reception" subtitle="Quick access to the student, parent, admissions, and communication tools available to Reception." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {links.map((link) => (
@@ -346,15 +323,10 @@ function ReceptionDashboard() {
 }
 
 function Header({ role, subtitle }: { role: UiRole; subtitle: string }) {
-  return (
-    <div className="gradient mb-6 rounded-[28px] p-6 sm:p-8">
-      <div className="text-xs font-bold uppercase tracking-[.18em] text-white/70">{roleLabel(role)} workspace</div>
-      <h1 className="mt-2 text-3xl font-black sm:text-4xl">
-        {role === "teacher" ? "Teacher Dashboard" : role === "finance" ? "Finance Dashboard" : role === "student" ? "Student Dashboard" : role === "parent" ? "Parent Dashboard" : "School Dashboard"}
-      </h1>
-      <p className="mt-2 text-sm text-white/80">{subtitle}</p>
-    </div>
-  );
+  const titles: Record<UiRole, string> = { teacher: "Teacher Dashboard", finance: "Finance Dashboard", student: "Student Dashboard", parent: "Parent Dashboard", reception: "School office", principal: "Principal Dashboard", admin: "School Dashboard" };
+  return <DashboardGreeting eyebrow={`${roleLabel(role)} workspace`} title={titles[role]} description={subtitle}
+    href={role === "student" ? "/modules/homework" : role === "parent" ? guardianAttendancePath : "/modules/students"}
+    action={role === "student" ? "View homework" : role === "parent" ? "Attendance history" : "Student directory"} />;
 }
 
 function TeacherDashboard({ userId }: { userId: string }) {
@@ -573,9 +545,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         setRecentMarks([]);
       } else {
         const teacherAssessments = (assessmentData ?? []) as TeacherAssessmentRow[];
-        const weekEndDate = new Date(`${today}T00:00:00.000Z`);
-        weekEndDate.setUTCDate(weekEndDate.getUTCDate() + 7);
-        const weekEnd = weekEndDate.toISOString().slice(0, 10);
+        const weekEnd = upcomingAssessmentEndDate(today);
         const { data: upcomingData, error: upcomingError } = await supabase
           .from("teacher_assessments")
           .select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id")
@@ -681,23 +651,23 @@ function TeacherDashboard({ userId }: { userId: string }) {
     const logActivities = activities.filter((activity) => activity.class_log_id === log.id);
     return count + Math.max(logActivities.length, 1);
   }, 0);
-  const upcomingTestsThisWeek = upcomingAssessments.filter((assessment) => {
-    const daysUntil = (new Date(`${assessment.assessment_date}T00:00:00`).getTime() - new Date(`${today}T00:00:00`).getTime()) / 86400000;
-    return daysUntil >= 0 && daysUntil <= 7;
-  }).length;
+  const weekEnd = upcomingAssessmentEndDate(today);
+  const upcomingTestsThisWeek = upcomingAssessments.filter((assessment) =>
+    assessment.assessment_date >= today && assessment.assessment_date <= weekEnd,
+  ).length;
   const nameForClass = (id: string) => displayNames.classes[id] ?? assignments.find((assignment) => assignment.class_id === id)?.className ?? "Class";
   const nameForSection = (id: string | null | undefined) => id ? displayNames.sections[id] ?? assignments.find((assignment) => assignment.section_id === id)?.sectionName ?? "Section" : "Section";
   const nameForSubject = (id: string) => displayNames.subjects[id] ?? assignments.find((assignment) => assignment.subject_id === id)?.subjectName ?? "Subject";
   const formatActivityType = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   const recentLogs = logs.slice(0, 8);
 
+  if (busy) return <LoadingState variant="dashboard" label="Loading your teaching dashboard…" />;
+
   return (
-    <div className="space-y-6">
-      <header className="gradient overflow-hidden rounded-[28px] p-6 text-white sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-[.18em] text-white/70">Teacher Dashboard</p>
-        <h1 className="mt-2 text-3xl font-black sm:text-4xl">Welcome back, {teacher?.full_name || "Teacher"}</h1>
-        <p className="mt-2 text-sm text-white/80">Here&apos;s your teaching activity and today&apos;s overview.</p>
-      </header>
+    <div className="space-y-6 dashboard-role-flow">
+      <DashboardGreeting eyebrow="Teacher Dashboard" title={`Welcome back, ${teacher?.full_name || "Teacher"}`} description="Your classes, school work and attendance in one place." href="/modules/attendance" action="Open attendance">
+        <button type="button" onClick={refresh} disabled={busy || attendanceLocked} className="dashboard-refresh"><RefreshCw size={15} className={busy ? "animate-spin" : ""} aria-hidden="true" />Refresh</button>
+      </DashboardGreeting>
 
       {message && (
         <div className={`rounded-2xl border p-4 text-sm ${message.toLowerCase().includes("failed") || message.toLowerCase().includes("could not") || message.toLowerCase().includes("error") ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300" : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
@@ -710,48 +680,35 @@ function TeacherDashboard({ userId }: { userId: string }) {
           <h2 id="teacher-overview-title" className="text-lg font-bold">Today&apos;s Overview</h2>
           <p className="mt-1 text-sm muted">A quick look at your classes and recent work.</p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="dashboard-metrics">
           {[
             { label: "My Classes", value: myClassCount, context: "Active teaching assignments", icon: <GraduationCap size={19} />, color: "text-blue-600 bg-blue-50 dark:bg-blue-950" },
             { label: "Academic Logs", value: monthlyLogCount ?? "—", context: monthlyLogCount === null ? "Currently unavailable" : "This month", icon: <BookOpen size={19} />, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950" },
             { label: "Homework Given", value: monthlyHomeworkCount ?? "—", context: monthlyHomeworkCount === null ? "Currently unavailable" : "This month", icon: <NotebookPen size={19} />, color: "text-purple-600 bg-purple-50 dark:bg-purple-950" },
             { label: "Upcoming Tests", value: upcomingTestsThisWeek, context: "Next 7 days", icon: <ClipboardList size={19} />, color: "text-orange-600 bg-orange-50 dark:bg-orange-950" },
           ].map((item) => (
-            <article key={item.label} className="card flex min-w-0 items-start gap-4 p-5 transition hover:-translate-y-0.5 hover:shadow-md">
-              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${item.color}`}>{item.icon}</div>
-              <div className="min-w-0">
-                <h3 className="text-sm font-semibold muted">{item.label}</h3>
-                <p className="mt-1 text-3xl font-black">{item.value}</p>
-                <p className="mt-1 text-xs muted">{item.context}</p>
-              </div>
-            </article>
+            <DashboardMetric key={item.label} label={item.label} value={busy ? "—" : item.value} context={item.context}
+              icon={item.label === "My Classes" ? GraduationCap : item.label === "Academic Logs" ? BookOpen : item.label === "Homework Given" ? NotebookPen : ClipboardList}
+              tone={item.label === "Academic Logs" ? "green" : item.label === "Homework Given" ? "violet" : item.label === "Upcoming Tests" ? "amber" : "blue"} featured={item.label === "My Classes"} />
           ))}
         </div>
       </section>
 
-      <section aria-labelledby="quick-actions-title" className="card p-5">
-        <div className="mb-4">
-          <h2 id="quick-actions-title" className="text-lg font-bold">Quick Actions</h2>
-          <p className="mt-1 text-sm muted">Go directly to your teaching tools.</p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Add Academic Log", href: "/modules/classwork", icon: <Plus size={17} /> },
-            { label: "Give Homework", href: "/modules/homework", icon: <NotebookPen size={17} /> },
-            { label: "Create Test", href: "/modules/exams", icon: <FileText size={17} /> },
-            { label: "View Attendance", href: "/modules/attendance", icon: <CalendarCheck size={17} /> },
-          ].map((action) => (
-            <Link key={action.href} href={action.href} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold transition hover:border-blue-500/50 hover:bg-[var(--surface-2)]">
-              {action.icon}{action.label}
-            </Link>
-          ))}
-        </div>
-      </section>
-
+      <div className="dashboard-bento">
+        <RecentLogChart logs={logs} loading={busy} />
+        <AttendanceComposition rows={todayAttendanceRows} loading={busy} unavailable={attendanceOverviewUnavailable} title="Today’s attendance" detail="Saved by you across permitted classes" href="/modules/attendance" />
+      </div>
+      <nav className="dashboard-quick-wide" aria-label="Quick Actions"><DashboardActions actions={[
+        { label: "Add academic log", href: "/modules/class-logs", icon: <Plus size={16} /> },
+        { label: "Give homework", href: "/modules/homework", icon: <NotebookPen size={16} /> },
+        { label: "Create test", href: "/modules/exams", icon: <FileText size={16} /> },
+        { label: "My timetable", href: "/modules/timetable", icon: <CalendarCheck size={16} /> },
+      ]} /></nav>
+      <div className="dashboard-bento-even">
       <Card title="Today’s Teaching Activity" icon={<BookOpen size={18} />}>
         {todayLogRows.length ? (
           <div className="space-y-3">
-            {todayLogRows.map((log) => {
+            {todayLogRows.slice(0, 3).map((log) => {
               const logActivities = activities.filter((activity) => activity.class_log_id === log.id);
               return (
                 <article key={log.id} className="rounded-xl border border-[var(--border)] p-4">
@@ -775,10 +732,10 @@ function TeacherDashboard({ userId }: { userId: string }) {
         )}
       </Card>
 
-      <Card title="Recent Academic Activity" icon={<Clock3 size={18} />}>
+      <Card title="Recent Academic Activity" icon={<Clock3 size={18} />} right={<DashboardViewAll href="/modules/class-logs" />}>
         {recentLogs.length ? (
           <div className="divide-y divide-[var(--border)]">
-            {recentLogs.map((log) => {
+            {recentLogs.slice(0, 4).map((log) => {
               const logActivities = activities.filter((activity) => activity.class_log_id === log.id);
               return (
                 <article key={log.id} className="grid gap-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_1fr_auto] sm:items-start">
@@ -799,6 +756,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         ) : <p className="text-sm muted">Your recent academic activity will appear here.</p>}
       </Card>
 
+      </div>
       <Card title="Attendance & Missed Work" icon={<CalendarCheck size={18} />}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
@@ -987,7 +945,7 @@ function FamilyFeeBalances({ rows, total, error, loading }: {
   rows: FeeLedgerRow[]; total: number | null; error: boolean; loading: boolean;
 }) {
   return <Card title="Fee balances" icon={<IndianRupee size={18} />}>
-    {loading ? <p role="status" className="text-sm muted">Loading fee balances…</p>
+    {loading ? <LoadingState variant="list" className="text-sm muted">Loading fee balances…</LoadingState>
       : error ? <p role="alert" className="text-sm text-red-600 dark:text-red-300">Fee balances could not be loaded. Refresh to check the saved records.</p>
         : !rows.length ? <p className="text-sm muted">No fee demands available.</p> : <>
           <p className="mb-3 text-xs muted">Showing {rows.length} of {total} retained demands. Balances include approved fee changes and recorded-payment reversals.</p>
@@ -1021,8 +979,8 @@ function AttendanceHistory({ title, rows, error, loading }: {
   loading: boolean;
 }) {
   return (
-    <Card title={title} icon={<CalendarCheck size={18} />}>
-      {loading ? <p role="status" className="text-sm muted">Loading attendance…</p>
+    <Card title={title} icon={<CalendarCheck size={18} />} right={<DashboardViewAll href={title === "Attendance by Date" ? guardianAttendancePath : "/modules/attendance"} />}>
+      {loading ? <LoadingState variant="list" className="text-sm muted">Loading attendance…</LoadingState>
         : error ? <p role="alert" className="text-sm text-red-600">Attendance could not be loaded. Refresh to try again.</p>
         : rows.length ? (
           <ul className="space-y-2">
@@ -1038,6 +996,22 @@ function AttendanceHistory({ title, rows, error, loading }: {
         ) : <p className="text-sm muted">No attendance records available.</p>}
     </Card>
   );
+}
+
+function FamilyLearningPreview({ logs, activities, loading = false }: { logs: LogRow[]; activities: ActivityRow[]; loading?: boolean }) {
+  return <Card title="Recent learning & work" icon={<BookOpen size={17} />} right={<DashboardViewAll href="/modules/homework">Homework</DashboardViewAll>}>
+    {loading ? <LoadingState variant="list" label="Loading learning and class work…" /> : <>
+    <div className="dashboard-learning-list">{activities.slice(0, 4).map((activity) => <article key={activity.id}><p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{activity.activity_type.replaceAll("_", " ")}</p><h3 className="mt-1">{activity.title}</h3>{activity.due_date && <p>Due {displayDate(activity.due_date)}</p>}</article>)}</div>
+    {!activities.length && <p className="dashboard-empty">No homework or activities have been shared for this class yet.</p>}
+    {logs.length > 0 && <div className="mt-4 border-t border-[var(--border)] pt-4"><p className="dashboard-caption">Latest class lesson</p><h3 className="mt-1 text-sm font-semibold">{logs[0].topic}</h3>{logs[0].summary && <p className="mt-1 text-xs leading-relaxed muted">{logs[0].summary}</p>}<p className="mt-2 text-xs muted">{displayDate(logs[0].log_date)} · {logs.length} recently loaded academic logs</p></div>}
+    </>}
+  </Card>;
+}
+function FamilyMissedWork({ logs, activities, attendance, loading = false }: { logs: LogRow[]; activities: ActivityRow[]; attendance: FamilyAttendanceRow[]; loading?: boolean }) {
+  const missed = logs.filter((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id));
+  return <Card title="What You Missed" icon={<AlertCircle size={17} />} right={<DashboardViewAll href="/modules/missed-activities" />}>
+    {loading ? <LoadingState variant="list" label="Loading missed school work…" /> : missed.length ? <div className="dashboard-list">{missed.slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><p>{displayDate(log.log_date)}</p><h3>{log.topic}</h3>{log.summary && <p>{log.summary}</p>}{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id}><strong>{activity.activity_type.replaceAll("_", " ")}:</strong> {activity.title}</p>)}{log.teacher_remark && <p><strong>Teacher Remark:</strong> {log.teacher_remark}</p>}</article>)}</div> : <p className="dashboard-empty">No missed academic work found.</p>}
+  </Card>;
 }
 
 function StudentDashboard({ userId }: { userId: string }) {
@@ -1069,76 +1043,33 @@ function StudentDashboard({ userId }: { userId: string }) {
   }, [supabase, userId]);
 
   return (
-    <div className="space-y-6">
-      <Header role="student" subtitle="Your school work, attendance, homework, projects, study material, results and fees — read-only from the student account." />
-      {message && <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{message}</div>}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
-        <Stat label="Class Logs" value={logs.length} />
-        <Stat label="Homework / Work" value={activities.length} tone="purple" />
-        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" />
+    <div className="dashboard-role-flow space-y-6">
+      <Header role="student" subtitle="Your learning, attendance and school tasks, ready for today." />
+      {message && <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{message}</div>}
+      <DashboardIdentity label="My Profile & Class" loading={!student && !message} name={student ? nameOf(student) : "Student profile"} subtitle={student ? "Your verified school profile" : "Checking your school profile…"}
+        details={[{ label: "Admission", value: student?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
+          { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
+        />
+      <div className="dashboard-metrics">
+        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" loading={!student && !message} />
+        <Stat label="Class Logs" value={logs.length} loading={!student && !message} />
+        <Stat label="Homework / Work" value={activities.length} tone="purple" loading={!student && !message} />
+        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!student && !message} />
       </div>
-      <Card title="My Profile & Class" icon={<UserRound size={18} />}>
-        <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-          <div><div className="text-xs muted">Name</div><div className="mt-1 font-bold">{student ? nameOf(student) : "—"}</div></div>
-          <div><div className="text-xs muted">Admission No.</div><div className="mt-1 font-bold">{student?.admission_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Class</div><div className="mt-1 font-bold">{enrollment?.classes?.name ?? "—"}</div></div>
-          <div><div className="text-xs muted">Section</div><div className="mt-1 font-bold">{enrollment?.sections?.name ?? "—"}</div></div>
-          <div><div className="text-xs muted">Status</div><div className="mt-1 font-bold">{student?.status ?? "—"}</div></div>
-        </div>
-      </Card>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AttendanceHistory title="Attendance History" rows={attendance.slice(0, 20)} error={attendanceError} loading={!student && !message} />
-        <Card title="Today's Learning" icon={<BookOpen size={18} />}>
-          <div className="space-y-2">
-            {logs.filter((log) => log.log_date === dateToday()).map((log) => (
-              <div key={log.id} className="rounded-xl bg-[var(--surface-2)] p-3">
-                <div className="text-xs muted">{log.log_date}</div>
-                <div className="mt-1 font-semibold">{log.topic}</div>
-                {log.summary && <div className="mt-1 text-sm muted">{log.summary}</div>}
-              </div>
-            ))}
-            {!logs.some((log) => log.log_date === dateToday()) && <div className="text-sm muted">No learning published for today.</div>}
-          </div>
-        </Card>
-        <Card title="Homework · Assignments · Projects · Study Material" icon={<ClipboardList size={18} />}>
-          <div className="space-y-2">
-            {activities.slice(0, 20).map((a) => (
-              <div key={a.id} className="rounded-xl bg-[var(--surface-2)] p-3">
-                <div className="text-xs font-bold uppercase text-blue-600">{a.activity_type}</div>
-                <div className="mt-1 text-sm font-semibold">{a.title}</div>
-                {a.due_date && <div className="mt-1 text-xs muted">Due {a.due_date}</div>}
-              </div>
-            ))}
-          </div>
-        </Card>
+      <div className="dashboard-bento">
+        <FamilyLearningPreview logs={logs} activities={activities} loading={!student && !message} />
+        <AttendanceComposition rows={attendance} loading={!student && !message} unavailable={attendanceError} detail="Recent retained attendance records" href="/modules/attendance" />
       </div>
-      <Card title="What You Missed" icon={<AlertCircle size={18} />}>
-        <div className="space-y-3">
-          {logs.filter((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id)).map((log) => (
-            <div key={log.id} className="rounded-xl border border-[var(--border)] p-4">
-              <div className="text-xs muted">{log.log_date}</div>
-              <div className="mt-1 font-semibold">{log.topic}</div>
-              {log.summary && <p className="mt-1 text-sm muted">{log.summary}</p>}
-              {activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}
-              {log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}
-            </div>
-          ))}
-          {!logs.some((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id)) && <div className="text-sm muted">No missed academic work found.</div>}
-        </div>
-      </Card>
-      <Card title="Daily Academic History" icon={<NotebookPen size={18} />}>
-        <div className="space-y-2">
-          {logs.map((l) => (
-            <div key={l.id} className="rounded-xl border border-[var(--border)] p-4">
-              <div className="flex justify-between text-xs muted"><span>{l.log_date}</span><span>{l.subject_id?.slice(0, 8)}</span></div>
-              <div className="mt-1 font-semibold">{l.topic}</div>
-              {l.summary && <div className="mt-1 text-sm muted">{l.summary}</div>}
-            </div>
-          ))}
-        </div>
-      </Card>
+      <nav className="dashboard-quick-wide" aria-label="Student quick actions"><DashboardActions actions={[
+        { label: "My homework", href: "/modules/homework", icon: <NotebookPen size={16} /> },
+        { label: "Class timetable", href: "/modules/timetable", icon: <CalendarCheck size={16} /> },
+        { label: "Published results", href: "/modules/published-results", icon: <GraduationCap size={16} /> },
+        { label: "Fee receipts", href: "/modules/invoices", icon: <IndianRupee size={16} /> },
+      ]} /></nav>
+      <div className="dashboard-bento-even">
+        <AttendanceHistory title="Attendance History" rows={attendance.slice(0, 5)} error={attendanceError} loading={!student && !message} />
+        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!student && !message} />
+      </div>
       <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !student)} loading={!student && !message} />
     </div>
   );
@@ -1187,66 +1118,53 @@ function ParentDashboard({ userId }: { userId: string }) {
   }, [children, selected, supabase]);
 
   function selectChild(id: string) {
+    if (id === selected || !children.some((student) => student.id === id)) return;
     setChildData(null);
     setSelected(id);
     rememberFamilyChild(userId, id);
   }
 
   return (
-    <div className="space-y-6">
-      <Header role="parent" subtitle="Select your child to see class, section, roll number, attendance, academic work, homework, projects, study material and fee status." />
+    <div className="dashboard-role-flow space-y-6">
+      <Header role="parent" subtitle="A clear view of your child’s school day and the things that need your attention." />
+      {message && <div role="alert" className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm text-blue-700 dark:text-blue-300">{message}</div>}
+      <section className="dashboard-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between" aria-label="Select Child">
+        <div className="min-w-0"><h2 className="text-sm font-semibold">Your children</h2><p className="mt-1 text-xs muted">Switch between verified school profiles.</p></div>
+        <div className="min-w-0 sm:w-80"><label className="sr-only" htmlFor="dashboard-parent-child">Select child</label><select id="dashboard-parent-child" value={selected} onChange={(e) => selectChild(e.target.value)} className="field" disabled={!children.length}>
+          <option value="" disabled>Select child</option>{children.map((student) => <option key={student.id} value={student.id}>{nameOf(student)} · {student.admission_no}</option>)}
+        </select></div>
+      </section>
+      <DashboardIdentity label="Child Details" loading={!child && !message} name={child ? nameOf(child) : "Child profile"} subtitle={child ? "Verified linked student" : "Checking the selected child…"}
+        details={[{ label: "Admission", value: child?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
+          { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
+        />
+      <div className="dashboard-metrics">
+        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" loading={!child && !message} />
+        <Stat label="Academic Logs" value={logs.length} loading={!child && !message} />
+        <Stat label="Homework / Projects" value={activities.length} tone="purple" loading={!child && !message} />
+        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!child && !message} />
+      </div>
+      <div className="dashboard-bento">
+        <FamilyLearningPreview logs={logs} activities={activities} loading={!child && !message} />
+        <AttendanceComposition rows={attendance} loading={!child && !message} unavailable={attendanceError} detail="Selected child · retained records" href={guardianAttendancePath} />
+      </div>
       <GuardianAttendanceAlerts key={userId} userId={userId} summary />
-      {message && <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">{message}</div>}
-      <Card title="Select Child" icon={<Users size={18} />}>
-        <select aria-label="Select child" value={selected} onChange={(e) => selectChild(e.target.value)} className="field max-w-xl" disabled={!children.length}>
-          <option value="" disabled>Select child</option>
-          {children.map((s) => <option key={s.id} value={s.id}>{nameOf(s)} · {s.admission_no}</option>)}
-        </select>
-      </Card>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" />
-        <Stat label="Academic Logs" value={logs.length} />
-        <Stat label="Homework / Projects" value={activities.length} tone="purple" />
-        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" />
+      <nav className="dashboard-quick-wide" aria-label="Guardian quick actions"><DashboardActions actions={[
+        { label: "Attendance history", href: guardianAttendancePath, icon: <CalendarCheck size={16} /> },
+        { label: "Class timetable", href: "/modules/timetable?view=guardian", icon: <Clock3 size={16} /> },
+        { label: "Published results", href: "/modules/published-results?view=guardian", icon: <GraduationCap size={16} /> },
+        { label: "Fee receipts", href: "/modules/invoices?view=guardian", icon: <IndianRupee size={16} /> },
+      ]} /></nav>
+      <div className="dashboard-bento-even">
+        <AttendanceHistory title="Attendance by Date" rows={attendance.slice(0, 5)} error={attendanceError} loading={!child && !message} />
+        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!child && !message} />
       </div>
-      <Card title="Child Details" icon={<GraduationCap size={18} />}>
-        <div className="grid gap-3 sm:grid-cols-5 text-sm">
-          <div><div className="text-xs muted">Name</div><div className="mt-1 font-bold">{child ? nameOf(child) : "—"}</div></div>
-          <div><div className="text-xs muted">Admission</div><div className="mt-1 font-bold">{child?.admission_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Roll No.</div><div className="mt-1 font-bold">{enrollment?.roll_no ?? "—"}</div></div>
-          <div><div className="text-xs muted">Class</div><div className="mt-1 font-bold">{enrollment?.classes?.name ?? "—"}</div></div>
-          <div><div className="text-xs muted">Section</div><div className="mt-1 font-bold">{enrollment?.sections?.name ?? "—"}</div></div>
-        </div>
-      </Card>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <AttendanceHistory title="Attendance by Date" rows={attendance.slice(0, 25)} error={attendanceError} loading={!child && !message} />
-        <Card title="School Work / What Was Given" icon={<ClipboardList size={18} />}>
-          <div className="space-y-2">{activities.slice(0, 25).map((a) => <div key={a.id} className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs font-bold uppercase text-blue-600">{a.activity_type}</div><div className="mt-1 text-sm font-semibold">{a.title}</div>{a.due_date && <div className="mt-1 text-xs muted">Due {a.due_date}</div>}</div>)}</div>
-        </Card>
-      </div>
-      <Card title="Academic History" icon={<BookOpen size={18} />}>
-        <div className="space-y-2">{logs.map((l) => <div key={l.id} className="rounded-xl border border-[var(--border)] p-4"><div className="text-xs muted">{l.log_date}</div><div className="mt-1 font-semibold">{l.topic}</div>{l.summary && <div className="mt-1 text-sm muted">{l.summary}</div>}</div>)}</div>
-      </Card>
-      <Card title="What You Missed" icon={<AlertCircle size={18} />}>
-        <div className="space-y-3">
-          {logs.filter((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id)).map((log) => (
-            <div key={log.id} className="rounded-xl border border-[var(--border)] p-4">
-              <div className="text-xs muted">{log.log_date}</div>
-              <div className="mt-1 font-semibold">{log.topic}</div>
-              {log.summary && <p className="mt-1 text-sm muted">{log.summary}</p>}
-              {activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}
-              {log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}
-            </div>
-          ))}
-          {!logs.some((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id)) && <div className="text-sm muted">No missed academic work found.</div>}
-        </div>
-      </Card>
       <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !child)} loading={!child && !message} />
     </div>
   );
 }
 
-function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId: string }) {
+function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; userId: string; role: "admin" | "principal" }) {
   const [supabase] = useState(createClient);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [overview, setOverview] = useState<AdminOverview>(emptyAdminOverview);
@@ -1280,9 +1198,7 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
     async function load() {
 
       const today = dateToday();
-      const weekEndDate = new Date(`${today}T00:00:00`);
-      weekEndDate.setDate(weekEndDate.getDate() + 7);
-      const weekEnd = weekEndDate.toISOString().slice(0, 10);
+      const weekEnd = upcomingAssessmentEndDate(today);
 
       if (controller.signal.aborted) return;
 
@@ -1456,180 +1372,60 @@ function AdminDashboard({ schoolId, userId }: { schoolId: string | null; userId:
   }
   const recentHomework = recentSchoolActivities.filter((activity) => activity.activity_type === "homework").slice(0, 6);
 
+  const attendanceUnavailable = overview.attendanceToday === null || overview.absentToday === null
+    || overview.absentToday > overview.attendanceToday;
+  const countValue = (value: number | null) => dashboardLoading ? "—" : value ?? "—";
+
   return (
-    <div className="space-y-6">
-      <header className="gradient overflow-hidden rounded-[28px] p-6 text-white sm:p-8">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-xs font-bold uppercase tracking-[.18em] text-white/70">School Administration</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-4xl">School Admin Dashboard</h1>
-            <p className="mt-2 text-sm text-white/80">Monitor your school&apos;s people, learning, attendance, and finances.</p>
-          </div>
-          <button type="button" onClick={refresh} disabled={dashboardLoading} className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
-            <RefreshCw size={16} className={dashboardLoading ? "animate-spin" : ""} /> Refresh
-          </button>
-        </div>
-      </header>
-      {dashboardError && <div role="alert" className="rounded-2xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{dashboardError}</div>}
-      {schoolId && <AttendanceSubmissionMonitor key={schoolId} schoolId={schoolId} userId={userId} refreshVersion={reloadVersion} />}
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-bold">School Overview</h2>
-          <p className="mt-1 text-sm muted">Current school-wide records.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          {[
-            ["Total Students", overview.students],
-            ["Total Teachers", overview.teachers],
-            ["Total Parents", overview.parents],
-            ["Total Classes", overview.classes],
-            ["Total Sections", overview.sections],
-          ].map(([label, value]) => (
-            <article key={label} className="card p-5">
-              <p className="text-sm font-semibold muted">{label}</p>
-              <p className="mt-2 text-3xl font-black">{dashboardLoading ? "—" : value ?? "—"}</p>
-            </article>
-          ))}
-        </div>
+    <div className="dashboard-role-flow space-y-6">
+      <DashboardGreeting eyebrow={role === "principal" ? "School leadership" : "School administration"}
+        title={role === "principal" ? "Principal Dashboard" : "School Admin Dashboard"}
+        description="A clear picture of your school, from daily attendance to learning and collections."
+        href="/modules/students" action="Manage students">
+        <button type="button" onClick={refresh} disabled={dashboardLoading} className="dashboard-refresh"><RefreshCw size={15} className={dashboardLoading ? "animate-spin" : ""} aria-hidden="true" />Refresh</button>
+      </DashboardGreeting>
+      {dashboardError && <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{dashboardError}</div>}
+      <section aria-label="School Overview" className="dashboard-metrics dashboard-metrics-five">
+        <DashboardMetric label="Total Students" value={countValue(overview.students)} context="All retained student records" icon={Users} featured loading={dashboardLoading} />
+        <DashboardMetric label="Total Teachers" value={countValue(overview.teachers)} context="Retained school staff" icon={UserRound} tone="violet" loading={dashboardLoading} />
+        <DashboardMetric label="Today's Attendance" value={countValue(overview.attendanceToday)} context="Saved school-day records" icon={CalendarCheck} tone="green" loading={dashboardLoading} />
+        <DashboardMetric label="Absent Students" value={countValue(overview.absentToday)} context="Marked absent today" icon={UserRound} tone="rose" loading={dashboardLoading} />
+        <DashboardMetric label="This Month Collection" value={dashboardLoading ? "—" : overview.monthCollection === null ? "Unavailable" : formatFeeMoney(overview.monthCollection)} context="Net recorded collections" icon={IndianRupee} tone="amber" loading={dashboardLoading} />
       </section>
-
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-bold">Today&apos;s Overview</h2>
-          <p className="mt-1 text-sm muted">Live operational activity for today.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          {[
-            ["Today's Attendance", overview.attendanceToday, "Attendance records"],
-            ["Absent Students", overview.absentToday, "Marked absent today"],
-            ["Teachers Active", overview.activeTeachers, "Teachers with a log today"],
-            ["Today's Classes", overview.classesLoggedToday, "Classes with activity today"],
-            ["Pending Homework", null, "No records available yet."],
-            ["Upcoming Exams", overview.upcomingExams, "Next 7 days"],
-          ].map(([label, value, context]) => (
-            <article key={label} className="card p-4">
-              <p className="text-xs font-semibold muted">{label}</p>
-              <p className="mt-2 text-2xl font-black">{dashboardLoading ? "—" : value ?? "—"}</p>
-              <p className="mt-1 text-xs muted">{context}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <div className="mb-3">
-          <h2 className="text-lg font-bold">Finance</h2>
-          <p className="mt-1 text-sm muted">Net recorded collections and outstanding fees. Accounting reversals use their approval date.</p>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Today's Collection", overview.todayCollection === null ? null : formatFeeMoney(overview.todayCollection)],
-            ["This Month Collection", overview.monthCollection === null ? null : formatFeeMoney(overview.monthCollection)],
-            ["Pending Fees", overview.pendingFees],
-            ["Overdue Fees", overview.overdueFees],
-          ].map(([label, value]) => (
-            <article key={label} className="card p-5">
-              <p className="text-sm font-semibold muted">{label}</p>
-              <p className="mt-2 break-words text-2xl font-black">{dashboardLoading ? "—" : value ?? "Unavailable"}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-2">
-        <Card title="Recent Academic Logs" icon={<BookOpen size={18} />}>
-          <div className="divide-y divide-[var(--border)]">
-            {recentSchoolLogs.slice(0, 6).map((log) => (
-              <article key={log.id} className="py-3 first:pt-0 last:pb-0">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs muted">{displayDate(log.log_date)} · {classLabel(log)} · {schoolNames.subjects[log.subject_id] ?? "Subject"}</p>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${log.status === "draft" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"}`}>{log.status === "draft" ? "Draft" : "Published"}</span>
-                </div>
-                <p className="mt-1 text-sm font-semibold">{log.topic}</p>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {(activityByLog.get(log.id) ?? []).map((activity) => (
-                    <span key={activity.id} className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs">{activity.activity_type.replaceAll("_", " ")} · {activity.title}</span>
-                  ))}
-                </div>
-              </article>
-            ))}
-            {!dashboardLoading && recentSchoolLogs.length === 0 && <p className="py-2 text-sm muted">No records available yet.</p>}
-          </div>
+      <div className="dashboard-bento">
+        <RecentLogChart logs={recentSchoolLogs} loading={dashboardLoading} />
+        <AttendanceSegments title="Today’s attendance" detail="Breakdown of saved attendance records" href="/modules/attendance" loading={dashboardLoading} unavailable={attendanceUnavailable}
+          segments={[{ label: "Absent", count: overview.absentToday ?? 0, color: "#df5871" }, { label: "Other statuses", count: Math.max((overview.attendanceToday ?? 0) - (overview.absentToday ?? 0), 0), color: "#3867ff" }]} />
+      </div>
+      <nav className="dashboard-quick-wide" aria-label="School quick actions"><DashboardActions actions={[
+        { label: "Student directory", href: "/modules/students", icon: <Users size={16} /> },
+        { label: "School attendance", href: "/modules/attendance", icon: <CalendarCheck size={16} /> },
+        { label: "Manage timetable", href: "/modules/timetable", icon: <Clock3 size={16} /> },
+        { label: "Review results", href: "/modules/published-results", icon: <GraduationCap size={16} /> },
+      ]} /></nav>
+      <div className="dashboard-operational-grid">
+        <Card title="Recent Academic Logs" icon={<BookOpen size={17} />} right={<DashboardViewAll href="/modules/class-logs" />}>
+          {dashboardLoading && <LoadingState label="Loading recent academic logs…" />}
+          <div className="dashboard-list">{(!dashboardLoading ? recentSchoolLogs : []).slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><div className="flex flex-wrap items-center justify-between gap-2"><p>{displayDate(log.log_date)} · {classLabel(log)} · {schoolNames.subjects[log.subject_id] ?? "Subject"}</p><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${log.status === "draft" ? "bg-amber-500/10 text-amber-800 dark:text-amber-200" : "bg-blue-500/10 text-blue-700 dark:text-blue-300"}`}>{log.status === "draft" ? "Draft" : "Published"}</span></div><h3 className="mt-1">{log.topic}</h3>
+            {(activityByLog.get(log.id) ?? []).length > 0 && <p>{(activityByLog.get(log.id) ?? []).slice(0, 2).map((activity) => `${activity.activity_type.replaceAll("_", " ")}: ${activity.title}`).join(" · ")}</p>}
+          </article>)}</div>
+          {!dashboardLoading && recentSchoolLogs.length === 0 && <p className="dashboard-empty">No academic activity has been recorded yet.</p>}
         </Card>
-        <Card title="Recent Homework" icon={<NotebookPen size={18} />}>
-          <div className="space-y-2">
-            {recentHomework.map((activity) => {
-              const log = recentSchoolLogs.find((item) => item.id === activity.class_log_id);
-              return (
-                <article key={activity.id} className="rounded-xl bg-[var(--surface-2)] p-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <p className="text-sm font-semibold">{activity.title}</p>
-                    {activity.due_date && <span className="text-xs muted">Due {displayDate(activity.due_date)}</span>}
-                  </div>
-                  {log && <p className="mt-1 text-xs muted">{displayDate(log.log_date)} · {classLabel(log)} · {schoolNames.subjects[log.subject_id] ?? "Subject"}</p>}
-                </article>
-              );
-            })}
-            {!dashboardLoading && recentHomework.length === 0 && <p className="text-sm muted">No records available yet.</p>}
-          </div>
-        </Card>
-        <Card title="Upcoming Tests" icon={<ClipboardList size={18} />}>
-          <div className="space-y-2">
-            {upcomingSchoolAssessments.map((assessment) => (
-              <article key={assessment.id} className="rounded-xl bg-[var(--surface-2)] p-3">
-                <p className="text-sm font-semibold">{assessment.name}</p>
-                <p className="mt-1 text-xs muted">{displayDate(assessment.assessment_date)} · {resultsLabel(assessment)}</p>
-              </article>
-            ))}
-            {!dashboardLoading && upcomingSchoolAssessments.length === 0 && <p className="text-sm muted">No records available yet.</p>}
-          </div>
-        </Card>
-        <Card title="Alerts" icon={<AlertCircle size={18} />}>
-          <div className="space-y-3 text-sm">
-            <div className="rounded-xl bg-[var(--surface-2)] p-3">
-              <p className="font-semibold">Low Attendance</p>
-              <p className="mt-1 text-xs muted">No records available yet.</p>
-            </div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-3">
-              <p className="font-semibold">Pending Fees</p>
-              <p className="mt-1 text-xs muted">
-                {overview.pendingFees === null || overview.overdueFees === null
-                  ? "No records available yet."
-                  : overview.pendingFees
-                  ? `${overview.pendingFees} pending · ${overview.overdueFees} overdue`
-                  : "No records available yet."}
-              </p>
-            </div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-3">
-              <p className="font-semibold">Important Notices</p>
-              {schoolNotices.slice(0, 2).map((notice) => (
-                <p key={notice.id} className="mt-1 text-xs muted">
-                  {notice.title} · {notice.created_at ? displayDate(notice.created_at.slice(0, 10)) : "Date not recorded"}
-                </p>
-              ))}
-              {!schoolNotices.length && !dashboardLoading && <p className="mt-1 text-xs muted">No records available yet.</p>}
-            </div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-3">
-              <p className="font-semibold">Teacher Activity Issues</p>
-              <p className="mt-1 text-xs muted">No records available yet.</p>
-            </div>
-          </div>
-        </Card>
-      </section>
-
-      <Card title="Recent Results" icon={<GraduationCap size={18} />}>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {recentSchoolResults.map((result) => (
-            <article key={result.id} className="rounded-xl bg-[var(--surface-2)] p-4">
-              <p className="text-sm font-semibold">{result.studentName}</p>
-              <p className="mt-1 text-xs muted">{result.assessmentName} · {schoolNames.classes[result.classId] ?? "Class"} {schoolNames.sections[result.sectionId ?? ""] ?? ""} · {schoolNames.subjects[result.subjectId] ?? "Subject"}</p>
-              <p className="mt-3 text-lg font-black">{result.marks} / {result.maximum}</p>
-            </article>
-          ))}
-          {!dashboardLoading && recentSchoolResults.length === 0 && <p className="text-sm muted">No records available yet.</p>}
-        </div>
-      </Card>
-
+        <Card title="School Overview" icon={<School size={17} />}><dl className="dashboard-mini-facts">
+          {[["Total Parents", overview.parents], ["Total Classes", overview.classes], ["Total Sections", overview.sections], ["Teachers Active", overview.activeTeachers], ["Upcoming Exams", overview.upcomingExams]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{dashboardLoading ? <Skeleton className="h-6 w-12" /> : value ?? "—"}</dd></div>)}
+        </dl><p className="mt-4 text-xs leading-relaxed muted">Teachers active = teachers with an academic log today. Upcoming exams cover today through the next seven days.</p></Card>
+        <Card title="Upcoming Tests" icon={<ClipboardList size={17} />} right={<DashboardViewAll href="/modules/exams" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading upcoming assessments…" />}{(!dashboardLoading ? upcomingSchoolAssessments : []).slice(0, 4).map((assessment) => <article key={assessment.id} className="dashboard-list-item"><h3>{assessment.name}</h3><p>{displayDate(assessment.assessment_date)} · {resultsLabel(assessment)}</p></article>)}</div>{!dashboardLoading && !upcomingSchoolAssessments.length && <p className="dashboard-empty">No tests are scheduled for the next seven days.</p>}</Card>
+        <Card title="Finance" icon={<IndianRupee size={17} />} right={<DashboardViewAll href="/modules/finance-reports">Reports</DashboardViewAll>}><div className="dashboard-mini-facts">
+          {[["Today's Collection", overview.todayCollection === null ? "Unavailable" : formatFeeMoney(overview.todayCollection)], ["This Month Collection", overview.monthCollection === null ? "Unavailable" : formatFeeMoney(overview.monthCollection)], ["Pending Fees", overview.pendingFees ?? "Unavailable"], ["Overdue Fees", overview.overdueFees ?? "Unavailable"]].map(([label, value]) => <article key={label}><h3>{label}</h3><p className="break-words">{dashboardLoading ? <Skeleton className="h-6 w-16" /> : value}</p></article>)}
+        </div><p className="mt-4 text-xs leading-relaxed muted">Net recorded collections and retained fee demands. Reversals use their approval date.</p></Card>
+        <Card title="Recent Homework" icon={<NotebookPen size={17} />} right={<DashboardViewAll href="/modules/homework" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading recent homework…" />}{(!dashboardLoading ? recentHomework : []).slice(0, 4).map((activity) => {
+          const log = recentSchoolLogs.find((item) => item.id === activity.class_log_id);
+          return <article key={activity.id} className="dashboard-list-item"><h3>{activity.title}</h3><p>{activity.due_date ? `Due ${displayDate(activity.due_date)}` : "No due date recorded"}{log && ` · ${classLabel(log)}`}</p></article>;
+        })}</div>{!dashboardLoading && !recentHomework.length && <p className="dashboard-empty">No homework records available yet.</p>}</Card>
+        <Card title="School updates" icon={<FileText size={17} />} right={<DashboardViewAll href="/modules/notices" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading school notices…" />}{(!dashboardLoading ? schoolNotices : []).slice(0, 3).map((notice) => <article key={notice.id} className="dashboard-list-item"><div className="dashboard-notice-heading"><span className="dashboard-avatar" aria-hidden="true">S</span><div><h3>{notice.title}</h3><p>{notice.created_at ? displayDate(notice.created_at.slice(0, 10)) : "Date not recorded"}</p></div></div></article>)}</div>{!dashboardLoading && !schoolNotices.length && <p className="dashboard-empty">No school notices available yet.</p>}</Card>
+      </div>
+      <Card title="Recent Results" icon={<GraduationCap size={17} />} right={<DashboardViewAll href="/modules/results" />}><div className="dashboard-learning-list">{dashboardLoading && <LoadingState label="Loading recent assessment results…" />}{(!dashboardLoading ? recentSchoolResults : []).slice(0, 4).map((result) => <article key={result.id}><div className="flex items-center gap-3"><span className="dashboard-avatar" aria-hidden="true">{result.studentName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><div><h3>{result.studentName}</h3><p>{result.assessmentName} · {schoolNames.subjects[result.subjectId] ?? "Subject"}</p></div></div><p className="mt-3 text-lg font-bold">{result.marks} / {result.maximum}</p></article>)}</div>{!dashboardLoading && !recentSchoolResults.length && <p className="dashboard-empty">No marked assessment results available yet.</p>}</Card>
+      {schoolId && <details className="dashboard-panel dashboard-attendance-monitor"><summary>Attendance submissions &amp; school cutoff <span className="text-xs muted">Open monitor</span></summary><AttendanceSubmissionMonitor key={schoolId} schoolId={schoolId} userId={userId} refreshVersion={reloadVersion} /></details>}
     </div>
   );
 }

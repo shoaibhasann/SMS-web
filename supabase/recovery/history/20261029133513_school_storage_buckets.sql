@@ -1,0 +1,1 @@
+insert into storage.buckets (id,name,public) values ('school-assets','school-assets',false),('student-documents','student-documents',false),('study-materials','study-materials',false),('report-cards','report-cards',false) on conflict (id) do nothing;

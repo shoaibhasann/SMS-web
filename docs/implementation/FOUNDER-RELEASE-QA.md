@@ -1,8 +1,14 @@
 # SMS — founder release checklist
 
+Current founder run: [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login) · [Production checklist](PRODUCTION-RELEASE-QA.md). Historical Preview release records below are superseded for new testing.
+
 5–6 November 2026 release · Independent founder testing · Founder results pending
 
 Is file ko **is release ke deployed URL** par use karo. Har checkbox apne test ke baad tick karo; earlier local QA ya older Preview ka Pass yahan copy mat karo. Quick smoke se start karo, phir detailed flows ke liye separate role sessions use karo. Full steps and earlier engineering evidence: [comprehensive checklist](POST-DEPLOY-QA.md).
+
+## Latest dashboard UI Preview — 6 November 2026
+
+[Open Sora dashboard Preview](https://kids-corner-erp-frontend-c8ex0atk2-shoaibhasanns-projects.vercel.app/login) · [use this focused founder checklist](DASHBOARD-FOUNDER-PREVIEW-QA.md). Start with Shoaib’s private shareable access link. Existing four-role logins and demo records are unchanged. This dashboard-only release is `dpl_J3fREXZNV1oDz5VpFWAmzi1cxWAC`; it excludes the nine pending SQL phases. The earlier full-feature release and its historical cases remain below. Deployed engineering smoke passes all four role logins, real demo reads, refresh, Sora and desktop/mobile checks; founder acceptance remains unticked.
 
 ## Release and test record
 
@@ -21,6 +27,20 @@ Open Shoaib's private shareable access link first if Vercel asks for a login; th
 Deployed engineering smoke passed on **6 November 2026 IST**: a fresh external browser opened the share link and reloaded without Vercel login; SMS branding, illustration, automatic dark theme and the phone frame were visible. Existing demo Teacher, Admin, Finance, Guardian and Student accounts signed in successfully. Teacher theme refresh, attendance/homework pages, admin substitute coverage, and office/family advance-credit/receipt pages passed read/reload checks with no monitored page errors. Family credit remained read-only. Accounts were signed out; no school/financial rows were posted by this release smoke. New submit/grade, money posting and delivery cases below remain independent founder tests.
 
 Use only synthetic QA data. The current audit has unresolved database permissions for legacy payroll/marks/audit records, revoked teacher exam access and inactive-admin role grants, plus recovery/reproducibility gaps. This is a demo QA release; functional founder approval does not clear those findings for real school onboarding. Engineering must close them before real school data is introduced.
+
+6 November engineering update: local fixes and student-activation regressions are tracked in [the next security-phase checklist](ACCESS-SECURITY-QA.md). They have not changed this Preview's database. Continue the release cases here; SEC-01 through SEC-10 are for the next scheduled database rollout.
+
+The subsequent [marks/notices/history checklist](ACADEMIC-INTEGRITY-QA.md) adds INT-01 through INT-10 for the next release. Its versioned saves and complete reads also remain local; this Preview is unchanged.
+
+The [recovery checklist](DATABASE-RECOVERY-QA.md) now records the offline schema/restore foundation and the separate real recovery rehearsal. No new UI or restored hosted target is available from this local phase; continue testing the current release here.
+
+The next local [student leave checklist](STUDENT-LEAVE-QA.md) covers family submission, independent office decisions, current-child permissions, overlap/retry handling and preserved history (SL-01–SL-11). The current Preview does not contain this flow or the mixed-guardian receipts/date-boundary fixes; leave those cases pending until the matching SQL/frontend release.
+
+The next local [timetable checklist](TIMETABLE-QA.md) adds TT-01–TT-12 for school scheduling, teacher/class conflicts and scoped readers. It is not available on this existing Preview; test it only after the reviewed SQL/frontend rollout.
+
+The [dashboard implementation checklist](DASHBOARD-QA.md) covers the redesigned Admin, Teacher, Guardian and Student interfaces. The newer Sora dashboard-only Preview is linked in the latest release section above; this older release URL retains its earlier interface. On explicit user request the existing QA school now contains 42 synthetic pupils and populated attendance/learning/notices; accounts, child links and finance rows are unchanged. This hosted data addition does not imply a frontend release or migration rollout.
+
+The [assessment publication checklist](RESULT-PUBLICATION-QA.md) covers independently reviewed marks and published family results. It requires the complete nine-migration pending chain plus the matching frontend rollout; leave its hosted cases pending on this release.
 
 ## Accounts and setup
 

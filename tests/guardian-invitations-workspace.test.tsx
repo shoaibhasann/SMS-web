@@ -38,6 +38,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   invitations = [];
   rows = {
+    profiles: [{ id: actorId, school_id: "north", is_active: true }],
     user_roles: [
       { id: "role-1", user_id: actorId, school_id: "north", role: "principal" },
       { id: "role-2", user_id: actorId, school_id: "south", role: "teacher" },
@@ -86,6 +87,9 @@ beforeEach(() => {
       in(column: string, values: Row[string][]) {
         predicates.push((row) => values.includes(row[column]));
         return this;
+      },
+      async maybeSingle() {
+        return { data: rows[table].find((row) => predicates.every((predicate) => predicate(row))) ?? null, error: null };
       },
       async range(start: number, end: number) {
         const matches = rows[table].filter((row) => predicates.every((predicate) => predicate(row)));

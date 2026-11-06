@@ -1,0 +1,2 @@
+create index if not exists students_activation_idx on public.students(school_id,admission_no,dob,registered_mobile);
+create index if not exists teachers_activation_idx on public.teachers(school_id,employee_id,registered_mobile);

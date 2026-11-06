@@ -20,6 +20,7 @@ import { academicAuthoringError, canEditAcademicLog, matchesAcademicScope } from
 import { StudentHomeworkSubmission } from "@/components/academic/homework-submission";
 import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
 import { resolveUiRole, toUiRole, type UiRole } from "@/lib/auth/roles";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type EligibleClass = {
   class_id: string;
@@ -43,8 +44,11 @@ function displayDate(value: string) {
 }
 
 type WorkspaceAbsence = { student: string; date: string; class_id: string; section_id: string };
+type HistoryFilters = { yearId: string; date: string; classId: string; sectionId: string; subjectId: string; teacherId: string; status: string };
+const initialHistoryFilters: HistoryFilters = { yearId: "current", date: "", classId: "all", sectionId: "all", subjectId: "all", teacherId: "all", status: "all" };
+const moduleActivityTypes: Partial<Record<string, (typeof activityTypes)[number][0]>> = { classwork: "classwork", homework: "homework", assignments: "assignment", projects: "project", "study-material": "study_material" };
 
-async function readAcademicWorkspace() {
+async function readAcademicWorkspace(history: HistoryFilters, module: string) {
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -154,8 +158,24 @@ async function readAcademicWorkspace() {
     };
   }
   if ((viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
-    return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, userId: user.id, studentId: viewerRole === "student" ? classScope[0]?.student_id ?? "" : "", assignments: loadedAssignments, logs: [], activities: [], labels: emptyLabels, absences: [] };
+    return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, userId: user.id, studentId: viewerRole === "student" ? classScope[0]?.student_id ?? "" : "", assignments: loadedAssignments, logs: [], activities: [], labels: emptyLabels, absences: [], years: [] as { id: string; name: string; is_current: boolean }[] };
   }
+
+  let yearQuery = supabase.from("academic_years").select("id,name,is_current").order("start_date", { ascending: false });
+  const schoolId = currentTeacherSchoolId || roleRow?.school_id;
+  if (schoolId) yearQuery = yearQuery.eq("school_id", schoolId);
+  const { data: years, error: yearsError } = await yearQuery;
+  if (yearsError) throw yearsError;
+  if (history.yearId === "current") logFilters.academicYearIds = (years ?? []).filter((year) => year.is_current).map((year) => year.id);
+  else if (history.yearId !== "all") logFilters.academicYearId = history.yearId;
+  if (history.date) logFilters.logDate = history.date;
+  if (history.classId !== "all") logFilters.classIds = logFilters.classIds && !logFilters.classIds.includes(history.classId) ? [] : [history.classId];
+  if (history.sectionId !== "all") logFilters.sectionIds = [history.sectionId];
+  if (history.subjectId !== "all") logFilters.subjectId = history.subjectId;
+  if (history.teacherId !== "all" && viewerRole !== "teacher") logFilters.teacherId = history.teacherId;
+  if ((history.status === "draft" || history.status === "published") && viewerRole !== "student" && viewerRole !== "parent") logFilters.status = history.status;
+  const activityType = moduleActivityTypes[module];
+  if (activityType) logFilters.activityType = activityType;
 
   const loadedLogs = await loadAcademicLogs(logFilters);
   const scopedLogs = classScope.length && viewerRole !== "teacher"
@@ -246,7 +266,7 @@ async function readAcademicWorkspace() {
       }] : [];
     });
   }
-  return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, userId: user.id, studentId: viewerRole === "student" ? classScope[0]?.student_id ?? "" : "", assignments: loadedAssignments, logs: scopedLogs, activities: loadedActivities, labels, absences };
+  return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, userId: user.id, studentId: viewerRole === "student" ? classScope[0]?.student_id ?? "" : "", assignments: loadedAssignments, logs: scopedLogs, activities: loadedActivities, labels, absences, years: years ?? [] };
 }
 
 export function AcademicWorkspace({ module }: { module: string }) {
@@ -256,6 +276,7 @@ export function AcademicWorkspace({ module }: { module: string }) {
 function AcademicWorkspaceView({ module }: { module: string }) {
   const loadVersion = useRef(0);
   const appliedEdit = useRef<string | null>(null);
+  const historyFilters = useRef<HistoryFilters>(initialHistoryFilters);
   const [role, setRole] = useState<UiRole | null>(null);
   const [teacherId, setTeacherId] = useState("");
   const [teacherSchoolId, setTeacherSchoolId] = useState("");
@@ -267,6 +288,9 @@ function AcademicWorkspaceView({ module }: { module: string }) {
   const [labels, setLabels] = useState<AcademicLabels>(emptyLabels);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
   const [editingLogId, setEditingLogId] = useState("");
+  const [editingSource, setEditingSource] = useState<{ log: AcademicLogRecord; activities: AcademicActivity[] } | null>(null);
+  const [years, setYears] = useState<{ id: string; name: string; is_current: boolean }[]>([]);
+  const [filterYear, setFilterYear] = useState("current");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [topic, setTopic] = useState("");
   const [summary, setSummary] = useState("");
@@ -306,7 +330,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
 
   const loadWorkspace = useCallback(() => {
     const version = ++loadVersion.current;
-    return readAcademicWorkspace().then((loaded) => {
+    return readAcademicWorkspace(historyFilters.current, module).then((loaded) => {
       if (version !== loadVersion.current) return;
       setRole(loaded.role);
       setTeacherId(loaded.teacherId);
@@ -319,6 +343,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
       setActivities(loaded.activities);
       setLabels(loaded.labels);
       setAbsences(loaded.absences);
+      setYears(loaded.years);
       const requestedLogId = typeof window === "undefined"
         ? null
         : new URLSearchParams(window.location.search).get("edit");
@@ -327,6 +352,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
         if (requestedLog && canEditAcademicLog(loaded.assignments, loaded.teacherId, loaded.schoolId, requestedLog)) {
           appliedEdit.current = requestedLogId;
           setEditingLogId(requestedLog.id);
+          setEditingSource({ log: requestedLog, activities: loaded.activities.filter((activity) => activity.class_log_id === requestedLog.id) });
           setDate(requestedLog.log_date);
           setTopic(requestedLog.topic ?? "");
           setSummary(requestedLog.summary ?? "");
@@ -384,6 +410,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
 
   const resetForm = () => {
     setEditingLogId("");
+    setEditingSource(null);
     setTopic("");
     setSummary("");
     setRemark("");
@@ -394,6 +421,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
   const beginEdit = (log: AcademicLogRecord) => {
     if (role !== "teacher" || !canEditAcademicLog(assignments, teacherId, teacherSchoolId, log)) return;
     setEditingLogId(log.id);
+    setEditingSource({ log, activities: activities.filter((activity) => activity.class_log_id === log.id) });
     setDate(log.log_date);
     setTopic(log.topic ?? "");
     setSummary(log.summary ?? "");
@@ -446,9 +474,9 @@ function AcademicWorkspaceView({ module }: { module: string }) {
       if (!current.some((item) => item.teacher_id === teacherId && matchesAcademicScope(item, selectedAssignment))) {
         throw new Error("Your teaching assignment changed. Refresh before saving academic work.");
       }
-      const source = editingLogId ? logs.find((item) => item.id === editingLogId) : undefined;
+      const source = editingLogId && editingSource?.log.id === editingLogId ? editingSource.log : undefined;
       if (editingLogId && (!source || !canEditAcademicLog(current, teacherId, teacherSchoolId, source))) throw new Error("This academic log is no longer editable from your workspace.");
-      const saved = await saveAcademicLog({
+      await saveAcademicLog({
         id: editingLogId || undefined,
         expected_updated_at: source?.updated_at,
         school_id: teacherSchoolId,
@@ -461,7 +489,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
         summary,
         teacher_remark: remark,
         activities: activityValues,
-        existingActivities: activities.filter((activity) => activity.class_log_id === editingLogId),
+        existingActivities: editingSource?.activities ?? [],
         status: publish ? "published" : status,
       });
       if (publish) {
@@ -471,7 +499,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
         setStatus(status);
         setMessage(status === "published" ? "Published academic log updated." : "Draft saved — visible only to you.");
       }
-      setEditingLogId(saved.id);
+      resetForm();
       await loadWorkspace();
     } catch (error) {
       console.error("Academic log save error:", error);
@@ -498,7 +526,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
     ),
   );
   const isTeacher = role === "teacher";
-  const editingActivities = activities.filter((activity) => activity.class_log_id === editingLogId);
+  const editingActivities = editingSource?.activities ?? [];
   const duplicateActivityTypes = new Set(activityTypes.filter(([type]) => editingActivities.filter((activity) => activity.activity_type === type).length > 1).map(([type]) => type));
   useAcademicAssignmentRevalidation({ enabled: isTeacher && !loading, assignments,
     onChanged: () => {
@@ -527,7 +555,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
       <main className="min-h-screen bg-[var(--bg)] p-6">
         <div className="mx-auto max-w-3xl rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6">
           {loading ? (
-            <p className="text-sm muted">Loading your academic workspace...</p>
+            <LoadingState variant="list" className="text-sm muted">Loading your academic workspace...</LoadingState>
           ) : (
             <>
               <h1 className="text-xl font-bold">Academic workspace could not load</h1>
@@ -563,6 +591,21 @@ function AcademicWorkspaceView({ module }: { module: string }) {
         {message && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700">{message}</div>}
         {errorMessage && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600">{errorMessage}</div>}
 
+        <section className="card flex flex-wrap items-end gap-4 p-5" aria-label="Academic history scope">
+          <label className="text-sm font-semibold">History year<select value={filterYear} onChange={(event) => setFilterYear(event.target.value)} className="field mt-2"><option value="current">Current year</option><option value="all">All available years</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
+          <label className="text-sm font-semibold">History date<input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="field mt-2" /></label>
+          <button type="button" disabled={saving || loading} onClick={() => {
+            historyFilters.current = { yearId: filterYear, date: filterDate, classId: filterClass, sectionId: filterSection, subjectId: filterSubject, teacherId: filterTeacher, status: filterStatus };
+            setLoading(true); setLogs([]); setActivities([]); setErrorMessage(""); void loadWorkspace();
+          }} className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Apply history filters</button>
+          <button type="button" disabled={saving || loading} onClick={() => {
+            historyFilters.current = initialHistoryFilters;
+            setFilterYear("current"); setFilterDate(""); setFilterClass("all"); setFilterSection("all"); setFilterSubject("all"); setFilterTeacher("all"); setFilterStatus("all");
+            setLoading(true); setLogs([]); setActivities([]); setErrorMessage(""); void loadWorkspace();
+          }} className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Clear history filters</button>
+          <p className="w-full text-xs muted">Current-year history loads by default. Apply filters to load all matching records; an open draft is kept.</p>
+        </section>
+
         {isTeacher && (
           <section className="card p-5">
             <div className="mb-4 flex items-center gap-2 font-bold"><Users size={18} /> My Teaching Assignments</div>
@@ -572,6 +615,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
                   <button
                     key={assignment.id}
                     type="button"
+                    disabled={saving}
                     onClick={() => {
                       setSelectedAssignmentId(assignment.id);
                       if (editingLogId) resetForm();
@@ -590,6 +634,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
 
         {isTeacher && module === "class-logs" && (
           <section className="card p-6">
+            <fieldset disabled={saving} aria-label="Academic log editor">
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{editingLogId ? "Edit Daily Academic Log" : "Create Daily Academic Log"}</h2>
               {editingLogId && <button type="button" onClick={resetForm} className="text-sm font-semibold text-blue-600">New Log / Cancel</button>}
@@ -613,13 +658,14 @@ function AcademicWorkspaceView({ module }: { module: string }) {
               {status !== "published" && <button type="button" disabled={saving || !selectedAssignment} onClick={() => void save(true)} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50"><Send size={16} />{saving ? "Publishing..." : "Publish for Student/Parent"}</button>}
               <span className={`text-xs font-semibold ${status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>
             </div>
+            </fieldset>
           </section>
         )}
 
         {isMissedView ? (
           <section className="card p-5">
             <div className="mb-4 flex items-center gap-2 font-bold"><BookOpen size={18} /> Absences with Published Academic Work</div>
-            {loading ? <p className="text-sm muted">Loading attendance and published work...</p> : absencesWithWork.length === 0 ? <p className="text-sm muted">No absences with published academic work were found.</p> : (
+            {loading ? <LoadingState variant="list" className="text-sm muted">Loading attendance and published work...</LoadingState> : absencesWithWork.length === 0 ? <p className="text-sm muted">No absences with published academic work were found.</p> : (
               <div className="space-y-4">
                 {absencesWithWork.map((absence, index) => {
                   const missedLogs = logs.filter((log) => log.status === "published" && log.log_date === absence.date && log.class_id === absence.class_id && log.section_id === absence.section_id);
@@ -637,14 +683,13 @@ function AcademicWorkspaceView({ module }: { module: string }) {
               <select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field"><option value="all">All subjects</option>{[...new Set(logs.map((log) => log.subject_id))].map((id) => <option key={id} value={id}>{labels.subjects[id] ?? id}</option>)}</select>
               <select value={filterTeacher} onChange={(event) => setFilterTeacher(event.target.value)} className="field"><option value="all">All teachers</option>{[...new Set(logs.map((log) => log.teacher_id))].map((id) => <option key={id} value={id}>{labels.teachers[id] ?? "Teacher"}</option>)}</select>
               <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="field"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select>
-              <input type="date" value={filterDate} onChange={(event) => setFilterDate(event.target.value)} className="field" />
             </div>}
-            {loading ? <p className="p-5 text-sm muted">Loading academic logs...</p> : filteredLogs.length === 0 ? <p className="p-5 text-sm muted">No academic logs found.</p> : <div className="divide-y divide-[var(--border)]">{filteredLogs.map((log) => <article key={log.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-1 whitespace-pre-wrap text-sm muted">{log.summary}</p></div><div className="flex items-center gap-3"><span className={`text-xs font-semibold ${log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{log.status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <><button type="button" disabled={saving} onClick={() => beginEdit(log)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</button><button type="button" disabled={saving} onClick={() => void deleteLog(log)} className="rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-600">Delete</button></>}</div></div>{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}{log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}</article>)}</div>}
+            {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading complete academic history for the selected scope...</LoadingState> : filteredLogs.length === 0 ? <p className="p-5 text-sm muted">No academic logs found.</p> : <div className="divide-y divide-[var(--border)]">{filteredLogs.map((log) => <article key={log.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-1 whitespace-pre-wrap text-sm muted">{log.summary}</p></div><div className="flex items-center gap-3"><span className={`text-xs font-semibold ${log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{log.status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <><button type="button" disabled={saving} onClick={() => beginEdit(log)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</button><button type="button" disabled={saving} onClick={() => void deleteLog(log)} className="rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-600">Delete</button></>}</div></div>{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}{log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}</article>)}</div>}
           </section>
         ) : (
           <section className="card overflow-hidden">
             <div className="border-b border-[var(--border)] p-5"><h2 className="font-bold">{isTeacher ? `My ${title}` : title}</h2><p className="mt-1 text-sm muted">Derived from published Daily Academic Logs; no duplicate academic record is created here.</p></div>
-            {loading ? <p className="p-5 text-sm muted">Loading {title.toLowerCase()}...</p> : visibleActivities.length === 0 ? <p className="p-5 text-sm muted">No {title.toLowerCase()} published yet.</p> : <div className="divide-y divide-[var(--border)]">{visibleActivities.map((activity) => {
+            {loading ? <LoadingState variant="list" className="p-5 text-sm muted">Loading {title.toLowerCase()}...</LoadingState> : visibleActivities.length === 0 ? <p className="p-5 text-sm muted">No {title.toLowerCase()} published yet.</p> : <div className="divide-y divide-[var(--border)]">{visibleActivities.map((activity) => {
               const log = logForActivity(activity);
               if (!log) return null;
               return <article key={activity.id} className="min-w-0 space-y-3 p-5"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-2 whitespace-pre-wrap text-sm">{activity.title}</p>{activity.due_date && <p className="mt-1 text-xs muted">Due {activity.due_date}</p>}</div><div className="flex items-center gap-3"><span className={`text-xs font-semibold ${log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{log.status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <Link href={`/modules/class-logs?edit=${encodeURIComponent(log.id)}`} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</Link>}</div></div>{module === "homework" && role === "student" && studentId && userId && log.status === "published" && <StudentHomeworkSubmission key={`${userId}:${studentId}:${activity.id}`} userId={userId} maxMarks={activity.max_marks} scope={{ schoolId: log.school_id, academicYearId: log.academic_year_id, classId: log.class_id, sectionId: log.section_id, subjectId: log.subject_id, activityId: activity.id, studentId }} />}</article>;

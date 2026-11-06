@@ -10,6 +10,7 @@ import {
 import {
   AcademicImportRejected, importAcademicSetupRecords, listAcademicSetupImports, type AcademicImportHistory,
 } from "@/lib/admin/academic-setup-import";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Preview = { fileName: string; requestId: string; rows: ReturnType<typeof parseAcademicSetupCsv> };
 type Feedback = { kind: "error" | "retry" | "success"; text: string };
@@ -180,7 +181,7 @@ export function AcademicSetupCsvImport({
         <section aria-labelledby="academic-csv-history" className="space-y-2 border-t border-[var(--border)] pt-4">
           <h3 id="academic-csv-history" className="text-sm font-bold">Recent CSV imports</h3>
           {historyError ? <p role="alert" className="text-sm muted">Import history could not be loaded. Reopen this panel to retry.</p>
-            : !history ? <p role="status" className="text-sm muted">Loading import history…</p>
+            : !history ? <LoadingState variant="table" className="text-sm muted">Loading import history…</LoadingState>
             : history.length === 0 ? <p className="text-sm muted">No CSV imports for this record type.</p>
             : <ul className="divide-y divide-[var(--border)]">
               {history.map((item) => (

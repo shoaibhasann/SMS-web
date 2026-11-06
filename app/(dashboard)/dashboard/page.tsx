@@ -2,32 +2,29 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { RoleDashboard } from "@/components/dashboard/role-dashboard";
 import { resolveUiRole, toUiRole } from "@/lib/auth/roles";
+import { readActiveSchoolAccess } from "@/lib/auth/access";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
-
-  const { data: roles, error } = await supabase
-    .from("user_roles")
-    .select("role,school_id")
-    .eq("user_id", user.id);
-
-  if (error) {
+  let access;
+  try {
+    access = await readActiveSchoolAccess(supabase);
+  } catch {
     return (
       <main className="min-h-screen grid place-items-center bg-[var(--bg)] p-6">
         <div className="card max-w-xl p-8">
           <h1 className="text-2xl font-black">Dashboard could not load</h1>
-          <p className="mt-3 text-sm text-red-600">{error.message}</p>
+          <p className="mt-3 text-sm text-red-600">Your active school access could not be verified. Sign in again or contact the school office.</p>
           <p className="mt-3 text-xs muted">
-            Check that the logged-in account has a row in user_roles and that the
-            authenticated role has SELECT access to that table.
+            Your account must be active and have a verified school role.
           </p>
         </div>
       </main>
     );
   }
+
+  if (!access) redirect("/login");
+  const { roles, userId } = access;
 
   if (!roles?.length) redirect("/activate");
 
@@ -38,6 +35,6 @@ export default async function DashboardPage() {
       ?? roles.find((row) => toUiRole(row.role) === role)
     : roles.find((row) => toUiRole(row.role) === role);
 
-  return <RoleDashboard role={role} schoolId={roleRow?.school_id ?? null} userId={user.id}
-    hasGuardianRole={roles.some((row) => row.role === "parent")} />;
+  return <RoleDashboard role={role} schoolId={roleRow?.school_id ?? null} userId={userId}
+    hasGuardianRole={roles.some((row) => row.role === "parent" && row.school_id === access.profileSchoolId)} />;
 }

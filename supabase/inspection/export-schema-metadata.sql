@@ -144,6 +144,25 @@ select jsonb_build_object(
     from pg_catalog.pg_type t join app_namespaces n on n.oid = t.typnamespace
     where t.typtype = 'd'
   ), '[]'::jsonb),
+  'ranges', coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'schema', n.nspname, 'name', t.typname,
+      'owner', pg_catalog.pg_get_userbyid(t.typowner),
+      'acl', to_jsonb(coalesce(t.typacl,pg_catalog.acldefault('T',t.typowner))),
+      'subtype', pg_catalog.format_type(r.rngsubtype,null),
+      'subtype_opclass', pg_catalog.quote_ident(opn.nspname)||'.'||pg_catalog.quote_ident(op.opcname),
+      'collation', r.rngcollation::regcollation::text,
+      'canonical', r.rngcanonical::regprocedure::text,
+      'subtype_diff', r.rngsubdiff::regprocedure::text,
+      'multirange', pg_catalog.format_type(r.rngmultitypid,null),
+      'multirange_owner', pg_catalog.pg_get_userbyid(m.typowner),
+      'multirange_acl', to_jsonb(coalesce(m.typacl,pg_catalog.acldefault('T',m.typowner)))
+    ) order by n.nspname,t.typname)
+    from pg_catalog.pg_range r join pg_catalog.pg_type t on t.oid=r.rngtypid
+    join pg_catalog.pg_type m on m.oid=r.rngmultitypid
+    join pg_catalog.pg_opclass op on op.oid=r.rngsubopc join pg_catalog.pg_namespace opn on opn.oid=op.opcnamespace
+    join app_namespaces n on n.oid=t.typnamespace
+  ), '[]'::jsonb),
   'routines', coalesce((
     select jsonb_agg(jsonb_build_object(
       'schema', p.schema_name, 'name', p.proname, 'kind', p.prokind,

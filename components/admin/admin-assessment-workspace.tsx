@@ -3,34 +3,18 @@
 import { FormEvent, useCallback, useEffect, useRef, useMemo, useState } from "react";
 import { Download, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-
-type Assessment = {
-  id: string;
-  school_id: string;
-  academic_year_id: string;
-  class_id: string;
-  section_id: string | null;
-  subject_id: string;
-  teacher_id: string;
-  name: string;
-  assessment_date: string;
-  maximum_marks: number;
-  description: string | null;
-  status: "scheduled" | "completed";
-};
-
-type AssessmentMark = {
-  id: string;
-  assessment_id: string;
-  student_id: string;
-  marks_obtained: number;
-  remarks: string | null;
-};
+import {
+  loadAssessments, loadAssessmentMarks, loadAssessmentStudents, loadAssessmentRoster,
+  markChanges, markDraftHasChanges, saveChangedMarks,
+  type AssessmentRecord as Assessment, type AssessmentMark, type AssessmentStudent,
+} from "@/lib/assessments";
+import { studentName } from "@/lib/attendance/types";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Option = { id: string; name: string };
 type SectionOption = Option & { class_id: string };
 type StudentOption = Option & { admission_no: string; roll_no: string | null };
-type AssessmentForm = Omit<Assessment, "id" | "school_id" | "teacher_id"> & {
+type AssessmentForm = Omit<Assessment, "id" | "school_id" | "teacher_id" | "updated_at"> & {
   teacher_id: string;
 };
 
@@ -93,7 +77,9 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   const [subjectFilter, setSubjectFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [markAssessment, setMarkAssessment] = useState<Assessment | null>(null);
-  const [markRoster, setMarkRoster] = useState<StudentOption[]>([]);
+  const [markRoster, setMarkRoster] = useState<AssessmentStudent[]>([]);
+  const [markBaseline, setMarkBaseline] = useState<AssessmentMark[]>([]);
+  const markWriteInFlight = useRef(false);
   const [markValues, setMarkValues] = useState<Record<string, string>>({});
   const [markLoading, setMarkLoading] = useState(false);
   const [markSaving, setMarkSaving] = useState(false);
@@ -140,16 +126,16 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
           sectionResult,
           subjectResult,
           teacherResult,
-          assessmentResult,
+          assessmentRows,
         ] = await Promise.all([
           supabase.from("academic_years").select("id,name").eq("school_id", resolvedSchoolId).order("start_date", { ascending: false }),
           supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("sort_order"),
           supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
           supabase.from("subjects").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("name"),
           supabase.from("teachers").select("id,full_name").eq("school_id", resolvedSchoolId).order("full_name"),
-          supabase.from("teacher_assessments").select("id,school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status").eq("school_id", resolvedSchoolId).order("assessment_date", { ascending: false }),
+          loadAssessments(supabase, resolvedSchoolId),
         ]);
-        const failed = [yearResult, classResult, sectionResult, subjectResult, teacherResult, assessmentResult].find((result) => result.error);
+        const failed = [yearResult, classResult, sectionResult, subjectResult, teacherResult].find((result) => result.error);
         if (failed?.error) throw failed.error;
 
         const yearRows = yearResult.data ?? [];
@@ -157,32 +143,15 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         const sectionRows = sectionResult.data ?? [];
         const subjectRows = subjectResult.data ?? [];
         const teacherRows = teacherResult.data ?? [];
-        const assessmentRows = (assessmentResult.data ?? []) as Assessment[];
         const assessmentIds = assessmentRows.map((row) => row.id);
         let loadedMarks: AssessmentMark[] = [];
         let loadedStudents: StudentOption[] = [];
         if (assessmentIds.length) {
-          const { data: markRows, error: marksError } = await supabase
-            .from("teacher_assessment_marks")
-            .select("id,assessment_id,student_id,marks_obtained,remarks")
-            .in("assessment_id", assessmentIds);
-          if (marksError) throw marksError;
-          loadedMarks = (markRows ?? []) as AssessmentMark[];
+          loadedMarks = await loadAssessmentMarks(supabase, assessmentIds);
           const studentIds = [...new Set(loadedMarks.map((row) => row.student_id))];
-          if (studentIds.length) {
-            const { data: studentRows, error: studentsError } = await supabase
-              .from("students")
-              .select("id,first_name,middle_name,last_name,admission_no,roll_no")
-              .in("id", studentIds)
-              .eq("school_id", resolvedSchoolId);
-            if (studentsError) throw studentsError;
-            loadedStudents = (studentRows ?? []).map((student) => ({
-              id: student.id,
-              name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-              admission_no: student.admission_no,
-              roll_no: student.roll_no ?? null,
-            }));
-          }
+          const studentRows = await loadAssessmentStudents(supabase, resolvedSchoolId, studentIds);
+          loadedStudents = studentRows.map((student) => ({ id: student.id, name: studentName(student),
+            admission_no: student.admission_no ?? "—", roll_no: student.roll_no }));
         }
         if (!isCurrent()) return;
         setSchoolId(resolvedSchoolId);
@@ -237,45 +206,41 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
     setError("");
   }
 
+  const markDraft = useMemo(() => {
+    const saved = new Map(markBaseline.map((mark) => [mark.student_id, mark]));
+    return Object.fromEntries(markRoster.map((student) => [student.id, {
+      value: markValues[student.id] ?? "", remarks: saved.get(student.id)?.remarks ?? "",
+    }]));
+  }, [markBaseline, markRoster, markValues]);
+  const markDirty = markDraftHasChanges(markRoster, markDraft, markBaseline);
+
   async function openMarks(assessment: Assessment) {
+    if (markWriteInFlight.current) return;
+    if (markAssessment && markDirty && !window.confirm("Discard unsaved marks and reload the saved assessment?")) return;
     const request = ++latestMarksRequest.current;
     const isCurrent = () => mounted.current && request === latestMarksRequest.current;
+    const previous = markAssessment;
     setMarkAssessment(assessment);
     setMarkLoading(true);
     setError("");
+    setMessage("");
     try {
-      let enrollmentQuery = supabase
-        .from("enrollments")
-        .select("student_id,roll_no")
-        .eq("class_id", assessment.class_id)
-        .eq("academic_year_id", assessment.academic_year_id)
-        .eq("status", "active");
-      if (assessment.section_id) enrollmentQuery = enrollmentQuery.eq("section_id", assessment.section_id);
-      const { data: enrollments, error: enrollmentError } = await enrollmentQuery;
+      const parents = await loadAssessments(supabase, schoolId, { assessmentId: assessment.id });
       if (!isCurrent()) return;
-      if (enrollmentError) throw enrollmentError;
-      const enrollmentRows = enrollments ?? [];
-      const studentIds = [...new Set(enrollmentRows.map((row) => row.student_id))];
-      const { data: studentRows, error: studentError } = studentIds.length
-        ? await supabase.from("students").select("id,first_name,middle_name,last_name,admission_no,roll_no").eq("school_id", schoolId).in("id", studentIds)
-        : { data: [], error: null };
+      const fresh = parents.find((row) => row.id === assessment.id);
+      if (parents.length !== 1 || !fresh) throw new Error("The saved assessment is unavailable. Refresh school access.");
+      const { students: roster, marks: baseline } = await loadAssessmentRoster(supabase, fresh, isCurrent);
       if (!isCurrent()) return;
-      if (studentError) throw studentError;
-      const enrollmentRolls = new Map(enrollmentRows.map((row) => [row.student_id, row.roll_no]));
-      const roster = (studentRows ?? []).map((student) => ({
-        id: student.id,
-        name: [student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" "),
-        admission_no: student.admission_no,
-        roll_no: enrollmentRolls.get(student.id) ?? student.roll_no ?? null,
-      })).sort((a, b) => String(a.roll_no ?? "").localeCompare(String(b.roll_no ?? ""), undefined, { numeric: true }));
-      const existing = new Map(marks.filter((mark) => mark.assessment_id === assessment.id).map((mark) => [mark.student_id, String(mark.marks_obtained)]));
+      const scores = new Map(baseline.map((mark) => [mark.student_id, String(mark.marks_obtained)]));
+      setMarkAssessment(fresh);
       setMarkRoster(roster);
-      setMarkValues(Object.fromEntries(roster.map((student) => [student.id, existing.get(student.id) ?? ""])));
+      setMarkBaseline(baseline);
+      setMarkValues(Object.fromEntries(roster.map((student) => [student.id, scores.get(student.id) ?? ""])));
     } catch (marksLoadError) {
       if (!isCurrent()) return;
       logError("Admin assessment marks roster load failed", marksLoadError);
-      setError("The marks roster could not be loaded. Please try again.");
-      setMarkAssessment(null);
+      setError("The marks roster could not be loaded. Your prior draft is kept. Retry reload to reconcile saved marks.");
+      setMarkAssessment(previous);
     } finally {
       if (isCurrent()) setMarkLoading(false);
     }
@@ -283,37 +248,36 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
 
   async function saveMarks(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!markAssessment) return;
-    const rows: { assessment_id: string; student_id: string; marks_obtained: number; remarks: null }[] = [];
-    for (const student of markRoster) {
-      const value = markValues[student.id]?.trim();
-      if (!value) continue;
-      const score = Number(value);
-      if (!Number.isFinite(score) || score < 0 || score > Number(markAssessment.maximum_marks)) {
-        setError(`Marks for ${student.name} must be between 0 and ${markAssessment.maximum_marks}.`);
-        return;
-      }
-      rows.push({ assessment_id: markAssessment.id, student_id: student.id, marks_obtained: score, remarks: null });
-    }
-    if (!rows.length) {
-      setError("Enter at least one mark before saving.");
+    if (!markAssessment || markLoading || markWriteInFlight.current) return;
+    let changes;
+    try {
+      changes = markChanges(markRoster, markDraft, markBaseline, Number(markAssessment.maximum_marks));
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "Review the entered marks.");
       return;
     }
+    if (!changes.length) { setMessage("No changed marks to save."); return; }
+    const source = markAssessment;
+    const request = latestMarksRequest.current;
+    markWriteInFlight.current = true;
     setMarkSaving(true);
     setError("");
+    setMessage("");
     try {
-      const { error: saveError } = await supabase
-        .from("teacher_assessment_marks")
-        .upsert(rows, { onConflict: "assessment_id,student_id" });
-      if (saveError) throw saveError;
-      setMessage("Marks saved.");
-      await load();
-      await openMarks(markAssessment);
+      const result = await saveChangedMarks(supabase, source.id, source.updated_at, changes);
+      if (!mounted.current || request !== latestMarksRequest.current) return;
+      const savedByPupil = new Map(result.saved.map((mark) => [mark.student_id, mark]));
+      setMarkBaseline((before) => [...before.filter((mark) => !savedByPupil.has(mark.student_id)), ...result.saved]);
+      setMarks((before) => [...before.filter((mark) => mark.assessment_id !== source.id || !savedByPupil.has(mark.student_id)), ...result.saved]);
+      if (result.saved.length) setMessage(`${result.saved.length} changed mark${result.saved.length === 1 ? "" : "s"} saved.`);
+      if (result.failed.length) setError(`${result.failed.length} mark${result.failed.length === 1 ? " was" : "s were"} not confirmed. ${result.failed[0].message}`);
     } catch (saveError) {
+      if (!mounted.current || request !== latestMarksRequest.current) return;
       logError("Admin assessment marks save failed", saveError);
-      setError("Marks could not be saved. Check the marks and school access, then try again.");
+      setError("Marks could not be confirmed. Your draft and loaded versions are kept. Reload saved marks before retrying.");
     } finally {
-      setMarkSaving(false);
+      markWriteInFlight.current = false;
+      if (mounted.current) setMarkSaving(false);
     }
   }
 
@@ -512,7 +476,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="field"><option value="All">All statuses</option><option value="scheduled">Scheduled</option><option value="completed">Completed</option></select>
           </div>
         </div>
-        {loading ? <p className="p-5 text-sm muted">Loading school assessment records…</p> : assessments.length === 0 ? (
+        {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading school assessment records…</LoadingState> : assessments.length === 0 ? (
           <p className="p-5 text-sm muted">No assessments are available for this school.</p>
         ) : mode === "exams" ? (
           <div className="divide-y divide-[var(--border)]">
@@ -526,7 +490,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                   <p className="mt-1 text-xs muted">{assessment.maximum_marks} marks · {assessment.status}</p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <button type="button" onClick={() => void openMarks(assessment)} aria-label={`Manage marks for ${assessment.name}`} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-2)]">Manage Marks</button>
+                  <button type="button" disabled={markSaving} onClick={() => void openMarks(assessment)} aria-label={`Manage marks for ${assessment.name}`} className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold hover:bg-[var(--surface-2)]">Manage Marks</button>
                   <button type="button" onClick={async () => {
                     try {
                       const status = assessment.status === "completed" ? "scheduled" : "completed";
@@ -578,9 +542,15 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
               <h2 className="font-bold">Marks · {markAssessment.name}</h2>
               <p className="mt-1 text-sm muted">{markAssessment.maximum_marks} maximum marks · {markRoster.filter((student) => !markValues[student.id]).length} missing</p>
             </div>
-            <button type="button" onClick={() => { latestMarksRequest.current += 1; setMarkAssessment(null); }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Close</button>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={markSaving} onClick={() => void openMarks(markAssessment)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60">Reload saved marks</button>
+              <button type="button" disabled={markSaving} onClick={() => {
+                if (markWriteInFlight.current || (markDirty && !window.confirm("Discard unsaved marks?"))) return;
+                latestMarksRequest.current += 1; setMarkAssessment(null); setMarkRoster([]); setMarkBaseline([]); setMarkValues({});
+              }} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60">Close</button>
+            </div>
           </div>
-          {markLoading ? <p className="p-5 text-sm muted">Loading enrolled students…</p> : markRoster.length === 0 ? <p className="p-5 text-sm muted">No active students are enrolled in this assessment class.</p> : (
+          {markLoading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading enrolled students…</LoadingState> : markRoster.length === 0 ? <p className="p-5 text-sm muted">No active students are enrolled in this assessment class.</p> : (
             <form onSubmit={saveMarks}>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[600px] text-left text-sm">
@@ -588,17 +558,17 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                   <tbody className="divide-y divide-[var(--border)]">{markRoster.map((student) => {
                     const entered = markValues[student.id] ?? "";
                     return <tr key={student.id}>
-                      <td className="p-3 font-semibold">{student.name}</td>
+                      <td className="p-3 font-semibold">{studentName(student)}</td>
                       <td className="p-3">{student.admission_no}</td>
                       <td className="p-3">{student.roll_no ?? "—"}</td>
-                      <td className="p-3"><input type="number" min="0" max={markAssessment.maximum_marks} step="0.01" value={entered} onChange={(event) => setMarkValues({ ...markValues, [student.id]: event.target.value })} className="field w-32" aria-label={`Marks for ${student.name}`} /></td>
+                      <td className="p-3"><input type="number" min="0" max={markAssessment.maximum_marks} step="0.01" value={entered} disabled={markSaving} onChange={(event) => setMarkValues((previous) => ({ ...previous, [student.id]: event.target.value }))} className="field w-32" aria-label={`Marks for ${studentName(student)}`} /></td>
                       <td className="p-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${entered ? "bg-emerald-500/10 text-emerald-700" : "bg-amber-500/10 text-amber-700"}`}>{entered ? "Recorded" : "Missing"}</span></td>
                     </tr>;
                   })}</tbody>
                 </table>
               </div>
               <div className="flex justify-end border-t border-[var(--border)] p-4">
-                <button disabled={markSaving} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Save size={16} />{markSaving ? "Saving…" : "Save marks"}</button>
+                <button disabled={markSaving || !markDirty} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"><Save size={16} />{markSaving ? "Saving…" : "Save marks"}</button>
               </div>
             </form>
           )}

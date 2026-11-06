@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 
 import { createClient } from "@/lib/supabase/client";
 import { downloadHomeworkFile } from "@/lib/homework/files";
 import { gradeHomework, homeworkError, loadHomeworkRoster, type HomeworkRoster, type HomeworkSubmission } from "@/lib/homework/submissions";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const action = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
 
@@ -141,7 +142,7 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
         <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">Student submissions</h4><button type="button" className={action} disabled={loading || saving} onClick={() => { setMessage(""); void load(); }}>Refresh submissions</button></div>
         {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
-        {loading && <p role="status" className="text-sm muted">Checking homework submissions…</p>}
+        {loading && <LoadingState variant="table" className="text-sm muted">Checking homework submissions…</LoadingState>}
         {roster && <>
           <p className="text-sm muted">{roster.students.length} students · {submittedCount} submitted · {gradedCount} graded · {roster.students.length - submittedCount - gradedCount} pending</p>
           {roster.students.length === 0 ? <p className="text-sm muted">No active pupils are enrolled in this homework section.</p> : <ul className="space-y-3">{roster.students.map((row) => {

@@ -30,8 +30,8 @@ vi.mock("@/lib/academic", async (importOriginal) => ({
 vi.mock("@/components/layout/app-shell", () => ({ AppShell: ({ children }: { children: ReactNode }) => <>{children}</> }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 
-type Result = { data: unknown; error: Error | null };
-type Query = { table: string; action: "read" | "delete"; filters: Record<string, unknown> };
+type Result = { data: unknown; error: Error | null; count?: number | null };
+type Query = { table: string; action: "read" | "delete" | "insert" | "update"; filters: Record<string, unknown>; payload?: Record<string, unknown>; range?: [number, number] };
 let queries: Query[];
 let read: (query: Query) => Result | Promise<Result>;
 let assessments: ReturnType<typeof assessment>[];
@@ -62,6 +62,7 @@ function assessment(id: string, name: string) {
     maximum_marks: 20,
     description: null,
     status: "scheduled",
+    updated_at: "parent-loaded",
   };
 }
 
@@ -85,9 +86,9 @@ function defaultRead(query: Query): Result {
     }
     return { data: [...assessments], error: null };
   }
-  if (query.table === "enrollments") return { data: [{ student_id: "student-a", section_id: "section-a" }], error: null };
+  if (query.table === "enrollments") return { data: [{ id: "enrollment-a", student_id: "student-a", section_id: "section-a" }], error: null };
   if (query.table === "students") return { data: [{ id: "student-a", admission_no: "1001", first_name: "Asha", middle_name: null, last_name: "Student", roll_no: 1 }], error: null };
-  if (query.table === "teacher_assessment_marks") return { data: [{ id: "mark-a", assessment_id: query.filters.assessment_id, student_id: "student-a", marks_obtained: 12, remarks: null }], error: null };
+  if (query.table === "teacher_assessment_marks") return { data: [{ id: "mark-a", assessment_id: Array.isArray(query.filters.assessment_id) ? query.filters.assessment_id[0] : query.filters.assessment_id, student_id: "student-a", marks_obtained: 12, remarks: null, updated_at: "2026-11-01T10:00:00Z" }], error: null };
   return { data: [], error: null };
 }
 
@@ -106,10 +107,19 @@ beforeEach(() => {
   mocks.from.mockImplementation((table: string) => {
     const query: Query = { table, action: "read", filters: {} };
     queries.push(query);
-    const execute = async () => read(query);
+    const execute = async () => {
+      const result = await read(query);
+      return Array.isArray(result.data) && query.action === "read"
+        ? { ...result, count: result.count ?? result.data.length, data: query.range ? result.data.slice(query.range[0], query.range[1] + 1) : result.data }
+        : result;
+    };
     return {
       select() { return this; },
       delete() { query.action = "delete"; return this; },
+      insert(payload: Record<string, unknown>) { query.action = "insert"; query.payload = payload; return this; },
+      update(payload: Record<string, unknown>) { query.action = "update"; query.payload = payload; return this; },
+      is(column: string, value: unknown) { query.filters[column] = value; return this; },
+      range(from: number, to: number) { query.range = [from, to]; return this; },
       eq(column: string, value: unknown) { query.filters[column] = value; return this; },
       in(column: string, value: unknown) { query.filters[column] = value; return this; },
       order() { return this; },
@@ -196,6 +206,170 @@ describe("academic scope loading", () => {
     const retainedRow = screen.getByRole("row", { name: /Asha Student/ });
     expect(within(retainedRow).getByRole("spinbutton")).toHaveValue(18);
     expect(queries.filter((query) => query.table === "teacher_assessment_marks")).toHaveLength(1);
+  });
+});
+
+describe("mark-save conflict feedback", () => {
+  function editableMarks() {
+    const marks = ["a", "b"].map((suffix) => ({ id: `mark-${suffix}`, assessment_id: "exam-a", student_id: `student-${suffix}`, marks_obtained: 12, remarks: null as string | null, updated_at: "loaded" }));
+    read = (query) => {
+      if (query.table === "enrollments") return { data: ["a", "b"].map((suffix) => ({ id: `enrollment-${suffix}`, student_id: `student-${suffix}`, section_id: "section-a" })), error: null };
+      if (query.table === "students") return { data: ["a", "b"].map((suffix) => ({ id: `student-${suffix}`, first_name: suffix === "a" ? "Asha" : "Bina", admission_no: `100${suffix === "a" ? 1 : 2}`, middle_name: null, last_name: "Student", roll_no: suffix })), error: null };
+      if (query.table !== "teacher_assessment_marks") return defaultRead(query);
+      if (query.action === "read") return { data: marks.map((mark) => ({ ...mark })), error: null };
+      const mark = marks.find((row) => Object.entries(query.filters).every(([key, value]) => String(row[key as keyof typeof row]) === String(value)));
+      if (!mark) return { data: null, error: null };
+      Object.assign(mark, query.payload, { updated_at: "saved" });
+      return { data: { ...mark }, error: null };
+    };
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      if (name !== "save_assessment_mark") return { data: [], error: null };
+      const parent = assessments.find((row) => row.id === args.p_assessment_id);
+      if (!parent || parent.updated_at !== args.p_expected_assessment_updated_at) return { data: null, error: { code: "40001", message: "Assessment changed" } };
+      const query: Query = { table: "teacher_assessment_marks", action: args.p_mark_id ? "update" : "insert", filters: {}, payload: {
+        assessment_id: args.p_assessment_id, student_id: args.p_student_id, marks_obtained: args.p_marks, remarks: args.p_remarks,
+      } };
+      if (args.p_mark_id) query.filters = { id: args.p_mark_id, assessment_id: args.p_assessment_id, student_id: args.p_student_id,
+        updated_at: args.p_expected_mark_updated_at, marks_obtained: args.p_expected_marks, remarks: args.p_expected_remarks };
+      queries.push(query);
+      return read(query);
+    });
+    return marks;
+  }
+
+  async function openMarks() {
+    const user = userEvent.setup();
+    render(<TeacherModuleView module="exams" />);
+    await user.click(await screen.findByRole("button", { name: /First test.*Open/ }));
+    await user.click(screen.getByRole("button", { name: "Enter Marks" }));
+    await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" });
+    return user;
+  }
+
+  it("saves only the changed pupil and reloads another session's accepted mark", async () => {
+    const server = editableMarks();
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
+    Object.assign(server[0], { marks_obtained: 19, updated_at: "other-session" });
+    await user.click(screen.getByRole("button", { name: "Save Marks" }));
+    await screen.findByText("1 changed mark saved.");
+    expect(server.map((mark) => mark.marks_obtained)).toEqual([19, 16]);
+    expect(queries.filter((query) => query.table === "teacher_assessment_marks" && query.action === "update")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Reload marks" }));
+    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
+    expect(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" })).toHaveValue(16);
+  });
+
+  it("retains a conflicted draft, reports partial success, and requires explicit discard/reload", async () => {
+    const server = editableMarks();
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
+    Object.assign(server[0], { marks_obtained: 19, updated_at: "other-session" });
+    await user.click(screen.getByRole("button", { name: "Save Marks" }));
+    await screen.findByText("1 changed mark saved.");
+    expect(screen.getByRole("alert")).toHaveTextContent("1 mark was not confirmed");
+    expect(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(screen.getByRole("button", { name: "Save Marks" })).toBeDisabled();
+    expect(server.map((mark) => mark.marks_obtained)).toEqual([19, 16]);
+    await user.click(screen.getByRole("button", { name: "Discard changes and reload marks" }));
+    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("rejects clearing a saved score without deleting it or discarding the draft", async () => {
+    const server = editableMarks();
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "" } });
+    await user.click(screen.getByRole("button", { name: "Save Marks" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("cannot be cleared here");
+    expect(server[0].marks_obtained).toBe(12);
+    expect(queries.some((query) => query.table === "teacher_assessment_marks" && query.action !== "read")).toBe(false);
+  });
+
+  it("recovers from an unseen parent change by refreshing its version before reloading marks", async () => {
+    const server = editableMarks();
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    assessments[0] = { ...assessments[0], maximum_marks: 25, updated_at: "parent-newer" };
+    await user.click(screen.getByRole("button", { name: "Save Marks" }));
+    await screen.findByRole("alert");
+    expect(server[0].marks_obtained).toBe(12);
+    expect(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(mocks.rpc).toHaveBeenLastCalledWith("save_assessment_mark", expect.objectContaining({ p_expected_assessment_updated_at: "parent-loaded" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes and reload marks" }));
+    const refreshed = await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" });
+    expect(refreshed).toHaveValue(12);
+    expect(refreshed).toHaveAttribute("max", "25");
+    fireEvent.change(refreshed, { target: { value: "19" } });
+    await user.click(screen.getByRole("button", { name: "Save Marks" }));
+    await screen.findByText("1 changed mark saved.");
+    expect(server[0].marks_obtained).toBe(19);
+    expect(mocks.rpc).toHaveBeenLastCalledWith("save_assessment_mark", expect.objectContaining({ p_expected_assessment_updated_at: "parent-newer" }));
+  });
+
+  it("keeps a copyable draft when an unrelated refresh finds the selected assessment removed", async () => {
+    editableMarks();
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    assessments = assessments.filter((row) => row.id !== "exam-a");
+    await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+    const retained = await screen.findByRole("alert");
+    expect(retained).toHaveTextContent("assessment is no longer available");
+    expect(retained).toHaveTextContent("Asha · 1001: 18");
+    await user.click(screen.getByRole("button", { name: "Discard unavailable assessment draft" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("retains an ungraded draft but blocks saving after an observed subject relocation", async () => {
+    editableMarks().splice(0);
+    const user = await openMarks();
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    assessments[0] = { ...assessments[0], subject_id: "subject-b" };
+    await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
+    await screen.findByText("Assessment deleted.");
+    await user.click(screen.getByRole("button", { name: /First test.*Open/ }));
+    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(screen.getByRole("alert")).toHaveTextContent("assessment context changed");
+    expect(screen.getByRole("button", { name: "Save Marks" })).toBeDisabled();
+    expect(queries.some((query) => query.table === "teacher_assessment_marks" && query.action !== "read")).toBe(false);
+  });
+});
+
+describe("result report scope", () => {
+  it("queries selected class before marks and ignores an older filter response", async () => {
+    const user = userEvent.setup();
+    const oldClass = deferred<Result>();
+    assessments[1] = { ...assessments[1], class_id: "class-b", section_id: "section-b" };
+    const storedMarks = ["a", "b"].map((suffix) => ({ id: `mark-${suffix}`, assessment_id: `exam-${suffix}`, student_id: `student-${suffix}`, marks_obtained: 12, remarks: null, updated_at: "loaded" }));
+    read = (query) => {
+      if (query.table === "teacher_assessments") return { data: assessments.filter((row) => Object.entries(query.filters).every(([key, value]) => row[key as keyof typeof row] === value)), error: null };
+      if (query.table === "teacher_assessment_marks") {
+        const ids = query.filters.assessment_id as string[];
+        if (ids.length === 1 && ids[0] === "exam-a") return oldClass.promise;
+        return { data: storedMarks.filter((row) => ids.includes(row.assessment_id)), error: null };
+      }
+      if (query.table === "students") {
+        const ids = query.filters.id as string[];
+        return { data: ["a", "b"].filter((suffix) => ids.includes(`student-${suffix}`)).map((suffix) => ({ id: `student-${suffix}`, first_name: suffix === "a" ? "Asha" : "Bina", admission_no: `100${suffix === "a" ? 1 : 2}`, middle_name: null, last_name: "Student", roll_no: suffix })), error: null };
+      }
+      return defaultRead(query);
+    };
+    render(<TeacherModuleView module="results" />);
+    await screen.findAllByText("Asha Student");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class" }), "class-a");
+    await waitFor(() => expect(queries.some((query) => query.table === "teacher_assessments" && query.filters.class_id === "class-a")).toBe(true));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class" }), "class-b");
+    await screen.findAllByText("Bina Student");
+    expect(screen.queryAllByText("Asha Student")).toHaveLength(0);
+    await act(async () => { oldClass.resolve({ data: [storedMarks[0]], error: null }); });
+    expect(screen.queryAllByText("Asha Student")).toHaveLength(0);
+    expect(screen.getAllByText("Bina Student").length).toBeGreaterThan(0);
+    expect(queries.some((query) => query.table === "teacher_assessment_marks" && JSON.stringify(query.filters.assessment_id) === '["exam-b"]')).toBe(true);
   });
 });
 

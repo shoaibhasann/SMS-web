@@ -13,6 +13,7 @@ import { feeMoney, formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow } f
 import { FeeChangeWorkspace } from "@/components/finance/fee-change-workspace";
 import { getOfficeFinanceSummary, loadOfficeFeePositions, loadOfficeFeeReceipts, type OfficeFeeReceipt, type OfficeFinanceSummary } from "@/lib/finance/fee-changes";
 import { manualPaymentMethods as paymentMethods, manualPaymentLabel as paymentLabel } from "@/lib/finance/payment-methods";
+import { LoadingState, Skeleton } from "@/components/ui/skeleton";
 
 type FeeRecord = FeeLedgerRow & { id: string };
 type PaymentRecord = OfficeFeeReceipt;
@@ -510,9 +511,9 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
         {schoolId && <CashierDayClose key={`${userId}:${schoolId}`} schoolId={schoolId} client={supabase} />}
         {schoolId && userId && <FeeLedgerWorkspace key={`${userId}:${schoolId}:${currentYearId}`} client={supabase} schoolId={schoolId} academicYearId={currentYearId} />}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="card p-5"><div className="flex items-center gap-2 text-sm muted"><BadgeIndianRupee size={16} /> Net recorded collections</div><div className="mt-2 text-2xl font-black">{money(totalCollected)}</div><p className="mt-2 text-xs muted">Gross money received {money(financeSummary?.collections.gross_amount)} · Reversals {money(financeSummary?.collections.reversal_amount)}{financeSummary?.collections.refund_amount !== undefined && ` · Offline refunds ${money(financeSummary.collections.refund_amount)}`}</p></div>
-          <div className="card p-5"><div className="text-sm muted">Net collections this month</div><div className="mt-2 text-2xl font-black">{money(collectedThisMonth)}</div></div>
-          <div className="card p-5"><div className="text-sm muted">Outstanding balance</div><div className="mt-2 text-2xl font-black">{money(outstanding)}</div></div>
+          <div className="card p-5"><div className="flex items-center gap-2 text-sm muted"><BadgeIndianRupee size={16} /> Net recorded collections</div><div className="mt-2 text-2xl font-black">{loading ? <Skeleton className="h-8 w-28" /> : money(totalCollected)}</div>{!loading && <p className="mt-2 text-xs muted">Gross money received {money(financeSummary?.collections.gross_amount)} · Reversals {money(financeSummary?.collections.reversal_amount)}{financeSummary?.collections.refund_amount !== undefined && ` · Offline refunds ${money(financeSummary.collections.refund_amount)}`}</p>}</div>
+          <div className="card p-5"><div className="text-sm muted">Net collections this month</div><div className="mt-2 text-2xl font-black">{loading ? <Skeleton className="h-8 w-28" /> : money(collectedThisMonth)}</div></div>
+          <div className="card p-5"><div className="text-sm muted">Outstanding balance</div><div className="mt-2 text-2xl font-black">{loading ? <Skeleton className="h-8 w-28" /> : money(outstanding)}</div></div>
         </div>
         <p className="text-xs muted">Collections include fee payments and money received as advance credit, less entry corrections and completed offline refunds. Applying stored credit and reserving a refund do not receive or send money. Original receipts and past closed-day snapshots remain available.</p>
         {financeSummary?.advance && <section aria-label="School advance credit totals" className="card space-y-3 p-5"><h2 className="font-bold">Advance credit and offline refunds</h2><dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[["Available student credit", financeSummary.advance.available_amount], ["Reserved for unpaid refunds", financeSummary.advance.reserved_amount], ["Offline refunds paid", financeSummary.collections.refund_amount], ["Offline refunds paid today", financeSummary.collections.today_refund]].map(([label, value]) => <div key={label}><dt className="text-xs muted">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{money(value)}</dd></div>)}</dl><p className="text-xs muted">Student credit is separate from outstanding fees until applied. <Link href="/modules/advance-credit" className="font-semibold text-blue-700 underline dark:text-blue-300">Open advance credit</Link></p></section>}
@@ -521,7 +522,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Student-wise dues</h2></div>
             <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm">
               <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Total</th><th className="p-3">Paid</th><th className="p-3">Pending</th></tr></thead>
-              <tbody className="divide-y divide-[var(--border)]">{fees.slice(0, 20).map((fee) => <tr key={fee.id}><td className="p-3 font-semibold">{students[fee.student_id]?.name ?? fee.student_name}</td><td className="p-3">{fee.fee_name}</td><td className="p-3">{money(fee.net_amount)}</td><td className="p-3">{money(fee.paid_amount)}</td><td className="p-3">{money(fee.balance)}</td></tr>)}{!fees.length && <tr><td colSpan={5} className="p-5 text-sm muted">No fee balances recorded.</td></tr>}</tbody>
+              <tbody className="divide-y divide-[var(--border)]">{loading ? <tr><td colSpan={5} className="p-5"><LoadingState variant="table" label="Loading student fee balances…" /></td></tr> : <>{fees.slice(0, 20).map((fee) => <tr key={fee.id}><td className="p-3 font-semibold">{students[fee.student_id]?.name ?? fee.student_name}</td><td className="p-3">{fee.fee_name}</td><td className="p-3">{money(fee.net_amount)}</td><td className="p-3">{money(fee.paid_amount)}</td><td className="p-3">{money(fee.balance)}</td></tr>)}{!fees.length && <tr><td colSpan={5} className="p-5 text-sm muted">No fee balances recorded.</td></tr>}</>}</tbody>
             </table></div>
           </section>
         </div>
@@ -529,8 +530,8 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
           <div className="border-b border-[var(--border)] px-5 py-4"><h2 className="font-bold">Payment history</h2></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
             <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Date</th><th className="p-3">Receipt</th><th className="p-3">Student</th><th className="p-3">Method</th><th className="p-3">Original amount</th><th className="p-3">Credited amount</th><th className="p-3">Status</th></tr></thead>
-            <tbody className="divide-y divide-[var(--border)]">{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{paymentDay(payment.paid_at) || "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td><td className="p-3">{money(payment.amount)}</td><td className="p-3">{money(payment.net_amount)}</td><td className="p-3"><ReceiptStatus payment={payment} /></td></tr>)}
-              {!payments.length && <tr><td colSpan={7} className="p-5 text-sm muted">No payment history available.</td></tr>}
+            <tbody className="divide-y divide-[var(--border)]">{loading ? <tr><td colSpan={7} className="p-5"><LoadingState variant="table" label="Loading payment history…" /></td></tr> : <>{payments.slice(0, 20).map((payment) => <tr key={payment.id}><td className="p-3">{paymentDay(payment.paid_at) || "—"}</td><td className="p-3">{payment.receipt_no}</td><td className="p-3">{students[payment.student_id]?.name ?? "Student"}</td><td className="p-3 capitalize">{paymentLabel(payment.payment_method)}</td><td className="p-3">{money(payment.amount)}</td><td className="p-3">{money(payment.net_amount)}</td><td className="p-3"><ReceiptStatus payment={payment} /></td></tr>)}
+              {!payments.length && <tr><td colSpan={7} className="p-5 text-sm muted">No payment history available.</td></tr>}</>}
             </tbody>
           </table></div>
         </section>
@@ -540,7 +541,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       {mode === "fees" && (
         <>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {[["Today's net collections", money(collectedToday)], ["Monthly net collections", money(collectedThisMonth)], ["Pending Fees", pendingFeeCount], ["Overdue Fees", overdueFeeCount]].map(([label, value]) => <article key={String(label)} className="card p-4"><p className="text-xs font-semibold muted">{label}</p><p className="mt-2 text-2xl font-black">{value}</p></article>)}
+          {[["Today's net collections", money(collectedToday)], ["Monthly net collections", money(collectedThisMonth)], ["Pending Fees", pendingFeeCount], ["Overdue Fees", overdueFeeCount]].map(([label, value]) => <article key={String(label)} className="card p-4"><p className="text-xs font-semibold muted">{label}</p><p className="mt-2 text-2xl font-black">{loading ? <Skeleton className="h-8 w-24" /> : value}</p></article>)}
         </div>
         <section className="card p-5">
           <h2 className="font-bold">Fee structures</h2>
@@ -550,7 +551,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <label className="space-y-1.5 text-sm font-medium">Amount<input required type="number" min="0.01" step="0.01" value={structureAmount} onChange={(event) => setStructureAmount(event.target.value)} className="field" /></label>
             <button disabled={!currentYearId || feeChangeBusy} className="self-end rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">Add Fee Structure</button>
           </form>
-          {!currentYearId && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">A current academic year is required to add fee structures.</p>}
+          {!loading && !currentYearId && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">A current academic year is required to add fee structures.</p>}
           <div className="mt-4 flex flex-wrap gap-2">{structureRows.filter((structure) => Number(structure.amount) > 0).map((structure) => <span key={structure.id} className="rounded-full bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium">{structure.name} · {structure.frequency} · {money(Number(structure.amount))}</span>)}</div>
         </section>
         {schoolId && userId && currentYearId && <FeeBatchWorkspace client={supabase} schoolId={schoolId} userId={userId} academicYearId={currentYearId}
@@ -602,7 +603,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <select value={financeStudent} onChange={(event) => setFinanceStudent(event.target.value)} className="field"><option value="All">All students</option>{Object.values(students).map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select>
             <select value={financeStatus} onChange={(event) => setFinanceStatus(event.target.value)} className="field"><option value="All">All statuses</option>{[...new Set(fees.map((fee) => fee.status))].map((status) => <option key={status} value={status}>{status}</option>)}</select>
           </div>
-          {loading ? <p className="p-5 text-sm muted">Loading fee records…</p> : fees.length === 0 ? <p className="p-5 text-sm muted">No fee records found.</p> : (
+          {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading fee records…</LoadingState> : fees.length === 0 ? <p className="p-5 text-sm muted">No fee records found.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[840px] text-left text-sm">
                 <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Period</th><th className="p-3">Amount</th><th className="p-3">Paid</th><th className="p-3">Balance</th><th className="p-3">Due</th><th className="p-3">Status</th></tr></thead>
@@ -637,7 +638,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
             <select value={financeStudent} onChange={(event) => setFinanceStudent(event.target.value)} className="field"><option value="All">All students</option>{Object.values(students).map((student) => <option key={student.id} value={student.id}>{student.name}</option>)}</select>
             <select value={financeStatus} onChange={(event) => setFinanceStatus(event.target.value)} className="field"><option value="All">All statuses</option>{[...new Set((invoiceTab === "invoices" ? fees.map((fee) => fee.status) : payments.map((payment) => payment.status)))].map((status) => <option key={status} value={status}>{status}</option>)}</select>
           </div>
-          {loading ? <p className="p-5 text-sm muted">Loading {invoiceTab}…</p> : invoiceTab === "invoices" ? filteredInvoices.length === 0 ? <p className="p-5 text-sm muted">No invoices match the selected filters.</p> : (
+          {loading ? <LoadingState variant="list" className="p-5 text-sm muted">Loading {invoiceTab}…</LoadingState> : invoiceTab === "invoices" ? filteredInvoices.length === 0 ? <p className="p-5 text-sm muted">No invoices match the selected filters.</p> : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[740px] text-left text-sm">
                 <thead className="bg-[var(--surface-2)] text-xs uppercase muted"><tr><th className="p-3">Student</th><th className="p-3">Fee</th><th className="p-3">Period</th><th className="p-3">Total</th><th className="p-3">Paid</th><th className="p-3">Pending</th><th className="p-3">Due</th><th className="p-3">Status</th><th className="p-3">Actions</th></tr></thead>
@@ -676,7 +677,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       )}
 
       {mode === "reports" && !loading && <p className="text-sm muted">Figures reflect saved fee demands and payments for this school.</p>}
-      {loading && mode === "reports" && <p className="text-sm muted">Loading finance totals…</p>}
+      {loading && mode === "reports" && <LoadingState variant="list" className="text-sm muted">Loading finance totals…</LoadingState>}
       {mode === "invoices" && selectedInvoice && <section className="card space-y-3 p-5">
         <div className="flex items-start justify-between"><div><h2 className="font-bold">Invoice detail</h2><p className="mt-1 text-sm muted">School fee record preview</p></div><button type="button" onClick={() => setSelectedInvoice(null)} className="text-sm font-semibold text-blue-600">Close</button></div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

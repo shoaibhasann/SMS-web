@@ -83,8 +83,8 @@ export default function LoginPage() {
             <h2>Every school day,<br />in sync.</h2>
             <p>One place for attendance, homework and school updates.</p>
           </div>
-          <svg className="login-wave" viewBox="0 0 100 1000" preserveAspectRatio="none" aria-hidden="true">
-            <path d="M74 0C12 190 118 340 54 535C-7 722 78 855 40 1000H100V0Z" fill="currentColor" />
+          <svg className="login-wave" viewBox="0 0 160 1000" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M148 0C28 78 0 210 28 352C48 468 156 498 156 650C156 821 88 938 12 1000H160V0Z" fill="currentColor" />
           </svg>
         </section>
 

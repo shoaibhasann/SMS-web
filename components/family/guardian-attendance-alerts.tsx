@@ -5,6 +5,7 @@ import { BellRing, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { guardianNotificationsPath } from "@/lib/attendance/family";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type AttendanceAlert = { id: string; student_name: string; attendance_date: string; read_at?: string | null };
 type AttendanceInbox = { alerts: AttendanceAlert[]; unread_count: number };
@@ -171,7 +172,7 @@ export function GuardianAttendanceAlerts({ userId, summary = false }: { userId: 
       )}
       {!sessionChanged && markError && <p role="alert" className="px-4 pt-3 text-sm text-red-700 dark:text-red-300">{markError}</p>}
       {sessionChanged ? <p role="alert" className="p-4 text-sm muted">Your sign-in changed. Reopen this page to check attendance alerts.</p>
-        : !result ? <p role="status" className="p-4 text-sm muted">Loading attendance alerts…</p>
+        : !result ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance alerts…</LoadingState>
           : "error" in result ? <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{result.error}</p>
             : displayedAlerts.length === 0 ? <p className="p-4 text-sm muted">
               {!summary && filter === "Unread" ? "No unread attendance alerts." : "No attendance alerts for your linked children."}

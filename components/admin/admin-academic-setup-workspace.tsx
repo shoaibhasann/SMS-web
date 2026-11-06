@@ -6,6 +6,7 @@ import { type FormEvent, useEffect, useRef, useState } from "react";
 import { addAcademicSetupRecord, loadAcademicSetup, type AcademicSetup, type AcademicSetupDraft } from "@/lib/admin/academic-setup";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const tabs = [
   { key: "years", label: "Academic years", name: "academic year" },
@@ -62,7 +63,7 @@ export function AdminAcademicSetupWorkspace({ userId }: { userId: string }) {
             setAttempt((count) => count + 1);
           }}>Retry school access</button>
         </section>
-      ) : !access ? <p role="status" className="text-sm muted">Checking school access…</p>
+      ) : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
         : (
           <>
             <label className="card block space-y-2 p-4 text-sm font-semibold">
@@ -178,7 +179,7 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
             setAttempt((count) => count + 1);
           }} />
       )}
-      {!setup ? (!notice?.error && <p role="status" className="text-sm muted">Loading school records…</p>) : (
+      {!setup ? (!notice?.error && <LoadingState variant="table" className="text-sm muted">Loading school records…</LoadingState>) : (
         <>
           <h2 className="font-bold">{selectedTab.label}</h2>
           {rows.length ? (

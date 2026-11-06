@@ -7,6 +7,7 @@ import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submi
 import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
 import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadAdminAttendanceAccess>>;
@@ -48,7 +49,7 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
         <h1 className="mt-1 text-3xl font-black">Attendance</h1>
         <p className="mt-2 text-sm muted">Record current attendance or view saved registers from earlier academic years.</p>
       </header>
-      {!access ? <p role="status" className="text-sm muted">Checking attendance access…</p>
+      {!access ? <LoadingState variant="form" className="text-sm muted">Checking attendance access…</LoadingState>
         : !access.data ? (
           <section className="card space-y-3 p-4">
             <p role="alert" className="text-sm text-red-600">{access.error}</p>
@@ -114,7 +115,7 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
     return () => { active = false; };
   }, [client, schoolId, setupAttempt]);
 
-  if (!setup) return <p role="status" className="text-sm muted">Loading the school register setup…</p>;
+  if (!setup) return <LoadingState variant="form" className="text-sm muted">Loading the school register setup…</LoadingState>;
   if (!setup.data) return (
     <section className="card space-y-3 p-4">
       <p role="alert" className="text-sm text-red-600">{setup.error}</p>

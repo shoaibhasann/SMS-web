@@ -12,7 +12,7 @@ const clientMock = vi.hoisted(() => ({ create: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: clientMock.create }));
 
 type AuthResult = { data: { user: { id: string } }; error: null };
-type Result = { data: unknown; error: null };
+type Result = { data: unknown; error: null; count?: number };
 type Read = { table: string; filters: Record<string, unknown>; single: boolean };
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -20,7 +20,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 const auth = (id = "admin"): AuthResult => ({ data: { user: { id } }, error: null });
-const result = (data: unknown): Result => ({ data, error: null });
+const result = (data: unknown): Result => ({ data, error: null, ...(Array.isArray(data) ? { count: data.length } : {}) });
 
 function database(read: (request: Read) => Promise<Result>) {
   const calls: Read[] = [];
@@ -176,11 +176,11 @@ describe("school-scoped asynchronous workspace reads", () => {
 
   it("keeps the selected assessment roster when an earlier roster completes late", async () => {
     const oldRoster = deferred<Result>();
-    const assessment = (id: string) => ({ id, school_id: "school-a", academic_year_id: "year", class_id: id, section_id: null, subject_id: "subject", teacher_id: "teacher", name: `Exam ${id}`, assessment_date: "2026-11-02", maximum_marks: 100, status: "scheduled" });
+    const assessment = (id: string) => ({ id, school_id: "school-a", academic_year_id: "year", class_id: id, section_id: null, subject_id: "subject", teacher_id: "teacher", name: `Exam ${id}`, assessment_date: "2026-11-02", maximum_marks: 100, description: null, status: "scheduled", updated_at: "2026-11-02T09:00:00Z" });
     const db = database(async (request) => {
       if (request.table === "user_roles") return result([{ role: "school_admin", school_id: "school-a" }]);
-      if (request.table === "teacher_assessments") return result([assessment("A"), assessment("B")]);
-      if (request.table === "enrollments") return request.filters.class_id === "A" ? oldRoster.promise : result([{ student_id: "pupil-b", roll_no: "1" }]);
+      if (request.table === "teacher_assessments") return result([assessment("A"), assessment("B")].filter((row) => !request.filters.id || request.filters.id === row.id));
+      if (request.table === "enrollments") return request.filters.class_id === "A" ? oldRoster.promise : result([{ id: "enrollment-b", student_id: "pupil-b", roll_no: "1" }]);
       if (request.table === "students") return result([{ id: "pupil-b", first_name: "Selected roster pupil", admission_no: "ADM-B", roll_no: "1" }]);
       return result([]);
     });
@@ -189,7 +189,7 @@ describe("school-scoped asynchronous workspace reads", () => {
     await waitFor(() => expect(db.calls.some((request) => request.table === "enrollments" && request.filters.class_id === "A")).toBe(true));
     fireEvent.click(screen.getByRole("button", { name: "Manage marks for Exam B" }));
     await screen.findByRole("spinbutton", { name: "Marks for Selected roster pupil" });
-    await act(async () => { oldRoster.resolve(result([{ student_id: "stale-pupil", roll_no: "2" }])); await oldRoster.promise; });
+    await act(async () => { oldRoster.resolve(result([{ id: "old-enrollment", student_id: "stale-pupil", roll_no: "2" }])); await oldRoster.promise; });
     expect(screen.getByRole("heading", { name: "Marks · Exam B" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "Marks for Selected roster pupil" })).toBeInTheDocument();
     expect(db.calls.filter((request) => request.table === "students").map((request) => request.filters.id)).toEqual([["pupil-b"]]);

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { attendanceLabels, type AttendanceStatus } from "@/lib/attendance/types";
 import type { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Mark = { status: AttendanceStatus; remarks: string | null };
 type Correction = {
@@ -122,7 +123,7 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
         <button type="button" disabled={saving} className={buttonClass} onClick={() => { setMessage(undefined); setRequiresRefresh(""); setRefresh((value) => value + 1); }}>Refresh requests</button>
       </div>
       {message && <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{message.text}</p>}
-      {!activeResult ? <p role="status" className="text-sm muted">Loading correction requests…</p> : activeResult.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{activeResult.error}</p> : !rows.length ? <p className="text-sm muted">No correction requests on this page.</p> : (
+      {!activeResult ? <LoadingState variant="table" className="text-sm muted">Loading correction requests…</LoadingState> : activeResult.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{activeResult.error}</p> : !rows.length ? <p className="text-sm muted">No correction requests on this page.</p> : (
         <ul className="space-y-3">
           {rows.map((request) => (
             <li key={request.id} className="space-y-3 rounded-xl border border-[var(--border)] p-4">

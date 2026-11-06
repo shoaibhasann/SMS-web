@@ -6,6 +6,7 @@ import { schoolDate, studentName, type AttendanceContext, type AttendanceStudent
 import {
   changeRosterPlacement, listRosterPlacementChanges, type PlacementYear, type RosterPlacementChange,
 } from "@/lib/students/placements";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type NamedOption = { id: string; name: string };
 type SectionOption = NamedOption & { class_id: string };
@@ -198,7 +199,7 @@ export function StudentPlacementHistory({ client, context, years, revision }: {
             {years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
           </select>
         </label>
-        {!history ? <p role="status" className="text-sm muted">Loading placement history…</p>
+        {!history ? <LoadingState variant="table" className="text-sm muted">Loading placement history…</LoadingState>
           : history.error ? <>
               <p role="alert" className="text-sm text-red-700 dark:text-red-400">{history.error}</p>
               <button type="button" className={button} onClick={() => setAttempt((value) => value + 1)}>Retry placement history</button>

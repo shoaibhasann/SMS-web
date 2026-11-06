@@ -159,6 +159,28 @@ function attendanceHistory(title: string) {
   return within(screen.getByRole("heading", { name: title }).closest("section")!);
 }
 
+describe("dashboard loading presentation", () => {
+  it.each(["student", "parent"] as const)("keeps unverified %s values behind skeletons instead of showing zero or empty work", (role) => {
+    resolveQuery = () => new Promise<QueryResult>(() => {});
+    const { container } = render(<RoleDashboard role={role} schoolId="school" userId="pending-user" />);
+    expect(container.querySelector('[data-skeleton="form"]')).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
+    expect(screen.queryByText("No missed academic work found.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No homework or activities have been shared for this class yet.")).not.toBeInTheDocument();
+    expect(screen.queryByText("No fee demands available.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Student current")).not.toBeInTheDocument();
+  });
+
+  it("does not claim that a teacher has no assignments or saved activity while access is loading", () => {
+    resolveQuery = () => new Promise<QueryResult>(() => {});
+    const { container } = render(<RoleDashboard role="teacher" schoolId="school" userId="pending-teacher" />);
+    expect(container.querySelector('[data-skeleton="dashboard"]')).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your teaching dashboard");
+    expect(screen.queryByText("No assigned class teacher section")).not.toBeInTheDocument();
+    expect(screen.queryByText("No teaching activity recorded for today.")).not.toBeInTheDocument();
+  });
+});
+
 describe("student and parent attendance", () => {
   it("gives substitutes a bounded dashboard register while permanent academic assignments stay unchanged", async () => {
     resolveQuery = (query) => {
@@ -310,6 +332,24 @@ describe("student and parent attendance", () => {
     expect(within(screen.getByText("Attendance", { exact: true }).parentElement!).getByText(rate)).toBeInTheDocument();
   });
 
+  it("keeps the selected child's loaded data when the same child is selected again", async () => {
+    resolveQuery = parentResolver;
+    familyFeeLedger.mockResolvedValue(feeLedger("a"));
+    render(<RoleDashboard role="parent" schoolId="school" userId="parent-user" />);
+    await childDetails().findByText("Student a");
+    await screen.findByText("Lesson class-a");
+    expect(screen.getByRole("heading", { name: "Recent learning & work" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Homework" })).toHaveAttribute("href", "/modules/homework");
+    expect(childDetails().queryByRole("link")).not.toBeInTheDocument();
+    const reads = queries.filter((query) => query.table === "attendance").length;
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Select child" }), { target: { value: "a" } });
+
+    expect(childDetails().getByText("Student a")).toBeInTheDocument();
+    expect(screen.getByText("Lesson class-a")).toBeInTheDocument();
+    expect(queries.filter((query) => query.table === "attendance")).toHaveLength(reads);
+  });
+
   it.each([
     { scenario: "still linked", linkedIds: ["a", "b"], expected: "b" },
     { scenario: "no longer linked", linkedIds: ["a"], expected: "a" },
@@ -336,6 +376,56 @@ describe("student and parent attendance", () => {
 });
 
 describe("role dashboard request lifetimes", () => {
+  it.each([
+    ["2026-11-04T21:30:00Z", "2026-11-05", "2026-11-12", "2026-11-13"],
+    ["2026-10-27T21:30:00Z", "2026-10-28", "2026-11-04", "2026-11-05"],
+    ["2026-12-27T21:30:00Z", "2026-12-28", "2027-01-04", "2027-01-05"],
+    ["2028-02-25T21:30:00Z", "2028-02-26", "2028-03-04", "2028-03-05"],
+    ["2026-03-03T21:30:00Z", "2026-03-04", "2026-03-11", "2026-03-12"],
+  ])("includes the seventh school day in admin upcoming exams at %s", async (instant, schoolDay, seventhDay, eighthDay) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(instant));
+    resolveQuery = (query) => {
+      if (query.table !== "teacher_assessments" || !query.filters["gte:assessment_date"]) return result([]);
+      const assessments = [
+        { id: "today", name: "Today exam", assessment_date: schoolDay },
+        { id: "seventh", name: "Seventh-day exam", assessment_date: seventhDay },
+        { id: "eighth", name: "Eighth-day exam", assessment_date: eighthDay },
+      ].filter((assessment) => assessment.assessment_date >= String(query.filters["gte:assessment_date"])
+        && assessment.assessment_date <= String(query.filters["lte:assessment_date"]));
+      return result(assessments, assessments.length);
+    };
+    render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+    const upcoming = within(screen.getByRole("heading", { name: "Upcoming Tests" }).closest("section")!);
+    expect(await upcoming.findByText("Seventh-day exam")).toBeInTheDocument();
+    expect(upcoming.getByText("Today exam")).toBeInTheDocument();
+    expect(upcoming.queryByText("Eighth-day exam")).not.toBeInTheDocument();
+    expect(queries.find((query) => query.table === "teacher_assessments" && query.filters["gte:assessment_date"])?.filters)
+      .toMatchObject({ school_id: "school", "gte:assessment_date": schoolDay, "lte:assessment_date": seventhDay });
+    expect(within(screen.getByText("Upcoming Exams").parentElement!).getByText("2")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["2026-10-27T21:30:00Z", "2026-10-28", "2026-11-04"],
+    ["2026-03-03T21:30:00Z", "2026-03-04", "2026-03-11"],
+  ])("keeps the teacher seventh-day counter consistent across DST at %s", async (instant, schoolDay, seventhDay) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(instant));
+    resolveQuery = (query) => {
+      if (query.table === "teachers") return result({ id: "teacher", school_id: "school", full_name: "Teacher" });
+      if (query.table === "academic_years") return result({ id: "year" });
+      if (query.table === "teacher_assessments" && query.filters["gte:assessment_date"]) {
+        return result([{ id: "seventh", name: "Seventh-day exam", assessment_date: seventhDay, maximum_marks: 100 }]);
+      }
+      return result([]);
+    };
+    render(<RoleDashboard role="teacher" schoolId="school" userId="teacher-user" />);
+    expect(await screen.findByText("Seventh-day exam")).toBeInTheDocument();
+    expect(within(screen.getByText("Upcoming Tests", { exact: true }).parentElement!).getByText("1")).toBeInTheDocument();
+    expect(queries.find((query) => query.table === "teacher_assessments" && query.filters["gte:assessment_date"])?.filters)
+      .toMatchObject({ teacher_id: "teacher", "gte:assessment_date": schoolDay, "lte:assessment_date": seventhDay });
+  });
+
   it("uses the IST school day for the admin attendance overview after UTC midnight differs", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-11-04T21:30:00Z"));

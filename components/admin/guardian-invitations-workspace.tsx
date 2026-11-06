@@ -18,6 +18,7 @@ import {
 import { GuardianAccessWorkspace } from "./guardian-access-workspace";
 import { GuardianInvitationImport } from "./guardian-invitation-import";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -90,7 +91,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
         <p className="mt-2 text-sm muted">Invite guardians to view their linked students’ school records.</p>
       </header>
       {sessionChanged ? <p role="alert" className="text-sm text-red-600 dark:text-red-400">Your account changed. Refresh this page to check access again.</p>
-        : !access ? <p role="status" className="text-sm muted">Checking invitation access…</p>
+        : !access ? <LoadingState variant="form" className="text-sm muted">Checking invitation access…</LoadingState>
         : access.error ? <ReadFailure error={access.error} onRetry={() => {
           setAccess(undefined);
           setAttempt((value) => value + 1);
@@ -137,7 +138,7 @@ function SchoolInvitations({ client, schoolId, busy, onBusyChange, accessRevisio
     return () => { active = false; };
   }, [client, schoolId, attempt]);
 
-  if (!setup) return <p role="status" className="text-sm muted">Loading classes and sections…</p>;
+  if (!setup) return <LoadingState variant="form" className="text-sm muted">Loading classes and sections…</LoadingState>;
   if (!setup.data) return <ReadFailure error={setup.error} onRetry={() => {
     setSetup(undefined);
     setAttempt((value) => value + 1);
@@ -201,7 +202,7 @@ function RosterInvitations({ client, schoolId, yearId, classId, sectionId, histo
     return () => { active = false; };
   }, [client, schoolId, yearId, classId, sectionId, attempt]);
 
-  if (!roster) return <p role="status" className="text-sm muted">Loading enrolled students…</p>;
+  if (!roster) return <LoadingState variant="table" className="text-sm muted">Loading enrolled students…</LoadingState>;
   if (!roster.data) return <ReadFailure error={roster.error} onRetry={() => {
     setRoster(undefined);
     setAttempt((value) => value + 1);
@@ -379,7 +380,7 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
             </div>
           </div>
         )}
-        {!history ? <p role="status" className="text-sm muted">Loading invitation history…</p>
+        {!history ? <LoadingState variant="table" className="text-sm muted">Loading invitation history…</LoadingState>
           : !history.data ? <ReadFailure error={history.error} onRetry={refresh} />
           : !history.data.invitations.length ? <p className="text-sm muted">No invitations for this student yet.</p>
           : (

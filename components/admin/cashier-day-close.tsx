@@ -5,6 +5,7 @@ import { CalendarDays, CircleCheck, LockKeyhole, RefreshCw } from "lucide-react"
 import { schoolDate } from "@/lib/attendance/types";
 import type { createClient } from "@/lib/supabase/client";
 import { feeMoney, formatFeeMoney } from "@/lib/finance/fee-batches";
+import { LoadingState } from "@/components/ui/skeleton";
 
 type OfficeDay = {
   business_date: string;
@@ -171,7 +172,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
 
         {(activeReview?.error || error) && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{activeReview?.error || error}</p>}
         {!day && <p className="text-sm muted">Choose a business date to review.</p>}
-        {day && !activeReview && <p role="status" className="text-sm muted">Loading the day’s receipts…</p>}
+        {day && !activeReview && <LoadingState variant="table" className="text-sm muted">Loading the day’s receipts…</LoadingState>}
 
         {snapshot && <>
           <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

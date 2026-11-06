@@ -1,0 +1,1 @@
+alter table public.teachers add column if not exists full_name text; update public.teachers as t set full_name = coalesce(nullif(p.full_name, ''), t.employee_id) from public.profiles as p where t.profile_id = p.id and t.full_name is null; create index if not exists teachers_school_full_name_idx on public.teachers (school_id, full_name);

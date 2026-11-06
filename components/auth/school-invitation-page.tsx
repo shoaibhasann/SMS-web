@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { guardianAttendancePath, rememberFamilyChild } from "@/lib/attendance/family";
 import { createClient } from "@/lib/supabase/client";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const primaryButton = "w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50";
 const textButton = "text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
@@ -57,7 +58,7 @@ export function SchoolInvitationPage({ kind }: { kind: InvitationKind }) {
           </div>
         </header>
         <div className="space-y-5 p-5 sm:p-7">
-          {hash === null ? <p role="status" className="text-sm muted">Opening invitation…</p>
+          {hash === null ? <LoadingState variant="form" className="text-sm muted">Opening invitation…</LoadingState>
             : token ? <SchoolInviteForm key={token} token={token} kind={kind} />
             : (
               <>
@@ -190,7 +191,7 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
     }, "Could not sign out. Please try again.");
   }
 
-  if (account === undefined) return <p role="status" className="text-sm muted">Checking your sign-in…</p>;
+  if (account === undefined) return <LoadingState variant="list" className="text-sm muted">Checking your sign-in…</LoadingState>;
   if (destinationPath) {
     return (
       <div className="space-y-3">

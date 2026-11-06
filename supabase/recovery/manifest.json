@@ -1,0 +1,763 @@
+{
+  "format": "sms-recovery-plan/v1",
+  "source": {
+    "project_ref": "bjecfuixgqgyohttrdfr",
+    "server_version": "17.11",
+    "captured_at_utc": "2026-11-05T19:41:23.011336+00:00",
+    "recorded_migrations": 66,
+    "contains_application_rows": false,
+    "contains_auth_users_or_secrets": false
+  },
+  "scope": "Application schema/history reconstruction under an explicit synthetic managed-platform contract; not a hosted database or Storage backup.",
+  "plan": [
+    {
+      "path": "supabase/recovery/history/20261029133256_foundation_complete_school_erp_schema.sql",
+      "sha256": "2709ca9048c19e821dabcaa1c3fc64b9ba4d90b16489e1a4c252a5fdc9c99e86",
+      "kind": "historical",
+      "version": "20261029133256",
+      "name": "foundation_complete_school_erp_schema",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "2709ca9048c19e821dabcaa1c3fc64b9ba4d90b16489e1a4c252a5fdc9c99e86"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133504_activation_indexes.sql",
+      "sha256": "c96a0bb19a41719c946a4bbd7fd071066aa0485b6c1ab446ee1ced35b64db8f6",
+      "kind": "historical",
+      "version": "20261029133504",
+      "name": "activation_indexes",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "c96a0bb19a41719c946a4bbd7fd071066aa0485b6c1ab446ee1ced35b64db8f6"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133513_school_storage_buckets.sql",
+      "sha256": "4b9ee096a871b1bb01b18cbf51bbcd6a2089908ae5ecf34e8aa778165d7f1c2c",
+      "kind": "historical",
+      "version": "20261029133513",
+      "name": "school_storage_buckets",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "4b9ee096a871b1bb01b18cbf51bbcd6a2089908ae5ecf34e8aa778165d7f1c2c"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133545_missed_activity_engine_v1.sql",
+      "sha256": "4ebf2081104b32e7e3bec3d5707b9846fdbf0ada239cb18fe8bdb031ed8582ac",
+      "kind": "historical",
+      "version": "20261029133545",
+      "name": "missed_activity_engine_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "4ebf2081104b32e7e3bec3d5707b9846fdbf0ada239cb18fe8bdb031ed8582ac"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133606_payments_and_reporting_foundation_v1.sql",
+      "sha256": "58ae2af9e1e7ae8d72229c35b7ccd9ddfb7241084a0450a6c12275b4ff870bd2",
+      "kind": "historical",
+      "version": "20261029133606",
+      "name": "payments_and_reporting_foundation_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "58ae2af9e1e7ae8d72229c35b7ccd9ddfb7241084a0450a6c12275b4ff870bd2"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133629_role_permission_matrix_v1.sql",
+      "sha256": "b09fa015874e175cc95ce6caa78ebd483238c0a2547a0fad620f00f99bbd51d2",
+      "kind": "historical",
+      "version": "20261029133629",
+      "name": "role_permission_matrix_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "b09fa015874e175cc95ce6caa78ebd483238c0a2547a0fad620f00f99bbd51d2"
+    },
+    {
+      "path": "supabase/recovery/history/20261029133640_notification_queue_foundation_v1.sql",
+      "sha256": "446bb075bb3654e6d3c424d974aefc5e24d81c31496e4cd384ced71da718fd74",
+      "kind": "historical",
+      "version": "20261029133640",
+      "name": "notification_queue_foundation_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "446bb075bb3654e6d3c424d974aefc5e24d81c31496e4cd384ced71da718fd74"
+    },
+    {
+      "path": "supabase/recovery/history/20261029134026_secure_verified_activation_and_access_helpers.sql",
+      "sha256": "e90f02ff46e4e5919d1c8c6a6db3d1dd74b16d2bf301ef4e4628eb1a419b7cba",
+      "kind": "historical",
+      "version": "20261029134026",
+      "name": "secure_verified_activation_and_access_helpers",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "e90f02ff46e4e5919d1c8c6a6db3d1dd74b16d2bf301ef4e4628eb1a419b7cba"
+    },
+    {
+      "path": "supabase/recovery/history/20261029134409_backend_security_hardening_v1.sql",
+      "sha256": "8e8577f56cbab52f3b629c06a6b3d23788bb54fbc7a9e46c56407e67a7f82e27",
+      "kind": "historical",
+      "version": "20261029134409",
+      "name": "backend_security_hardening_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "8e8577f56cbab52f3b629c06a6b3d23788bb54fbc7a9e46c56407e67a7f82e27"
+    },
+    {
+      "path": "supabase/recovery/history/20261029134433_backend_security_hardening_v2.sql",
+      "sha256": "bf14103c1780c6017ecb7c20cc883435e90a33ef6bf73ef25f6ebe480727bf7f",
+      "kind": "historical",
+      "version": "20261029134433",
+      "name": "backend_security_hardening_v2",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "bf14103c1780c6017ecb7c20cc883435e90a33ef6bf73ef25f6ebe480727bf7f"
+    },
+    {
+      "path": "supabase/recovery/history/20261029142105_auth_activation_alignment_v2.sql",
+      "sha256": "7b0edfcc101b1af820bba87245fb9806f3bb164a8f914b0ad1b57c338accd779",
+      "kind": "historical",
+      "version": "20261029142105",
+      "name": "auth_activation_alignment_v2",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "7b0edfcc101b1af820bba87245fb9806f3bb164a8f914b0ad1b57c338accd779"
+    },
+    {
+      "path": "supabase/recovery/history/20261030060132_fix_authenticated_role_lookup_permission.sql",
+      "sha256": "1e673c8d7819dcfe7f4fc116d4b8061a67e6b2a59b08251b95c4775ef4b64c27",
+      "kind": "historical",
+      "version": "20261030060132",
+      "name": "fix_authenticated_role_lookup_permission",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "1e673c8d7819dcfe7f4fc116d4b8061a67e6b2a59b08251b95c4775ef4b64c27"
+    },
+    {
+      "path": "supabase/recovery/history/20261030061147_role_scoped_academic_access_v1.sql",
+      "sha256": "83f48480cf48a3103d384a4c814f08fb40f5bed6a4e32afbbf5be419798f4d03",
+      "kind": "historical",
+      "version": "20261030061147",
+      "name": "role_scoped_academic_access_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "83f48480cf48a3103d384a4c814f08fb40f5bed6a4e32afbbf5be419798f4d03"
+    },
+    {
+      "path": "supabase/recovery/history/20261030090425_master_role_workflow_finance_activation.sql",
+      "sha256": "d7471a1b5a14331788ac8eee9ccb8dbca5b381e22b4fd3eeb1ee433ed4ad6d97",
+      "kind": "historical",
+      "version": "20261030090425",
+      "name": "master_role_workflow_finance_activation",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "d7471a1b5a14331788ac8eee9ccb8dbca5b381e22b4fd3eeb1ee433ed4ad6d97"
+    },
+    {
+      "path": "supabase/recovery/history/20261030090434_restore_parent_access_policies.sql",
+      "sha256": "5d74334a6c941d588a4671ad10ec28d78c328cb4352f7f147a9dbf920b91034f",
+      "kind": "historical",
+      "version": "20261030090434",
+      "name": "restore_parent_access_policies",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "5d74334a6c941d588a4671ad10ec28d78c328cb4352f7f147a9dbf920b91034f"
+    },
+    {
+      "path": "supabase/recovery/history/20261030094657_teacher_management_full_name.sql",
+      "sha256": "5e439e4a2737248ae12e52fd135f1042c402996fbef1868cdd4ca0c060237a50",
+      "kind": "historical",
+      "version": "20261030094657",
+      "name": "teacher_management_full_name",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "5e439e4a2737248ae12e52fd135f1042c402996fbef1868cdd4ca0c060237a50"
+    },
+    {
+      "path": "supabase/recovery/history/20261030101336_teacher_enrollment_visibility.sql",
+      "sha256": "06dddb6c86a90b3c31e658c174ca38673926bcd7b9a41280dec12b58dc4f1093",
+      "kind": "historical",
+      "version": "20261030101336",
+      "name": "teacher_enrollment_visibility",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "06dddb6c86a90b3c31e658c174ca38673926bcd7b9a41280dec12b58dc4f1093"
+    },
+    {
+      "path": "supabase/recovery/history/20261030113351_class_teacher_attendance_register_v1.sql",
+      "sha256": "604de724df8d074f4df799cb13ed7a98ec9c5c485b73ee629b417d2f3a31837f",
+      "kind": "historical",
+      "version": "20261030113351",
+      "name": "class_teacher_attendance_register_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "604de724df8d074f4df799cb13ed7a98ec9c5c485b73ee629b417d2f3a31837f"
+    },
+    {
+      "path": "supabase/recovery/history/20261030120629_school_holidays_attendance_register_v1.sql",
+      "sha256": "1256b90d407eae3ea9390bb1eaab27488a1aeeaf87eefbc5eb046d138075071e",
+      "kind": "historical",
+      "version": "20261030120629",
+      "name": "school_holidays_attendance_register_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "1256b90d407eae3ea9390bb1eaab27488a1aeeaf87eefbc5eb046d138075071e"
+    },
+    {
+      "path": "supabase/recovery/history/20261030124004_attendance_holiday_status_v1.sql",
+      "sha256": "abb973abef00a12095fb4697b3ed219a39cd56126c88a57a569bd471891efb4f",
+      "kind": "historical",
+      "version": "20261030124004",
+      "name": "attendance_holiday_status_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "abb973abef00a12095fb4697b3ed219a39cd56126c88a57a569bd471891efb4f"
+    },
+    {
+      "path": "supabase/recovery/history/20261030134042_allow_teachers_manage_own_teaching_assignments.sql",
+      "sha256": "e8ccd0fa005486d4d8a67bc84cff8f951515cec23c10bc790a8f79b796e7524a",
+      "kind": "historical",
+      "version": "20261030134042",
+      "name": "allow_teachers_manage_own_teaching_assignments",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "e8ccd0fa005486d4d8a67bc84cff8f951515cec23c10bc790a8f79b796e7524a"
+    },
+    {
+      "path": "supabase/recovery/manual/academic-self-management-checkpoint.sql",
+      "sha256": "7ed290af1f65e59cfe81d27b934c6032b2c027a608877d17cfc2f2ea9643dfbc",
+      "kind": "local-repair",
+      "version": null,
+      "name": "academic-self-management-checkpoint",
+      "provenance": "Reconstructed from user-exported 2026-11-02 metadata; original local draft references nonexistent teachers.user_id."
+    },
+    {
+      "path": "supabase/migrations/20261101_teacher_assessments_and_profile.sql",
+      "sha256": "933b25b1f3161ade1962b31c19ccc97df5fca7defd91a7d6d954cd44fc42f317",
+      "kind": "local-repair",
+      "version": "20261101",
+      "name": "teacher_assessments_and_profile",
+      "provenance": "Existing manually applied SQL, reflected in November2 snapshot; absent from recorded ledger."
+    },
+    {
+      "path": "supabase/recovery/manual/legacy-admin-checkpoint.sql",
+      "sha256": "49a1373081dc049dd752855949dd5c798fd1714b81c593a5ffecc31e7a506e4c",
+      "kind": "local-repair",
+      "version": null,
+      "name": "legacy-admin-checkpoint",
+      "provenance": "Reconstructed missing tables/helpers/policies/triggers from user-exported November2 metadata; not original historical SQL bytes."
+    },
+    {
+      "path": "supabase/migrations/20261102163032_harden_school_role_assignment.sql",
+      "sha256": "4beb7c65ba0669f5de6fd3f25a4d088e386179387b7dcd899faef06f14b9c60d",
+      "kind": "local-repair",
+      "version": "20261102163032",
+      "name": "harden_school_role_assignment",
+      "provenance": "Existing manually applied repair; snapshot and live catalog verified."
+    },
+    {
+      "path": "supabase/migrations/20261102164657_staff_school_scope.sql",
+      "sha256": "b3bb3e5ef905ef3a7f3a148f852167e6215f0652cda4915f08cf5f5dabaa68e3",
+      "kind": "local-repair",
+      "version": "20261102164657",
+      "name": "staff_school_scope",
+      "provenance": "Existing manually applied repair; snapshot and live catalog verified."
+    },
+    {
+      "path": "supabase/migrations/20261102170543_govern_teacher_assignments.sql",
+      "sha256": "9e399c1ea75cdbb5e4ba4e098e8ce9cc35aefe384a455a58f45eaffe42b08608",
+      "kind": "local-repair",
+      "version": "20261102170543",
+      "name": "govern_teacher_assignments",
+      "provenance": "Existing manually applied repair; snapshot and live catalog verified."
+    },
+    {
+      "path": "supabase/migrations/20261104054348_repair_school_policy_helper.sql",
+      "sha256": "1d3736b4a28b8616db5677c9e8c61b2df47066fc71e044c0ac7c1f913363fcb0",
+      "kind": "historical",
+      "version": "20261104054348",
+      "name": "repair_school_policy_helper",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "dfca120d7f73a31c397892e276b7f0795829917032d2db6a705534af6fee5cf7"
+    },
+    {
+      "path": "supabase/migrations/20261104105130_guardian_invitations.sql",
+      "sha256": "df198fd031f800ed9959bd8f627c41990ae1ce807cd78ddbf6fcacf2f9195c5f",
+      "kind": "historical",
+      "version": "20261104105130",
+      "name": "guardian_invitations",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "df198fd031f800ed9959bd8f627c41990ae1ce807cd78ddbf6fcacf2f9195c5f"
+    },
+    {
+      "path": "supabase/migrations/20261104112755_guard_academic_year_setup.sql",
+      "sha256": "d09619b731bedade903cae321ca02b96dcde00a4ee87261df6567a0ded9e935b",
+      "kind": "historical",
+      "version": "20261104112755",
+      "name": "guard_academic_year_setup",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "d09619b731bedade903cae321ca02b96dcde00a4ee87261df6567a0ded9e935b"
+    },
+    {
+      "path": "supabase/migrations/20261104112800_admit_roster_student.sql",
+      "sha256": "a06cd89927e0646985a0480fd6a978aa83d0f999d43943eacfe6318f7ffdaa4a",
+      "kind": "historical",
+      "version": "20261104112800",
+      "name": "admit_roster_student",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "a06cd89927e0646985a0480fd6a978aa83d0f999d43943eacfe6318f7ffdaa4a"
+    },
+    {
+      "path": "supabase/migrations/20261104113103_secure_notice_audiences.sql",
+      "sha256": "e71509a2a6db6c1a9558da3c4740b983723e3ba1df35a7ea7c8253089c70c312",
+      "kind": "historical",
+      "version": "20261104113103",
+      "name": "secure_notice_audiences",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "e71509a2a6db6c1a9558da3c4740b983723e3ba1df35a7ea7c8253089c70c312"
+    },
+    {
+      "path": "supabase/migrations/20261104113121_record_office_fee_payment.sql",
+      "sha256": "9de95860d5e70198c96aa073c38e1d7007008282f95bc094cd4292db0148f2a3",
+      "kind": "historical",
+      "version": "20261104113121",
+      "name": "record_office_fee_payment",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "9de95860d5e70198c96aa073c38e1d7007008282f95bc094cd4292db0148f2a3"
+    },
+    {
+      "path": "supabase/migrations/20261104131632_import_roster_students.sql",
+      "sha256": "fbb5d0ed01ea1f509b3d9c2c044c54f6c00f303a0faaec472af162fb89a7f1eb",
+      "kind": "historical",
+      "version": "20261104131632",
+      "name": "import_roster_students",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "fbb5d0ed01ea1f509b3d9c2c044c54f6c00f303a0faaec472af162fb89a7f1eb"
+    },
+    {
+      "path": "supabase/migrations/20261104131723_close_office_fee_day.sql",
+      "sha256": "18c1ce72a6c87aa3431995143908ee5298c19340e9583dbb2559bb34db90e64b",
+      "kind": "historical",
+      "version": "20261104131723",
+      "name": "close_office_fee_day",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "18c1ce72a6c87aa3431995143908ee5298c19340e9583dbb2559bb34db90e64b"
+    },
+    {
+      "path": "supabase/migrations/20261104132141_teacher_invitations.sql",
+      "sha256": "33ea0a1f844bef54cd697efdb4be51800ddc3248a4960f5c20b74ee9fb74db30",
+      "kind": "historical",
+      "version": "20261104132141",
+      "name": "teacher_invitations",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "33ea0a1f844bef54cd697efdb4be51800ddc3248a4960f5c20b74ee9fb74db30"
+    },
+    {
+      "path": "supabase/migrations/20261104132143_scope_student_study_materials.sql",
+      "sha256": "6900f8d6b02f5bf7c1ddc6458d0dc4f1abf509ae4f17b1107f1ef6f5fc6e1905",
+      "kind": "historical",
+      "version": "20261104132143",
+      "name": "scope_student_study_materials",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "6900f8d6b02f5bf7c1ddc6458d0dc4f1abf509ae4f17b1107f1ef6f5fc6e1905"
+    },
+    {
+      "path": "supabase/migrations/20261104132514_scope_teacher_directory.sql",
+      "sha256": "0459e8bab67e50c3ea4272084353a6c02c6f4eaf28e64ec18b69c3bfc8a2e4a8",
+      "kind": "historical",
+      "version": "20261104132514",
+      "name": "scope_teacher_directory",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "0459e8bab67e50c3ea4272084353a6c02c6f4eaf28e64ec18b69c3bfc8a2e4a8"
+    },
+    {
+      "path": "supabase/migrations/20261104163536_revoke_guardian_access.sql",
+      "sha256": "418779588b670f807c4320902260073d08aec238c090c758c72cc568835fcf59",
+      "kind": "historical",
+      "version": "20261104163536",
+      "name": "revoke_guardian_access",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "418779588b670f807c4320902260073d08aec238c090c758c72cc568835fcf59"
+    },
+    {
+      "path": "supabase/migrations/20261104163647_govern_attendance_corrections.sql",
+      "sha256": "b492c4e1f8a461abfddaab74f096e36a5ac97d1543c693685f0a2c82bffab20b",
+      "kind": "historical",
+      "version": "20261104163647",
+      "name": "govern_attendance_corrections",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "b492c4e1f8a461abfddaab74f096e36a5ac97d1543c693685f0a2c82bffab20b"
+    },
+    {
+      "path": "supabase/migrations/20261104163648_withdraw_roster_enrollment.sql",
+      "sha256": "28de36b081f71139b1edd991ca4666433044ca90faaf4c747094d8490080da24",
+      "kind": "historical",
+      "version": "20261104163648",
+      "name": "withdraw_roster_enrollment",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "28de36b081f71139b1edd991ca4666433044ca90faaf4c747094d8490080da24"
+    },
+    {
+      "path": "supabase/migrations/20261104181843_change_roster_placement.sql",
+      "sha256": "c32a09e8110918747908fffb5ca31213397f6bccba00559c5b160c60378a8dbf",
+      "kind": "historical",
+      "version": "20261104181843",
+      "name": "change_roster_placement",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "26fbb4087b080d3dccf1967055617b5ba063aded643d78a048e55f436d1fd78b"
+    },
+    {
+      "path": "supabase/migrations/20261104181845_activate_academic_year.sql",
+      "sha256": "97133d4b86c66d654c3c5e2184dbab5752e565b7794e8f8724dcb9354802b704",
+      "kind": "historical",
+      "version": "20261104181845",
+      "name": "activate_academic_year",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "97133d4b86c66d654c3c5e2184dbab5752e565b7794e8f8724dcb9354802b704"
+    },
+    {
+      "path": "supabase/migrations/20261104185147_secure_staff_directory.sql",
+      "sha256": "6dda3b7874b257de8145bd22c93b9a94ef15bc56f65d700a0a44ce12e26718eb",
+      "kind": "historical",
+      "version": "20261104185147",
+      "name": "secure_staff_directory",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "6dda3b7874b257de8145bd22c93b9a94ef15bc56f65d700a0a44ce12e26718eb"
+    },
+    {
+      "path": "supabase/migrations/20261104185149_import_school_staff.sql",
+      "sha256": "6c610fbe18614c135a44aa9b2d5f6a313604a578124136694291355aa2d2ae05",
+      "kind": "historical",
+      "version": "20261104185149",
+      "name": "import_school_staff",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "3a0efbf3fc92999ea158889f16bc1dd5440997a8576c3e1316d9a3314fa6cf63"
+    },
+    {
+      "path": "supabase/migrations/20261104185151_import_guardian_csv.sql",
+      "sha256": "b067eac863fd8b852352575b86846b5c90245364b0e9f3c108e839a51a0bb3f8",
+      "kind": "historical",
+      "version": "20261104185151",
+      "name": "import_guardian_csv",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "b067eac863fd8b852352575b86846b5c90245364b0e9f3c108e839a51a0bb3f8"
+    },
+    {
+      "path": "supabase/migrations/20261104192702_import_teacher_assignment_csv.sql",
+      "sha256": "3953b7155369e730a583d18b4878d6187e8d378ac6e9a950130c545d2ef3e43d",
+      "kind": "historical",
+      "version": "20261104192702",
+      "name": "import_teacher_assignment_csv",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "3953b7155369e730a583d18b4878d6187e8d378ac6e9a950130c545d2ef3e43d"
+    },
+    {
+      "path": "supabase/migrations/20261104192737_import_academic_setup_records.sql",
+      "sha256": "fee3bba53e0ee90b7a5e778742f9ec0d26f39f299e8a174b08559dc6aaf71cb1",
+      "kind": "historical",
+      "version": "20261104192737",
+      "name": "import_academic_setup_records",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "6be488152c0bc54e7a98033cc7627cbb07681c150c39159da6246df25a00b9af"
+    },
+    {
+      "path": "supabase/migrations/20261104194316_govern_guardian_contacts.sql",
+      "sha256": "f4d33369c4ab133d0ab8eb71227a5dfa53bf649c79e3863da37fe2eaae0481f3",
+      "kind": "historical",
+      "version": "20261104194316",
+      "name": "govern_guardian_contacts",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "f4d33369c4ab133d0ab8eb71227a5dfa53bf649c79e3863da37fe2eaae0481f3"
+    },
+    {
+      "path": "supabase/migrations/20261104202511_reinvite_guardian_access.sql",
+      "sha256": "6d0c595cbab4a16169ce42a613eb74e768323a3fd273e9e967d6f1a985cd69e8",
+      "kind": "historical",
+      "version": "20261104202511",
+      "name": "reinvite_guardian_access",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "6d0c595cbab4a16169ce42a613eb74e768323a3fd273e9e967d6f1a985cd69e8"
+    },
+    {
+      "path": "supabase/migrations/20261104203041_guardian_absence_alerts.sql",
+      "sha256": "b1f2ae99b26af02009994b381c0307d06b7116e429b60b3cb4da16f152a711e0",
+      "kind": "historical",
+      "version": "20261104203041",
+      "name": "guardian_absence_alerts",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "b1f2ae99b26af02009994b381c0307d06b7116e429b60b3cb4da16f152a711e0"
+    },
+    {
+      "path": "supabase/migrations/20261104210215_guardian_absence_alert_read_state.sql",
+      "sha256": "f47bfbee3dc58a56a0a6ec89f25af68b108455109e031909234d65aa96564e64",
+      "kind": "historical",
+      "version": "20261104210215",
+      "name": "guardian_absence_alert_read_state",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "f47bfbee3dc58a56a0a6ec89f25af68b108455109e031909234d65aa96564e64"
+    },
+    {
+      "path": "supabase/migrations/20261104210847_guardian_absence_alert_bulk_read.sql",
+      "sha256": "6fdb292bb1c6b0230cf0e5d61d33244a4e67e6fef1ed530391e1965a0ac2aa80",
+      "kind": "historical",
+      "version": "20261104210847",
+      "name": "guardian_absence_alert_bulk_read",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "6fdb292bb1c6b0230cf0e5d61d33244a4e67e6fef1ed530391e1965a0ac2aa80"
+    },
+    {
+      "path": "supabase/migrations/20261105110918_school_attendance_cutoff_monitor.sql",
+      "sha256": "ff5a0c99cbcd126312d65772467e47b8365f03dd9cde9eee373c39e5e78529fe",
+      "kind": "historical",
+      "version": "20261105110918",
+      "name": "school_attendance_cutoff_monitor",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "ff5a0c99cbcd126312d65772467e47b8365f03dd9cde9eee373c39e5e78529fe"
+    },
+    {
+      "path": "supabase/migrations/20261105121426_substitute_attendance_coverage.sql",
+      "sha256": "e58426e36014e1ec1410ad0124411286362d180f9c253d9b43918e234ea42a08",
+      "kind": "historical",
+      "version": "20261105121426",
+      "name": "substitute_attendance_coverage",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "e58426e36014e1ec1410ad0124411286362d180f9c253d9b43918e234ea42a08"
+    },
+    {
+      "path": "supabase/migrations/20261105125739_harden_academic_assignment_permissions.sql",
+      "sha256": "17d0e1e0b04a2646e679f908f54ec9bb64ae1416f3defefafe1b8b4723ae7fd4",
+      "kind": "historical",
+      "version": "20261105125739",
+      "name": "harden_academic_assignment_permissions",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "17d0e1e0b04a2646e679f908f54ec9bb64ae1416f3defefafe1b8b4723ae7fd4"
+    },
+    {
+      "path": "supabase/migrations/20261105125748_harden_academic_material_files.sql",
+      "sha256": "805bdc6587fb1ad61bcce0762b27abc7a7a048d920ad34dd97d66032d1f7b440",
+      "kind": "historical",
+      "version": "20261105125748",
+      "name": "harden_academic_material_files",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "805bdc6587fb1ad61bcce0762b27abc7a7a048d920ad34dd97d66032d1f7b440"
+    },
+    {
+      "path": "supabase/migrations/20261105125909_refresh_locked_academic_grading_scope.sql",
+      "sha256": "345d539b8a357d1fbc25f87cc164fde9d2e5801802a81ad90244f81a90f14587",
+      "kind": "historical",
+      "version": "20261105125909",
+      "name": "refresh_locked_academic_grading_scope",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "345d539b8a357d1fbc25f87cc164fde9d2e5801802a81ad90244f81a90f14587"
+    },
+    {
+      "path": "supabase/migrations/20261105130656_permit_scoped_material_replace_probe.sql",
+      "sha256": "54019fc303baf960ee1651cbc1b9ab7a77336a077cad32648ccf22f3de85bbf8",
+      "kind": "historical",
+      "version": "20261105130656",
+      "name": "permit_scoped_material_replace_probe",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "54019fc303baf960ee1651cbc1b9ab7a77336a077cad32648ccf22f3de85bbf8"
+    },
+    {
+      "path": "supabase/migrations/20261105131004_restrict_academic_submission_table_privileges.sql",
+      "sha256": "a0fe0f446353823bfab6341faf4e3f6ba9dde0bc2d544e02b09f94962d41b2d3",
+      "kind": "historical",
+      "version": "20261105131004",
+      "name": "restrict_academic_submission_table_privileges",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "a0fe0f446353823bfab6341faf4e3f6ba9dde0bc2d544e02b09f94962d41b2d3"
+    },
+    {
+      "path": "supabase/migrations/20261105133902_atomic_homework_submission_and_grading.sql",
+      "sha256": "c92ee899907be53bc403d55efa86faae0a738f7dab98f57ff6512b99518b05f6",
+      "kind": "historical",
+      "version": "20261105133902",
+      "name": "atomic_homework_submission_and_grading",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "c92ee899907be53bc403d55efa86faae0a738f7dab98f57ff6512b99518b05f6"
+    },
+    {
+      "path": "supabase/migrations/20261105133914_private_homework_submission_files.sql",
+      "sha256": "d8f48a686fa5ec0c436868c45bc154fac87e3f22f2f2dc9217a80c85e3033f1b",
+      "kind": "historical",
+      "version": "20261105133914",
+      "name": "private_homework_submission_files",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "d8f48a686fa5ec0c436868c45bc154fac87e3f22f2f2dc9217a80c85e3033f1b"
+    },
+    {
+      "path": "supabase/migrations/20261105134741_academic_optimistic_conflict_http_status.sql",
+      "sha256": "147da44b4f226a7d009d06f775ba2f95900b637cc6832348eae2c85a315639b8",
+      "kind": "historical",
+      "version": "20261105134741",
+      "name": "academic_optimistic_conflict_http_status",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "147da44b4f226a7d009d06f775ba2f95900b637cc6832348eae2c85a315639b8"
+    },
+    {
+      "path": "supabase/migrations/20261105134743_homework_optimistic_conflict_http_status.sql",
+      "sha256": "dbc018a4a5c81058bd7062a0d33b553b3a619133b23df9bfda1388acc5939a6b",
+      "kind": "historical",
+      "version": "20261105134743",
+      "name": "homework_optimistic_conflict_http_status",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "dbc018a4a5c81058bd7062a0d33b553b3a619133b23df9bfda1388acc5939a6b"
+    },
+    {
+      "path": "supabase/migrations/20261105140713_attendance_optimistic_conflict_http_status.sql",
+      "sha256": "6eaeef881d7c4f90f5fc8ffc3a6e785fddeaa08a6df6c40f7dcefc8eafa4db30",
+      "kind": "historical",
+      "version": "20261105140713",
+      "name": "attendance_optimistic_conflict_http_status",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "134f469466314f6dd4333118db0ce057ba7c3655705185ed75bcef5270d96990"
+    },
+    {
+      "path": "supabase/migrations/20261105140715_office_fee_day_optimistic_conflict_http_status.sql",
+      "sha256": "fe6cdb7fa751ee0f7ad4d3b7a53c9a4df0e9a74af1a29cdb72399bff7f021d80",
+      "kind": "historical",
+      "version": "20261105140715",
+      "name": "office_fee_day_optimistic_conflict_http_status",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "489e66f9a40985446882fd524346928dfda95f55570244f25158f56b5ca86520"
+    },
+    {
+      "path": "supabase/migrations/20261105151457_harden_fee_adjustment_record_access.sql",
+      "sha256": "2f988c55259bdcc4c1f3c823d719e083bffea73ca476590b5d3126fba1e8909e",
+      "kind": "historical",
+      "version": "20261105151457",
+      "name": "harden_fee_adjustment_record_access",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "2f988c55259bdcc4c1f3c823d719e083bffea73ca476590b5d3126fba1e8909e"
+    },
+    {
+      "path": "supabase/migrations/20261105152515_office_fee_batches_and_opening_balances.sql",
+      "sha256": "202a288f6a3f307dd1f4039a9c7f2c21efe13dcc3908c9a7a4d2ab1e69436ae2",
+      "kind": "historical",
+      "version": "20261105152515",
+      "name": "office_fee_batches_and_opening_balances",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "202a288f6a3f307dd1f4039a9c7f2c21efe13dcc3908c9a7a4d2ab1e69436ae2"
+    },
+    {
+      "path": "supabase/migrations/20261105162341_governed_office_fee_changes.sql",
+      "sha256": "23e20481aeb58da789b428f2ee3c5f654569e1c3a22704e523f84376b352d4dc",
+      "kind": "historical",
+      "version": "20261105162341",
+      "name": "governed_office_fee_changes",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "23e20481aeb58da789b428f2ee3c5f654569e1c3a22704e523f84376b352d4dc"
+    },
+    {
+      "path": "supabase/migrations/20261105170615_office_student_advance_credit.sql",
+      "sha256": "d4a3f68988bf9a4debc91fb6c39ebb42e04a1a0afc19a91fe754c33295116b20",
+      "kind": "historical",
+      "version": "20261105170615",
+      "name": "office_student_advance_credit",
+      "provenance": "Recorded ledger matches local SQL (repair_school_policy_helper differs only in first comment).",
+      "recorded_sql_sha256": "d4a3f68988bf9a4debc91fb6c39ebb42e04a1a0afc19a91fe754c33295116b20"
+    },
+    {
+      "path": "supabase/migrations/20261105184935_freeze_legacy_client_mutations.sql",
+      "sha256": "d60ec9ff46cdecf155c442b2187e0ecc9a7dfde301ff9e393ab93af43e26340c",
+      "kind": "pending",
+      "version": "20261105184935",
+      "name": "freeze_legacy_client_mutations",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261105184937_revoke_assessment_access_on_role_removal.sql",
+      "sha256": "4e5adfeefd3e6850cd88cb77500e3f2dfb7fecbccdfdba024a71c0cf9109b2b5",
+      "kind": "pending",
+      "version": "20261105184937",
+      "name": "revoke_assessment_access_on_role_removal",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261105184939_require_active_role_assignment_actor.sql",
+      "sha256": "e601789e515db5466e4f9224a23f124961316e8e4d0193a7bf082f3c4bb00d67",
+      "kind": "pending",
+      "version": "20261105184939",
+      "name": "require_active_role_assignment_actor",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261105184942_atomic_student_account_activation.sql",
+      "sha256": "b4ec682a917e40ba9060e14e8165bdb7a94cd71e11acba170791fd1b91afda2e",
+      "kind": "pending",
+      "version": "20261105184942",
+      "name": "atomic_student_account_activation",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261105191227_notice_optimistic_versions.sql",
+      "sha256": "e4b70d882d8b87fab303725bb9415d43814aae66382feec69cf096811d9d2f58",
+      "kind": "pending",
+      "version": "20261105191227",
+      "name": "notice_optimistic_versions",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261105192540_optimistic_assessment_mark_writes.sql",
+      "sha256": "afdcc4e464e76be5ffdad3a0defa4fa8976d2efec649f4cf3568115a0b68024a",
+      "kind": "pending",
+      "version": "20261105192540",
+      "name": "optimistic_assessment_mark_writes",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261106065206_governed_student_leave_requests.sql",
+      "sha256": "b598ed5a8d71be48575cc1aa64b0dcd115b237244b776b9d98e45c3762e278ad",
+      "kind": "pending",
+      "version": "20261106065206",
+      "name": "governed_student_leave_requests",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261106072003_govern_school_timetable.sql",
+      "sha256": "f9111c67072893a24bb30a0ee4a74916529400cefb76e49aa1405c90ad1c9ccb",
+      "kind": "pending",
+      "version": "20261106072003",
+      "name": "govern_school_timetable",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261106092647_reviewed_assessment_results.sql",
+      "sha256": "2cdb40bea5f1566d42388236ad79c3aee37a7d5473a3b6352e004f5f24638b20",
+      "kind": "pending",
+      "version": "20261106092647",
+      "name": "reviewed_assessment_results",
+      "provenance": "Local-only reviewed patch; not in captured hosted migration ledger."
+    },
+    {
+      "path": "supabase/migrations/20261106105822_assessment_mark_conflict_http_status.sql",
+      "sha256": "e8db5d9ab150fd11da33242aa8e08d814b56dd7c3161c97265d60bc538c6a3d5",
+      "kind": "pending",
+      "version": "20261106105822",
+      "name": "assessment_mark_conflict_http_status",
+      "provenance": "Hosted stale-mark HTTP504 reproduction; deterministic conflicts must returnPT409"
+    },
+    {
+      "path": "supabase/migrations/20261106110537_bound_assessment_publication_candidates.sql",
+      "kind": "pending",
+      "version": "20261106110537",
+      "sha256": "2c6ef7018e441c916a9fceb80e1c0d5df888ceef23f2dd4e0312cd06ac1209ce",
+      "name": "bound_assessment_publication_candidates",
+      "provenance": "Hosted real-Teacher EXPLAIN: bound metadata expansion by verified teacher profile before retaining the existing permission predicate."
+    }
+  ],
+  "excluded": [
+    {
+      "path": "supabase/recovery/history/20261030094244_seed_kids_corner_academic_master_2026_27.sql",
+      "sha256": "d50c6618459b11bf92ac2bd627cdf06ccca8ad25105bf957b626edf0af1ed478",
+      "kind": "historical",
+      "version": "20261030094244",
+      "name": "seed_kids_corner_academic_master_2026_27",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "d50c6618459b11bf92ac2bd627cdf06ccca8ad25105bf957b626edf0af1ed478",
+      "reason": "Tenant-specific data seed requires a pre-existing fixed school ID; archived verbatim, not portable schema. Use governed onboarding or synthetic drill seed."
+    },
+    {
+      "path": "supabase/recovery/history/20261030095353_seed_academic_subjects_and_streams_v1.sql",
+      "sha256": "f03a94514f5843d3b9deba3612f2e310423c1eb7496c18e2f69e925cb54e61b5",
+      "kind": "historical",
+      "version": "20261030095353",
+      "name": "seed_academic_subjects_and_streams_v1",
+      "provenance": "recorded SQL ledger",
+      "recorded_sql_sha256": "f03a94514f5843d3b9deba3612f2e310423c1eb7496c18e2f69e925cb54e61b5",
+      "reason": "Tenant-specific data seed requires a pre-existing fixed school ID; archived verbatim, not portable schema. Use governed onboarding or synthetic drill seed."
+    },
+    {
+      "path": "supabase/migrations/20261030_academic_teacher_self_management.sql",
+      "sha256": "2bf238e9bab42f15a3a037eeacbc8c66353bf64118e9395a7bdc0b4e176414b5",
+      "kind": "excluded",
+      "version": "20261030",
+      "name": "academic_teacher_self_management",
+      "provenance": "Original local draft retained unchanged.",
+      "reason": "Invalid teachers.user_id reference. Explicit snapshot-derived academic checkpoint is replayed instead; no invented identity column."
+    }
+  ],
+  "platform_contract": {
+    "path": "scripts/database-recovery/platform-contract.sql",
+    "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
+    "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
+  },
+  "order_sha256": "82e00bbcc32ee28bdb23a8decd795558ad74e3e76c9b3b0467b007642b619889"
+}

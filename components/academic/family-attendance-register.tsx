@@ -13,6 +13,7 @@ import {
   type FamilyStudent,
 } from "@/lib/attendance/family";
 import { attendanceLabels, studentName } from "@/lib/attendance/types";
+import { LoadingState } from "@/components/ui/skeleton";
 
 const pageSize = 30;
 const dateFormat = new Intl.DateTimeFormat("en-IN", {
@@ -75,7 +76,7 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
             setAttempt((value) => value + 1);
           }}>Retry access check</button>
         </section>
-      ) : !students ? <p role="status" className="text-sm muted">Checking attendance access…</p>
+      ) : !students ? <LoadingState variant="form" className="text-sm muted">Checking attendance access…</LoadingState>
         : !student ? (
           <p className="card p-4 text-sm muted">{role === "parent"
             ? "No child is linked to this parent account."
@@ -120,7 +121,7 @@ function StudentHistory({ client, student }: { client: Client; student: FamilySt
         <h2 className="font-bold">Attendance history</h2>
         <p className="mt-1 text-sm muted">{studentName(student)} · {student.admission_no}</p>
       </header>
-      {!history ? <p role="status" className="p-4 text-sm muted">Loading attendance…</p>
+      {!history ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance…</LoadingState>
         : history.error ? (
           <div className="space-y-3 p-4">
             <p role="alert" className="text-sm text-red-600">Attendance could not be loaded.</p>
