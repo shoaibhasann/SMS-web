@@ -2,19 +2,19 @@
 
 **Hosted rollout update · 6 November 2026:** the requested nine migrations plus two verified HTTP/performance fixes are now applied, with exact recorded-source hashes in the verified engineering rollout ledger. Use [the stable Production founder checklist](/qa/production-founder-checklist.md) for the matching frontend release. The dated local evidence below remains historical; it is not a new hosted acceptance claim.
 
-6 November 2026 · Production release checklist · Hosted rollout/founder confirmation pending
+6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Use the stable Production URL recorded in [the current release checklist](/qa/production-founder-checklist.md) after the full SQL/frontend release is verified on `main`. Passwords and share secrets stay in the private handoff. Use synthetic students and dates within their current academic year; leave reasons can contain sensitive information.
+Use [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](/qa/production-founder-checklist.md). Founder/manual acceptance remains pending. Passwords/share secrets stay private; use synthetic students and dates within their current academic year.
 
 ## Release prerequisite
 
-The operational release requires the complete **nine-migration chain** in manifest order, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106092647_reviewed_assessment_results.sql`, and its matching frontend. The leave migration is `20261106065206_governed_student_leave_requests.sql`; it is not the final chain step. Hosted rollout remains unconfirmed in this checklist until the release record verifies it. An older schema must show an update-required error; there is no browser-demo or unsafe table-write fallback. [Recovery commands and limitations](../../supabase/recovery/README.md).
+The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, in manifest order from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. The leave migration is `20261106065206_governed_student_leave_requests.sql`, not the final step. An older/mismatched environment must still show an update-required error, with no browser-demo or unsafe table-write fallback. Engineering separately records recovery commands and limitations.
 
 Use a same-school Guardian, its linked Student, and an independent Admin/Principal. Include a second linked child, an unlinked child, another school and a mixed Teacher/Guardian account. Record the deployment revision before testing. **Leave approval records a decision; it does not mark attendance or change fees.** Existing Staff Leave remains separate.
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and `main` revision | Pending release confirmation |
+| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser and device | |
 | Overall result | Pending |
 
@@ -31,3 +31,23 @@ Use a same-school Guardian, its linked Student, and an independent Admin/Princip
 - [ ] **SL-09 · Historical placement.** Submit before a class move/promotion, then change placement using the existing roster flow. Old leave still shows its original class/session. Withdrawing the pupil blocks new requests while currently authorized family/office history remains. Revoking a guardian never deletes requests, attendance or fee history. School post-withdrawal retention/access policy still requires sign-off.
 - [ ] **SL-10 · Phone, keyboard and pagination.** At 390 px and laptop widths, complete child selection, dates, reason, submit and review. No horizontal page overflow; labels/focus, readable status text, light/dark themes and disabled saving controls work. Next/Previous pages and All/Pending/Approved/Rejected filters preserve school/child scope. Refresh after paging and an error recovers correctly; delayed old-scope responses cannot replace a new child/school.
 - [ ] **SL-11 · Existing flow regressions.** Mixed Teacher/Guardian → Receipts retains guardian scope through desktop/mobile navigation and search. Teacher-only login gains no invoice route. Dashboard upcoming-exam counts include the seventh day across month/year boundaries and browser timezone changes.
+
+## Verification evidence and limits — local leave phase, 6 November 2026
+
+The stage counts below are preserved historical evidence. The current operational release prerequisite is the complete eleven-migration chain above.
+
+Controlled browser checks additionally found and fixed value-dependent accessible names on wrapped controls and a compressed phone child selector. All seven controls now have stable explicit labels, and child/school access controls stack at phone widths. Exact accessible-name regressions cover changed values.
+
+Controlled Chrome lifecycle QA passed with real QA Auth and intercepted school REST/RPC bridged to the actual local leave SQL: submit/reload, overlap denial with draft retained, revoke denial/sibling preservation, office approval/reload and own-student history/reload. All 65 school requests were intercepted, 26 leave RPCs ran locally, all three Auth sessions were signed out, and no runtime errors or hosted school writes occurred. Phone controls are measured at 324 px inside a 390 px viewport; desktop school selection is 576 px at 1440 px. This is local bridge evidence, not hosted Supabase endpoint acceptance.
+
+Final local checks: **1165 tests across 112 files pass**, including 42 leave database cases and 35 leave client/UI cases; whole-project ESLint, TypeScript, isolated optimized production build and recovery replay/drill pass. The latest runtime/migration sources were hash-compared with the build snapshot.
+
+The local database suite uses the complete recovered application schema and synthetic Auth/JWT contracts. It covers exact-child/role/school checks, inactive/revoked/forged links, reason/date validation, actor-bound retries, inclusive overlap, one-way review/self-review denial, stable pages and original placement snapshots. It compares attendance and fee rows before/after the leave cycle. These are real PostgreSQL-engine assertions in serial PGlite, not hosted Auth or simultaneous-connection proof.
+
+At the local leave checkpoint, the replay manifest created 100 application tables after its pending changes; its pre-pending deployed gate stays at 99 tables/670 captured catalog objects. The synthetic restore drill includes request → review → family read and revoked-guardian denial before and after restoration. Build/test/browser results in the engineering implementation log distinguish controlled local checks from founder and hosted acceptance.
+
+No leave email/push delivery, automatic attendance conversion, holiday/day counting policy, configurable leave quotas, attachment upload, cancellation/reopening or staff leave replacement is included in this slice.
+
+| Case | Pass / Fail / Blocked | Role, device, expected / actual, evidence |
+|---|---|---|
+| | | |

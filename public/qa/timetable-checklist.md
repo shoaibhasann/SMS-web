@@ -2,9 +2,9 @@
 
 **Hosted rollout update · 6 November 2026:** the requested nine migrations plus two verified HTTP/performance fixes are now applied, with exact recorded-source hashes in the verified engineering rollout ledger. Use [the stable Production founder checklist](/qa/production-founder-checklist.md) for the matching frontend release. The dated local evidence below remains historical; it is not a new hosted acceptance claim.
 
-6 November 2026 · Production release checklist · Hosted rollout/founder confirmation pending
+6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Test on the stable Production URL from [the current release checklist](/qa/production-founder-checklist.md) after `main`, the matching frontend and the complete **nine-migration chain** are verified together. The chain starts at `20261105184935_freeze_legacy_client_mutations.sql` and ends at `20261106092647_reviewed_assessment_results.sql`; this feature's migration is `20261106072003_govern_school_timetable.sql` and depends on the earlier active-role guard. Hosted application is not claimed here until the release record confirms it. Passwords and deployment share secrets stay in the private handoff.
+Test [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), using [the current release checklist](/qa/production-founder-checklist.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature's migration is `20261106072003_govern_school_timetable.sql`, after the active-role guard. Founder/manual acceptance remains pending; credentials/share secrets stay private.
 
 ## Flow and boundaries
 
@@ -14,7 +14,7 @@ Times are school wall-clock times in IST, in whole minutes, within one day. Over
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and `main` revision | Pending release confirmation |
+| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser/device | |
 | QA school/session/class/sections | |
 | Result | Pending |
@@ -33,3 +33,19 @@ Times are school wall-clock times in IST, in whole minutes, within one day. Over
 - [ ] **TT-10 · Legacy repair.** If an older period has missing times/assignment, office sees Needs attention; teacher/family never see it as a valid schedule. Repair it with an eligible mapping and valid times, or remove it. An incomplete older row blocks conflicting teacher/class-day booking until resolved. Do not invent times or discard old rows to make a migration pass. Existing duplicate/overlapping timed data can stop constraint installation atomically and requires reviewed correction.
 - [ ] **TT-11 · Phone, keyboard and themes.** At 390 px dark and 1440 px light, controls, day cards, status/error messages and confirmations remain readable with no page overflow. Child/school selectors retain readable width. Tab through fields: labels and focus ring remain stable after changing values. Save/remove locks conflicting context changes; an unsaved draft requires explicit discard. Delayed responses from an old child/class/school/account cannot replace current data.
 - [ ] **TT-12 · Concurrent database acceptance.** Run two real PostgreSQL connections saving conflicting periods at once, including classwide-versus-section. Exactly one may commit. Repeat edit/remove races. Native GiST exclusion constraints exist for teacher overlap, class/section overlap and duplicate period identity; availability queries alone are insufficient. Local serial tests and the controlled browser bridge do not tick this hosted concurrency case.
+
+## Engineering evidence — local timetable phase, 6 November 2026
+
+The stage counts below are preserved historical evidence. The current operational release prerequisite is the complete eleven-migration chain above.
+
+The database suite uses the complete recovered schema with synthetic schools and real PostgreSQL-engine RPC/constraint behavior in PGlite. It covers authorized writes/readers, wrong-role/school/child denial, exact assignment mapping, half-open/containment/classwide conflicts, private receipts, all-writer UUID versions, retries, stale edits, soft removal and legacy repair. Trusted-owner raw inserts independently hit all three native exclusion constraints; no UI/RPC preflight is involved in those assertions. Existing attendance/fee records are compared unchanged.
+
+At the local timetable checkpoint, the recovery plan had 78 sources: 70 historical/manual and eight pending. Default replay creates 101 application tables/four views. The pre-pending deployed fingerprint remains 99 tables/three views/670 objects. The added bundled `btree_gist` extension and UUID section-range type support wildcard exclusions; range subtype/privileges are captured in recovery fingerprints. The synthetic restore drill now verifies twelve role/history flows before and after restore, including timetable create/retry → teacher/family read → removal. It compares 106 application/contract tables. This remains an embedded application restore, not a hosted Auth/Storage backup.
+
+Final local validation: **1290 tests across 115 files**, whole-project ESLint/TypeScript, diff checks, isolated optimized production build, both replay modes and the twelve-check recovery drill pass. The timetable database/client/UI suites cover 67 and 34 cases respectively. Controlled Chrome E2E passes ten flows: all 106 school requests intercepted, 57 actual local SQL RPCs, four Auth sessions signed out, no runtime errors or hosted school writes. Phone controls measure 316 px with a visible settled keyboard-focus ring.
+
+Implementation and final build/browser results in the engineering implementation log record local checks separately. Founder cases above remain unchecked until tested on the next actual release.
+
+| Case | Pass / Fail / Blocked | Role/device, expected / actual, evidence |
+|---|---|---|
+| | | |

@@ -2,9 +2,9 @@
 
 **Hosted rollout update · 6 November 2026:** the requested nine migrations plus two verified HTTP/performance fixes are now applied, with exact recorded-source hashes in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Use [the stable Production founder checklist](PRODUCTION-RELEASE-QA.md) for the matching frontend release. The dated local evidence below remains historical; it is not a new hosted acceptance claim.
 
-6 November 2026 · Production release checklist · Hosted rollout/founder confirmation pending
+6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Test on the stable Production URL from [the current release checklist](PRODUCTION-RELEASE-QA.md) after `main`, the matching frontend and the complete **nine-migration chain** are verified together. The chain starts at `20261105184935_freeze_legacy_client_mutations.sql` and ends at `20261106092647_reviewed_assessment_results.sql`; this feature's migration is `20261106072003_govern_school_timetable.sql` and depends on the earlier active-role guard. Hosted application is not claimed here until the release record confirms it. Passwords and deployment share secrets stay in the private handoff.
+Test [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), using [the current release checklist](PRODUCTION-RELEASE-QA.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature's migration is `20261106072003_govern_school_timetable.sql`, after the active-role guard. Founder/manual acceptance remains pending; credentials/share secrets stay private.
 
 ## Flow and boundaries
 
@@ -14,7 +14,7 @@ Times are school wall-clock times in IST, in whole minutes, within one day. Over
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and `main` revision | Pending release confirmation |
+| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser/device | |
 | QA school/session/class/sections | |
 | Result | Pending |

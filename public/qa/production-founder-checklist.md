@@ -1,13 +1,14 @@
 # SMS — Production founder QA
 
-6 November 2026 · Target: `main` + stable Vercel Production URL · Founder acceptance pending
+6 November 2026 · `main` + stable Vercel Production · Engineering verification passed; founder acceptance pending
 
-Ye **matching frontend + complete 11-migration chain (requested9 +2 verified hosted fixes)** ki checklist hai. Production deployment aur hosted migration ledger confirm hone ke baad test karo. Har checkbox apne actual test ke baad tick karna; local/controlled QA ka Pass yahan copy mat karna.
+Ye **verified Production frontend + complete 11-migration chain (requested nine + two hosted fixes)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
 
 | Release / tester | Record |
 |---|---|
 | Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
 | Release branch | `main` |
+| Verified runtime code | `2dfb1e26` |
 | Hosted migration rollout verification | 11 applied; engineering source/history hashes verified |
 | Founder, date/time (IST), browser/device | |
 | School / academic year / QA pupil | |

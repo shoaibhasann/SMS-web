@@ -1,13 +1,14 @@
 # SMS — Production founder QA
 
-6 November 2026 · Target: `main` + stable Vercel Production URL · Local + hosted QA complete; Production deployment follows main push
+6 November 2026 · `main` + stable Vercel Production · Engineering verification passed; founder acceptance pending
 
-Ye **matching frontend + complete 11-migration chain (requested9 +2 verified hosted fixes)** ki checklist hai. Production deployment aur hosted migration ledger confirm hone ke baad test karo. Har checkbox apne actual test ke baad tick karna; local/controlled QA ka Pass yahan copy mat karna.
+Ye **verified Production frontend + complete 11-migration chain (requested nine + two hosted fixes)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
 
 | Release / tester | Record |
 |---|---|
 | Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
-| Release branch / code and deployment record | `main`; final revision is recorded in the engineering handoff |
+| Verified runtime branch / code | `main` · `2dfb1e26eb1af64ef6d1bacbcc741a3e53e85b84` |
+| Verified runtime Production deployment | `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` · Ready; later documentation-only releases preserve the same runtime |
 | Hosted migration rollout verification | 11 applied; [exact source/history hashes](../../supabase/recovery/hosted-rollout-2026-11-06.json) |
 | Founder, date/time (IST), browser/device | |
 | School / academic year / QA pupil | |
@@ -40,6 +41,14 @@ Requested nine migrations and two hosted-QA fixes are applied. The extra patches
 
 Actual hosted proof: parallel timetable requests admit one winner, reject teacher/class/period conflicts (including a different valid teacher); overlapping Guardian/Student leave requests admit one winner; repeated publication requests return one snapshot. Thirty-four valid cross-role mutation requests are denied, plus guarded read/stale/conflict cases. Browser QA passes save→review→hard reload for all three workflows, own/linked published result printing, reviewed revision2 latest-only and temporary-link revocation while the original child stays available. All original attendance1260/fee-demand3/payment1 row hashes remain unchanged for the QA school. All QA Auth sessions are signed out locally.
 
-Loading/role UX checks pass ten login viewport/theme cases, five delayed-real-read loading cases and ten Student/Guardian direct-route cases: no privileged content before verified authority, no office API requests from denied routes, no fake loading values. Local Sora and the continuous S-wave fit desktop/phone light/dark layouts. Production readback and final regression totals are recorded after deployment below; founder boxes above remain unchecked.
+Loading/role UX checks pass ten login viewport/theme cases, five delayed-real-read loading cases and ten Student/Guardian direct-route cases: no privileged content before verified authority, no office API requests from denied routes, no fake loading values. Local Sora and the continuous S-wave fit desktop/phone light/dark layouts. Founder boxes above remain unchecked.
 
 Final pre-push validation: **1,478/1,478 tests across124files**, whole-project ESLint and TypeScript pass. Optimized isolated Next.js build passes with194runtime/sourcefiles hash-matched; later SQL-only patches and their database/recovery tests pass separately. Real hosted role/privacy matrix57checks and native concurrency +UIflow proofs above pass. No external inbox/OTP delivery or physical-device acceptance is claimed.
+
+## Stable Production readback — 6 November, 17:06 IST
+
+The Git-triggered `main` runtime deployment above is Ready and serves the stable alias. Fresh browser email/password logins for Admin, Teacher, Student and Guardian pass timetable/leave/publication navigation and hard reload against real Supabase. Student and Guardian each see only their own latest published revision 2 at 76%; six direct requests for the revoked temporary child return `42501`. Saved approved/rejected leave decisions remain visible, and removed QA timetable rows stay absent. Original attendance/fee/payment history fingerprints remain exact (1,260/3/1 rows).
+
+The deployed Admin dashboard reads actual current counts (43 pupils, 13 teachers, 42 attendance records today, eight absent, ₹850 month collections). Delayed real authority/profile reads show neutral or shaped skeletons before verified data, with no privileged sidebar/actions or fabricated KPIs. Self-hosted Sora loads in 22 successful same-origin font responses with zero Google font requests. A 390 px dark layout has no horizontal overflow. The founder Markdown download returns anonymous HTTP 200 as real Markdown without Vercel Authentication.
+
+This deployed run made **142 school reads, zero school writes and zero browser runtime errors**. All four QA Auth sessions were closed locally; other sessions were not signed out. Eleven private screenshots and JSON evidence remain outside Git. Subsequent handoff edits only change documentation and ledger timestamp labels; they do not change the verified runtime or SQL source bytes. Full native Auth/Storage/provider recovery, real delivery and founder/commercial acceptance remain open.

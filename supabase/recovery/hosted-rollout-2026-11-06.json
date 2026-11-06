@@ -1,7 +1,8 @@
 {
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
-  "appliedAt": "2026-11-06T10:44:32.539Z",
+  "requestedMigrationsAppliedAt": "2026-11-06T10:44:32.539Z",
+  "allMigrationsVerifiedAt": "2026-11-06T11:08:55.119Z",
   "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
   "preflight": {
     "btree_gist": {

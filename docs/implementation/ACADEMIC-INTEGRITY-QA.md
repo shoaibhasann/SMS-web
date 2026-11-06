@@ -1,6 +1,6 @@
 # Marks, notices and academic history QA
 
-6 November 2026 · **Local implementation only; hosted rollout and founder acceptance pending.** Continue testing the existing founder Preview with its original release checklist. The changes here are not in that Preview, and localhost also uses the earlier hosted schema unless an isolated test boundary is explicitly configured.
+6 November 2026 · **Production is Ready:** [stable SMS login](https://kids-corner-erp-frontend.vercel.app/login), code `2dfb1e26`, deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`. The requested nine migrations plus two hosted-QA fixes (**11 total**) are applied and their source/history hashes verified in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Four-role Production read-only QA passed at 17:06 IST: 142 school reads, zero school writes/runtime errors and 4/4 local Auth-session cleanups. Individual manual founder cases remain unticked. Use [the Production founder checklist](PRODUCTION-RELEASE-QA.md) for the current release.
 
 ## What changed
 
@@ -15,16 +15,16 @@
 
 Editors keep their original source snapshots through list/filter reloads. A successful academic save resets the editor instead of combining stale form values with a newly fetched version. Controls lock during writes. Mark reload refreshes parent metadata as well as pupil marks. Clearing a previously saved score is explicitly rejected; this phase does not add a mark-deletion workflow.
 
-## Rollout dependency
+## Applied rollout dependencies
 
-Keep the four access-security migrations from [the preceding phase](ACCESS-SECURITY-QA.md) first, then apply these CLI-created files in order during the scheduled database rollout:
+The four [access-security patches](ACCESS-SECURITY-QA.md) preceded these two applied integrity migrations. All are included in the verified 11-patch hosted chain:
 
 1. `20261105191227_notice_optimistic_versions.sql` — adds notice tokens without changing existing business fields or grants.
 2. `20261105192540_optimistic_assessment_mark_writes.sql` — requires the previous assessment security guard; adds the invoker mark-save RPC and advances timestamp versions for no-op/ABA updates. Existing infinite versions require normalization by an authorized writer before use.
 
-Apply the schema before deploying the corresponding frontend. Missing schema/RPC fails visibly; no unconditional-write fallback is provided. Preserve the demo schema/data and review preflight failures before applying. The repository still needs a complete executable baseline and tested restore; a metadata JSON export is not a backup.
+The matching frontend is deployed on Production. The later `20261106105822_assessment_mark_conflict_http_status.sql` patch changes the two deterministic stale-mark SQLSTATEs to `PT409`; the final `20261106110537_bound_assessment_publication_candidates.sql` bounds the teacher candidate query while retaining its authorization helper. Missing schema/RPC still fails visibly; no unconditional-write fallback exists. The executable replay and private 99-table / 2,401-row application snapshot passed embedded restore verification; native Auth/Storage/provider recovery is not established by that check.
 
-## Founder and engineering checks · next release
+## Founder and engineering checks · Production
 
 Record deployment URL/revision, applied migrations, tester/date/device and fresh results. Prepare synthetic teacher/admin/principal accounts and a second school. Use separate browser profiles/windows for competing sessions. Keep credentials and tokens out of screenshots/reports.
 
@@ -39,18 +39,19 @@ Record deployment URL/revision, applied migrations, tester/date/device and fresh
 - [ ] **INT-09 · Activity removal and preserved siblings.** Delete one homework/classwork entry while B adds a sibling activity to its generated log. The sibling and parent remain after refresh. Removing the last entry may leave an empty parent; no client cleanup request may cascade-delete newly added work. Verify submitted-work/file protection still behaves as before.
 - [ ] **INT-10 · Phone, keyboard and error recovery.** At 390 px and laptop width, reach conflict messages, pending states, explicit reload/discard and history controls by touch/keyboard. Check both themes and labels that identify each pupil's mark/remarks. Tables may scroll within their container; the page must not overflow horizontally. Check success/error text and refresh after each reviewed operation.
 
-## Engineering evidence and limits
+## Historical integrity-phase engineering evidence — 6 November 2026
 
 Focused local tests cover real SQL/RLS and actual React components with competing state, plus lower-cap/count/duplicate pagination cases. The ordered migration integration applies all six pending security/integrity migrations in one database and preserves original business rows; notice version backfill is intentional. Final aggregate checks are recorded in [the implementation log](PHASES.md).
 
 Controlled Chrome checks use real existing QA Auth login but **intercept school-data REST/RPC traffic into synthetic state**. Notice privacy conflict/reload/save, mark conflict/parent-context reload, and 211 logs/1,266 activities through an 80-row cap are browser checks, not proof of hosted SQL persistence. QA sessions are signed out; these browser checks write no hosted school/financial rows.
 
-Still pending: hosted application of the migrations, real two-session database scheduling, production load, backup restore and founder sign-off. Exact counts and duplicate checks are conservative completeness guards, not a transaction-wide read snapshot; concurrent same-count replacements can evade them. Result ranks are calculated from the complete returned set, not a serializable reporting snapshot. New-notice creation still lacks idempotent retry handling. Assessment metadata edit/delete outside the mark-save RPC retains its existing workflow. Family historical visibility follows existing enrollment/RLS rules. No gateway or unrelated commercial module is added in this phase.
+The historical controlled results above are preserved as phase evidence. The 11-patch hosted rollout and private application-row/embedded restore verification are now complete. Still pending separately: real competing-session schedules, production load, native Auth/Storage/provider recovery and founder sign-off. Exact counts and duplicate checks are conservative completeness guards, not a transaction-wide read snapshot; concurrent same-count replacements can evade them. Result ranks are calculated from the complete returned set, not a serializable reporting snapshot. New-notice creation still lacks idempotent retry handling. Assessment metadata edit/delete outside the mark-save RPC retains its existing workflow. Family historical visibility follows existing enrollment/RLS rules. No gateway or unrelated commercial module is added in this phase.
 
 | Checkpoint | Result |
 |---|---|
 | Local regression/lint/TypeScript/build |1005/1005 tests across 105 files; lint, TypeScript and isolated production build pass.70 additional regression cases this phase. |
 | Controlled browser checks | Passed with intercepted school data; real QA Auth only |
-| Hosted migration rollout and real database/browser flow | Pending |
-| Independent concurrent connections / load / restore | Pending |
-| Founder next-release acceptance | Pending |
+| Hosted migration rollout | All 11 patches applied with exact source/history hashes verified. |
+| Current deployed database/browser acceptance | Four-role Production read-only QA passed at 17:06 IST; record each manual INT case independently. This does not mark its write/conflict fixtures Pass. |
+| Independent concurrent connections / load / native provider recovery | Pending; application-row embedded restore is verified separately. |
+| Founder Production acceptance | Pending |

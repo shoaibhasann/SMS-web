@@ -1,6 +1,15 @@
 # Manual QA for SMS Production
 
-Current release target: **`main` → [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login)**. Use [the Production founder checklist](PRODUCTION-RELEASE-QA.md). The older Preview URLs/records below are retained as historical evidence; no new Preview branch is part of the workflow.
+**Current release: `main` → [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login)**, deployed code `2dfb1e26`, deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` · Ready. Start with [the Production founder checklist](PRODUCTION-RELEASE-QA.md). Four-role Production read-only QA passed at 17:06 IST: 142 school reads, zero school writes/runtime errors and 4/4 local Auth-session cleanups. Founder cases below remain unticked until independently tested.
+
+All **11 patches** (nine requested + two hosted-QA HTTP/performance fixes) are applied with exact source/history hashes verified in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Use the current [security](ACCESS-SECURITY-QA.md), [academic integrity](ACADEMIC-INTEGRITY-QA.md), [timetable](TIMETABLE-QA.md), [student leave](STUDENT-LEAVE-QA.md) and [published results](RESULT-PUBLICATION-QA.md) checklists for manual acceptance. The Sora interface, login S-shaped illustration boundary and skeleton loading states are included.
+
+Before rollout, all **99 actual application tables / 2,401 rows** and their catalog/replay sources were saved privately; embedded restore verified the catalog and raw row bytes. This is an application-row rehearsal, not native Supabase/Auth/Storage/provider or attachment-byte recovery. See [the recovery boundary](DATABASE-RECOVERY-QA.md). Passwords, invite/confirmation links and deployment share secrets stay in the private handoff, never Git/screenshots.
+
+<details>
+<summary>Historical pre-Production overview — superseded release notes from 4–6 November 2026</summary>
+
+The original text below describes those earlier checkpoints, not today's rollout/deployment status. Older URLs, local-only statements and pass counts are retained as historical evidence. Use the stable Production URL above for current tests; no new Preview workflow is recommended.
 
 Latest **dashboard-only Preview** (6 November): [SMS login](https://kids-corner-erp-frontend-c8ex0atk2-shoaibhasanns-projects.vercel.app/login) · [focused founder checklist](DASHBOARD-FOUNDER-PREVIEW-QA.md). This release adds the cleaner Sora dashboard interface over the already populated demo school. The nine pending SQL phases and their frontend workspaces are excluded. Use the private share link first; the all-feature release record below remains the earlier historical checkpoint.
 
@@ -26,11 +35,15 @@ Use this checklist on the deployed ERP before inviting a school to use it. Start
 
 The 6 November access-control/student-activation patches are **not applied to hosted Supabase or deployed**. Continue founder testing on the release below; it retains the earlier database policies. [SEC-01 through SEC-10](ACCESS-SECURITY-QA.md) cover the next rollout's activation/history, revoked/inactive identities, legacy sensitive data and concurrency checks. Leave them pending until engineering records the applied migrations and actual test URL. Do not use this local phase to mark current Preview security findings closed.
 
-## Login screen redesign
-
 Current all-feature founder Preview: [open SMS](https://kids-corner-erp-frontend-fe0o5b1oc-shoaibhasanns-projects.vercel.app/login), code `b9d4e3f377bcec0b0db68e3475226d814ee0dd36`, deployment `dpl_k6Mh2y4eZMn9bRwdn7jvrW3vi9us`. The [focused founder checklist](FOUNDER-RELEASE-QA.md) contains the current release record, setup and 52 cases. Use the separate private access link/login handoff; no share tokens or passwords are stored here.
 
 Local review remains at [open login](http://127.0.0.1:3120/login). The current Preview above includes the redesign and accumulated academic/fee changes; the older historical URLs below do not include this release. Record founder results before ticking these cases. [Palette review, exact illustration prompt and local verification](../design/login-visual-direction.md).
+
+</details>
+
+## Login screen redesign — current Production checks
+
+Test [the deployed login](https://kids-corner-erp-frontend.vercel.app/login) and record fresh results. The older `b9d4e3f`/dashboard-only release notes are historical above. [Palette and illustration reference](../design/login-visual-direction.md).
 
 - [ ] **LOGIN-UI-01 · Laptop frame and SMS branding.** At 1366 × 768 and 1280 × 720, test both device themes. The bold uppercase SMS wordmark has no graduation-cap badge. The school illustration sits on the left, the form on the right, with no document or nested-panel scrollbar. Check 1024 × 768 as well. Neither the artwork nor the action buttons should be cut off.
 - [ ] **LOGIN-UI-02 · Phone and enlarged view.** At 390 px, the illustration is hidden and the form fits the width. At 320 px, short heights and 200% browser zoom, scroll to every input/action without horizontal page scrolling or overlapping controls. Vertical scrolling is expected when the content needs it.
@@ -45,7 +58,9 @@ Local evidence, 5 November 2026: 20 light/dark viewport/error cases; no horizont
 
 SMS/theme follow-up: 69 focused tests across six files and 23 invitation regressions across three further files, whole-project lint and TypeScript passed. Real hosted-demo QA teacher login → restored saved dashboard preference → manual change → hard reload → System/live device change → mobile theme choice → Logout/device-themed login passed in local Chrome. The bootstrap was also checked before application hydration with an opposite saved preference. Navigation dark styles now follow the selected theme class; computed active-link colors and mobile readability were checked when the device preference differed. SMS branding and laptop/mobile layout checks passed in both device themes. QA was signed out; no school records were edited. Google, inbox recovery and deployed founder verification remain pending.
 
-## Test run
+## Historical attendance run · 4 November 2026
+
+**Historical fixture record:** the following expanded runs retain earlier deployment URLs, setup instructions, local-only statements and dated evidence. They are not current release-status claims. Use the stable Production URL and current checklist above for new results; reuse an old fixture only after checking its present state.
 
 | Field | Value |
 | --- | --- |
@@ -58,9 +73,9 @@ SMS/theme follow-up: 69 focused tests across six files and 23 invitation regress
 
 Shoaib confirmed the attendance QA pass on the Preview above. Individual case results and device details were not provided. Keep the run below as a regression checklist for future deployments.
 
-For the person deploying, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for Preview to the demo project that contains the QA school. Deploy the revision you want to test after setting the variables. [Vercel environment variables](https://vercel.com/docs/environment-variables)
+For current releases, verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in the Production environment and deploy the checked `main` revision. The earlier run below used its dated demo fixture. [Vercel environment variables](https://vercel.com/docs/environment-variables)
 
-1. Open the Preview URL and fill in the run details above. Use the existing QA admin, teacher, student and parent logins from the private credential handoff. If Vercel asks you to sign in first, complete that prompt and then use the ERP's `/login` page.
+1. Open the stable Production URL and record a fresh run separately from the historical details above. Use the existing QA admin, teacher, student and parent logins from the private credential handoff. The stable public site must not require a Vercel login; if that prompt appears, mark Blocked and report deployment protection or an accidentally opened older URL.
 2. As the admin, confirm the demo school with code `QA-261103-fccd05a4`, year **2026-27 QA**, class **QA Class 6**, and section **QA A**. Check the **3 and 4 November 2026 (IST)** baseline below before writing. If the account, school, or marks differ, record **Blocked** and check the Preview configuration or QA credentials with the person who set them up.
 3. Pick two different selectable dates in that academic year for the teacher and admin save tests. Verify all three students are Unmarked on each date before editing. For a rerun, pick fresh dates and keep earlier QA marks with their run notes.
 
@@ -89,7 +104,7 @@ Tick a case after you verify its expected result on the Preview URL. Use a priva
 
 - [ ] **UX-01 · Mobile and desktop.** Check the login, register and family history at about **390 px** and **1440 px** wide. Open the navigation, choose a child or date, scroll the roster and find the action buttons. Look for clipped names, buttons behind the fold with no way to reach them, and horizontal page scrolling.
 - [ ] **UX-02 · Keyboard and theme.** Tab through login, navigation, date, status and child controls. Focus is visible and follows the screen order. In light and dark themes, status text, disabled states and error messages are readable.
-- [ ] **UX-03 · Loading, empty and error.** On an open register, throttle the network and reload the register. Look for a loading message. Search for a name with no match in the admin register. The empty state explains what happened, and clearing search brings the roster back. With the page already open, go offline and click **Reload register**. An error appears and saving is disabled. Go online and reload the register to recover.
+- [ ] **UX-03 · Loading, empty and error.** On an open register, throttle the network and reload the register. Look for accessible skeleton shapes rather than a fake zero/empty state; before role verification, no privileged navigation should appear. Search for a name with no match in the admin register. The empty state explains what happened, and clearing search brings the roster back. With the page already open, go offline and click **Reload register**. An error appears and saving is disabled. Go online and reload the register to recover.
 - [ ] **UX-04 · Save feedback.** During a save, the Save button shows progress and prevents a second submit. After success, the message gives the number of saved students. With no changes, Save is disabled. When a draft is pending, the screen explains how to save or discard it.
 - [ ] **UX-05 · Dates and readable labels.** Compare the register's selected date to the family history for the same record. Check that Late, Absent and Holiday are readable as text. Verify that the default day matches the school day in IST when testing around midnight.
 
@@ -101,7 +116,7 @@ Record `Pass`, `Fail` or `Blocked` for the deployment above. Add one row per fai
 | --- | --- | --- | --- |
 | | | | |
 
-For the next Preview, record its URL and revision with the new results. Keep past runs and notes. When a feature or UI change lands, add its test ID, steps and expected result here and leave it pending until Shoaib checks the deployed version. Keep automated and local verification in the [implementation log](PHASES.md).
+For each checked `main`/Production release, record its deployed revision and new results at the stable URL. Keep past runs and notes. When a feature or UI change lands, add its test ID, steps and expected result here and leave it pending until Shoaib checks the deployed version. Keep automated and local verification in the [implementation log](PHASES.md).
 
 ## Guardian invitation QA
 

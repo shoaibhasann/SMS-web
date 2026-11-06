@@ -2,19 +2,19 @@
 
 **Hosted rollout update · 6 November 2026:** the requested nine migrations plus two verified HTTP/performance fixes are now applied, with exact recorded-source hashes in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Use [the stable Production founder checklist](PRODUCTION-RELEASE-QA.md) for the matching frontend release. The dated local evidence below remains historical; it is not a new hosted acceptance claim.
 
-6 November 2026 · Production release checklist · Hosted rollout/founder confirmation pending
+6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Use the stable Production URL recorded in [the current release checklist](PRODUCTION-RELEASE-QA.md) after the full SQL/frontend release is verified on `main`. Passwords and share secrets stay in the private handoff. Use synthetic students and dates within their current academic year; leave reasons can contain sensitive information.
+Use [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](PRODUCTION-RELEASE-QA.md). Founder/manual acceptance remains pending. Passwords/share secrets stay private; use synthetic students and dates within their current academic year.
 
 ## Release prerequisite
 
-The operational release requires the complete **nine-migration chain** in manifest order, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106092647_reviewed_assessment_results.sql`, and its matching frontend. The leave migration is `20261106065206_governed_student_leave_requests.sql`; it is not the final chain step. Hosted rollout remains unconfirmed in this checklist until the release record verifies it. An older schema must show an update-required error; there is no browser-demo or unsafe table-write fallback. [Recovery commands and limitations](../../supabase/recovery/README.md).
+The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, in manifest order from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. The leave migration is `20261106065206_governed_student_leave_requests.sql`, not the final step. An older/mismatched environment must still show an update-required error, with no browser-demo or unsafe table-write fallback. [Recovery commands and limitations](../../supabase/recovery/README.md).
 
 Use a same-school Guardian, its linked Student, and an independent Admin/Principal. Include a second linked child, an unlinked child, another school and a mixed Teacher/Guardian account. Record the deployment revision before testing. **Leave approval records a decision; it does not mark attendance or change fees.** Existing Staff Leave remains separate.
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and `main` revision | Pending release confirmation |
+| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser and device | |
 | Overall result | Pending |
 

@@ -2,9 +2,9 @@
 
 **Hosted rollout update · 6 November 2026:** the requested nine migrations plus two verified HTTP/performance fixes are now applied, with exact recorded-source hashes in the verified engineering rollout ledger. Use [the stable Production founder checklist](/qa/production-founder-checklist.md) for the matching frontend release. The dated local evidence below remains historical; it is not a new hosted acceptance claim.
 
-6 November 2026 · Production release checklist · Hosted rollout/founder confirmation pending
+6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Use the stable Production URL in [the current release checklist](/qa/production-founder-checklist.md) after `main`, the matching frontend and the complete **nine-migration chain** are verified together. The chain starts at `20261105184935_freeze_legacy_client_mutations.sql` and finishes with this feature's `20261106092647_reviewed_assessment_results.sql`. Hosted rollout remains unconfirmed here until the release record verifies it. Without matching RPCs, the UI must explain that the latest school update is required. Credentials/share secrets stay in the private handoff. Use the [SMS brand](../product/SMS-BRAND.md) for visual acceptance.
+Use [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](/qa/production-founder-checklist.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature began with `20261106092647_reviewed_assessment_results.sql`; the two later patches correct stale-mark HTTP conflicts and bound the teacher candidate query. Founder/manual acceptance remains pending. Missing RPCs on a mismatched environment must fail visibly. Credentials/share secrets stay private. Use the SMS brand guidance in [the Production founder checklist](/qa/production-founder-checklist.md) for visual acceptance.
 
 ## Flow and boundaries
 
@@ -14,7 +14,7 @@ An independent Admin/Principal chooses its school, opens the snapshot and suppli
 
 | Record | Founder entry |
 |---|---|
-| Stable Production URL / `main` revision / migration check | Pending release confirmation |
+| Stable Production URL / deployed code / migration check | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · all 11 patches source/history verified |
 | School, assessment and separate reviewer | |
 | Student / guardian accounts and test date | |
 
@@ -30,3 +30,13 @@ An independent Admin/Principal chooses its school, opens the snapshot and suppli
 - [ ] **RP-08 · Revised publication/history.** Correct a source mark after publication, request a fresh independent review and publish the next revision. Family sees the latest revision only; the prior published snapshot stays immutable private history. Promote/transfer the pupil and verify the saved original labels and published history remain correct; do not reconstruct history from today’s class.
 - [ ] **RP-09 · Access loss.** Revoke one guardian-child link and refresh: that child’s results deny while another valid linked child remains accessible. Remove roles/disable accounts, test unrelated children/schools and delayed responses from a previous session: no result leakage. Family reads do not grant attendance/marks editing rights.
 - [ ] **RP-10 · UX and pages.** Check 1440 px light and 390 px system dark, keyboard focus, clear loading/error/empty states and pagination beyond 50 records. Draft review reasons must survive an unknown response; school/status/context changes stay locked until the draft is resolved or explicitly discarded.
+
+## Engineering evidence and limits — local publication phase, 6 November 2026
+
+**56 database tests + 34 client/UI tests** cover source coherence, missing-versus-zero marks, immutable snapshots, independent review, retries, stale versions, revisions and role/child isolation. Controlled browser QA passed **11 flows**, intercepting all **131/131 school requests** and executing **75 real RPCs in recovered local PGlite**, with **zero hosted school writes**. This proves the local UI-to-database contract; it is not hosted endpoint acceptance or native concurrent PostgreSQL QA. See PHASES.md in the engineering implementation log for current full checks and release state.
+
+Current-roster validation intentionally blocks older assessments whose historical marks no longer match that roster; reviewed historical-roster recovery is not implemented. This phase provides single-assessment results: no term report cards, grading/pass-fail policy, class ranks, stored PDFs or publication withdrawal. Hosted concurrency, email delivery and founder acceptance are separate checks and remain unticked here.
+
+| Case | Pass / Fail / Blocked | Role/device, expected / actual, evidence |
+|---|---|---|
+| | | |
