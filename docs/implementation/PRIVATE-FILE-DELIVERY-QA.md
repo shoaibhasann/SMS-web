@@ -1,8 +1,8 @@
 # Private academic file delivery — engineering QA
 
-7 November 2026 · Production and two-role browser download verified · Known legacy CDN cache limitation · Founder acceptance pending
+7 November 2026 · Production downloads verified · Four measured raw-cache windows closed after expiry · Unknown signed-cache scope unverified
 
-New academic downloads use a current-session checked byte proxy. The database migration and exact Edge source are applied to the intended demo project; matching Student/Teacher web callers and client tests are implemented. This does **not** establish that every previously cached raw URL or older signed capability has been invalidated. The owner’s authoritative UI at 00:22 IST confirms the replacement Storage URL key is Active and the previous key is Revoked. The credential handoff is complete. Post-rotation QA is complete: the protected proxy passes and the known legacy warmed-response replay remains observable. The checked `main` runtime is now Production Ready, with actual Student and assigned-Teacher browser downloads verified below. Founder acceptance remains independent.
+New academic downloads use a current-session checked byte proxy. The database migration and exact Edge source are applied to the intended demo project; matching Student/Teacher web callers and client tests are implemented. This does **not** establish that every previously cached raw URL or older signed capability has been invalidated. The owner’s authoritative UI at 00:22 IST confirms the replacement Storage URL key is Active and the previous key is Revoked. The credential handoff is complete. Post-rotation proxy QA passes. The four held raw contexts initially replayed cached bytes, then all denied after old JWT expiry at the 01:08:07 IST follow-up. Unknown historical signed-cache responses remain unverified. The checked `main` runtime is now Production Ready, with actual Student and assigned-Teacher browser downloads verified below. Founder acceptance remains independent.
 
 ## Protected delivery contract
 
@@ -61,20 +61,23 @@ Replace the project-ref placeholder with the intended project. This function-spe
 - Advisor counts retain the prior baseline: **41 INFO**, with existing warning-group counts **7 mutable search path /2 anonymous access /6 authenticated access /1 leaked-password protection**. This phase adds no new finding and does not declare those existing warnings resolved.
 - Assignment-revocation during file authorization is covered in the local database regressions. It was **not** tested by mutating a live teaching assignment.
 
-## Confirmed legacy CDN cache limitation
+## Legacy cache timeline and current boundary
 
-The legacy CDN gate remains **known OPEN** for immediate global cached-URL revocation.
+**Current measured status, 7 November at 01:08:07 IST (6 November 19:38:07 UTC):** all **four exact held raw-object contexts return 400 /Cloudflare DYNAMIC**, and fresh-nonce requests also return 400. Their old Auth JWT expired at **01:06:14 IST**. No 200/HIT remains in this measured follow-up. This closes the observed expiry window for those four known raw contexts; it does not establish instant logout revocation or a global purge of unknown historical capabilities.
 
-A temporary maintenance purge probe against the two fixed protected buckets returned **403** on the Free plan. The normal proxy was restored immediately; the deployed function has no maintenance path. No successful purge is claimed.
+The earlier evidence remains chronological:
 
-After rotation/revocation, all **four exact held warmed raw-object URLs still returned 200 / Cloudflare HIT** with their previously authorized request context. Fresh unique-nonce origin requests were denied with **400**. This is a completed replay check with a known residual CDN cache result, not an unperformed test. The captured 120-second signed test had already expired before the old-key revocation and was denied afterward. Its denial cannot be attributed to revocation and does not prove every older cached capability is gone.
+1. A temporary maintenance probe attempted to purge the two fixed protected buckets and returned 403 on the Free plan. The normal proxy was restored immediately, with no deployed maintenance route. No successful purge is claimed.
+2. Owner UI at 00:22 IST confirms the replacement Storage URL key Active and the previous key Revoked. The credential handoff is complete.
+3. In the initial post-rotation replay, all four exact held warmed raw contexts still returned 200 /Cloudflare HIT with their previously authorized request context; fresh-nonce origin requests denied 400. The new proxy separately denied retained sessions after logout.
+4. After the captured old JWT expired, the 01:08:07 IST follow-up denied all four exact raw contexts with 400/DYNAMIC, alongside 400 fresh-nonce denial. The closing result is observed expiry evidence for those captures, not evidence of a successful purge.
 
-The owner’s authoritative UI confirms the replacement key is Active and the previous key is Revoked; the credential handoff is complete. That key-status proof and the completed post-rotation replay are recorded separately: the proxy denies retained sessions, while the four previously warmed raw responses still replay from the CDN. Do not infer that every previously cached raw or signed response disappeared, or claim that old signed URLs remain origin-valid, from a key-status screenshot alone. Do not claim immediate global revocation of previously cached raw bytes. Cache-window elimination remains an external/provider lifetime boundary before making that claim; the current engineering tests and owner handoff are complete. No paid-plan upgrade or successful purge is claimed. [Provider explanation of private Storage cache behavior](https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout).
+The captured 120-second signed test had expired before old-key revocation. Its later denial cannot be attributed to the rotation. **Unknown historical signed-cache responses remain unverified**; no claim is made that every older raw/signed capability disappeared or that a key-status screenshot purged cached bytes. No paid-plan upgrade or successful bucket purge occurred. Already downloaded/shared copies cannot be recalled. [Provider explanation of private Storage cache behavior](https://supabase.com/kb/troubleshooting/storage-private-bucket-files-still-accessible-after-remove-access-or-logout).
 
-Engineering records now confirm the replacement-Active / previous-Revoked owner UI, the completed post-rotation proxy/logout checks, and the four residual CDN HITs. The captured signed test expired before revocation, so its denial is not counted as proof of key revocation’s effect. Private evidence retains the exact probe contexts; none are published here.
+Private evidence retains the exact probe contexts and timestamps without publishing URLs or credentials. The measured four-context raw window is closed; broader historical signed-cache closure remains a separate boundary.
 
 The checked `main` revision, Ready deployment, stable-alias readback and two observed browser download/logout paths are recorded above.
 
 The [founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/private-file-checklist.md) remains entirely unticked until manually observed on that release.
 
-Engineering release readback is complete for the recorded scope. Founder acceptance and the known legacy CDN limitation remain explicit. This milestone does not certify complete commercial ERP readiness, native original downloads, provider delivery or managed-service disaster recovery.
+Engineering release readback is complete for the recorded scope. Founder acceptance and the unverified scope of unknown historical signed-cache responses remain explicit. This milestone does not certify complete commercial ERP readiness, native original downloads, provider delivery or managed-service disaster recovery.
