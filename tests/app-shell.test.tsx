@@ -8,6 +8,10 @@ const { getUser, signOut, unsubscribe, subscribe, replace, refresh, push } = vi.
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard", useRouter: () => ({ replace, refresh, push }) }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getUser, signOut, onAuthStateChange: subscribe } }) }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <span>Theme options</span> }));
+vi.mock("@/components/notifications/family-notification-bell", () => ({
+  FamilyNotificationBell: ({ userId, role, className }: { userId: string; role: "parent" | "student"; className: string }) =>
+    <a href={role === "parent" ? "/modules/notifications?view=guardian" : "/modules/notifications"} aria-label="Own notification count" data-user={userId} data-role={role} className={className} />,
+}));
 
 type DisplayUser = { id?: string; email: string; user_metadata?: Record<string, unknown> };
 type Identity = { data: { user: DisplayUser | null }; error: null };
@@ -28,6 +32,15 @@ beforeEach(() => {
 });
 
 describe("AppShell session lifecycle", () => {
+  it.each(["parent", "student"] as const)("connects the %s header bell to the verified owner without hiding it on mobile", async (role) => {
+    getUser.mockResolvedValue({ data: { user: { id: "family-owner", email: "family@example.test" } }, error: null });
+    render(<AppShell role={role} userId="family-owner">Family workspace</AppShell>);
+    const bell = screen.getByRole("link", { name: "Own notification count" });
+    expect(bell).toHaveAttribute("data-user", "family-owner"); expect(bell).toHaveAttribute("data-role", role);
+    expect(bell).toHaveAttribute("href", role === "parent" ? "/modules/notifications?view=guardian" : "/modules/notifications");
+    expect(bell.className).not.toContain("hidden");
+    await screen.findByText("family@example.test");
+  });
   it("hides old school content and navigation when another account arrives before hydration", async () => {
     const old = deferred<Identity>();
     getUser.mockReturnValue(old.promise);

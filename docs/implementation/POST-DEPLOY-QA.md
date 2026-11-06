@@ -1,5 +1,8 @@
 # Manual QA for SMS Production
 
+Latest family milestone: [Student/Guardian Notifications v2](FAMILY-NOTIFICATIONS-QA.md) · [public founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/family-notifications-checklist.md). New reviewed result/leave alerts share the retained Guardian absence inbox. Run FN-01–15 with private demo accounts on the same stable Production URL. Original shared QA absence unread state remains intact; founder boxes stay unchecked. Push/SMS/email delivery is not part of this release.
+
+
 Latest milestone: [Audit history, avatar account settings, aligned dashboard and retained demo data](AUDIT-ACCOUNT-QA.md). Use the same stable Production URL; run ACC-01–06, AUD-01–05, UI-01–02 and DATA-01 after the new `main` deployment. Founder cases remain unticked.
 
 The new audit/account/runtime release `2f2c615` is Production Ready (`dpl_8LoEwuTEs8hXjeWMi9rerMpBXJCS`); seven-role audit and four-role layout/account readback plus theme navigation pass at18:29IST. Use the focused checklist above for current acceptance. Earlier checkpoints below remain historical.

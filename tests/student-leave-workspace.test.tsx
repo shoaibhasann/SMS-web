@@ -339,3 +339,34 @@ describe("student leave workspace", () => {
     expect(screen.queryByText("Another child secret")).not.toBeInTheDocument();
   });
 });
+
+describe("notification leave links", () => {
+  it("opens the selected child’s exact reviewed request beyond history paging and reloads it", async () => {
+    const child={...childB,id:requestId(20)};familyLoader.mockResolvedValue([childA,child]);
+    const row=request({student_id:child.id,student_name:child.first_name,status:"approved",reviewed_by:"principal-a",reviewer_name:"QA Principal",review_note:"Approved from notification",reviewed_at:"2026-11-06T12:00:00Z"});
+    mocks.rpc.mockResolvedValue({data:row,error:null});
+    const view=render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={child.id} initialRequestId={row.id} />);
+    expect(await screen.findByText("Approved from notification")).toBeInTheDocument();
+    expect(mocks.rpc).toHaveBeenCalledWith("get_family_notification_leave",{p_role:"parent",p_student_id:child.id,p_request_id:row.id});
+    expect(mocks.rpc.mock.calls.some(([name])=>name==="list_family_student_leave")).toBe(false);
+    expect(screen.getByRole("link",{name:"All leave history"})).toHaveAttribute("href",`/modules/student-leave?view=guardian&child=${child.id}`);
+    view.unmount();render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={child.id} initialRequestId={row.id} />);
+    expect(await screen.findByText("Approved from notification")).toBeInTheDocument();
+  });
+  it("does not fetch a different child after the requested child link is revoked", async()=>{
+    fakeStore([request()]);render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={requestId(99)} initialRequestId={requestId(1)} />);
+    expect(await screen.findByText(/student in this link is no longer available/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Student leave history")).not.toBeInTheDocument();expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+
+it("points a newly submitted request back to complete history when viewing an old notification decision", async () => {
+  const child={...childA,id:requestId(20)};familyLoader.mockResolvedValue([child]);
+  const row=request({student_id:child.id,status:"approved",reviewed_by:"principal-a",reviewer_name:"QA Principal",review_note:"Approved old request",reviewed_at:"2026-11-06T12:00:00Z"});
+  mocks.rpc.mockImplementation(async(name:string)=>({data:name==="submit_student_leave"?requestId(30):row,error:null}));
+  render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={child.id} initialRequestId={row.id} />);
+  await screen.findByText("Approved old request");fillRequest();await userEvent.click(screen.getByRole("button",{name:"Submit leave request"}));
+  expect(await screen.findByText(/Open All leave history to follow the new request/)).toBeInTheDocument();
+  expect(screen.getByRole("link",{name:"All leave history"})).toHaveAttribute("href",`/modules/student-leave?view=guardian&child=${child.id}`);
+});

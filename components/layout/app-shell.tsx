@@ -9,6 +9,7 @@ import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
 import type { UiRole } from "@/lib/auth/roles";
 import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
+import { FamilyNotificationBell } from "@/components/notifications/family-notification-bell";
 
 type ModuleItem = Pick<ReturnType<typeof getVisibleModules>[number], "key" | "label" | "icon"> & { group: string };
 
@@ -83,12 +84,12 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
   );
 }
 
-function displayIdentity(user: { email?: string; user_metadata?: unknown } | null | undefined) {
+function displayIdentity(user: { id?: string; email?: string; user_metadata?: unknown } | null | undefined) {
   const metadata = user?.user_metadata && typeof user.user_metadata === "object" && !Array.isArray(user.user_metadata)
     ? user.user_metadata as Record<string, unknown> : {};
   const rawName = typeof metadata.full_name === "string" && metadata.full_name.trim() ? metadata.full_name
     : typeof metadata.name === "string" ? metadata.name : "";
-  return { email: user?.email ?? "", name: rawName.replace(/\s+/g, " ").trim().slice(0, 80) };
+  return { id: user?.id ?? "", email: user?.email ?? "", name: rawName.replace(/\s+/g, " ").trim().slice(0, 80) };
 }
 
 export function AppShell({ children, role, userId }: { children: ReactNode; role: UiRole; userId?: string }) {
@@ -96,7 +97,7 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
   const router = useRouter();
   const [supabase] = useState(createClient);
   const [signingOut, setSigningOut] = useState(false);
-  const [identity, setIdentity] = useState({ email: "", name: "" });
+  const [identity, setIdentity] = useState({ id: userId ?? "", email: "", name: "" });
   const [logoutError, setLogoutError] = useState("");
   const [accountChanged, setAccountChanged] = useState(false);
   const accountOwner = useRef(userId ?? "");
@@ -111,7 +112,7 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
     function acceptIdentity(user: { id?: string; email?: string; user_metadata?: unknown } | null | undefined) {
       if (!active) return;
       if (accountOwner.current && user?.id !== accountOwner.current) {
-        setIdentity({ name: "", email: "" });
+        setIdentity({ id: "", name: "", email: "" });
         setAccountChanged(true);
         return;
       }
@@ -182,7 +183,7 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
   const displayName = identity.name || roleLabels[role];
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2)
     .map((part) => Array.from(part)[0].toUpperCase()).join("") || "U";
-  const notificationKey = role === "parent" && visibleModules.some((item) => item.key === "notifications") ? "notifications"
+  const notificationKey = (role === "parent" || role === "student") && visibleModules.some((item) => item.key === "notifications") ? "notifications"
     : visibleModules.some((item) => item.key === "notices") ? "notices" : null;
   const profileIdentity = <>
     <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--primary)_16%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))] text-xs font-bold text-[var(--primary)]">{initials}</span>
@@ -225,7 +226,9 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
               <span className="hidden sm:inline">Find a page</span>
               <kbd aria-hidden="true" className="ml-auto hidden px-1.5 py-0.5 font-sans text-[11px] muted lg:inline">⌘ K</kbd>
             </button>
-            {notificationKey && <Link href={moduleHref(role, notificationKey)} aria-label={notificationKey === "notifications" ? "Open notifications" : "Notices and circulars"} className={`hidden sm:inline-flex ${iconButton}`}><Icons.Bell aria-hidden="true" size={19} strokeWidth={1.75} /></Link>}
+            {notificationKey === "notifications" && (role === "parent" || role === "student") && identity.id
+              ? <FamilyNotificationBell userId={identity.id} role={role} className={iconButton} />
+              : notificationKey && <Link href={moduleHref(role, notificationKey)} aria-label={notificationKey === "notifications" ? "Open notifications" : "Notices and circulars"} className={`${notificationKey === "notifications" ? "inline-flex" : "hidden sm:inline-flex"} ${iconButton}`}><Icons.Bell aria-hidden="true" size={19} strokeWidth={1.75} /></Link>}
             <AccountMenu key={`${path}:${identity.email}`} identity={profileIdentity} name={displayName} email={identity.email} onLogout={handleLogout} signingOut={signingOut} />
           </div>
         </header>

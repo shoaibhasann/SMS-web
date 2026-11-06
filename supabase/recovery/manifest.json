@@ -737,6 +737,14 @@
       "version": "20261106133315",
       "name": "guardian_hybrid_phone_auth",
       "provenance": "Phone-only guardian invitations and verified identity-preserving enrollment with private CAPTCHA permits and atomic SMS spend reservations; live provider enablement remains gated."
+    },
+    {
+      "path": "supabase/migrations/20261106144905_family_notification_inbox.sql",
+      "sha256": "e7da66dbae68b24228446c2e487259b2f02dac5e72c594fd5472d5bcbafc2914",
+      "kind": "pending",
+      "version": "20261106144905",
+      "name": "family_notification_inbox",
+      "provenance": "Additive recipient events and guarded family inbox; absence history retained."
     }
   ],
   "excluded": [
@@ -775,5 +783,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "8b5e01b2338f7503be80f5a888be352959eccf531ceaaa2093794023485ff3b2"
+  "order_sha256": "dd5866097ccc3b0ce5fa6336e3dc02f5462751d5a106759b57c0b7cb092f7486"
 }

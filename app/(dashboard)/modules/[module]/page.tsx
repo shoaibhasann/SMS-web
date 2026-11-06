@@ -21,7 +21,7 @@ import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-wo
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
-import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
+import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
 import { StudentRosterWorkspace } from "@/components/admin/student-roster-workspace";
 import { AdminDemoWorkspace } from "@/components/admin/admin-demo-workspace";
@@ -52,7 +52,9 @@ function ModuleContent() {
   const searchParams = useSearchParams();
   const moduleName = String(params?.module || "");
   const guardianView = ["attendance", "notifications", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
-  const initialChildId = guardianView && moduleName === "attendance" ? searchParams.get("child") ?? undefined : undefined;
+  const initialChildId = searchParams.get("child") ?? undefined;
+  const initialAssessmentId = searchParams.get("assessment") ?? undefined;
+  const initialRequestId = searchParams.get("request") ?? undefined;
   const accessKey = guardianView ? `${moduleName}?view=guardian` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
@@ -150,13 +152,13 @@ function ModuleContent() {
   if ((moduleName === "published-results" || ((access.role === "parent" || access.role === "student")
     && (moduleName === "results" || moduleName === "result-report")))
     && (access.role === "admin" || access.role === "principal" || access.role === "teacher" || access.role === "parent" || access.role === "student")) {
-    return <AppShell key={access.userId} userId={access.userId} role={access.role}><ResultPublicationWorkspace key={`${access.userId}:${access.role}`} role={access.role} userId={access.userId} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><ResultPublicationWorkspace role={access.role} userId={access.userId} initialChildId={initialChildId} initialAssessmentId={initialAssessmentId} /></AppShell>;
   }
 
   if (moduleName === "student-leave" && (access.role === "student" || access.role === "parent" || access.role === "admin" || access.role === "principal")) {
     return (
       <AppShell key={access.userId} userId={access.userId} role={access.role}>
-        <StudentLeaveWorkspace key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
+        <StudentLeaveWorkspace role={access.role} userId={access.userId} initialChildId={initialChildId} initialRequestId={initialRequestId} />
       </AppShell>
     );
   }
@@ -255,12 +257,12 @@ function ModuleContent() {
     );
   }
 
-  if (moduleName === "notifications" && access.role === "parent") {
+  if (moduleName === "notifications" && (access.role === "parent" || access.role === "student")) {
     return (
-      <AppShell key={access.userId} userId={access.userId} role="parent">
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <div className="space-y-5">
           <h1 className="text-3xl font-black">Notifications</h1>
-          <GuardianAttendanceAlerts key={access.userId} userId={access.userId} />
+          <FamilyNotificationInbox key={`${access.userId}:${access.role}`} userId={access.userId} role={access.role} />
         </div>
       </AppShell>
     );

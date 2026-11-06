@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { Check, FileCheck2, Printer, RefreshCw, Send, X } from "lucide-react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import {
-  cancelPublication, decidePublication, getFamilyAssessmentResults, getResultSubmission, listPublicationCandidates,
+  cancelPublication, decidePublication, getFamilyAssessmentResults, getFamilyNotificationResult, getResultSubmission, listPublicationCandidates,
   listResultSubmissions, previewPublication, printPublishedResult, publicationPageSize, requestPublication,
   ResultPublicationError, validatePublicationReason,
   type FamilyAssessmentResult, type FamilyResultPage, type PublicationDetail, type PublicationMetadata,
@@ -33,10 +34,11 @@ function useAlive() {
   return alive;
 }
 
-export function ResultPublicationWorkspace({ role, userId }: { role: Role; userId: string }) {
-  return <ResultSession key={`${userId}:${role}`} role={role} userId={userId} />;
+type ResultLink = { initialChildId?: string; initialAssessmentId?: string };
+export function ResultPublicationWorkspace({ role, userId, ...link }: { role: Role; userId: string } & ResultLink) {
+  return <ResultSession key={`${userId}:${role}:${link.initialChildId ?? ""}:${link.initialAssessmentId ?? ""}`} role={role} userId={userId} {...link} />;
 }
-function ResultSession({ role, userId }: { role: Role; userId: string }) {
+function ResultSession({ role, userId, ...link }: { role: Role; userId: string } & ResultLink) {
   const [client] = useState(createClient), [sessionChanged, setSessionChanged] = useState(false);
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
@@ -52,7 +54,7 @@ function ResultSession({ role, userId }: { role: Role; userId: string }) {
           : "Read and print the latest school-published result for each assessment. Original class and session details stay with the saved result."}</p></header>
     {sessionChanged ? <ErrorMessage text="Your sign-in changed. Reload this page to verify results access." />
       : role === "teacher" ? <TeacherPublications client={client} userId={userId} />
-        : role === "parent" || role === "student" ? <FamilyResultAccess client={client} role={role} userId={userId} />
+        : role === "parent" || role === "student" ? <FamilyResultAccess client={client} role={role} userId={userId} {...link} />
           : <OfficeResults client={client} userId={userId} />}
   </div>;
 }
@@ -224,7 +226,7 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, disa
   </section>;
 }
 
-function FamilyResultAccess({ client, role, userId }: { client: Client; role: "parent" | "student"; userId: string }) {
+function FamilyResultAccess({ client, role, userId, initialChildId, initialAssessmentId }: { client: Client; role: "parent" | "student"; userId: string } & ResultLink) {
   const [attempt, setAttempt] = useState(0), [selected, setSelected] = useState("");
   const [access, setAccess] = useState<{ attempt: number; value: Load<FamilyStudent[]> }>();
   const current = access?.attempt === attempt ? access.value : undefined;
@@ -237,36 +239,40 @@ function FamilyResultAccess({ client, role, userId }: { client: Client; role: "p
         const data = await loadFamilyStudents(client, role, userId);
         if (!active) return;
         setAccess({ attempt, value: { data } });
-        setSelected((previous) => data.some((row) => row.id === previous) ? previous : role === "parent" ? restoreFamilyChild(userId, data) : data[0]?.id ?? "");
+        setSelected((previous) => data.some((row) => row.id === previous) ? previous : initialChildId !== undefined ? data.find((row) => row.id === initialChildId)?.id ?? "" : role === "parent" ? restoreFamilyChild(userId, data) : data[0]?.id ?? "");
       } catch { if (active) setAccess({ attempt, value: { error: "Your linked students could not be verified. Refresh linked students to try again." } }); }
     }
     void load(); return () => { active = false; };
-  }, [attempt, client, role, userId]);
+  }, [attempt, client, role, userId, initialChildId]);
   const students = current?.data ?? [], student = students.find((row) => row.id === selected);
   return <><section className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between" aria-label="Published result student access">
-    {role === "parent" && students.length ? <div className={`${field} sm:max-w-xl sm:flex-1`}><label htmlFor="result-child">Select child</label><select id="result-child" className="field" value={selected} onChange={(event) => { if (students.some((row) => row.id === event.target.value)) { setSelected(event.target.value); rememberFamilyChild(userId, event.target.value); } }}>{students.map((row) => <option key={row.id} value={row.id}>{studentName(row)} · {row.admission_no}</option>)}</select></div>
+    {role === "parent" && students.length ? <div className={`${field} sm:max-w-xl sm:flex-1`}><label htmlFor="result-child">Select child</label><select id="result-child" className="field" value={selected} onChange={(event) => { if (students.some((row) => row.id === event.target.value)) { setSelected(event.target.value); rememberFamilyChild(userId, event.target.value); } }}>{!student && <option value="">Choose linked child</option>}{students.map((row) => <option key={row.id} value={row.id}>{studentName(row)} · {row.admission_no}</option>)}</select></div>
       : <div><h2 className="font-bold">{student ? studentName(student) : "Linked student access"}</h2>{student && <p className="mt-1 text-sm muted">{student.admission_no}</p>}</div>}
     <button type="button" className={button} disabled={!current} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh linked students</button></section>
-    {!current ? <LoadingState variant="form" className="text-sm muted">Checking linked student access…</LoadingState> : current.error ? <ErrorMessage text={current.error} /> : !student ? <p className="card p-5 text-sm muted">No student is currently linked to this account.</p>
-      : <FamilyResults key={student.id} client={client} student={student} />}
+    {!current ? <LoadingState variant="form" className="text-sm muted">Checking linked student access…</LoadingState> : current.error ? <ErrorMessage text={current.error} /> : !student ? <p className="card p-5 text-sm muted">{initialChildId !== undefined ? "The student in this link is no longer available to this account. Choose a linked child to continue." : "No student is currently linked to this account."}</p>
+      : <FamilyResults key={student.id} client={client} student={student} role={role} assessmentId={student.id === initialChildId ? initialAssessmentId : undefined} />}
   </>;
 }
-function FamilyResults({ client, student }: { client: Client; student: FamilyStudent }) {
+function FamilyResults({ client, student, role, assessmentId }: { client: Client; student: FamilyStudent; role: "parent" | "student"; assessmentId?: string }) {
   const [page, setPage] = useState(0), [refresh, setRefresh] = useState(0), [notice, setNotice] = useState<Notice>();
   const [result, setResult] = useState<{ key: string; value: Load<FamilyResultPage> }>();
-  const key = `${student.id}:${page}:${refresh}`, current = result?.key === key ? result.value : undefined;
+  const key = `${student.id}:${assessmentId ?? ""}:${page}:${refresh}`, current = result?.key === key ? result.value : undefined;
   useEffect(() => {
     let active = true;
-    getFamilyAssessmentResults(client, student.id, student.school_id, page * publicationPageSize).then((data) => { if (active) setResult({ key, value: { data } }); },
+    const request = assessmentId !== undefined
+      ? getFamilyNotificationResult(client, role, student.id, student.school_id, assessmentId).then((row) => ({ rows: row ? [row] : [], total_count: row ? 1 : 0, offset: 0, student_id: student.id, school_id: student.school_id }))
+      : getFamilyAssessmentResults(client, student.id, student.school_id, page * publicationPageSize);
+    request.then((data) => { if (active) setResult({ key, value: { data } }); },
       (error: unknown) => { if (active) setResult({ key, value: { error: errorText(error, "Published results could not be loaded. Refresh to try again.") } }); });
     return () => { active = false; };
-  }, [client, key, page, student.id, student.school_id]);
-  return <section className="space-y-5" aria-label="Student published results"><div className="card flex flex-wrap items-center justify-between gap-3 p-5"><div><h2 className="text-lg font-bold">Published result history</h2><p className="mt-1 text-xs leading-relaxed muted">Only the latest published revision of each assessment is shown. Unpublished marks and other pupils’ results stay private.</p></div><button type="button" className={button} onClick={() => { setNotice(undefined); setRefresh((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />Refresh published results</button></div>
+  }, [client, key, page, student.id, student.school_id, role, assessmentId]);
+  return <section className="space-y-5" aria-label="Student published results"><div className="card flex flex-wrap items-center justify-between gap-3 p-5"><div><h2 className="text-lg font-bold">{assessmentId !== undefined ? "Result from notification" : "Published result history"}</h2><p className="mt-1 text-xs leading-relaxed muted">Only the latest published revision of each assessment is shown. Unpublished marks and other pupils’ results stay private.</p></div><button type="button" className={button} onClick={() => { setNotice(undefined); setRefresh((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />Refresh published results</button></div>
+    {assessmentId !== undefined && <Link className={button} href={`/modules/results?${new URLSearchParams({ ...(role === "parent" ? { view: "guardian" } : {}), child: student.id })}`}>All published results</Link>}
     {notice && <Message notice={notice} />}
     {!current ? <LoadingState variant="table" className="text-sm muted">Loading saved published results…</LoadingState> : current.error ? <ErrorMessage text={current.error} />
-      : !current.data?.rows.length ? <p className="card p-5 text-sm muted">No school-published results on this page. Marks appear only after school review and publication.</p>
+      : !current.data?.rows.length ? <p className="card p-5 text-sm muted">{assessmentId !== undefined ? "This published result is no longer available. Open all published results to see the current history." : "No school-published results on this page. Marks appear only after school review and publication."}</p>
         : current.data.rows.map((row) => <FamilyResultCard key={row.id} result={row} onPrint={() => { try { printPublishedResult(row); } catch (error) { setNotice({ error: true, text: errorText(error, "The print window could not be opened. Please try again.") }); } }} />)}
-    {current?.data && <div className="card p-5"><Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={false} onPage={setPage} /></div>}
+    {current?.data && assessmentId === undefined && <div className="card p-5"><Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={false} onPage={setPage} /></div>}
   </section>;
 }
 function FamilyResultCard({ result, onPrint }: { result: FamilyAssessmentResult; onPrint: () => void }) {

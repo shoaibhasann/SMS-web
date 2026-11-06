@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-06T10:44:32.539Z",
-  "allMigrationsVerifiedAt": "2026-11-06T13:55:36.351094Z",
+  "allMigrationsVerifiedAt": "2026-11-06T15:06:03.518017+00:00",
   "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
   "preflight": {
     "btree_gist": {
@@ -206,12 +206,23 @@
       "recorded_sql_sha256": "ed9b38f0490bf7d307d25d7de1c379d97ea766137f8a5d8ef6323743bc29ad44",
       "verifiedAt": "2026-11-06T13:55:36.351094Z",
       "reason": "Guardian-only hybrid phone invitations and existing-UID contact proof with service-only one-use CAPTCHA permits and atomic sending budgets; provider sending remains disabled."
+    },
+    {
+      "sourceVersion": "20261106144905",
+      "sourcePath": "supabase/migrations/20261106144905_family_notification_inbox.sql",
+      "sourceSha256": "e7da66dbae68b24228446c2e487259b2f02dac5e72c594fd5472d5bcbafc2914",
+      "version": "20261106150230",
+      "name": "family_notification_inbox",
+      "statement_count": 1,
+      "recorded_sql_sha256": "e7da66dbae68b24228446c2e487259b2f02dac5e72c594fd5472d5bcbafc2914",
+      "verifiedAt": "2026-11-06T15:06:03.518017+00:00",
+      "reason": "Transactional result-publication/leave-decision events, shared role-scoped family inbox with retained legacy absence IDs/read state, bounded target readers."
     }
   ],
   "requested_migrations": 9,
   "followup_fixes": 2,
-  "total_applied": 13,
-  "phase_migrations": 2,
+  "total_applied": 14,
+  "phase_migrations": 3,
   "auditHistoryPhaseVerification": {
     "preChangeApplicationTables": 103,
     "preChangeApplicationRows": 2462,
@@ -232,5 +243,18 @@
     "expectedPrivateRlsDenyAllInfoFindings": 2,
     "providerActivated": false,
     "paidSmsSent": 0
+  },
+  "familyNotificationsPhaseVerification": {
+    "preChangeApplicationTables": 7,
+    "preChangeApplicationRows": 1405,
+    "routinesBackedUp": 4,
+    "affectedApplicationRowsRestored": true,
+    "prePostSourceRowsIdentical": true,
+    "existingAbsenceIdsAndReadStatePreserved": true,
+    "newEventsAfterDdl": 0,
+    "backfill": false,
+    "backupScope": "Affected application rows/routines only; no native Auth/Storage/provider restore",
+    "paidSmsSent": 0,
+    "pushSent": 0
   }
 }

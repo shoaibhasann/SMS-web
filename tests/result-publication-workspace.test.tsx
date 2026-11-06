@@ -141,3 +141,34 @@ describe("independent result publication UI", () => {
     await userEvent.click(screen.getByRole("button", { name: "Refresh published results" })); expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
   });
 });
+
+describe("notification result links", () => {
+  it("selects the exact authorized child and fetches a bounded target instead of scanning the first page", async () => {
+    const child = { ...childB, id: resultUuid(20) }, assessmentId = resultUuid(21);
+    vi.mocked(loadFamilyStudents).mockResolvedValue([childA, child]);
+    const row = familyResult({student_id:child.id, student_name:"QA Kabir",assessment_id:assessmentId,metadata:{...familyResult().metadata,assessment_id:assessmentId}});
+    mocks.rpc.mockResolvedValue({data:row,error:null});
+    const view=render(<ResultPublicationWorkspace role="parent" userId="guardian" initialChildId={child.id} initialAssessmentId={assessmentId} />);
+    expect(await screen.findByRole("article")).toHaveTextContent("QA Kabir");
+    expect(mocks.rpc).toHaveBeenCalledWith("get_family_notification_result",{p_role:"parent",p_student_id:child.id,p_assessment_id:assessmentId});
+    expect(mocks.rpc.mock.calls.some(([name])=>name==="get_family_assessment_results")).toBe(false);
+    expect(screen.getByRole("link",{name:"All published results"})).toHaveAttribute("href",`/modules/results?view=guardian&child=${child.id}`);
+    view.unmount();
+    render(<ResultPublicationWorkspace role="parent" userId="guardian" initialChildId={child.id} initialAssessmentId={assessmentId} />);
+    expect(await screen.findByRole("article")).toHaveTextContent("QA Kabir");
+  });
+  it("never falls back to another child for an unavailable linked target", async () => {
+    store([published()]);render(<ResultPublicationWorkspace role="parent" userId="guardian" initialChildId={resultUuid(99)} initialAssessmentId={resultUuid(21)} />);
+    expect(await screen.findByText(/student in this link is no longer available/)).toBeInTheDocument();
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("clears an old target when a new target is loading or unavailable", async () => {
+    const child={...childA,id:resultUuid(20)},assessmentId=resultUuid(21);
+    vi.mocked(loadFamilyStudents).mockResolvedValue([child]);
+    mocks.rpc.mockResolvedValue({data:familyResult({student_id:child.id,assessment_id:assessmentId,metadata:{...familyResult().metadata,assessment_id:assessmentId}}),error:null});
+    const view=render(<ResultPublicationWorkspace role="parent" userId="guardian" initialChildId={child.id} initialAssessmentId={assessmentId} />);
+    await screen.findByRole("article");mocks.rpc.mockResolvedValue({data:null,error:null});
+    view.rerender(<ResultPublicationWorkspace role="parent" userId="guardian" initialChildId={child.id} initialAssessmentId={resultUuid(22)} />);
+    expect(screen.queryByRole("article")).not.toBeInTheDocument();expect(await screen.findByText(/This published result is no longer available/)).toBeInTheDocument();
+  });
+});

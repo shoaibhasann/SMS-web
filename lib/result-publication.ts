@@ -168,12 +168,7 @@ export async function cancelPublication(client: SupabaseClient, submissionId: st
   if (data !== submissionId) throw new ResultPublicationError("Cancellation could not be confirmed. Retry the same reason or refresh the saved status.");
   return submissionId;
 }
-export async function getFamilyAssessmentResults(client: SupabaseClient, studentId: string, schoolId: string, offset = 0): Promise<FamilyResultPage> {
-  checkOffset(offset);
-  const { data, error } = await client.rpc("get_family_assessment_results", { p_student_id: studentId, p_offset: offset }); rpcError(error);
-  const context = record(data);
-  if (context.student_id !== studentId || context.school_id !== schoolId) throw invalid();
-  const page = readPage(data, offset, (value): FamilyAssessmentResult => {
+function readFamilyResult(value: unknown, studentId: string, schoolId: string): FamilyAssessmentResult {
     const row = record(value), source = metadata(row.metadata);
     if (![row.id, row.assessment_id, row.publisher_name, row.student_name, row.admission_no].every(text)
       || row.student_id !== studentId || source.school_id !== schoolId || source.assessment_id !== row.assessment_id
@@ -183,10 +178,26 @@ export async function getFamilyAssessmentResults(client: SupabaseClient, student
       || row.percentage < 0 || row.percentage > 100 || Math.abs(row.percentage - row.marks_obtained / row.maximum_marks * 100) > 0.011
       || ["pupils", "snapshot", "rank", "mark_id", "enrollment_id", "review_note"].some((key) => key in row)) throw invalid();
     return { ...row, metadata: source } as FamilyAssessmentResult;
-  });
+}
+
+export async function getFamilyAssessmentResults(client: SupabaseClient, studentId: string, schoolId: string, offset = 0): Promise<FamilyResultPage> {
+  checkOffset(offset);
+  const { data, error } = await client.rpc("get_family_assessment_results", { p_student_id: studentId, p_offset: offset }); rpcError(error);
+  const context = record(data);
+  if (context.student_id !== studentId || context.school_id !== schoolId) throw invalid();
+  const page = readPage(data, offset, (value) => readFamilyResult(value, studentId, schoolId));
   const sources = new Set(page.rows.map((row) => row.assessment_id));
   if (sources.size !== page.rows.length) throw invalid();
   return { ...page, student_id: studentId, school_id: schoolId };
+}
+
+export async function getFamilyNotificationResult(client: SupabaseClient, role: "parent" | "student", studentId: string, schoolId: string, assessmentId: string): Promise<FamilyAssessmentResult | null> {
+  if (!["parent", "student"].includes(role) || !uuid.test(studentId) || !uuid.test(assessmentId)) throw new ResultPublicationError("This result link is invalid.", "22023");
+  const { data, error } = await client.rpc("get_family_notification_result", { p_role: role, p_student_id: studentId, p_assessment_id: assessmentId }); rpcError(error);
+  if (data === null) return null;
+  const result = readFamilyResult(data, studentId, schoolId);
+  if (result.assessment_id !== assessmentId) throw invalid();
+  return result;
 }
 
 export function printPublishedResult(result: FamilyAssessmentResult) {

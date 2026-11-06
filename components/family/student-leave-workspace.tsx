@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { CalendarDays, Check, Clock3, RefreshCw, Send, X } from "lucide-react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { schoolDate, studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import {
-  listFamilyStudentLeave, listStudentLeaveReview, reviewStudentLeave, studentLeavePageSize,
+  getFamilyNotificationLeave, listFamilyStudentLeave, listStudentLeaveReview, reviewStudentLeave, studentLeavePageSize,
   StudentLeaveError, submitStudentLeave, validateStudentLeave,
   type StudentLeaveDecision, type StudentLeaveRequest, type StudentLeaveStatus,
 } from "@/lib/student-leave";
@@ -38,12 +39,13 @@ function useMounted() {
   return alive;
 }
 
-export function StudentLeaveWorkspace({ role, userId, mode }: { role: Role; userId: string; mode?: Mode }) {
+type LeaveLink = { initialChildId?: string; initialRequestId?: string };
+export function StudentLeaveWorkspace({ role, userId, mode, ...link }: { role: Role; userId: string; mode?: Mode } & LeaveLink) {
   const resolvedMode = mode ?? (role === "parent" || role === "student" ? "family" : "review");
-  return <LeaveSession key={`${userId}:${role}:${resolvedMode}`} role={role} userId={userId} mode={resolvedMode} />;
+  return <LeaveSession key={`${userId}:${role}:${resolvedMode}:${link.initialChildId ?? ""}:${link.initialRequestId ?? ""}`} role={role} userId={userId} mode={resolvedMode} {...link} />;
 }
 
-function LeaveSession({ role, userId, mode }: { role: Role; userId: string; mode: Mode }) {
+function LeaveSession({ role, userId, mode, ...link }: { role: Role; userId: string; mode: Mode } & LeaveLink) {
   const [client] = useState(createClient);
   const [sessionChanged, setSessionChanged] = useState(false);
   useEffect(() => {
@@ -63,12 +65,12 @@ function LeaveSession({ role, userId, mode }: { role: Role; userId: string; mode
     </header>
     {sessionChanged ? <p role="alert" className="card p-5 text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reload this page to verify leave access.</p>
       : family !== (mode === "family") ? <p role="alert" className="card p-5 text-sm">This account cannot open this leave view.</p>
-        : family ? <FamilyLeaveAccess client={client} role={role} userId={userId} />
+        : family ? <FamilyLeaveAccess client={client} role={role} userId={userId} {...link} />
           : <ReviewLeaveAccess client={client} userId={userId} />}
   </div>;
 }
 
-function FamilyLeaveAccess({ client, role, userId }: { client: Client; role: "parent" | "student"; userId: string }) {
+function FamilyLeaveAccess({ client, role, userId, initialChildId, initialRequestId }: { client: Client; role: "parent" | "student"; userId: string } & LeaveLink) {
   const [attempt, setAttempt] = useState(0);
   const [access, setAccess] = useState<{ attempt: number; result: Load<FamilyStudent[]> }>();
   const [selected, setSelected] = useState("");
@@ -85,14 +87,14 @@ function FamilyLeaveAccess({ client, role, userId }: { client: Client; role: "pa
         if (!active) return;
         setAccess({ attempt, result: { data: students } });
         setSelected((previous) => students.some((student) => student.id === previous) ? previous
-          : role === "parent" ? restoreFamilyChild(userId, students) : students[0]?.id ?? "");
+          : initialChildId !== undefined ? students.find((student) => student.id === initialChildId)?.id ?? "" : role === "parent" ? restoreFamilyChild(userId, students) : students[0]?.id ?? "");
       } catch {
         if (active) setAccess({ attempt, result: { error: "The students linked to this account could not be verified. Refresh linked students to try again." } });
       }
     }
     void load();
     return () => { active = false; };
-  }, [attempt, client, role, userId]);
+  }, [attempt, client, role, userId, initialChildId]);
   const students = result?.data ?? [];
   const student = students.find((item) => item.id === selected);
   function confirmDiscard() {
@@ -106,18 +108,18 @@ function FamilyLeaveAccess({ client, role, userId }: { client: Client; role: "pa
         <label htmlFor="student-leave-child">Select child</label><select id="student-leave-child" className="field" value={selected} disabled={busy} onChange={(event) => {
           if (event.target.value === selected || !students.some((item) => item.id === event.target.value) || !confirmDiscard()) return;
           setSelected(event.target.value); rememberFamilyChild(userId, event.target.value);
-        }}>{students.map((item) => <option key={item.id} value={item.id}>{studentName(item)} · {item.admission_no}</option>)}</select>
+        }}>{!student && <option value="">Choose linked child</option>}{students.map((item) => <option key={item.id} value={item.id}>{studentName(item)} · {item.admission_no}</option>)}</select>
       </div> : <div><h2 className="font-bold">{student ? studentName(student) : "Linked student access"}</h2>{student && <p className="mt-1 text-sm muted">{student.admission_no}</p>}</div>}
       <button type="button" className={button} disabled={busy || !result} onClick={() => { if (confirmDiscard()) setAttempt((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" /> Refresh linked students</button>
     </section>
     {!result ? <LoadingState variant="form" className="text-sm muted">Checking linked student access…</LoadingState>
       : result.error ? <p role="alert" className="card p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
-        : !student ? <p className="card p-5 text-sm muted">No student is currently linked to this account.</p>
-          : <FamilyStudentLeave key={student.id} client={client} student={student} onBusyChange={setBusy} onDraftChange={setHasDraft} />}
+        : !student ? <p className="card p-5 text-sm muted">{initialChildId !== undefined ? "The student in this link is no longer available to this account. Choose a linked child to continue." : "No student is currently linked to this account."}</p>
+          : <FamilyStudentLeave key={student.id} client={client} student={student} role={role} requestId={student.id === initialChildId ? initialRequestId : undefined} onBusyChange={setBusy} onDraftChange={setHasDraft} />}
   </>;
 }
 
-function FamilyStudentLeave({ client, student, onBusyChange, onDraftChange }: { client: Client; student: FamilyStudent; onDraftChange: (dirty: boolean) => void } & BusyProps) {
+function FamilyStudentLeave({ client, student, role, requestId, onBusyChange, onDraftChange }: { client: Client; student: FamilyStudent; role: "parent" | "student"; requestId?: string; onDraftChange: (dirty: boolean) => void } & BusyProps) {
   const [page, setPage] = useState(0);
   const [refresh, setRefresh] = useState(0);
   const [startDate, setStartDate] = useState(schoolDate);
@@ -129,16 +131,19 @@ function FamilyStudentLeave({ client, student, onBusyChange, onDraftChange }: { 
   const attempt = useRef<{ payload: string; key: string } | null>(null);
   const inFlight = useRef(false);
   const alive = useMounted();
-  const queryKey = `${student.id}:${page}:${refresh}`;
+  const queryKey = `${student.id}:${requestId ?? ""}:${page}:${refresh}`;
   const history = result?.key === queryKey ? result.value : undefined;
   useEffect(() => {
     let active = true;
-    listFamilyStudentLeave(client, student.id, student.school_id, page * studentLeavePageSize).then(
+    const request = requestId !== undefined
+      ? getFamilyNotificationLeave(client, role, student.id, student.school_id, requestId).then((row) => row ? [row] : [])
+      : listFamilyStudentLeave(client, student.id, student.school_id, page * studentLeavePageSize);
+    request.then(
       (rows) => { if (active) setResult({ key: queryKey, value: { data: rows } }); },
       (error: unknown) => { if (active) setResult({ key: queryKey, value: { error: errorText(error, "Leave history could not be loaded. Refresh to try again.") } }); },
     );
     return () => { active = false; };
-  }, [client, page, queryKey, student.id, student.school_id]);
+  }, [client, page, queryKey, student.id, student.school_id, role, requestId]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,7 +160,7 @@ function FamilyStudentLeave({ client, student, onBusyChange, onDraftChange }: { 
       attempt.current = null;
       onDraftChange(false);
       setReason(""); setPage(0); setRefresh((value) => value + 1);
-      setNotice({ error: false, text: "Leave request saved. The school will review it; refresh history to follow its decision." });
+      setNotice({ error: false, text: requestId !== undefined ? "Leave request saved. Open All leave history to follow the new request; this page shows the decision from your notification." : "Leave request saved. The school will review it; refresh history to follow its decision." });
     } catch (error) {
       if (alive.current) setNotice({ error: true, text: errorText(error, "The submission could not be confirmed. Your dates and reason are kept. Retry the same request or refresh its saved history.") });
     } finally {
@@ -181,10 +186,11 @@ function FamilyStudentLeave({ client, student, onBusyChange, onDraftChange }: { 
       <p className="border-t border-[var(--border)] pt-4 text-xs leading-relaxed muted">A leave decision does not change the attendance register. Contact the school if an attendance record needs correction.</p>
     </section>
     <section className="card overflow-hidden" aria-label="Student leave history" aria-busy={!history}>
-      <HistoryHeader title="Saved leave history" busy={saving} onRefresh={() => setRefresh((value) => value + 1)} />
+      <HistoryHeader title={requestId !== undefined ? "Leave decision from notification" : "Saved leave history"} busy={saving} onRefresh={() => setRefresh((value) => value + 1)} />
+      {requestId !== undefined && <div className="px-5 pb-4"><Link className={button} href={`/modules/student-leave?${new URLSearchParams({ ...(role === "parent" ? { view: "guardian" } : {}), child: student.id })}`}>All leave history</Link></div>}
       {!history ? <LoadingState variant="table" className="p-5 text-sm muted">Loading saved leave history…</LoadingState>
         : history.error ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{history.error}</p>
-          : <><RequestList rows={history.data ?? []} /><HistoryPagination rows={history.data ?? []} page={page} busy={saving} onPage={setPage} /></>}
+          : <>{requestId !== undefined && !history.data?.length ? <p className="p-5 text-sm muted">This leave decision is no longer available. Open all leave history to see the current records.</p> : <RequestList rows={history.data ?? []} />}{requestId === undefined && <HistoryPagination rows={history.data ?? []} page={page} busy={saving} onPage={setPage} />}</>}
     </section>
   </div>;
 }

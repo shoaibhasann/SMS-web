@@ -122,6 +122,16 @@ export async function listFamilyStudentLeave(client: SupabaseClient, studentId: 
   return readRows(data, { studentId, schoolId }, offset);
 }
 
+export async function getFamilyNotificationLeave(client: SupabaseClient, role: "parent" | "student", studentId: string, schoolId: string, requestId: string): Promise<StudentLeaveRequest | null> {
+  if (!["parent", "student"].includes(role) || !uuid.test(studentId) || !uuid.test(requestId)) throw new StudentLeaveError("This leave link is invalid.", "22023");
+  const { data, error } = await client.rpc("get_family_notification_leave", { p_role: role, p_student_id: studentId, p_request_id: requestId });
+  rpcError(error, "load");
+  if (data === null) return null;
+  const row = readRows([data], { studentId, schoolId }, 0)[0];
+  if (row.id !== requestId || row.status === "pending") throw new StudentLeaveError("Leave decision could not be verified. Refresh to try again.");
+  return row;
+}
+
 export async function listStudentLeaveReview(client: SupabaseClient, schoolId: string, status: StudentLeaveStatus | null = null, offset = 0) {
   checkedOffset(offset);
   if (status !== null && !studentLeaveStatuses.includes(status)) throw new StudentLeaveError("Choose a valid request status.", "22023");
