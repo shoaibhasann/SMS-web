@@ -2,13 +2,13 @@
 
 7 November 2026 · Founder cases pending
 
-Use the stable [SMS website](https://kids-corner-erp-frontend.vercel.app/login) after engineering confirms the release includes the updated private-download buttons. Use QA accounts and permitted demo attachments from the private handoff. Keep passwords, raw file URLs and private request details out of this document.
+Use the stable [SMS website](https://kids-corner-erp-frontend.vercel.app/login). Runtime `0e3fc33e` is Production Ready with the updated private-download buttons. Use QA accounts and permitted demo attachments from the private handoff. Keep passwords, raw file URLs and private request details out of this document.
 
-**Current status:** owner UI confirms the replacement key Active and the previous key Revoked. Post-rotation proxy/logout QA passes, but four previously warmed raw responses still replayed from the CDN; fresh origin requests were denied. This known cache limitation is not a passing global-revocation claim. Website deployment/browser readback and all founder cases below remain pending.
+**Current status:** owner UI confirms the replacement key Active and the previous key Revoked. Post-rotation proxy/logout QA passes, but four previously warmed raw responses still replayed from the CDN; fresh origin requests were denied. This known cache limitation is not a passing global-revocation claim. Engineering has verified actual Student and assigned-Teacher Production browser downloads of the same original 608-byte PDF, preserved grade/feedback, and both UI logouts. The deployment and browser CORS path pass; all founder cases below remain pending. Negative permission cases are SDK/database evidence, not a completed browser sweep.
 
 | Run | Record |
 | --- | --- |
-| Deployed revision and date | |
+| Deployed revision and date | `0e3fc33e` · 7 November 2026 |
 | Tester and device/browser | |
 | Student and Teacher QA roles confirmed | |
 | Result: Pass / Fail / Blocked | |

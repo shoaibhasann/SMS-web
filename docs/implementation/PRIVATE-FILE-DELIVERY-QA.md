@@ -1,8 +1,8 @@
 # Private academic file delivery — engineering QA
 
-7 November 2026 · Hosted backend and post-rotation QA verified · Known legacy CDN cache limitation · Release confirmation pending
+7 November 2026 · Production and two-role browser download verified · Known legacy CDN cache limitation · Founder acceptance pending
 
-New academic downloads use a current-session checked byte proxy. The database migration and exact Edge source are applied to the intended demo project; matching Student/Teacher web callers and client tests are implemented. This does **not** establish that every previously cached raw URL or older signed capability has been invalidated. The owner’s authoritative UI at 00:22 IST confirms the replacement Storage URL key is Active and the previous key is Revoked. The credential handoff is complete. Post-rotation QA is complete: the protected proxy passes and the known legacy warmed-response replay remains observable. Main/Vercel release confirmation must be recorded separately before founder acceptance.
+New academic downloads use a current-session checked byte proxy. The database migration and exact Edge source are applied to the intended demo project; matching Student/Teacher web callers and client tests are implemented. This does **not** establish that every previously cached raw URL or older signed capability has been invalidated. The owner’s authoritative UI at 00:22 IST confirms the replacement Storage URL key is Active and the previous key is Revoked. The credential handoff is complete. Post-rotation QA is complete: the protected proxy passes and the known legacy warmed-response replay remains observable. The checked `main` runtime is now Production Ready, with actual Student and assigned-Teacher browser downloads verified below. Founder acceptance remains independent.
 
 ## Protected delivery contract
 
@@ -26,6 +26,21 @@ New academic downloads use a current-session checked byte proxy. The database mi
 
 The local SQL/Edge file hashes match those records. Hosted source was checked against the exact target project. Credentials, raw URLs, tokens, private object keys and probe artifacts remain outside Git and public documentation.
 
+## Verified Production release — 7 November 2026
+
+| Item | Recorded evidence |
+| --- | --- |
+| Runtime source pushed to `main` | `0e3fc33e7bb23595345b74a835e62783963c6334` |
+| Stable Production | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) |
+| Deployment | `dpl_6pSrK4dchx34j7WHJGCMuJ5VJVcg` · Production · Ready |
+| Build and GitHub status | 18-second Vercel build; GitHub Vercel status Success |
+| Public readback | `/login` 200; released checklist bytes matched source |
+| Released checklist SHA-256 | `fb6b251afbee6248e107973ae18ad0256cda419eb6cc99321342f614211195f4` |
+
+Actual stable-Production browser QA signs in as the Student, opens the saved graded submission, downloads the original **608-byte PDF**, and logs out to Login. The assigned Teacher then signs in, opens Homework → View submissions, downloads the same original bytes, refreshes submissions and confirms the existing **8/10 grade and exact feedback** remain, then logs out to Login. Both owned browser sessions close through the UI. Each downloaded file matches SHA-256 `6441ab81104f2e7a48c34169266aebc6d3acc3b66335cf8de95715aa88d86af3`.
+
+Those two observed browser paths establish the deployed buttons and browser CORS path. Permission negatives remain SDK/database evidence; native file downloads and physical-device behavior are not claimed. A deployment-scoped Vercel error-log query returned no entries in the new-release window; this is not long-term monitoring evidence. The checklist hash above records the `0e3fc33e` release checkpoint; this documentation follow-up preserves that runtime evidence.
+
 ## Function deployment note
 
 There is no project-wide function config scaffold in this repository. Deploy this handler with its explicit gateway setting from the repository root:
@@ -40,13 +55,15 @@ Replace the project-ref placeholder with the intended project. This function-spe
 
 - Whole web suite: **2,089 tests / 150 files**. Separate focused database/recovery rerun: **110 passed**. The aligned hosted-ledger filename/replay follow-up: **73 passed**. These reruns overlap the whole suite and are not additional unique test totals.
 - TypeScript, Deno checking, scoped/full lint and the optimized Next build pass. Client file/UI regression coverage verifies source-ID payloads, generic authorization errors, no direct Storage fallback, bounds, safe local filenames and cancellation of a previous account’s late response.
-- Actual hosted SDK QA: **34 checks**, exact original-byte comparisons across **five authorized role contexts and all three source kinds**, including the actual web read helper and permitted pending upload/discard, with **11/11 owned Auth sessions closed** and **zero SMS/email/FCM sends**. This is SDK plus DOM/component evidence, not an observed native or browser file-download walkthrough.
+- Actual hosted SDK QA: **34 checks**, exact original-byte comparisons across **five authorized role contexts and all three source kinds**, including the actual web read helper and permitted pending upload/discard, with **11/11 owned Auth sessions closed** and **zero SMS/email/FCM sends**. That initial run is SDK plus DOM/component evidence. The separate Production release record above adds two actual web-browser role paths; it does not establish native download behavior or browser coverage for every negative case.
 - Final post-rotation read-only QA: **9 checks pass**. Student, Guardian and assigned Teacher proxy calls plus the actual web read helper return exact original bytes. All three retained clients are denied after logout; **3/3 owned sessions close**. These checks supplement the earlier run; no provider channel is activated.
 - The three original objects retain their metadata, versions and paths; provider last-access bookkeeping is excluded. All original **13 logs /30 activities /5 submissions /4 materials** remain unchanged. The permitted new QA log/activity bring log/activity totals to **14/31**. Global **1,307 attendance /18 student fees /16 payments /34 guardian links** are unchanged; no historical attachment or protected row was reset to make the flow pass.
 - Advisor counts retain the prior baseline: **41 INFO**, with existing warning-group counts **7 mutable search path /2 anonymous access /6 authenticated access /1 leaked-password protection**. This phase adds no new finding and does not declare those existing warnings resolved.
 - Assignment-revocation during file authorization is covered in the local database regressions. It was **not** tested by mutating a live teaching assignment.
 
 ## Confirmed legacy CDN cache limitation
+
+The legacy CDN gate remains **known OPEN** for immediate global cached-URL revocation.
 
 A temporary maintenance purge probe against the two fixed protected buckets returned **403** on the Free plan. The normal proxy was restored immediately; the deployed function has no maintenance path. No successful purge is claimed.
 
@@ -56,8 +73,8 @@ The owner’s authoritative UI confirms the replacement key is Active and the pr
 
 Engineering records now confirm the replacement-Active / previous-Revoked owner UI, the completed post-rotation proxy/logout checks, and the four residual CDN HITs. The captured signed test expired before revocation, so its denial is not counted as proof of key revocation’s effect. Private evidence retains the exact probe contexts; none are published here.
 
-- [ ] Record the checked `main` revision, Ready Vercel deployment and observed stable-alias browser readback of the updated Student/Teacher buttons.
+The checked `main` revision, Ready deployment, stable-alias readback and two observed browser download/logout paths are recorded above.
 
 The [founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/private-file-checklist.md) remains entirely unticked until manually observed on that release.
 
-The release readback above is the remaining engineering verification step. The known legacy CDN limitation remains explicit. This milestone does not certify complete commercial ERP readiness, native original downloads, provider delivery or managed-service disaster recovery.
+Engineering release readback is complete for the recorded scope. Founder acceptance and the known legacy CDN limitation remain explicit. This milestone does not certify complete commercial ERP readiness, native original downloads, provider delivery or managed-service disaster recovery.
