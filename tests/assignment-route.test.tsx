@@ -4,8 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
 import { canAccessModule, getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules } from "../lib/modules";
 
-const { getUser, readRoles, readProfile, onAuthStateChange } = vi.hoisted(() => ({
-  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(),
+const { getUser, readRoles, readProfile, onAuthStateChange, auditRender } = vi.hoisted(() => ({
+  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(), auditRender: vi.fn(),
 }));
 
 let currentModule: string;
@@ -49,6 +49,12 @@ vi.mock("@/components/finance/family-receipts", () => ({
 vi.mock("@/components/admin/admin-finance-workspace", () => ({
   AdminFinanceWorkspace: () => <section aria-label="Office finance workspace" />,
 }));
+vi.mock("@/components/admin/audit-history-workspace", () => ({
+  AuditHistoryWorkspace: ({ userId }: { userId: string }) => {
+    auditRender(userId);
+    return <section aria-label="School audit history">{userId}</section>;
+  },
+}));
 vi.mock("@/components/family/student-leave-workspace", () => ({
   StudentLeaveWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Student leave workspace">{role} {userId}</section>,
 }));
@@ -90,6 +96,25 @@ beforeEach(() => {
   readProfile.mockResolvedValue({ data: { is_active: true, school_id: "school" }, error: null });
   onAuthStateChange.mockReset().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
+});
+
+describe("school audit route", () => {
+  it.each(["school_admin", "principal", "super_admin"])("opens real read-only history for %s", async (role) => {
+    currentModule = "audit-logs";
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "School audit history" })).toHaveTextContent("actor");
+    expect(auditRender).toHaveBeenCalledWith("actor");
+    expect(screen.queryByRole("button", { name: /add|edit|delete/i })).not.toBeInTheDocument();
+  });
+
+  it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("denies %s before mounting any audit reader", async (role) => {
+    currentModule = "audit-logs";
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    expect(auditRender).not.toHaveBeenCalled();
+  });
 });
 
 describe("verified module authority", () => {

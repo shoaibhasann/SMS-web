@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import LoginPage from "@/app/(auth)/login/page";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -70,6 +71,7 @@ it("keeps login on the device theme without changing the saved workspace prefere
   systemDark = true;
   navigation.path = "/login";
   const view = render(<ThemeProvider attribute="class"><LoginPage /></ThemeProvider>);
+  const scripts = [...view.container.querySelectorAll("script")];
 
   expect(screen.queryByLabelText("Color theme")).not.toBeInTheDocument();
   expect(document.documentElement).toHaveClass("dark");
@@ -81,6 +83,8 @@ it("keeps login on the device theme without changing the saved workspace prefere
 
   navigation.path = "/dashboard";
   view.rerender(workspace());
+  expect(view.container.querySelectorAll("script")).toHaveLength(scripts.length);
+  scripts.forEach((script, index) => expect(view.container.querySelectorAll("script")[index]).toBe(script));
   expect(screen.getByRole("combobox", { name: "Color theme" })).toHaveValue("light");
   expect(document.documentElement).toHaveClass("light");
   expect(localStorage.getItem("theme")).toBe("light");
@@ -89,6 +93,25 @@ it("keeps login on the device theme without changing the saved workspace prefere
   view.rerender(<ThemeProvider attribute="class"><LoginPage /></ThemeProvider>);
   expect(document.documentElement).toHaveClass("dark");
   expect(localStorage.getItem("theme")).toBe("light");
+});
+
+it("uses the device theme before login hydration without replacing the workspace preference", () => {
+  localStorage.setItem("theme", "light");
+  systemDark = true;
+  navigation.path = "/login";
+  const html = renderToString(<ThemeProvider attribute="class"><span>Login</span></ThemeProvider>);
+  const host = document.createElement("div");
+  host.innerHTML = html;
+  window.history.replaceState(null, "", "/login");
+  try {
+    for (const script of host.querySelectorAll("script")) new Function(script.textContent ?? "")();
+    expect(document.documentElement).toHaveClass("dark");
+    expect(document.documentElement).not.toHaveClass("light");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    expect(localStorage.getItem("theme")).toBe("light");
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
 });
 
 it("persists a manual workspace choice across remounts and ignores device changes while overridden", () => {

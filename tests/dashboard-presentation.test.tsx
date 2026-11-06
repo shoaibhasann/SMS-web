@@ -1,8 +1,27 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { AttendanceComposition, AttendanceSegments, DashboardGreeting, DashboardIdentity, DashboardMetric, RecentLogChart } from "@/components/dashboard/dashboard-primitives";
+import { AttendanceComposition, AttendanceSegments, DashboardGreeting, DashboardIdentity, DashboardMetric, DashboardPanel, DashboardViewAll, RecentLogChart } from "@/components/dashboard/dashboard-primitives";
 
 describe("dashboard presentation from verified records", () => {
+  it("keeps summary content keyboard-scrollable while the full-view action stays outside its scroll region", () => {
+    const title = "A long real school update that remains readable in a bounded preview";
+    render(<DashboardPanel title="School updates" right={<DashboardViewAll href="/modules/notices" />}>
+      <ul>{Array.from({ length: 12 }, (_, n) => <li key={n}>{title} {n + 1}</li>)}</ul>
+    </DashboardPanel>);
+    const preview = screen.getByRole("region", { name: "School updates preview" });
+    expect(preview).toHaveAttribute("tabindex", "0");
+    expect(within(preview).getAllByRole("listitem")).toHaveLength(12);
+    expect(within(preview).getByText(`${title} 12`)).toBeInTheDocument();
+    expect(preview).not.toContainElement(screen.getByRole("link", { name: "View all" }));
+    expect(screen.getByRole("link", { name: "View all" })).toHaveAttribute("href", "/modules/notices");
+  });
+  it("lets workflow cards opt out so forms and critical actions never inherit preview caps", () => {
+    render(<DashboardPanel title="Attendance editor" preview={false}><form aria-label="Record attendance"><label>Class<select><option>A</option></select></label><button type="submit">Save attendance</button></form></DashboardPanel>);
+    const section = screen.getByRole("heading", { name: "Attendance editor" }).closest("section");
+    expect(section).not.toHaveClass("dashboard-preview-panel");
+    expect(screen.queryByRole("region", { name: "Attendance editor preview" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save attendance" })).toBeEnabled();
+  });
   it("uses a compact role greeting with a real action and no decorative hero gradient", () => {
     render(<DashboardGreeting eyebrow="School administration" title="School Admin Dashboard" description="Your school overview." href="/modules/students" action="Manage students" />);
     const heading = screen.getByRole("heading", { name: "School Admin Dashboard" });

@@ -9,7 +9,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard", useRouter: 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getUser, signOut, onAuthStateChange: subscribe } }) }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <span>Theme options</span> }));
 
-type DisplayUser = { email: string; user_metadata?: Record<string, unknown> };
+type DisplayUser = { id?: string; email: string; user_metadata?: Record<string, unknown> };
 type Identity = { data: { user: DisplayUser | null }; error: null };
 let authChanged: (event: string, session: { user: DisplayUser } | null) => void;
 function deferred<T>() {
@@ -28,6 +28,27 @@ beforeEach(() => {
 });
 
 describe("AppShell session lifecycle", () => {
+  it("hides old school content and navigation when another account arrives before hydration", async () => {
+    const old = deferred<Identity>();
+    getUser.mockReturnValue(old.promise);
+    render(<AppShell role="admin" userId="admin-a"><p>Private school A content</p></AppShell>);
+    act(() => authChanged("SIGNED_IN", { user: { id: "student-b", email: "student-b@example.test" } }));
+    expect(screen.getByRole("heading", { name: "Your sign-in changed" })).toBeInTheDocument();
+    expect(screen.queryByText("Private school A content")).not.toBeInTheDocument();
+    expect(screen.queryByRole("navigation", { name: "Workspace pages" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Reopen workspace" })).toHaveAttribute("href", "/dashboard");
+    await act(async () => old.resolve({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null }));
+    expect(screen.queryByText("admin-a@example.test")).not.toBeInTheDocument();
+  });
+
+  it("clears the shared shell after a loaded owner signs out", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });
+    render(<AppShell role="admin" userId="admin-a"><p>Private school A content</p></AppShell>);
+    await screen.findByText("admin-a@example.test");
+    act(() => authChanged("SIGNED_OUT", null));
+    expect(screen.queryByText("Private school A content")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Account options" })).not.toBeInTheDocument();
+  });
   it("does not let an old identity lookup overwrite a newer session", async () => {
     const old = deferred<Identity>();
     getUser.mockReturnValue(old.promise);
@@ -53,6 +74,8 @@ describe("AppShell session lifecycle", () => {
   it("retains the page and shows a retryable error when sign-out fails", async () => {
     signOut.mockResolvedValue({ error: { message: "Network unavailable" } });
     render(<AppShell role="admin">Workspace</AppShell>);
+    await screen.findByText("teacher@example.test");
+    fireEvent.click(screen.getByRole("button", { name: "Account options" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Logout" })[0]);
     expect(await screen.findByRole("alert")).toHaveTextContent("Sign out failed");
     expect(replace).not.toHaveBeenCalled();
@@ -63,10 +86,13 @@ describe("AppShell session lifecycle", () => {
     const pending = deferred<{ error: null }>();
     signOut.mockReturnValue(pending.promise);
     render(<AppShell role="admin">Workspace</AppShell>);
+    await screen.findByText("teacher@example.test");
+    fireEvent.click(screen.getByRole("button", { name: "Account options" }));
     const button = screen.getByRole("button", { name: "Logout" });
     fireEvent.click(button);
     fireEvent.click(button);
     expect(signOut).toHaveBeenCalledOnce();
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
     await act(async () => pending.resolve({ error: null }));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
     expect(refresh).toHaveBeenCalledOnce();
@@ -190,8 +216,8 @@ it.each(["finance", "reception"] as const)("keeps publication navigation outside
 it("uses verified-session display metadata without changing role navigation", async () => {
   getUser.mockResolvedValue({ data: { user: { email: "teacher@example.test", user_metadata: { full_name: "  Aditi   Sharma  ", role: "super_admin" } } }, error: null });
   render(<AppShell role="teacher">Workspace</AppShell>);
-  const profile = screen.getByRole("link", { name: "Open my profile" });
-  expect(profile).toHaveAttribute("href", "/modules/profile");
+  await screen.findByText("Aditi Sharma");
+  const profile = screen.getByRole("button", { name: "Account options" });
   expect(await within(profile).findByText("Aditi Sharma")).toBeInTheDocument();
   expect(within(profile).getByText("Teacher")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Guardian invitations" })).not.toBeInTheDocument();
@@ -203,24 +229,26 @@ it("keeps a newer session name when the old identity lookup completes later", as
   render(<AppShell role="teacher">Workspace</AppShell>);
   act(() => authChanged("SIGNED_IN", { user: { email: "new@example.test", user_metadata: { full_name: "New identity" } } }));
   await act(async () => lookup.resolve({ data: { user: { email: "old@example.test", user_metadata: { full_name: "Old identity" } } }, error: null }));
-  expect(within(screen.getByRole("link", { name: "Open my profile" })).getByText("New identity")).toBeInTheDocument();
+  expect(within(screen.getByRole("button", { name: "Account options" })).getByText("New identity")).toBeInTheDocument();
   expect(screen.queryByText("Old identity")).not.toBeInTheDocument();
   expect(screen.getByText("new@example.test")).toBeInTheDocument();
 });
 
 it("preserves guardian scope for profile and notification header actions", async () => {
   render(<AppShell role="parent">Workspace</AppShell>);
-  expect(screen.getByRole("link", { name: "Open my profile" })).toHaveAttribute("href", "/modules/profile?view=guardian");
+  await screen.findByText("teacher@example.test");
+  fireEvent.click(screen.getByRole("button", { name: "Account options" }));
+  expect(screen.getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/account/settings");
   expect(screen.getByRole("link", { name: "Open notifications" })).toHaveAttribute("href", "/modules/notifications?view=guardian");
   expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/modules/profile?view=guardian");
   expect(screen.getByRole("link", { name: "Open notifications" }).textContent).toBe("");
-  await screen.findByText("teacher@example.test");
+  await within(screen.getByRole("group", { name: "Account options" })).findByText("teacher@example.test");
 });
 
 it("does not invent a profile destination or unread badge for a finance account", async () => {
   render(<AppShell role="finance">Workspace</AppShell>);
   expect(screen.queryByRole("link", { name: "Open my profile" })).not.toBeInTheDocument();
-  const account = screen.getByRole("group", { name: "Signed-in account" });
+  const account = screen.getByRole("button", { name: "Account options" });
   expect(within(account).getByText("Finance")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "Notices and circulars" }).textContent).toBe("");
   await screen.findByText("teacher@example.test");

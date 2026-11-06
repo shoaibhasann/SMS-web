@@ -721,6 +721,14 @@
       "sha256": "2c6ef7018e441c916a9fceb80e1c0d5df888ceef23f2dd4e0312cd06ac1209ce",
       "name": "bound_assessment_publication_candidates",
       "provenance": "Hosted real-Teacher EXPLAIN: bound metadata expansion by verified teacher profile before retaining the existing permission predicate."
+    },
+    {
+      "path": "supabase/migrations/20261106120548_school_audit_history.sql",
+      "sha256": "8d234f9280411b9e8574c2d37a3ded5115e286739cd4903d533f014d92f331b3",
+      "kind": "pending",
+      "version": "20261106120548",
+      "name": "school_audit_history",
+      "provenance": "Curated, live-session school audit projections from existing governed records; no client audit mutation or raw legacy payload reads."
     }
   ],
   "excluded": [
@@ -759,5 +767,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "82e00bbcc32ee28bdb23a8decd795558ad74e3e76c9b3b0467b007642b619889"
+  "order_sha256": "504dbcadd4a0ec9344b26235e25411e899744c732ab2f12f570a8fa4539a85d0"
 }

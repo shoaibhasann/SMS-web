@@ -13,8 +13,8 @@ export function DashboardGreeting({ eyebrow, title, description, href, action, c
   const today = schoolDate();
   return <header className="dashboard-greeting"><div className="min-w-0"><p className="dashboard-eyebrow">{eyebrow}</p><h1>{title}</h1><p className="dashboard-description">{description}</p></div><div className="dashboard-header-actions"><time className="dashboard-date" dateTime={today}><CalendarDays size={15} aria-hidden="true" />{new Intl.DateTimeFormat("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(`${today}T00:00:00Z`))}</time>{children}<Link className="dashboard-primary" href={href}>{action}<ArrowUpRight size={16} aria-hidden="true" /></Link></div></header>;
 }
-export function DashboardPanel({ title, icon, right, children, className = "" }: { title: string; icon?: ReactNode; right?: ReactNode; children: ReactNode; className?: string }) {
-  return <section className={`dashboard-panel ${className}`}><div className="dashboard-panel-head"><div className="flex min-w-0 items-center gap-2.5">{icon && <span className="dashboard-panel-icon">{icon}</span>}<h2>{title}</h2></div>{right}</div><div className="dashboard-panel-body">{children}</div></section>;
+export function DashboardPanel({ title, icon, right, children, className = "", preview = true }: { title: string; icon?: ReactNode; right?: ReactNode; children: ReactNode; className?: string; preview?: boolean }) {
+  return <section className={`dashboard-panel${preview ? " dashboard-preview-panel" : ""} ${className}`}><div className="dashboard-panel-head"><div className="flex min-w-0 items-center gap-2.5">{icon && <span className="dashboard-panel-icon">{icon}</span>}<h2>{title}</h2></div>{right}</div><div className="dashboard-panel-body" role={preview ? "region" : undefined} aria-label={preview ? `${title} preview` : undefined} tabIndex={preview ? 0 : undefined}>{children}</div></section>;
 }
 export function DashboardMetric({ label, value, context, icon: Icon, featured = false, tone = "blue", loading = false }: { label: string; value: string | number; context?: string; icon?: LucideIcon; featured?: boolean; tone?: "blue" | "green" | "violet" | "amber" | "rose"; loading?: boolean }) {
   return <article className={`dashboard-metric dashboard-tone-${tone}${featured ? " is-featured" : ""}`} aria-busy={loading || undefined}><h3 className="dashboard-metric-label">{label}</h3>{Icon && <span className="dashboard-metric-icon"><Icon size={18} aria-hidden="true" /></span>}<p className="dashboard-metric-value">{loading ? <Skeleton className="h-7 w-20" /> : value}</p>{context && <p className="dashboard-metric-context">{loading ? <Skeleton className="h-3 w-28 max-w-full" /> : context}</p>}</article>;
@@ -25,7 +25,7 @@ export function DashboardViewAll({ href, children = "View all" }: { href: string
 export function DashboardActions({ actions }: { actions: { label: string; href: string; icon: ReactNode }[] }) {
   return <div className="dashboard-actions">{actions.map((action) => <Link key={action.href} href={action.href}><span className="dashboard-action-icon">{action.icon}</span><span>{action.label}</span><ArrowUpRight className="ml-auto shrink-0" size={15} aria-hidden="true" /></Link>)}</div>;
 }
-const statuses = [
+export const attendanceStatusStyles = [
   { key: "present", color: "#3867ff" }, { key: "absent", color: "#df5871" }, { key: "late", color: "#c28621" },
   { key: "leave", color: "#8796bf" }, { key: "half_day", color: "#6c9aa8" }, { key: "holiday", color: "#96a59a" },
 ];
@@ -35,7 +35,7 @@ export function AttendanceComposition({ rows, loading = false, unavailable = fal
   const counts = new Map<string, number>();
   for (const row of rows) counts.set(row.status, (counts.get(row.status) ?? 0) + 1);
   return <AttendanceSegments segments={[...counts].map(([key, value]) => ({ label: attendanceLabels[key as keyof typeof attendanceLabels] ?? key.replaceAll("_", " "), count: value,
-    color: statuses.find((status) => status.key === key)?.color ?? "#8796bf" }))} loading={loading} unavailable={unavailable} title={title} detail={detail} href={href} />;
+    color: attendanceStatusStyles.find((status) => status.key === key)?.color ?? "#8796bf" }))} loading={loading} unavailable={unavailable} title={title} detail={detail} href={href} />;
 }
 export function AttendanceSegments({ segments, loading = false, unavailable = false, title, detail, href }: {
   segments: { label: string; count: number; color: string }[]; loading?: boolean; unavailable?: boolean; title: string; detail: string; href: string;

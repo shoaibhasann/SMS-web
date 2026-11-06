@@ -18,6 +18,7 @@ import { NoticeInbox } from "@/components/notices/notice-inbox";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
 import { AdminAttendanceWorkspace } from "@/components/admin/admin-attendance-workspace";
+import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
@@ -135,9 +136,10 @@ function ModuleContent() {
       </main>
     );
   }
+  const verifiedUserId = access.userId;
   if (!canAccessModule(access.role, moduleName)) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <div role="alert" className="rounded-2xl border border-red-500/30 bg-[var(--surface)] p-6 text-sm text-red-600">
           Your role does not allow access to this module.
         </div>
@@ -148,12 +150,12 @@ function ModuleContent() {
   if ((moduleName === "published-results" || ((access.role === "parent" || access.role === "student")
     && (moduleName === "results" || moduleName === "result-report")))
     && (access.role === "admin" || access.role === "principal" || access.role === "teacher" || access.role === "parent" || access.role === "student")) {
-    return <AppShell role={access.role}><ResultPublicationWorkspace key={`${access.userId}:${access.role}`} role={access.role} userId={access.userId} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><ResultPublicationWorkspace key={`${access.userId}:${access.role}`} role={access.role} userId={access.userId} /></AppShell>;
   }
 
   if (moduleName === "student-leave" && (access.role === "student" || access.role === "parent" || access.role === "admin" || access.role === "principal")) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <StudentLeaveWorkspace key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
       </AppShell>
     );
@@ -161,7 +163,7 @@ function ModuleContent() {
 
   if (moduleName === "timetable" && (access.role === "admin" || access.role === "principal" || access.role === "teacher" || access.role === "parent" || access.role === "student")) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <TimetableWorkspace key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
       </AppShell>
     );
@@ -169,21 +171,21 @@ function ModuleContent() {
 
   if (moduleName === "attendance") {
     if (access.role === "admin" || access.role === "principal") {
-      return <AppShell role={access.role}><AdminAttendanceWorkspace key={`${access.userId}:${access.role}`} principal={access.role === "principal"} /></AppShell>;
+      return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminAttendanceWorkspace key={`${access.userId}:${access.role}`} principal={access.role === "principal"} /></AppShell>;
     }
     if (access.role === "teacher") {
-      return <AppShell role="teacher"><TeacherAttendanceRegister /></AppShell>;
+      return <AppShell key={access.userId} userId={access.userId} role="teacher"><TeacherAttendanceRegister /></AppShell>;
     }
     if (access.role === "student" || access.role === "parent") {
       return (
-        <AppShell role={access.role}>
+        <AppShell key={access.userId} userId={access.userId} role={access.role}>
           <FamilyAttendanceRegister key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId}
             initialChildId={initialChildId} />
         </AppShell>
       );
     }
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <section className="card space-y-3 p-5">
           <h1 className="text-xl font-bold">Attendance</h1>
           <p className="text-sm muted">Your attendance summary is available on the dashboard. The detailed read-only register is part of the next phase.</p>
@@ -195,27 +197,27 @@ function ModuleContent() {
 
   if ((moduleName === "classwork" || moduleName === "homework") && access.role === "teacher") {
     return (
-      <AppShell role="teacher">
+      <AppShell key={access.userId} userId={access.userId} role="teacher">
         <TeacherAcademicActivityWorkspace module={moduleName} />
       </AppShell>
     );
   }
 
   if (moduleName === "academics" && (access.role === "admin" || access.role === "principal")) {
-    return <AppShell role={access.role}><AdminAcademicSetupWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminAcademicSetupWorkspace key={access.userId} userId={access.userId} /></AppShell>;
   }
 
   if (access.role === "admin" && moduleName === "exams") {
-    return <AppShell role="admin"><AdminAssessmentWorkspace mode="exams" /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminAssessmentWorkspace mode="exams" /></AppShell>;
   }
 
   if (access.role === "admin" && (moduleName === "results" || moduleName === "result-report")) {
-    return <AppShell role="admin"><AdminAssessmentWorkspace mode="results" /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminAssessmentWorkspace mode="results" /></AppShell>;
   }
 
   if (moduleName === "notices") {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         {access.role === "admin" || access.role === "principal"
           ? <AdminNoticesWorkspace key={access.userId} />
           : <NoticeInbox key={access.userId} />}
@@ -224,30 +226,30 @@ function ModuleContent() {
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "fees") {
-    return <AppShell role={access.role}><AdminFinanceWorkspace key={access.userId} mode="fees" /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={access.userId} mode="fees" /></AppShell>;
   }
 
   if (moduleName === "advance-credit") {
     if (access.role === "admin" || access.role === "principal" || access.role === "finance") {
-      return <AppShell role={access.role}><AdvanceCreditWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+      return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdvanceCreditWorkspace key={access.userId} userId={access.userId} /></AppShell>;
     }
     if (access.role === "parent" || access.role === "student") {
-      return <AppShell role={access.role}><FamilyAdvanceCredit key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} /></AppShell>;
+      return <AppShell key={access.userId} userId={access.userId} role={access.role}><FamilyAdvanceCredit key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} /></AppShell>;
     }
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "invoices") {
     const receipt = searchParams.get("receipt") ?? "";
-    return <AppShell role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${receipt}`} mode="invoices" initialReceiptNo={receipt} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${receipt}`} mode="invoices" initialReceiptNo={receipt} /></AppShell>;
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "finance-reports") {
-    return <AppShell role={access.role}><AdminFinanceWorkspace key={access.userId} mode="reports" /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={access.userId} mode="reports" /></AppShell>;
   }
 
   if (moduleName === "invoices" && (access.role === "student" || access.role === "parent")) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <FamilyReceipts key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} />
       </AppShell>
     );
@@ -255,7 +257,7 @@ function ModuleContent() {
 
   if (moduleName === "notifications" && access.role === "parent") {
     return (
-      <AppShell role="parent">
+      <AppShell key={access.userId} userId={access.userId} role="parent">
         <div className="space-y-5">
           <h1 className="text-3xl font-black">Notifications</h1>
           <GuardianAttendanceAlerts key={access.userId} userId={access.userId} />
@@ -266,7 +268,7 @@ function ModuleContent() {
 
   if (moduleName === "profile" && access.role === "parent") {
     return (
-      <AppShell role="parent">
+      <AppShell key={access.userId} userId={access.userId} role="parent">
         <GuardianContactSettings key={access.userId} userId={access.userId} callbackStatus={searchParams.get("contact")} />
       </AppShell>
     );
@@ -274,7 +276,7 @@ function ModuleContent() {
 
   if (moduleName === "guardian-invitations" && (access.role === "admin" || access.role === "principal")) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <GuardianInvitationsWorkspace key={access.userId} userId={access.userId} />
       </AppShell>
     );
@@ -282,22 +284,26 @@ function ModuleContent() {
 
   if (moduleName === "students" && (access.role === "admin" || access.role === "principal")) {
     return (
-      <AppShell role={access.role}>
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
         <StudentRosterWorkspace key={access.userId} userId={access.userId} />
       </AppShell>
     );
   }
 
   if (moduleName === "teachers" && (access.role === "admin" || access.role === "principal")) {
-    return <AppShell role={access.role}><TeacherDirectoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><TeacherDirectoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+  }
+
+  if (moduleName === "audit-logs" && (access.role === "admin" || access.role === "principal")) {
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AuditHistoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
   }
 
   if (access.role === "admin" && [
     "parents", "admissions", "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
-    "reports", "audit-logs", "settings",
+    "reports", "settings",
   ].includes(moduleName)) {
-    return <AppShell role="admin"><AdminDemoWorkspace module={moduleName as AdminDemoModule} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminDemoWorkspace module={moduleName as AdminDemoModule} /></AppShell>;
   }
 
   if (["class-logs", "classwork", "homework", "assignments", "projects", "study-material", "missed-activities"].includes(moduleName)) {
@@ -305,7 +311,7 @@ function ModuleContent() {
   }
 
   if (moduleName === "teacher-assignments") {
-    return <AppShell role={access.role}><div className="space-y-6">
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><div className="space-y-6">
       {(access.role === "admin" || access.role === "principal") && <SubstituteCoverageWorkspace key={access.userId} userId={access.userId} />}
       <TeachingAssignmentManager />
     </div></AppShell>;
@@ -313,7 +319,7 @@ function ModuleContent() {
 
   if (access.role === "teacher") {
     const renderTeacherModule = (teacherModule: "exams" | "results" | "fees" | "profile") => (
-      <AppShell role="teacher"><TeacherModuleView module={teacherModule} /></AppShell>
+      <AppShell key={verifiedUserId} userId={verifiedUserId} role="teacher"><TeacherModuleView module={teacherModule} /></AppShell>
     );
     if (moduleName === "exams") return renderTeacherModule("exams");
     if (moduleName === "results" || moduleName === "result-report") return renderTeacherModule("results");
@@ -322,7 +328,7 @@ function ModuleContent() {
   }
 
   if (access.role === "admin") {
-    return <AppShell role="admin"><AdminModulePlaceholder moduleName={moduleName} /></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminModulePlaceholder moduleName={moduleName} /></AppShell>;
   }
 
   return <GenericModule moduleName={moduleName} />;

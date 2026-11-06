@@ -1,15 +1,17 @@
 # SMS — Production founder QA
 
+**Latest milestone:** [Real audit history, avatar/account settings and refreshed demo UI](AUDIT-ACCOUNT-QA.md). Run that focused checklist as well as the base regression below.
+
 6 November 2026 · `main` + stable Vercel Production · Engineering verification passed; founder acceptance pending
 
-Ye **verified Production frontend + complete 11-migration chain (requested nine + two hosted fixes)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
+Ye **verified Production frontend + complete 12-migration chain (requested nine + two hosted fixes + school audit history)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
 
 | Release / tester | Record |
 |---|---|
 | Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
-| Verified runtime branch / code | `main` · `2dfb1e26eb1af64ef6d1bacbcc741a3e53e85b84` |
-| Verified runtime Production deployment | `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` · Ready; later documentation-only releases preserve the same runtime |
-| Hosted migration rollout verification | 11 applied; [exact source/history hashes](../../supabase/recovery/hosted-rollout-2026-11-06.json) |
+| Earlier verified runtime branch / code | `main` · `2dfb1e26eb1af64ef6d1bacbcc741a3e53e85b84` |
+| Earlier verified runtime Production deployment | `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` · Ready; later documentation-only releases preserve the same runtime |
+| Hosted migration rollout verification | 12 applied; [exact source/history hashes](../../supabase/recovery/hosted-rollout-2026-11-06.json) |
 | Founder, date/time (IST), browser/device | |
 | School / academic year / QA pupil | |
 | Overall result | Pending — Pass / Fail / Blocked |

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import * as Icons from "lucide-react";
 import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules, roleLabels } from "@/lib/modules";
-import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
 import type { UiRole } from "@/lib/auth/roles";
 import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
@@ -91,13 +91,15 @@ function displayIdentity(user: { email?: string; user_metadata?: unknown } | nul
   return { email: user?.email ?? "", name: rawName.replace(/\s+/g, " ").trim().slice(0, 80) };
 }
 
-export function AppShell({ children, role }: { children: ReactNode; role: UiRole }) {
+export function AppShell({ children, role, userId }: { children: ReactNode; role: UiRole; userId?: string }) {
   const path = usePathname();
   const router = useRouter();
   const [supabase] = useState(createClient);
   const [signingOut, setSigningOut] = useState(false);
   const [identity, setIdentity] = useState({ email: "", name: "" });
   const [logoutError, setLogoutError] = useState("");
+  const [accountChanged, setAccountChanged] = useState(false);
+  const accountOwner = useRef(userId ?? "");
   const [query, setQuery] = useState("");
   const logoutPending = useRef(false);
   const menuDialog = useRef<HTMLDialogElement>(null);
@@ -106,15 +108,25 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
   useEffect(() => {
     let active = true;
     let identityVersion = 0;
+    function acceptIdentity(user: { id?: string; email?: string; user_metadata?: unknown } | null | undefined) {
+      if (!active) return;
+      if (accountOwner.current && user?.id !== accountOwner.current) {
+        setIdentity({ name: "", email: "" });
+        setAccountChanged(true);
+        return;
+      }
+      if (user?.id) accountOwner.current = user.id;
+      setIdentity(displayIdentity(user));
+    }
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       identityVersion += 1;
-      if (active) setIdentity(displayIdentity(session?.user));
+      acceptIdentity(session?.user);
     });
     const requestVersion = identityVersion;
     void supabase.auth.getUser().then(({ data, error }) => {
-      if (active && identityVersion === requestVersion) setIdentity(displayIdentity(error ? null : data.user));
+      if (identityVersion === requestVersion) acceptIdentity(error ? null : data.user);
     }, () => {
-      if (active && identityVersion === requestVersion) setIdentity(displayIdentity(null));
+      if (identityVersion === requestVersion) acceptIdentity(null);
     });
     return () => { active = false; subscription.unsubscribe(); };
   }, [supabase]);
@@ -136,7 +148,7 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     setSigningOut(true);
     setLogoutError("");
     try {
-      const { error } = await supabase.auth.signOut();
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
       if (menuDialog.current?.open) menuDialog.current.close();
       router.replace("/login");
@@ -153,7 +165,7 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     ? getTeacherNavigationModules()
     : role === "admin" ? getAdminNavigationModules() : getVisibleModules(role);
   const moduleKey = path?.split("/")[2];
-  const currentKey = path === "/dashboard" ? "dashboard" : moduleKey === "result-report"
+  const currentKey = path === "/account/settings" ? "account-settings" : path === "/dashboard" ? "dashboard" : moduleKey === "result-report"
     || ((role === "parent" || role === "student") && moduleKey === "published-results") ? "results" : moduleKey;
   const currentModule = visibleModules.find((item) => item.key === currentKey);
   const mobileModules = quickLinks[role].flatMap((key) => {
@@ -163,13 +175,13 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
   const searchTerm = query.trim().toLowerCase();
   const pages = [
     { label: "Dashboard", group: "Workspace", href: "/dashboard" },
+    { label: "Account settings", group: "Account", href: "/account/settings" },
     ...visibleModules.map((item) => ({ label: item.label, group: item.group, href: moduleHref(role, item.key) })),
   ];
   const matches = pages.filter((page) => `${page.label} ${page.group}`.toLowerCase().includes(searchTerm));
   const displayName = identity.name || roleLabels[role];
   const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2)
     .map((part) => Array.from(part)[0].toUpperCase()).join("") || "U";
-  const canOpenProfile = visibleModules.some((item) => item.key === "profile");
   const notificationKey = role === "parent" && visibleModules.some((item) => item.key === "notifications") ? "notifications"
     : visibleModules.some((item) => item.key === "notices") ? "notices" : null;
   const profileIdentity = <>
@@ -177,13 +189,13 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
     <span className="hidden min-w-0 text-left xl:block"><span className="block max-w-36 truncate text-[13px] font-semibold">{displayName}</span><span className="mt-0.5 block text-[11px] muted">{identity.name ? roleLabels[role] : "School workspace"}</span></span>
   </>;
 
-  const logout = (
-    <button type="button" onClick={handleLogout} disabled={signingOut}
-      className={`inline-flex min-h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold muted hover:bg-[var(--surface-2)] disabled:opacity-60 ${focus}`}>
-      {signingOut ? <Icons.Loader2 aria-hidden="true" size={17} className="motion-safe:animate-spin" /> : <Icons.LogOut aria-hidden="true" size={17} />}
-      {signingOut ? "Signing out…" : "Logout"}
-    </button>
-  );
+  if (accountChanged) return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6">
+    <section className="card max-w-lg space-y-4 p-6">
+      <h1 className="text-xl font-bold">Your sign-in changed</h1>
+      <p role="status" className="text-sm muted">Reopen the workspace to verify the current account and school access.</p>
+      <a href="/dashboard" className={`inline-flex min-h-11 items-center rounded-xl bg-[var(--primary)] px-4 text-sm font-semibold text-white ${focus}`}>Reopen workspace</a>
+    </section>
+  </main>;
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -192,15 +204,6 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
         <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--border)] px-6"><Brand /></div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5">
           <Navigation role={role} modules={visibleModules} currentKey={currentKey} />
-        </div>
-        <div className="shrink-0 border-t border-[var(--border)] p-3">
-          <div className="flex items-center gap-2.5 rounded-xl bg-[var(--surface-2)] px-3 py-3">
-            <div aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] text-[11px] font-bold text-[var(--primary)]">{initials}</div>
-            <div className="min-w-0"><p className="text-[12px] font-semibold">{roleLabels[role]}</p>
-              {identity.email && <p className="mt-0.5 truncate text-[11px] muted" title={identity.email}>{identity.email}</p>}
-            </div>
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-1">{logout}<ThemeToggle /></div>
         </div>
       </aside>
 
@@ -213,7 +216,7 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
             </button>
             <div className="min-w-0 flex-1">
               <p className="mb-0.5 hidden items-center gap-1.5 text-[11px] muted sm:flex"><span>{roleLabels[role]}</span><Icons.ChevronRight aria-hidden="true" size={11} /><span>{currentModule?.group ?? "Workspace"}</span></p>
-              <p className="truncate text-[14px] font-semibold tracking-tight">{currentModule?.label ?? "Dashboard"}</p>
+              <p className="truncate text-[14px] font-semibold tracking-tight">{currentKey === "account-settings" ? "Account settings" : currentModule?.label ?? "Dashboard"}</p>
             </div>
             <button type="button" aria-label="Find a page" aria-haspopup="dialog" aria-controls="workspace-search" aria-keyshortcuts="Control+k Meta+k"
               className={`flex min-h-11 shrink-0 items-center justify-center gap-2.5 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-[13px] font-medium muted transition-colors hover:text-[var(--text)] lg:min-w-[232px] lg:justify-start ${focus}`}
@@ -223,8 +226,7 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
               <kbd aria-hidden="true" className="ml-auto hidden px-1.5 py-0.5 font-sans text-[11px] muted lg:inline">⌘ K</kbd>
             </button>
             {notificationKey && <Link href={moduleHref(role, notificationKey)} aria-label={notificationKey === "notifications" ? "Open notifications" : "Notices and circulars"} className={`hidden sm:inline-flex ${iconButton}`}><Icons.Bell aria-hidden="true" size={19} strokeWidth={1.75} /></Link>}
-            {canOpenProfile ? <Link href={moduleHref(role, "profile")} aria-label="Open my profile" className={`hidden min-h-11 min-w-11 items-center gap-2.5 rounded-xl lg:flex ${focus}`}>{profileIdentity}</Link>
-              : <div role="group" aria-label="Signed-in account" className="hidden min-h-11 min-w-11 items-center gap-2.5 lg:flex">{profileIdentity}</div>}
+            <AccountMenu key={`${path}:${identity.email}`} identity={profileIdentity} name={displayName} email={identity.email} onLogout={handleLogout} signingOut={signingOut} />
           </div>
         </header>
         <main id="workspace-main" tabIndex={-1} className="mx-auto min-w-0 max-w-[1600px] px-4 pb-28 pt-6 outline-none sm:px-6 sm:pb-28 lg:px-8 lg:pb-8 lg:pt-7">
@@ -269,14 +271,6 @@ export function AppShell({ children, role }: { children: ReactNode; role: UiRole
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-4">
             <Navigation role={role} modules={visibleModules} currentKey={currentKey} onNavigate={() => menuDialog.current?.close()} />
-          </div>
-          <div className="shrink-0 border-t border-[var(--border)] p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <p className="mb-2 text-sm font-semibold">{roleLabels[role]}</p>
-            <div className="flex items-center justify-between gap-2">
-              <ThemeToggle />
-              {logout}
-            </div>
-            {logoutError && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">{logoutError}</p>}
           </div>
         </div>
       </dialog>

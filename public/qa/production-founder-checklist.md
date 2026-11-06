@@ -1,15 +1,17 @@
 # SMS — Production founder QA
 
+**Latest milestone:** [Real audit history, avatar/account settings and refreshed demo UI](/qa/audit-account-checklist.md). Run that focused checklist as well as the base regression below.
+
 6 November 2026 · `main` + stable Vercel Production · Engineering verification passed; founder acceptance pending
 
-Ye **verified Production frontend + complete 11-migration chain (requested nine + two hosted fixes)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
+Ye **verified Production frontend + complete 12-migration chain (requested nine + two hosted fixes + school audit history)** ki checklist hai. Neeche wala stable URL use karo. Har checkbox apne actual test ke baad tick karna; engineering QA ka Pass founder acceptance mein copy mat karna.
 
 | Release / tester | Record |
 |---|---|
 | Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
 | Release branch | `main` |
-| Verified runtime code | `2dfb1e26` |
-| Hosted migration rollout verification | 11 applied; engineering source/history hashes verified |
+| Earlier runtime code (base checkpoint) | `2dfb1e26` |
+| Hosted migration rollout verification | 12 applied; engineering source/history hashes verified |
 | Founder, date/time (IST), browser/device | |
 | School / academic year / QA pupil | |
 | Overall result | Pending — Pass / Fail / Blocked |

@@ -103,6 +103,28 @@ export async function verifyRecoveredState(db) {
   }
   checks.push("two_school_admin_isolation");
 
+  const auditSession = "74000000-0000-0000-0000-000000000190";
+  await asActor(db, id.adminA, async (tx) => {
+    const page = (await tx.query("select public.list_school_audit_events($1,'2026-11-05','2026-11-05','guardians') as value", [id.schoolA])).rows[0].value;
+    assert.equal(page.events.length, 1);
+    assert.equal(page.events[0].action, "Guardian email changed");
+    assert.equal(page.events[0].actor_name, "Synthetic admin-a");
+    assert.equal(page.next_cursor, null);
+    assert.equal(JSON.stringify(page).includes("PRIVATE_RESTORE_AUDIT_REASON"), false);
+    await tx.query("select set_config('request.jwt.claim.sub',$1,true)", [id.guardianA]);
+    await assert.rejects(() => tx.query("select public.list_school_audit_events($1,'2026-11-05','2026-11-05')", [id.schoolA]),
+      (error) => error.code === "42501");
+  }, async (tx) => {
+    await tx.query("insert into auth.sessions(id,user_id) values($1,$2)", [auditSession,id.adminA]);
+    await tx.query("select set_config('request.jwt.claims',$1,true)", [JSON.stringify({ sub:id.adminA,session_id:auditSession })]);
+    await tx.query(`insert into app_private.guardian_contact_audit(id,school_id,parent_id,actor_id,action,occurred_at)
+      values('74000000-0000-0000-0000-000000000191',$1,$2,$3,'email_changed','2026-11-05T10:00:00Z'),
+        ('74000000-0000-0000-0000-000000000192',$4,$2,$3,'mobile_verified','2026-11-05T10:00:00Z')`,
+      [id.schoolA,id.parentA,id.adminA,id.schoolB]);
+    await tx.query("insert into public.audit_logs(school_id,action,old_data) values($1,'PRIVATE_RESTORE_AUDIT_REASON','{}')", [id.schoolA]);
+  });
+  checks.push("curated_school_audit_scope_privacy_and_live_session");
+
   for (const actor of [id.studentUserA, id.guardianA]) {
     await asActor(db, actor, async (tx) => {
       assert.deepEqual((await tx.query("select student_id,status from public.attendance order by student_id")).rows,

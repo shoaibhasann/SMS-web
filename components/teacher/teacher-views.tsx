@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, KeyRound, LogOut, ShieldCheck } from "lucide-react";
+import { ChevronDown, ChevronUp, KeyRound, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   getCurrentTeacherAssignments,
   getCurrentTeacherId,
@@ -1072,7 +1071,6 @@ type TeacherProfileRecord = {
 };
 
 function ProfileView() {
-  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<TeacherProfileRecord | null>(null);
@@ -1081,13 +1079,6 @@ function ProfileView() {
   const [savingPhone, setSavingPhone] = useState(false);
   const [message, setMessage] = useState("");
   const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [resettingPassword, setResettingPassword] = useState(false);
-  const [showResetPasswordConfirm, setShowResetPasswordConfirm] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1153,87 +1144,6 @@ function ProfileView() {
     }
   };
 
-  const changePassword = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError("");
-    setMessage("");
-    if (newPassword.length < 8) {
-      setError("New password must be at least 8 characters.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("New password and confirmation do not match.");
-      return;
-    }
-    if (!email) {
-      setError("Your account email could not be loaded. Sign in again and retry.");
-      return;
-    }
-
-    setSavingPassword(true);
-    try {
-      const supabase = createClient();
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email,
-        password: currentPassword,
-      });
-      if (verifyError) {
-        setError("Current password is incorrect.");
-        return;
-      }
-      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
-      if (updateError) throw updateError;
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-      setMessage("Password changed successfully.");
-    } catch (passwordError) {
-      logSupabaseError("Teacher password change failed", passwordError);
-      setError(userFacingError(passwordError, "Password could not be changed. Please try again."));
-    } finally {
-      setSavingPassword(false);
-    }
-  };
-
-  const sendPasswordReset = async () => {
-    if (!email) {
-      setError("Your account email could not be loaded. Sign in again and retry.");
-      return;
-    }
-    setError("");
-    setMessage("");
-    setResettingPassword(true);
-    try {
-      const { error: resetError } = await createClient().auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/update-password`,
-      });
-      if (resetError) throw resetError;
-      setShowResetPasswordConfirm(false);
-      setMessage("Password reset link sent to your email.");
-    } catch (resetError) {
-      logSupabaseError("Teacher password reset request failed", resetError);
-      setError(userFacingError(resetError, "Password reset email could not be sent. Please try again."));
-      setShowResetPasswordConfirm(false);
-    } finally {
-      setResettingPassword(false);
-    }
-  };
-
-  const logout = async () => {
-    setError("");
-    setSigningOut(true);
-    try {
-      const { error: signOutError } = await createClient().auth.signOut();
-      if (signOutError) throw signOutError;
-      router.replace("/login");
-      router.refresh();
-    } catch (signOutError) {
-      logSupabaseError("Teacher sign out failed", signOutError);
-      setError(userFacingError(signOutError, "Could not log out. Please try again."));
-      setSigningOut(false);
-    }
-  };
-
   return (
     <section className="space-y-5">
       <header>
@@ -1273,40 +1183,14 @@ function ProfileView() {
               <button disabled={savingPhone} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">{savingPhone ? "Saving..." : "Save Phone"}</button>
             </form>
             <p className="mt-3 text-xs muted">Only your own registered phone can be updated. Other profile fields require school administration.</p>
-            <div className="mt-6 border-t border-[var(--border)] pt-5">
-              <div className="flex items-center gap-2"><KeyRound size={18} className="text-blue-600" /><h2 className="font-bold">Account & Security</h2></div>
-              <form onSubmit={changePassword} className="mt-4 grid gap-4 sm:grid-cols-2">
-                <label className="block text-sm font-semibold"><span className="mb-2 block">Current Password</span><input required type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} className="field" /></label>
-                <label className="block text-sm font-semibold"><span className="mb-2 block">New Password</span><input required type="password" autoComplete="new-password" minLength={8} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="field" /></label>
-                <label className="block text-sm font-semibold"><span className="mb-2 block">Confirm New Password</span><input required type="password" autoComplete="new-password" minLength={8} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="field" /></label>
-                <div className="flex flex-wrap items-end gap-3">
-                  <button disabled={savingPassword} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">{savingPassword ? "Changing..." : "Change Password"}</button>
-                  <button type="button" onClick={() => {
-                    setError("");
-                    setShowResetPasswordConfirm(true);
-                  }} className="rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold">Reset Password</button>
-                </div>
-              </form>
-              <p className="mt-2 text-xs muted">Use at least 8 characters. Passwords are handled securely by Supabase Auth.</p>
-              <button type="button" disabled={signingOut} onClick={() => void logout()} className="mt-5 inline-flex items-center gap-2 rounded-xl border border-red-500/30 px-5 py-3 text-sm font-bold text-red-600 transition hover:bg-red-500/5 disabled:opacity-50">
-                <LogOut size={17} />{signingOut ? "Signing out..." : "Log Out"}
-              </button>
+            <div className="mt-6 space-y-3 border-t border-[var(--border)] pt-5">
+              <div className="flex items-center gap-2"><KeyRound size={18} aria-hidden="true" className="text-blue-600" /><h2 className="font-bold">Account &amp; Security</h2></div>
+              <p className="text-sm muted">Review your verified account details and change your password in account settings.</p>
+              <Link href="/account/settings" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-[var(--surface-2)] dark:text-blue-300">Open account settings</Link>
             </div>
           </>
         )}
       </section>
-      {showResetPasswordConfirm && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-          <section role="alertdialog" aria-modal="true" aria-labelledby="reset-password-title" className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
-            <h2 id="reset-password-title" className="text-lg font-bold">Reset your password?</h2>
-            <p className="mt-2 text-sm muted">We&apos;ll send a password reset link to your registered email address{email ? ` (${email})` : ""}.</p>
-            <div className="mt-5 flex justify-end gap-3">
-              <button type="button" disabled={resettingPassword} onClick={() => setShowResetPasswordConfirm(false)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">Cancel</button>
-              <button type="button" disabled={resettingPassword} onClick={() => void sendPasswordReset()} className="rounded-xl gradient px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{resettingPassword ? "Sending..." : "Send Reset Link"}</button>
-            </div>
-          </section>
-        </div>
-      )}
     </section>
   );
 }

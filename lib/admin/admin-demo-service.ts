@@ -15,7 +15,6 @@ export type AdminDemoModule =
   | "profile"
   | "documents"
   | "reports"
-  | "audit-logs"
   | "settings";
 
 export type AdminDemoRecord = {
@@ -139,10 +138,6 @@ const demoSeed: AdminDemoStorage = {
   reports: [
     { id: "report-demo-1", name: "Student Enrollment Summary", type: "Student", period: "Academic year 2026–27", generatedOn: "2026-11-01", status: "Ready" },
     { id: "report-demo-2", name: "Monthly Fee Collection", type: "Fee", period: "October 2026", generatedOn: "2026-11-01", status: "Ready" },
-  ],
-  "audit-logs": [
-    { id: "audit-demo-1", dateTime: "2026-11-02 09:14", user: "School Administrator", role: "School Admin", action: "Updated", module: "Notices", entity: "Term reminder", description: "Notice content was updated." },
-    { id: "audit-demo-2", dateTime: "2026-11-01 15:42", user: "School Administrator", role: "School Admin", action: "Created", module: "Events", entity: "PTM", description: "Parent–Teacher Meeting was scheduled." },
   ],
   settings: [
     { id: "settings-demo", schoolName: "Kids Corner School", phone: "011 4567 8900", email: "office@kidscorner.example", address: "New Delhi, India", currentYear: "2026–27", passingMarks: 35, lateFee: 50, dueDay: 10, workingDays: "Monday–Saturday", attendanceRule: "Daily register", notificationPreference: "Email and in-app" },

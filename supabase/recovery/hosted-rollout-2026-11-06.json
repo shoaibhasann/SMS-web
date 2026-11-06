@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-06T10:44:32.539Z",
-  "allMigrationsVerifiedAt": "2026-11-06T11:08:55.119Z",
+  "allMigrationsVerifiedAt": "2026-11-06T12:21:39.609Z",
   "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
   "preflight": {
     "btree_gist": {
@@ -184,9 +184,30 @@
       "recorded_sql_sha256": "2c6ef7018e441c916a9fceb80e1c0d5df888ceef23f2dd4e0312cd06ac1209ce",
       "verifiedAt": "2026-11-06T11:08:55.119Z",
       "reason": "Bound ownTeacher candidate metadata before expensive permission checks; same live4rowpayload,4049ms\u2192358ms SQL."
+    },
+    {
+      "sourceVersion": "20261106120548",
+      "sourcePath": "supabase/migrations/20261106120548_school_audit_history.sql",
+      "sourceSha256": "8d234f9280411b9e8574c2d37a3ded5115e286739cd4903d533f014d92f331b3",
+      "version": "20261106121730",
+      "name": "school_audit_history",
+      "statement_count": 1,
+      "recorded_sql_sha256": "8d234f9280411b9e8574c2d37a3ded5115e286739cd4903d533f014d92f331b3",
+      "verifiedAt": "2026-11-06T12:21:39.609Z",
+      "reason": "Curated six-module read-only school audit history with live-session authority; raw legacy audit reads revoked without changing source rows."
     }
   ],
   "requested_migrations": 9,
   "followup_fixes": 2,
-  "total_applied": 11
+  "total_applied": 12,
+  "phase_migrations": 1,
+  "auditHistoryPhaseVerification": {
+    "preChangeApplicationTables": 103,
+    "preChangeApplicationRows": 2462,
+    "restoredCatalogSha256": "f596d1a19a2ae2597ea749db923e28e6fa25e55d099768aca687d5463451ad47",
+    "rawRowBytesRestoredExactly": true,
+    "changedApplicationTablesImmediatelyAfterDDL": 0,
+    "scope": "Private actual application-row backup/embedded restore; projected managed references only, no native Auth/Storage/provider/file-byte recovery",
+    "securityAdvisorsNewFindings": 0
+  }
 }

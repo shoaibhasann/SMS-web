@@ -19,7 +19,7 @@ import {
   Users,
 } from "lucide-react";
 import "./dashboard.css";
-import { DashboardActions, DashboardGreeting, DashboardIdentity, DashboardMetric, DashboardPanel, DashboardViewAll, AttendanceComposition, AttendanceSegments, RecentLogChart } from "./dashboard-primitives";
+import { DashboardActions, DashboardGreeting, DashboardIdentity, DashboardMetric, DashboardPanel, DashboardViewAll, AttendanceComposition, AttendanceSegments, RecentLogChart, attendanceStatusStyles } from "./dashboard-primitives";
 import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
@@ -38,7 +38,8 @@ import {
   type FamilyAttendanceRow,
   type FamilyStudent,
 } from "@/lib/attendance/family";
-import { attendanceLabels, schoolDate } from "@/lib/attendance/types";
+import { attendanceLabels, schoolDate, type AttendanceStatus } from "@/lib/attendance/types";
+import { loadSchoolAttendanceCounts, type AttendanceCounts } from "@/lib/dashboard/attendance";
 import { upcomingAssessmentEndDate } from "@/lib/dashboard/dates";
 import { formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow, type FeeMoney } from "@/lib/finance/fee-batches";
 import { getFamilyFeeLedger, getOfficeFinanceSummary } from "@/lib/finance/fee-changes";
@@ -197,6 +198,7 @@ type AdminOverview = {
   sections: number | null;
   attendanceToday: number | null;
   absentToday: number | null;
+  attendanceStatuses: AttendanceCounts | null;
   activeTeachers: number | null;
   classesLoggedToday: number | null;
   upcomingExams: number | null;
@@ -226,6 +228,7 @@ const emptyAdminOverview: AdminOverview = {
   sections: null,
   attendanceToday: null,
   absentToday: null,
+  attendanceStatuses: null,
   activeTeachers: null,
   classesLoggedToday: null,
   upcomingExams: null,
@@ -250,8 +253,8 @@ function displayDate(value: string) {
     : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function Card({ title, icon, children, right }: { title: string; icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode }) {
-  return <DashboardPanel title={title} icon={icon ?? <School size={18} />} right={right}>{children}</DashboardPanel>;
+function Card({ title, icon, children, right, preview = true }: { title: string; icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode; preview?: boolean }) {
+  return <DashboardPanel title={title} icon={icon ?? <School size={18} />} right={right} preview={preview}>{children}</DashboardPanel>;
 }
 function Stat({ label, value, tone = "blue", loading = false }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple"; loading?: boolean }) {
   const icon = tone === "green" ? CalendarCheck : tone === "orange" ? IndianRupee : tone === "purple" ? ClipboardList : BookOpen;
@@ -270,7 +273,7 @@ export function RoleDashboard({
   hasGuardianRole?: boolean;
 }) {
   return (
-    <AppShell role={role}>
+    <AppShell key={userId} userId={userId} role={role}>
       <div className="sms-dashboard">
       {hasGuardianRole && role !== "parent" && (
         <Link href={guardianAttendancePath}
@@ -757,7 +760,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
       </Card>
 
       </div>
-      <Card title="Attendance & Missed Work" icon={<CalendarCheck size={18} />}>
+      <Card title="Attendance & Missed Work" icon={<CalendarCheck size={18} />} preview={false}>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: "Today’s attendance activity", value: attendanceOverviewUnavailable ? "—" : todayAttendanceRows.length, context: attendanceOverviewUnavailable ? "Currently unavailable" : "Records saved by you" },
@@ -838,7 +841,6 @@ function TeacherDashboard({ userId }: { userId: string }) {
         </div>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-2">
         <Card title="Upcoming Tests & Recent Marks" icon={<ClipboardList size={18} />}>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
@@ -870,7 +872,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
             </div>
           </div>
         </Card>
-        <Card title="Share a Notice" icon={<FileText size={18} />}>
+        <Card title="Share a Notice" icon={<FileText size={18} />} preview={false}>
           <p className="text-sm muted">Publish an update for students and guardians in your assigned classes.</p>
           <div className="mt-4 space-y-3">
             <input value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} placeholder="Notice title" className="field" />
@@ -890,7 +892,6 @@ function TeacherDashboard({ userId }: { userId: string }) {
             </div>
           </div>
         </Card>
-      </div>
     </div>
   );
 }
@@ -1193,7 +1194,7 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
 
   useEffect(() => {
     if (!schoolId) return;
-    const financeSchoolId = schoolId;
+    const activeSchoolId = schoolId;
     const controller = new AbortController();
     async function load() {
 
@@ -1209,7 +1210,6 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         classesResult,
         sectionsResult,
         attendanceResult,
-        absentResult,
         todayLogsResult,
         upcomingResult,
         completedAssessmentsResult,
@@ -1222,14 +1222,16 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         supabase.from("parents").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         supabase.from("classes").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
         supabase.from("sections").select("id", { count: "exact", head: true }).eq("school_id", schoolId),
-        supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today),
-        supabase.from("attendance").select("id", { count: "exact", head: true }).eq("school_id", schoolId).eq("attendance_date", today).eq("status", "absent"),
+        loadSchoolAttendanceCounts(supabase, activeSchoolId, today).then(
+          (data) => ({ data, error: null }),
+          (error: unknown) => ({ data: null, error }),
+        ),
         supabase.from("class_logs").select("id,teacher_id,class_id,section_id").eq("school_id", schoolId).eq("log_date", today),
         supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
         supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
         supabase.from("class_logs").select("id,log_date,topic,class_id,section_id,subject_id,status").eq("school_id", schoolId).order("log_date", { ascending: false }).limit(10),
         supabase.from("notices").select("id,title,content,created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(5),
-        getOfficeFinanceSummary(supabase, financeSchoolId).then(
+        getOfficeFinanceSummary(supabase, activeSchoolId).then(
           (data) => ({ data, error: null }),
           (error: unknown) => ({ data: null, error }),
         ),
@@ -1243,7 +1245,6 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         ["classes", classesResult.error],
         ["sections", sectionsResult.error],
         ["attendance today", attendanceResult.error],
-        ["absent students", absentResult.error],
         ["today's class logs", todayLogsResult.error],
         ["upcoming assessments", upcomingResult.error],
         ["completed assessments", completedAssessmentsResult.error],
@@ -1272,8 +1273,9 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         parents: parentsResult.error ? null : parentsResult.count ?? 0,
         classes: classesResult.error ? null : classesResult.count ?? 0,
         sections: sectionsResult.error ? null : sectionsResult.count ?? 0,
-        attendanceToday: attendanceResult.error ? null : attendanceResult.count ?? 0,
-        absentToday: absentResult.error ? null : absentResult.count ?? 0,
+        attendanceToday: attendanceResult.data?.total ?? null,
+        absentToday: attendanceResult.data?.statuses.absent ?? null,
+        attendanceStatuses: attendanceResult.data?.statuses ?? null,
         activeTeachers: todayLogsResult.error ? null : teacherIdsWithActivity.size,
         classesLoggedToday: todayLogsResult.error ? null : new Set(todayLogs.map((log) => `${log.class_id}:${log.section_id ?? ""}`)).size,
         upcomingExams: upcomingResult.error ? null : upcomingResult.count ?? upcoming.length,
@@ -1372,7 +1374,7 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
   }
   const recentHomework = recentSchoolActivities.filter((activity) => activity.activity_type === "homework").slice(0, 6);
 
-  const attendanceUnavailable = overview.attendanceToday === null || overview.absentToday === null
+  const attendanceUnavailable = overview.attendanceStatuses === null || overview.attendanceToday === null || overview.absentToday === null
     || overview.absentToday > overview.attendanceToday;
   const countValue = (value: number | null) => dashboardLoading ? "—" : value ?? "—";
 
@@ -1395,7 +1397,7 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
       <div className="dashboard-bento">
         <RecentLogChart logs={recentSchoolLogs} loading={dashboardLoading} />
         <AttendanceSegments title="Today’s attendance" detail="Breakdown of saved attendance records" href="/modules/attendance" loading={dashboardLoading} unavailable={attendanceUnavailable}
-          segments={[{ label: "Absent", count: overview.absentToday ?? 0, color: "#df5871" }, { label: "Other statuses", count: Math.max((overview.attendanceToday ?? 0) - (overview.absentToday ?? 0), 0), color: "#3867ff" }]} />
+          segments={attendanceStatusStyles.map(({ key, color }) => ({ label: attendanceLabels[key as AttendanceStatus], count: overview.attendanceStatuses?.[key as AttendanceStatus] ?? 0, color }))} />
       </div>
       <nav className="dashboard-quick-wide" aria-label="School quick actions"><DashboardActions actions={[
         { label: "Student directory", href: "/modules/students", icon: <Users size={16} /> },

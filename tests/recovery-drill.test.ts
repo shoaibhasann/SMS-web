@@ -80,7 +80,7 @@ it("retains cross-school/linked-child authorization, fees, notifications, mark C
   const after = await verifyRecoveredState(restored);
   expect(after).toEqual(before);
   expect(after).toEqual(expect.arrayContaining([
-    "two_school_admin_isolation", "student_and_linked_guardian_history",
+    "two_school_admin_isolation", "curated_school_audit_scope_privacy_and_live_session", "student_and_linked_guardian_history",
     "family_ledger_and_receipt_integrity", "denied_unlinked_child_and_finance_writes",
     "linked_absence_alert_eligibility", "mark_rpc_and_stale_version_rejection",
     "student_leave_request_review_and_retry", "revoked_guardian_leave_denial",

@@ -28,3 +28,7 @@ Check all four dashboards at 1440 px and 390 px in light and dark modes, plus ta
 Skill references used: UI UX Pro Max Brand color/typography guidance and the verified Bento Box Grid / Data-Dense Dashboard style results. Existing CSS variables are the token source; no generated token file overwrites them.
 
 Font source: [Google Fonts Sora](https://github.com/google/fonts/tree/main/ofl/sora). Local font: `app/fonts/Sora-Variable.ttf`; license: `public/fonts/Sora-OFL.txt`. Browser rendering uses a locally served font asset; no Google font request is needed at runtime.
+
+## Account controls and analytics alignment
+
+Use one shared top-right avatar disclosure for Account settings, Appearance and local Logout on desktop and phone. Mouse hover is optional convenience; click, touch, keyboard, outside dismissal and Escape must work. Do not duplicate account controls in sidebar/mobile footers. Attendance status labels/counts come from saved data; desktop analytics cards share aligned boundaries and stack naturally on phones.

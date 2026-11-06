@@ -132,6 +132,20 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
+describe("teacher account settings handoff", () => {
+  it("keeps teacher profile information and routes password management to the verified shared flow", async () => {
+    render(<TeacherModuleView module="profile" />);
+    expect(await screen.findByRole("heading", { name: "Priya Sharma" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "My Classes & Responsibilities" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open account settings" })).toHaveAttribute("href", "/account/settings");
+    expect(screen.queryByLabelText("Current Password")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Change Password" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset Password" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Log Out" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Phone" })).toBeInTheDocument();
+  });
+});
+
 describe("academic scope loading", () => {
   it("shows teacher names to a student using the safe label RPC", async () => {
     read = (query) => {
