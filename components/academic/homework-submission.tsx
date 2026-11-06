@@ -142,7 +142,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
     if (!snapshot?.file_path || downloading || sessionChanged) return;
     const controller = new AbortController(); downloadController.current = controller;
     setDownloading(true); setError("");
-    try { await downloadHomeworkFile(client, snapshot.file_path, snapshot.file_name ?? undefined, controller.signal); }
+    try { await downloadHomeworkFile(client, snapshot.id, snapshot.file_name ?? undefined, controller.signal); }
     catch (downloadError) {
       if (!controller.signal.aborted && (downloadError as { name?: string })?.name !== "AbortError") setError(homeworkError(downloadError, "The attachment could not be downloaded. Refresh your access before trying again."));
     } finally {

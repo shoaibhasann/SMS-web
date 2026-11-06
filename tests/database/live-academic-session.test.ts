@@ -68,7 +68,11 @@ describe("native session revocation across legacy academic, leave, result and pr
   it.each(users)("retains exact authorized academic and private object reads for a live identity %s", async (user) => {
     expect(await actor(user, "select id from public.class_logs where id=$1", [log])).toEqual([{ id: log }]);
     expect(await actor(user, "select id from public.activity_submissions where id=$1", [submission])).toEqual([{ id: submission }]);
-    expect(await actor(user, "select name from storage.objects where name in ($1,$2) order by name", [materialPath, homeworkPath])).toHaveLength(2);
+    expect(await actor(user, "select name from storage.objects where name in ($1,$2) order by name", [materialPath, homeworkPath])).toEqual([]);
+    expect(await value(user, "select public.authorize_private_academic_file('submission',$1) as value", [submission]))
+      .toMatchObject({ bucket: "homework-submissions", path: homeworkPath });
+    expect(await value(user, "select public.authorize_private_academic_file('material',$1) as value", [material]))
+      .toMatchObject({ bucket: "study-materials", path: materialPath });
   });
 
   it.each(users)("cuts off revoked identity %s across RLS, files, result/leave reads and writes", async (user) => {

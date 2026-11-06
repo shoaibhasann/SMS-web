@@ -70,27 +70,40 @@ export async function uploadHomeworkFile(client: SupabaseClient, scope: Homework
   return { path, name: filename(file.name, path), size: file.size, mimeType };
 }
 
-export async function readHomeworkFile(client: SupabaseClient, path: string, signal?: AbortSignal): Promise<Blob> {
-  checkPath(path);
+export async function readHomeworkFile(client: SupabaseClient, submissionId: string, signal?: AbortSignal): Promise<Blob> {
+  if (!uuid.test(submissionId)) throw new Error("This homework attachment could not be verified. Refresh homework to try again.");
   cancelled(signal);
-  const { data, error } = await client.storage.from(HOMEWORK_FILE_BUCKET)
-    .download(path, { cacheNonce: crypto.randomUUID() }, { cache: "no-store", signal });
-  cancelled(signal);
-  if (error || !data) throw new Error("This attachment is unavailable. Refresh homework to check your access.");
-  return data;
+  try {
+    const { data, error, response } = await client.functions.invoke<Blob>("private-academic-file", {
+      body: { kind: "submission", id: submissionId }, signal,
+    });
+    cancelled(signal);
+    const noStore = response?.headers.get("cache-control")?.toLowerCase().split(",").some((part) => part.trim() === "no-store");
+    if (error || !(data instanceof Blob) || data.size < 1 || data.size > HOMEWORK_FILE_MAX_BYTES
+      || data.type.split(";")[0].trim().toLowerCase() !== "application/octet-stream" || !noStore || response?.redirected) {
+      throw new Error("Unverified attachment response.");
+    }
+    return data;
+  } catch {
+    cancelled(signal);
+    throw new Error("This attachment is unavailable. Refresh homework to check your access.");
+  }
 }
 
-export async function downloadHomeworkFile(client: SupabaseClient, path: string, name?: string, signal?: AbortSignal): Promise<void> {
-  const blob = await readHomeworkFile(client, path, signal);
+export async function downloadHomeworkFile(client: SupabaseClient, submissionId: string, name?: string, signal?: AbortSignal): Promise<void> {
+  const blob = await readHomeworkFile(client, submissionId, signal);
   cancelled(signal);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename(name, path);
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  try {
+    anchor.href = url;
+    anchor.download = name && mimeTypes[extension(name)] ? filename(name, name) : "homework-attachment";
+    document.body.appendChild(anchor);
+    anchor.click();
+  } finally {
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  }
 }
 
 export async function discardPendingHomeworkFile(client: SupabaseClient, path: string): Promise<void> {

@@ -80,7 +80,7 @@ describe("student homework submission UI", () => {
     render(<StudentHomeworkSubmission scope={scope} userId="auth-student" />);
     await user.click(screen.getByRole("button", { name: "My submission" }));
     await user.click(await screen.findByRole("button", { name: "Download attachment · work.pdf" }));
-    expect(mocks.download).toHaveBeenCalledWith(expect.anything(), "private/submission.pdf", "work.pdf", expect.any(AbortSignal));
+    expect(mocks.download).toHaveBeenCalledWith(expect.anything(), "submission-a", "work.pdf", expect.any(AbortSignal));
     expect(screen.queryByLabelText("Homework attachment (optional)")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove selected attachment" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ it("aborts a student's private download on account switch and suppresses its lat
   let release!: () => void;
   let downloadSignal!: AbortSignal;
   let privateAction = false;
-  mocks.download.mockImplementation(async (_client, _path, _name, signal: AbortSignal) => {
+  mocks.download.mockImplementation(async (_client, _submissionId, _name, signal: AbortSignal) => {
     downloadSignal = signal;
     await new Promise<void>((resolve) => { release = resolve; });
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -193,7 +193,7 @@ it("keeps a teacher's download independent of background reads, then cancels it 
   let release!: () => void;
   let downloadSignal!: AbortSignal;
   let privateAction = false;
-  mocks.download.mockImplementation(async (_client, _path, _name, signal: AbortSignal) => {
+  mocks.download.mockImplementation(async (_client, _submissionId, _name, signal: AbortSignal) => {
     downloadSignal = signal;
     await new Promise<void>((resolve) => { release = resolve; });
     if (signal.aborted) throw new DOMException("Aborted", "AbortError");
@@ -202,6 +202,7 @@ it("keeps a teacher's download independent of background reads, then cancels it 
   const view = render(<TeacherHomeworkGrading activityId="homework-a" userId="auth-teacher" />);
   await user.click(screen.getByRole("button", { name: "View submissions" }));
   await user.click(await screen.findByRole("button", { name: "Download attachment · work.pdf" }));
+  expect(mocks.download).toHaveBeenLastCalledWith(expect.anything(), "submission-a", "work.pdf", expect.any(AbortSignal));
   await act(async () => { window.dispatchEvent(new Event("focus")); });
   expect(downloadSignal.aborted).toBe(false);
   await user.click(screen.getByRole("button", { name: "Hide submissions" }));

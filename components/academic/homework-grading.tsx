@@ -124,7 +124,7 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
     if (!submission.file_path || downloadingId || sessionChanged) return;
     const controller = new AbortController(); downloadController.current = controller;
     setDownloadingId(submission.id); setError("");
-    try { await downloadHomeworkFile(client, submission.file_path, submission.file_name ?? undefined, controller.signal); }
+    try { await downloadHomeworkFile(client, submission.id, submission.file_name ?? undefined, controller.signal); }
     catch (downloadError) {
       if (!controller.signal.aborted && (downloadError as { name?: string })?.name !== "AbortError") setError(homeworkError(downloadError, "This attachment could not be downloaded. Refresh teaching access and try again."));
     } finally {

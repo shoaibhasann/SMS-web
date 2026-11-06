@@ -769,6 +769,14 @@
       "version": "20261106180524",
       "name": "require_live_academic_family_sessions",
       "reason": "Close confirmed post-sign-out JWT reads across academic RLS and private files, governed student leave and assessment publication without changing retained records or assignment/link predicates."
+    },
+    {
+      "path": "supabase/migrations/20261106183702_proxy_private_academic_downloads.sql",
+      "sha256": "c1df0e39d1699f9d7cc522ccc90d89672c78792a6dd1b0c162ee30552b3450a7",
+      "kind": "pending",
+      "version": "20261106183702",
+      "name": "proxy_private_academic_downloads",
+      "reason": "Authorize stored academic attachment IDs under current caller RLS and native sessions; restrict direct private Storage reads to upload/delete metadata operations. CDN invalidation is a separate verified rollout gate."
     }
   ],
   "excluded": [
@@ -807,5 +815,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "5c722cb548c3ed733c5fc900f1959ba0d32fdea706dc51aedf6613bce77c7dd7"
+  "order_sha256": "2e8e5d96a1524aa9d192e122f2f04fba2d63038737f5a15df398ba728de77e21"
 }

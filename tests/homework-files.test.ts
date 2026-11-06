@@ -1,19 +1,26 @@
 // @vitest-environment node
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { discardPendingHomeworkFile, downloadHomeworkFile, HOMEWORK_FILE_MAX_BYTES, readHomeworkFile, uploadHomeworkFile, validateHomeworkFile } from "@/lib/homework/files";
 
 const id = (n: number) => `30000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const scope = { schoolId: id(1), academicYearId: id(2), classId: id(3), sectionId: id(4), subjectId: id(5), activityId: id(6), studentId: id(7) };
 const path = [...Object.values(scope), `${id(8)}.pdf`].join("/");
+const submissionId = id(9);
 const pdf = () => new File(["%PDF-1.4\nQA homework fixture"], "answer.pdf", { type: "application/pdf" });
+type Invocation = { data: unknown; error: unknown; response?: Response };
+function response(cache = "private, no-store, max-age=0") {
+  return new Response(null, { headers: { "content-type": "application/octet-stream", "cache-control": cache } });
+}
 function client() {
   const upload = vi.fn(async (key: string) => ({ data: { path: key }, error: null }));
-  const download = vi.fn(async () => ({ data: new Blob(["private evidence"]), error: null }));
+  const download = vi.fn();
+  const invoke = vi.fn<(name: string, options: Record<string, unknown>) => Promise<Invocation>>().mockResolvedValue({ data: new Blob(["private evidence"], { type: "application/octet-stream" }), error: null, response: response() });
   const remove = vi.fn(async (keys: string[]) => ({ data: keys.map((name) => ({ name })), error: null }));
   const from = vi.fn(() => ({ upload, download, remove }));
-  return { client: { storage: { from } } as unknown as SupabaseClient, from, upload, download, remove };
+  return { client: { functions: { invoke }, storage: { from } } as unknown as SupabaseClient, from, upload, download, remove, invoke };
 }
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("private homework file client", () => {
   it("rejects empty, oversized or mismatched files and invalid signatures before sending bytes", async () => {
@@ -49,16 +56,71 @@ describe("private homework file client", () => {
     expect((await uploadHomeworkFile(fake.client, scope, jpg)).mimeType).toBe("image/jpeg");
   });
 
-  it("downloads through fresh authenticated requests and refuses arbitrary URLs or bucket traversal", async () => {
+  it("reads bytes only through the fixed authenticated function using the saved submission ID", async () => {
+    const fake = client(), controller = new AbortController();
+    expect(await (await readHomeworkFile(fake.client, submissionId, controller.signal)).text()).toBe("private evidence");
+    await readHomeworkFile(fake.client, submissionId);
+    expect(fake.invoke).toHaveBeenNthCalledWith(1, "private-academic-file", { body: { kind: "submission", id: submissionId }, signal: controller.signal });
+    expect(fake.invoke).toHaveBeenNthCalledWith(2, "private-academic-file", { body: { kind: "submission", id: submissionId }, signal: undefined });
+    expect(fake.from).not.toHaveBeenCalled(); expect(fake.download).not.toHaveBeenCalled();
+    for (const invalid of [path, `https://example.com/${path}`, `../${path}`, "invalid-submission", ""]) await expect(readHomeworkFile(fake.client, invalid)).rejects.toThrow(/could not be verified/);
+    expect(fake.invoke).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not expose authentication, provider, or transport error details", async () => {
     const fake = client();
-    expect(await (await readHomeworkFile(fake.client, path)).text()).toBe("private evidence");
-    await readHomeworkFile(fake.client, path);
-    const calls = fake.download.mock.calls as unknown as [string, { cacheNonce: string }, { cache: string }][];
-    expect(calls[0]).toEqual([path, { cacheNonce: expect.any(String) }, { cache: "no-store", signal: undefined }]);
-    expect(calls[0][1].cacheNonce).not.toBe(calls[1][1].cacheNonce);
-    await expect(readHomeworkFile(fake.client, `https://example.com/${path}`)).rejects.toThrow(/could not be verified/);
-    await expect(readHomeworkFile(fake.client, `../${path}`)).rejects.toThrow();
-    expect(fake.download).toHaveBeenCalledTimes(2);
+    for (const error of [{ code: "42501", message: "private storage path" }, new Error("secret provider detail")]) {
+      fake.invoke.mockResolvedValueOnce({ data: null, error, response: response() });
+      await expect(readHomeworkFile(fake.client, submissionId)).rejects.toThrow("This attachment is unavailable. Refresh homework to check your access.");
+    }
+    fake.invoke.mockRejectedValueOnce(new Error("signed URL secret"));
+    await expect(readHomeworkFile(fake.client, submissionId)).rejects.toThrow("This attachment is unavailable. Refresh homework to check your access.");
+    expect(fake.from).not.toHaveBeenCalled();
+  });
+
+  it("rejects URL/JSON/HTML payloads, empty or oversized blobs, redirects, and cacheable responses", async () => {
+    const fake = client(), binary = () => new Blob(["private evidence"], { type: "application/octet-stream" });
+    const redirected = response(); Object.defineProperty(redirected, "redirected", { value: true });
+    const invalid: Invocation[] = [
+      { data: "https://example.test/signed-secret", error: null, response: response() },
+      { data: { signedUrl: "https://example.test/signed-secret" }, error: null, response: response() },
+      { data: { size: 10, type: "application/octet-stream" }, error: null, response: response() },
+      { data: new Blob(["<html>sign in</html>"], { type: "text/html" }), error: null, response: response() },
+      { data: new Blob([], { type: "application/octet-stream" }), error: null, response: response() },
+      { data: new Blob([new Uint8Array(HOMEWORK_FILE_MAX_BYTES + 1)], { type: "application/octet-stream" }), error: null, response: response() },
+      { data: binary(), error: null, response: response("public,max-age=3600") },
+      { data: binary(), error: null, response: undefined },
+      { data: binary(), error: null, response: redirected },
+    ];
+    for (const reply of invalid) {
+      fake.invoke.mockResolvedValueOnce(reply);
+      await expect(readHomeworkFile(fake.client, submissionId)).rejects.toThrow("This attachment is unavailable");
+    }
+    fake.invoke.mockResolvedValueOnce({ data: new Blob([new Uint8Array(HOMEWORK_FILE_MAX_BYTES)], { type: "application/octet-stream" }), error: null, response: response() });
+    expect((await readHomeworkFile(fake.client, submissionId)).size).toBe(HOMEWORK_FILE_MAX_BYTES);
+  });
+
+  it("honors an already cancelled owner context without calling the function", async () => {
+    const fake = client(), controller = new AbortController(); controller.abort();
+    await expect(readHomeworkFile(fake.client, submissionId, controller.signal)).rejects.toMatchObject({ name: "AbortError" });
+    expect(fake.invoke).not.toHaveBeenCalled();
+  });
+
+  it("uses only an authorized blob URL and a sanitized local filename hint for browser downloads", async () => {
+    const fake = client(), anchor = { href: "", download: "", click: vi.fn(), remove: vi.fn() };
+    const appendChild = vi.fn(), schedule = vi.fn();
+    vi.stubGlobal("document", { createElement: vi.fn(() => anchor), body: { appendChild } });
+    vi.stubGlobal("window", { setTimeout: schedule });
+    const create = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:authorized-homework");
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    await downloadHomeworkFile(fake.client, submissionId, "../../original?.pdf");
+    expect(create).toHaveBeenCalledWith(expect.any(Blob)); expect(anchor.href).toBe("blob:authorized-homework");
+    expect(anchor.download).toMatch(/\.pdf$/); expect(anchor.download).not.toMatch(/[\\/?:]/);
+    expect(appendChild).toHaveBeenCalledWith(anchor); expect(anchor.click).toHaveBeenCalledOnce(); expect(anchor.remove).toHaveBeenCalledOnce();
+    expect(schedule).toHaveBeenCalledWith(expect.any(Function), 30_000);
+    schedule.mock.calls[0][0](); expect(revoke).toHaveBeenCalledWith("blob:authorized-homework");
+    await downloadHomeworkFile(fake.client, submissionId, "page.html"); expect(anchor.download).toBe("homework-attachment");
+    expect(fake.invoke.mock.calls[0][1].body).toEqual({ kind: "submission", id: submissionId });
   });
 
   it("does not report zero-row pending cleanup as success", async () => {
@@ -71,13 +133,13 @@ describe("private homework file client", () => {
   it("does not create a browser download when an old account's late response completes after cancellation", async () => {
     const fake = client();
     let finish!: (result: { data: Blob; error: null }) => void;
-    fake.download.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    fake.invoke.mockImplementationOnce(() => new Promise((resolve) => { finish = (value) => resolve({ ...value, response: response() }); }));
     const objectUrl = vi.spyOn(URL, "createObjectURL");
     const controller = new AbortController();
     try {
-      const pending = downloadHomeworkFile(fake.client, path, "answer.pdf", controller.signal);
+      const pending = downloadHomeworkFile(fake.client, submissionId, "answer.pdf", controller.signal);
       controller.abort();
-      finish({ data: new Blob(["private old-account bytes"]), error: null });
+      finish({ data: new Blob(["private old-account bytes"], { type: "application/octet-stream" }), error: null });
       await expect(pending).rejects.toMatchObject({ name: "AbortError" });
       expect(objectUrl).not.toHaveBeenCalled();
     } finally { objectUrl.mockRestore(); }
