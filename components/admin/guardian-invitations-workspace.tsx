@@ -11,6 +11,7 @@ import {
   guardianInvitationUrl,
   invitationStatus,
   issueGuardianInvitation,
+  issueGuardianPhoneInvitation,
   listGuardianInvitations,
   revokeGuardianInvitation,
   type GuardianInvitation,
@@ -19,13 +20,14 @@ import { GuardianAccessWorkspace } from "./guardian-access-workspace";
 import { GuardianInvitationImport } from "./guardian-invitation-import";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { normalizeIndianMobile } from "@/lib/auth/phone";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 type Setup = Awaited<ReturnType<typeof loadAdminAttendanceSetup>>;
 type Load<T> = { data: T; error?: never } | { data?: never; error: string };
 type LockProps = { busy: boolean; onBusyChange: (busy: boolean) => void };
-type NewLink = { id: string; url: string; email: string; expiresAt: string };
+type NewLink = { id: string; url: string; contact: string; expiresAt: string };
 type Notice = { text: string; error?: boolean };
 
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-60";
@@ -233,6 +235,8 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
   historyRevision: number;
 }) {
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [method, setMethod] = useState<"email" | "phone">("email");
   const [link, setLink] = useState<NewLink>();
   const [notice, setNotice] = useState<Notice>();
   const [history, setHistory] = useState<Load<{ invitations: GuardianInvitation[]; checkedAt: number }>>();
@@ -265,19 +269,26 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
 
   async function issue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const submittedEmail = email.trim().toLowerCase();
-    if (inFlight.current || pendingRevoke || !submittedEmail) return;
+    const submittedContact = method === "email" ? email.trim().toLowerCase() : normalizeIndianMobile(phone);
+    if (inFlight.current || pendingRevoke) return;
+    if (!submittedContact) {
+      setNotice({ text: method === "phone" ? "Enter a valid Indian mobile number." : "Enter the guardian’s full email address.", error: true });
+      return;
+    }
     inFlight.current = true;
     onBusyChange(true);
     setAction("issue");
     setLink(undefined);
     setNotice(undefined);
     try {
-      const result = await issueGuardianInvitation(client, schoolId, studentId, submittedEmail);
+      const result = method === "phone"
+        ? await issueGuardianPhoneInvitation(client, schoolId, studentId, submittedContact)
+        : await issueGuardianInvitation(client, schoolId, studentId, submittedContact);
       if (!active.current) return;
-      const url = guardianInvitationUrl(result.token, window.location.origin);
-      setLink({ id: result.id, url, email: submittedEmail, expiresAt: result.expires_at });
+      const url = guardianInvitationUrl(result.token, window.location.origin, method);
+      setLink({ id: result.id, url, contact: submittedContact, expiresAt: result.expires_at });
       setEmail("");
+      setPhone("");
       setNotice({ text: "Invitation created. Copy the link and share it privately with the guardian." });
     } catch (error: unknown) {
       if (active.current) setNotice({ text: requestError(error).error, error: true });
@@ -338,15 +349,32 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
       <section className="card space-y-4 p-4 sm:p-5">
         <div className="space-y-1">
           <h2 className="font-bold">Invite a guardian for {studentName(student)}</h2>
-          <p className="text-sm muted">The guardian signs in with this email. Each link expires after 72 hours and can be used once.</p>
+          <p className="text-sm muted">The guardian verifies the invited email or mobile before accepting. Each link expires after 72 hours and can be used once. Mobile OTP requires the school’s SMS service to be activated.</p>
         </div>
         <form onSubmit={(event) => void issue(event)} className="space-y-3">
           <fieldset disabled={busy || Boolean(pendingRevoke)} className="space-y-3">
-            <label className={label}>Guardian email
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold">Invitation method</legend>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <label className="flex min-h-11 cursor-pointer items-center gap-2">
+                  <input type="radio" name={`guardian-method-${studentId}`} value="email" checked={method === "email"}
+                    onChange={() => { setMethod("email"); setNotice(undefined); }} /> Email
+                </label>
+                <label className="flex min-h-11 cursor-pointer items-center gap-2">
+                  <input type="radio" name={`guardian-method-${studentId}`} value="phone" checked={method === "phone"}
+                    onChange={() => { setMethod("phone"); setNotice(undefined); }} /> Mobile OTP
+                </label>
+              </div>
+            </fieldset>
+            {method === "email" ? <label className={label}>Guardian email
               <input className="field" type="email" autoComplete="off" required maxLength={254}
                 value={email} onChange={(event) => setEmail(event.target.value)} />
-            </label>
-            <p className="text-sm muted">Creating a new invitation for the same student and email replaces the previous pending link.</p>
+            </label> : <label className={label}>Guardian mobile
+              <input className="field" type="tel" inputMode="tel" autoComplete="off" required maxLength={18}
+                placeholder="98765 43210" value={phone} onChange={(event) => setPhone(event.target.value)} />
+            </label>}
+            <p className="text-sm muted">Creating a new invitation for the same student and contact replaces the previous pending link.</p>
+            {method === "phone" && <p className="text-sm muted">Mobile verification needs the school’s SMS service. Existing email guardians should verify their mobile from their current account to preserve child links.</p>}
             <button type="submit" className={`${button} bg-blue-700 text-white`}>{action === "issue" ? "Creating invitation…" : "Create invitation"}</button>
           </fieldset>
         </form>
@@ -355,7 +383,7 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
             <label className={label}>Invitation link
               <input className="field" ref={linkInput} readOnly value={link.url} />
             </label>
-            <p className="text-sm muted break-words">For {link.email}. Expires {expiryFormat.format(Date.parse(link.expiresAt))} IST. Copy it before leaving this student’s screen.</p>
+            <p className="text-sm muted break-words">For {link.contact}. Expires {expiryFormat.format(Date.parse(link.expiresAt))} IST. Copy it before leaving this student’s screen.</p>
             <button type="button" className={button} disabled={busy} onClick={() => void copy()}>Copy link</button>
           </div>
         )}
@@ -372,7 +400,7 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
         </div>
         {pendingRevoke && (
           <div role="group" aria-label="Confirm revocation" className="space-y-3 rounded-xl border border-red-500/40 p-4">
-            <p className="text-sm break-words">Revoke the pending link for {pendingRevoke.email}?</p>
+            <p className="text-sm break-words">Revoke the pending link for {pendingRevoke.email || pendingRevoke.phone}?</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" className={`${button} text-red-600 dark:text-red-400`} disabled={busy}
                 onClick={() => void revoke()}>{action === "revoke" ? "Revoking…" : "Confirm revoke"}</button>
@@ -390,12 +418,12 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
                 return (
                   <li key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0 space-y-1 break-words">
-                      <p className="text-sm font-semibold">{invitation.email}</p>
+                      <p className="text-sm font-semibold">{invitation.email || invitation.phone}</p>
                       <p className="text-sm muted">{status} · Expires {expiryFormat.format(Date.parse(invitation.expires_at))} IST</p>
                     </div>
                     {status === "Pending" && (
                       <button type="button" className={button} disabled={busy || Boolean(pendingRevoke)}
-                        aria-label={`Revoke invitation for ${invitation.email}`}
+                        aria-label={`Revoke invitation for ${invitation.email || invitation.phone}`}
                         onClick={() => setPendingRevoke(invitation)}>Revoke</button>
                     )}
                   </li>

@@ -29,6 +29,7 @@ vi.mock("@/components/layout/app-shell", () => ({
 const actorId = "school-principal";
 const token = "a".repeat(64);
 const guardianEmail = "family@example.test";
+const guardianPhone = "+919876540001";
 const invite = { id: "invite-one", token, expires_at: "2099-11-07T12:00:00Z" };
 let invitations: GuardianInvitation[];
 let rows: Record<string, Row[]>;
@@ -106,6 +107,10 @@ beforeEach(() => {
       invitations = [{ id: invite.id, email: guardianEmail, expires_at: invite.expires_at, created_at: "2099-11-04T12:00:00Z", accepted_at: null, revoked_at: null }];
       return { data: invite, error: null };
     }
+    if (fn === "issue_guardian_phone_invitation") {
+      invitations = [{ id: invite.id, email: null, phone: guardianPhone, expires_at: invite.expires_at, created_at: "2099-11-04T12:00:00Z", accepted_at: null, revoked_at: null }];
+      return { data: invite, error: null };
+    }
     if (fn === "revoke_guardian_invitation") {
       invitations = invitations.map((item) => ({ ...item, revoked_at: "2099-11-04T14:00:00Z" }));
       return { data: true, error: null };
@@ -115,6 +120,57 @@ beforeEach(() => {
 });
 
 describe("guardian invitation administration", () => {
+  it("issues a phone-only invitation and revokes it from the same scoped history", async () => {
+    const user = userEvent.setup();
+    render(<GuardianInvitationsWorkspace userId={actorId} />);
+    await user.selectOptions(await screen.findByRole("combobox", { name: "Student" }), "one");
+    await user.click(screen.getByRole("radio", { name: "Mobile OTP" }));
+    expect(screen.queryByRole("textbox", { name: "Guardian email" })).not.toBeInTheDocument();
+    await user.type(screen.getByRole("textbox", { name: "Guardian mobile" }), "98765 40001");
+    await user.click(screen.getByRole("button", { name: "Create invitation" }));
+    expect(rpc).toHaveBeenCalledWith("issue_guardian_phone_invitation", {
+      p_school_id: "north", p_student_id: "one", p_phone: guardianPhone,
+    });
+    expect(rpc).not.toHaveBeenCalledWith("issue_guardian_invitation", expect.anything());
+    expect(await screen.findByRole("textbox", { name: "Invitation link" })).toHaveValue(
+      `${window.location.origin}/guardian-mobile-invite#token=${token}`,
+    );
+    await user.click(await screen.findByRole("button", { name: `Revoke invitation for ${guardianPhone}` }));
+    await user.click(screen.getByRole("button", { name: "Confirm revoke" }));
+    expect(await screen.findByText(/Revoked · Expires/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Invitation link" })).not.toBeInTheDocument();
+  });
+
+  it("re-invites a phone-only guardian without requiring an email or inventing one", async () => {
+    const user = userEvent.setup();
+    rows.user_roles[0].role = "school_admin";
+    let issued = false;
+    rpc.mockImplementation(async (fn: string) => {
+      if (fn === "lookup_guardian_access") return { data: {
+        student_id: "one", student_name: "Pupil One", admission_no: "QA-001", guardians: [], events: [],
+        reinvitable_guardians: [{ revocation_id: "removed-phone", parent_id: "parent-phone", name: "Mobile Guardian", email: null,
+          phone: guardianPhone, relationship: "guardian", pending_invitation_id: issued ? invite.id : null,
+          pending_expires_at: issued ? invite.expires_at : null }],
+      }, error: null };
+      if (fn === "reinvite_guardian_access") {
+        issued = true;
+        return { data: { ...invite, email: null, phone: guardianPhone }, error: null };
+      }
+      throw new Error(`Unexpected RPC ${fn}`);
+    });
+    render(<GuardianInvitationsWorkspace userId={actorId} />);
+    await user.type(await screen.findByRole("textbox", { name: "Admission number" }), "QA-001");
+    await user.click(screen.getByRole("button", { name: "Find student" }));
+    const region = within(await screen.findByRole("region", { name: "Removed guardian access" }));
+    await user.click(region.getByRole("button", { name: "Re-invite guardian" }));
+    expect(region.getByText(`Create a link for Mobile Guardian to accept with ${guardianPhone}?`)).toBeVisible();
+    await user.click(region.getByRole("button", { name: "Create re-invite link" }));
+    expect(await region.findByRole("textbox", { name: "Re-invitation link" })).toHaveValue(
+      `${window.location.origin}/guardian-mobile-invite#token=${token}`,
+    );
+    expect(region.getByText(`For ${guardianPhone}.`, { exact: false })).toBeVisible();
+  });
+
   it("issues and revokes a single-use link from the principal's scoped roster", async () => {
     const user = userEvent.setup();
     render(<ModulePage />);

@@ -43,6 +43,18 @@ describe("own account settings", () => {
     expect(await screen.findByRole("link", { name: "Verified guardian contact settings" })).toHaveAttribute("href", "/modules/profile?view=guardian");
   });
 
+  it("shows a phone-only guardian's verified mobile without offering email password recovery", async () => {
+    authUser.mockResolvedValue({ data: { user: { ...owner, email: undefined, email_confirmed_at: undefined,
+      phone: "919876540001", phone_confirmed_at: "2026-11-06T12:00:00Z", identities: [{ provider: "phone" }] } }, error: null });
+    render(<AccountSettings userId="owner" role="parent" hasGuardianRole />);
+    expect(await screen.findByText("+919876540001")).toBeVisible();
+    expect(screen.getByText("No email linked")).toBeVisible();
+    expect(screen.queryByRole("form", { name: "Change your password" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Forgot your password?" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Verified guardian contact settings" })).toHaveAttribute("href", "/modules/profile?view=guardian");
+    expect(change).not.toHaveBeenCalled();
+  });
+
   it("keeps wrong-current-password feedback actionable without calling primary signout", async () => {
     change.mockRejectedValueOnce(new PasswordChangeError("Current password could not be verified. Check it and try again.", "verification_failed"));
     render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);

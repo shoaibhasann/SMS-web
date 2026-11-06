@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-06T10:44:32.539Z",
-  "allMigrationsVerifiedAt": "2026-11-06T12:21:39.609Z",
+  "allMigrationsVerifiedAt": "2026-11-06T13:55:36.351094Z",
   "backupScope": "All99applicationtables/2401originalrows restored locally. Auth/Storage projected references only, no passwords or file bytes.",
   "preflight": {
     "btree_gist": {
@@ -195,12 +195,23 @@
       "recorded_sql_sha256": "8d234f9280411b9e8574c2d37a3ded5115e286739cd4903d533f014d92f331b3",
       "verifiedAt": "2026-11-06T12:21:39.609Z",
       "reason": "Curated six-module read-only school audit history with live-session authority; raw legacy audit reads revoked without changing source rows."
+    },
+    {
+      "sourceVersion": "20261106133315",
+      "sourcePath": "supabase/migrations/20261106133315_guardian_hybrid_phone_auth.sql",
+      "sourceSha256": "ed9b38f0490bf7d307d25d7de1c379d97ea766137f8a5d8ef6323743bc29ad44",
+      "version": "20261106135506",
+      "name": "guardian_hybrid_phone_auth",
+      "statement_count": 1,
+      "recorded_sql_sha256": "ed9b38f0490bf7d307d25d7de1c379d97ea766137f8a5d8ef6323743bc29ad44",
+      "verifiedAt": "2026-11-06T13:55:36.351094Z",
+      "reason": "Guardian-only hybrid phone invitations and existing-UID contact proof with service-only one-use CAPTCHA permits and atomic sending budgets; provider sending remains disabled."
     }
   ],
   "requested_migrations": 9,
   "followup_fixes": 2,
-  "total_applied": 12,
-  "phase_migrations": 1,
+  "total_applied": 13,
+  "phase_migrations": 2,
   "auditHistoryPhaseVerification": {
     "preChangeApplicationTables": 103,
     "preChangeApplicationRows": 2462,
@@ -209,5 +220,17 @@
     "changedApplicationTablesImmediatelyAfterDDL": 0,
     "scope": "Private actual application-row backup/embedded restore; projected managed references only, no native Auth/Storage/provider/file-byte recovery",
     "securityAdvisorsNewFindings": 0
+  },
+  "hybridPhonePhaseVerification": {
+    "preChangeApplicationTables": 7,
+    "preChangeApplicationRows": 301,
+    "replacedRoutinesBackedUp": 8,
+    "affectedApplicationRowsPreserved": true,
+    "attendanceFeePaymentFingerprintsPreserved": true,
+    "backupScope": "Affected application rows/routines only; no native Auth/Storage/provider restore",
+    "newWarnFindings": 0,
+    "expectedPrivateRlsDenyAllInfoFindings": 2,
+    "providerActivated": false,
+    "paidSmsSent": 0
   }
 }

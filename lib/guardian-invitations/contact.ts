@@ -1,7 +1,8 @@
 import { createClient as createSupabaseClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { guardianEmailContinuation } from "@/lib/auth/redirect";
+import { normalizeIndianMobile, phoneAuthError, prepareGuardianPhoneRequest, readGuardianPhoneStatus } from "@/lib/auth/phone";
 
-export type GuardianContactProviders = { email: boolean; sms: boolean };
+export type GuardianContactProviders = { email: boolean; sms: boolean; captchaSiteKey?: string | null };
 
 const canonicalPhone = /^\+[1-9]\d{7,14}$/;
 
@@ -20,9 +21,11 @@ export async function readGuardianContactProviders(): Promise<GuardianContactPro
   });
   if (!response.ok) throw new Error("Contact verification settings are temporarily unavailable.");
   const settings = await response.json();
+  const mobile = await readGuardianPhoneStatus().catch(() => ({ enabled: false, captchaSiteKey: null }));
   return {
     email: settings?.external?.email === true && settings.mailer_autoconfirm === false,
-    sms: settings?.external?.phone === true && settings.phone_autoconfirm === false,
+    sms: settings?.external?.phone === true && settings.phone_autoconfirm === false && mobile.enabled,
+    captchaSiteKey: mobile.captchaSiteKey,
   };
 }
 
@@ -100,6 +103,7 @@ export async function requestGuardianEmailChange(client: SupabaseClient, userId:
 
 export async function requestGuardianMobileChange(
   client: SupabaseClient, verificationClient: SupabaseClient, userId: string, phone: string, password: string,
+  captchaToken?: string,
 ) {
   const current = await readGuardianAuthUser(client, userId);
   if (!current.email_confirmed_at || !current.email) throw new Error("A verified sign-in email is required. Contact the school office.");
@@ -117,6 +121,7 @@ export async function requestGuardianMobileChange(
     if (authorization.error || authorization.data !== true) {
       throw new Error("The mobile change could not be authorized. Reenter your password or contact the school office.");
     }
+    if (captchaToken !== undefined) await prepareGuardianPhoneRequest(nextPhone, captchaToken);
     const result = await verificationClient.auth.updateUser({ phone: nextPhone });
     if (result.error || result.data.user?.id !== userId || guardianPhone(result.data.user.new_phone) !== nextPhone) {
       throw verificationError(result.error, "sms");
@@ -125,6 +130,49 @@ export async function requestGuardianMobileChange(
   } finally {
     await closeTemporarySession(verificationClient);
   }
+}
+
+export async function requestGuardianCurrentMobileCode(client: SupabaseClient, userId: string, captchaToken: string) {
+  const user = await readGuardianAuthUser(client, userId);
+  if (user.email_confirmed_at) throw new Error("Use current-password verification for this email account.");
+  const phone = user.phone_confirmed_at && normalizeIndianMobile(user.phone ?? "");
+  if (!phone) throw new Error("A verified current mobile is required. Contact the school office.");
+  await prepareGuardianPhoneRequest(phone, captchaToken);
+  const verificationClient = createGuardianVerificationClient();
+  try {
+    const { error } = await verificationClient.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } });
+    if (error) throw new Error(phoneAuthError(error));
+    return phone;
+  } finally { await closeTemporarySession(verificationClient); }
+}
+
+export async function requestGuardianMobileChangeWithOtp(
+  client: SupabaseClient, verificationClient: SupabaseClient, userId: string, phone: string, code: string, captchaToken: string,
+) {
+  const current = await readGuardianAuthUser(client, userId);
+  if (current.email_confirmed_at) throw new Error("Use current-password verification for this email account.");
+  const previousPhone = current.phone_confirmed_at && normalizeIndianMobile(current.phone ?? "");
+  const nextPhone = normalizeIndianMobile(phone);
+  if (!previousPhone) throw new Error("A verified current mobile is required. Contact the school office.");
+  if (!nextPhone || nextPhone === previousPhone) throw new Error("Enter a different Indian mobile number.");
+  if (!/^\d{6}$/.test(code.trim())) throw new Error("Enter the six-digit code sent to your current mobile.");
+  try {
+    const verified = await verificationClient.auth.verifyOtp({ phone: previousPhone, token: code.trim(), type: "sms" });
+    if (verified.error || !verified.data.session || verified.data.user?.id !== userId || !verified.data.user.phone_confirmed_at
+      || normalizeIndianMobile(verified.data.user.phone ?? "") !== previousPhone) throw new Error(phoneAuthError(verified.error, true));
+    const latest = await readGuardianAuthUser(client, userId);
+    if (!latest.phone_confirmed_at || normalizeIndianMobile(latest.phone ?? "") !== previousPhone) {
+      throw new Error("Your current mobile changed. Refresh contact details before continuing.");
+    }
+    const authorization = await verificationClient.rpc("authorize_my_guardian_phone_change", { p_phone: nextPhone });
+    if (authorization.error || authorization.data !== true) throw new Error("The mobile change could not be authorized. Request a fresh current-mobile code.");
+    await prepareGuardianPhoneRequest(nextPhone, captchaToken);
+    const result = await verificationClient.auth.updateUser({ phone: nextPhone });
+    if (result.error || result.data.user?.id !== userId || normalizeIndianMobile(result.data.user.new_phone ?? "") !== nextPhone) {
+      throw verificationError(result.error, "sms");
+    }
+    return result.data.user;
+  } finally { await closeTemporarySession(verificationClient); }
 }
 
 export async function confirmGuardianMobileChange(

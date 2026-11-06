@@ -1,12 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { isInvitationList, isIssuedInvitation, type IssuedInvitation, type SchoolInvitation } from "@/lib/invitations/model";
+import { isIssuedInvitation, type IssuedInvitation, type SchoolInvitation } from "@/lib/invitations/model";
+import { normalizeIndianMobile } from "@/lib/auth/phone";
 
 export { invitationStatus } from "@/lib/invitations/model";
-export type GuardianInvitation = SchoolInvitation;
+export type GuardianInvitation = Omit<SchoolInvitation, "email"> & { email: string | null; phone?: string | null };
 
-export function guardianInvitationUrl(token: string, origin: string) {
-  const url = new URL("/guardian-invite", origin);
+export function guardianInvitationUrl(token: string, origin: string, method: "email" | "phone" = "email") {
+  const url = new URL(method === "phone" ? "/guardian-mobile-invite" : "/guardian-invite", origin);
   url.hash = new URLSearchParams({ token }).toString();
   return url.href;
 }
@@ -16,7 +17,28 @@ export async function listGuardianInvitations(client: SupabaseClient, schoolId: 
     p_school_id: schoolId,
     p_student_id: studentId,
   });
-  if (error || !isInvitationList(data)) throw new Error("Invitation history could not be loaded. Try again.");
+  if (error || !Array.isArray(data) || !data.every((item: Partial<GuardianInvitation> | null) => item
+    && typeof item.id === "string"
+    && (typeof item.email === "string" && item.email.length > 0 && (item.phone === null || item.phone === undefined)
+      || item.email === null && typeof item.phone === "string" && normalizeIndianMobile(item.phone) === item.phone)
+    && typeof item.expires_at === "string" && Number.isFinite(Date.parse(item.expires_at)))) {
+    throw new Error("Invitation history could not be loaded. Try again.");
+  }
+  return data as GuardianInvitation[];
+}
+
+export async function issueGuardianPhoneInvitation(client: SupabaseClient, schoolId: string, studentId: string,
+  mobile: string): Promise<IssuedInvitation> {
+  const phone = normalizeIndianMobile(mobile);
+  if (!phone) throw new Error("Enter a valid Indian mobile number.");
+  const { data, error } = await client.rpc("issue_guardian_phone_invitation", {
+    p_school_id: schoolId, p_student_id: studentId, p_phone: phone,
+  });
+  if (error?.code === "42501") throw new Error("This student is outside your invitation access. Refresh and check the school and student.");
+  if (error?.code === "22023") throw new Error("This mobile cannot be invited. Check the number or have the existing guardian verify it from their own account.");
+  if (error?.code === "55000") throw new Error("A school administrator must re-invite this guardian from Manage linked guardians.");
+  if (error?.code === "P0001") throw new Error("The student needs an active enrollment in the current academic year. Refresh the roster and check the enrollment.");
+  if (error || !isIssuedInvitation(data)) throw new Error("The mobile invitation could not be created. Try again.");
   return data;
 }
 
@@ -55,6 +77,7 @@ type LinkedGuardian = {
   has_account: boolean;
   name: string | null;
   email: string | null;
+  phone?: string | null;
   relationship: string | null;
 };
 
@@ -71,7 +94,8 @@ type ReinvitableGuardian = {
   revocation_id: string;
   parent_id: string;
   name: string | null;
-  email: string;
+  email: string | null;
+  phone?: string | null;
   relationship: string | null;
   pending_invitation_id: string | null;
   pending_expires_at: string | null;
@@ -116,19 +140,22 @@ export async function revokeGuardianAccess(
 
 export async function reinviteGuardianAccess(
   client: SupabaseClient, schoolId: string, studentId: string, revocationId: string,
-): Promise<IssuedInvitation & { email: string }> {
+): Promise<IssuedInvitation & { email: string | null; phone?: string | null }> {
   const { data, error } = await client.rpc("reinvite_guardian_access", {
     p_school_id: schoolId,
     p_student_id: studentId,
     p_revocation_id: revocationId,
   });
   if (error?.code === "42501") throw new Error("You do not have permission to re-invite this guardian.");
-  if (error?.code === "22023") throw new Error("This guardian needs an active account with a verified email before you can re-invite them.");
+  if (error?.code === "22023") throw new Error("This guardian needs an active account with a verified email or mobile before you can re-invite them.");
   if (error?.code === "55000") throw new Error("This guardian’s access changed. Find the student again before re-inviting.");
   if (error?.code === "P0001") throw new Error("Re-inviting requires an active enrollment in the current academic year.");
   const email: unknown = data?.email;
-  if (error || !isIssuedInvitation(data) || typeof email !== "string") {
+  const phone: unknown = data?.phone;
+  const emailContact = typeof email === "string" && email.length > 0 && (phone === undefined || phone === null);
+  const phoneContact = email === null && typeof phone === "string" && normalizeIndianMobile(phone) === phone;
+  if (error || !isIssuedInvitation(data) || (!emailContact && !phoneContact)) {
     throw new Error("The re-invitation link could not be created. Find the student again and check their access.");
   }
-  return { ...data, email };
+  return { ...data, email: email as string | null, phone: phone as string | null | undefined };
 }

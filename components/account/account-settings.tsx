@@ -7,8 +7,9 @@ import { LoadingState } from "@/components/ui/skeleton";
 import { changeOwnPassword, PasswordChangeError, validatePasswordChange, type PasswordChange } from "@/lib/account/password";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeIndianMobile } from "@/lib/auth/phone";
 
-type Details = { name: string; email: string | null; verified: boolean; providers: string[]; oauthOnly: boolean };
+type Details = { name: string; email: string | null; verified: boolean; phone: string | null; providers: string[]; oauthOnly: boolean };
 type Result = { details: Details } | { error: string };
 const emptyPassword = { currentPassword: "", newPassword: "", confirmation: "" };
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] disabled:opacity-50";
@@ -60,7 +61,8 @@ function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string;
         const providers = [...new Set((user.identities ?? []).map((identity) => identity.provider).filter((provider) => typeof provider === "string"))];
         setResult({ version, result: { details: {
           name: typeof profile.data.full_name === "string" && profile.data.full_name.trim() ? profile.data.full_name : "School account",
-          email: user.email ?? null, verified: !!user.email_confirmed_at, providers,
+          email: user.email || null, verified: !!user.email_confirmed_at,
+          phone: user.phone_confirmed_at ? normalizeIndianMobile(user.phone ?? "") : null, providers,
           oauthOnly: providers.length > 0 && !providers.includes("email"),
         } } });
       } catch {
@@ -114,6 +116,7 @@ function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string;
           <div className="flex items-center gap-2"><UserRound size={19} aria-hidden="true" /><h2 id="account-details-heading" className="font-semibold">Account details</h2></div>
           <dl className="grid min-w-0 gap-5 sm:grid-cols-2">
             {[["Name", current.details.name], ["Email", current.details.email ?? "No email linked"], ["School role", roleLabel(role)],
+              ["Verified mobile", current.details.phone ?? "No mobile verified"],
               ["Email verification", current.details.verified ? "Verified" : "Not verified"], ["Sign-in methods", current.details.providers.length ? current.details.providers.map((provider) => provider === "email" ? "Email" : provider === "google" ? "Google" : provider).join(", ") : "School account"]].map(([title, value]) => <div key={title} className="min-w-0"><dt className="text-xs muted">{title}</dt><dd className="mt-1 break-words text-sm font-semibold">{value}</dd></div>)}
           </dl>
           <p className="text-xs leading-6 muted">School profile changes need school verification. Sign-in details cannot be edited on this page.</p>
@@ -121,7 +124,8 @@ function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string;
         </section>
         <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="password-heading">
           <div className="flex items-center gap-2"><KeyRound size={19} aria-hidden="true" /><h2 id="password-heading" className="font-semibold">Change password</h2></div>
-          {current.details.oauthOnly ? <p className="text-sm leading-6 muted">This account uses {current.details.providers.join(" / ")}. If you have not set a school password, use password recovery first or continue with your existing sign-in method.</p>
+          {!current.details.email && current.details.phone ? <p className="text-sm leading-6 muted">This guardian account uses mobile OTP. You do not need a password. Manage your verified number in guardian contact settings. If you lose that number, contact the school office to verify your identity.</p>
+            : current.details.oauthOnly ? <p className="text-sm leading-6 muted">This account uses {current.details.providers.join(" / ")}. If you have not set a school password, use password recovery first or continue with your existing sign-in method.</p>
             : !current.details.email || !current.details.verified ? <p className="text-sm leading-6 muted">A verified sign-in email is required to change a password. Contact your school to verify your account.</p>
             : <form aria-label="Change your password" onSubmit={save} className="space-y-4">
               <p className="text-sm leading-6 muted">Use at least 12 characters. If your password is too long, choose a shorter one. Use your new password the next time you sign in.</p>
@@ -138,7 +142,7 @@ function OwnAccountSettings({ userId, role, hasGuardianRole }: { userId: string;
               </fieldset>
               {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
             </form>}
-          <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">Forgot your password?</Link>
+          {current.details.email && <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">Forgot your password?</Link>}
         </section>
       </>}
   </div>;

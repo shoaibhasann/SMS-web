@@ -24,7 +24,7 @@ function errorText(error: unknown) {
 }
 
 type AccessAction = { kind: "remove"; parentId: string } | { kind: "reinvite"; revocationId: string };
-type ReinviteLink = { invitationId: string; url: string; email: string; expiresAt: string };
+type ReinviteLink = { invitationId: string; url: string; contact: string; expiresAt: string };
 
 export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, onInvitationsChanged }: {
   client: SupabaseClient;
@@ -130,8 +130,8 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
       setSelected(undefined);
       setLink({
         invitationId: invitation.id,
-        url: guardianInvitationUrl(invitation.token, window.location.origin),
-        email: invitation.email,
+        url: guardianInvitationUrl(invitation.token, window.location.origin, invitation.email ? "email" : "phone"),
+        contact: invitation.email || invitation.phone!,
         expiresAt: invitation.expires_at,
       });
       setRecord({
@@ -140,6 +140,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
           entry.revocation_id === removedGuardian.revocation_id ? {
             ...entry,
             email: invitation.email,
+            phone: invitation.phone,
             pending_invitation_id: invitation.id,
             pending_expires_at: invitation.expires_at,
           } : entry,
@@ -205,12 +206,12 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
               {record.guardians.map((entry) => (
                 <li key={entry.parent_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <div className="min-w-0 break-words">
-                    <p className="font-semibold">{entry.name || entry.email || "Guardian record"}</p>
-                    {entry.name && entry.email && <p className="text-sm muted">{entry.email}</p>}
+                    <p className="font-semibold">{entry.name || entry.email || entry.phone || "Guardian record"}</p>
+                    {entry.name && (entry.email || entry.phone) && <p className="text-sm muted">{entry.email || entry.phone}</p>}
                     <p className="text-sm capitalize muted">{entry.relationship || "Guardian"} · {entry.has_account ? "Account linked" : "No account linked"}</p>
                   </div>
                   <button type="button" className={danger} disabled={busy || guardian?.parent_id === entry.parent_id}
-                    aria-label={`Remove access for ${entry.email || entry.name || "guardian record"}`}
+                    aria-label={`Remove access for ${entry.email || entry.phone || entry.name || "guardian record"}`}
                     onClick={() => selectAction({ kind: "remove", parentId: entry.parent_id })}>
                     Remove access
                   </button>
@@ -220,7 +221,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
           ) : <p className="text-sm muted">This student has no linked guardians.</p>}
           {guardian && (
             <form onSubmit={remove} className="space-y-3 rounded-xl border border-red-300 p-3 dark:border-red-800">
-              <h4 className="font-bold">Remove {guardian.name || guardian.email || "this guardian"}’s access?</h4>
+              <h4 className="font-bold">Remove {guardian.name || guardian.email || guardian.phone || "this guardian"}’s access?</h4>
               <p className="text-sm muted">Access for this student ends immediately. The school keeps the student’s attendance history. Other guardians and siblings keep their links.</p>
               <label className="block space-y-2 text-sm font-semibold">
                 Reason for removal
@@ -243,8 +244,8 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
                 {record.reinvitable_guardians.map((entry) => (
                   <li key={entry.revocation_id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                     <div className="min-w-0 break-words" id={`removed-guardian-${entry.revocation_id}`}>
-                      <p className="font-semibold">{entry.name || entry.email}</p>
-                      {entry.name && <p className="text-sm muted">{entry.email}</p>}
+                      <p className="font-semibold">{entry.name || entry.email || entry.phone}</p>
+                      {entry.name && <p className="text-sm muted">{entry.email || entry.phone}</p>}
                       <p className="text-sm muted">{entry.pending_expires_at
                         ? `Invitation pending · Expires ${dateFormat.format(new Date(entry.pending_expires_at))} IST`
                         : "Access removed"}</p>
@@ -260,7 +261,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
               {removedGuardian && (
                 <form onSubmit={reinvite} className="space-y-3 rounded-xl bg-[var(--surface-2)] p-3">
                   <p className="break-words text-sm">
-                    Create a link for {removedGuardian.name || "this guardian"} to accept with {removedGuardian.email}?
+                    Create a link for {removedGuardian.name || "this guardian"} to accept with {removedGuardian.email || removedGuardian.phone}?
                   </p>
                   {removedGuardian.pending_expires_at && <p className="text-sm muted">Creating a replacement invalidates the previous pending link.</p>}
                   <div className="flex flex-wrap gap-2">
@@ -275,7 +276,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
                     Re-invitation link
                     <input className="field" ref={linkInput} readOnly value={link.url} />
                   </label>
-                  <p className="break-words text-sm muted">For {link.email}. Expires {dateFormat.format(new Date(link.expiresAt))} IST. Copy the link before leaving this student’s screen.</p>
+                  <p className="break-words text-sm muted">For {link.contact}. Expires {dateFormat.format(new Date(link.expiresAt))} IST. Copy the link before leaving this student’s screen.</p>
                   <button type="button" className={button} disabled={busy} onClick={() => void copyLink()}>Copy re-invite link</button>
                 </div>
               )}

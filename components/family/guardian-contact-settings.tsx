@@ -5,10 +5,12 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import {
   confirmGuardianMobileChange, createGuardianVerificationClient, guardianPhone, readGuardianAuthUser,
-  readGuardianContactProviders, requestGuardianEmailChange, requestGuardianMobileChange, syncVerifiedGuardianMobile,
+  readGuardianContactProviders, requestGuardianEmailChange, requestGuardianMobileChange, requestGuardianCurrentMobileCode,
+  requestGuardianMobileChangeWithOtp, syncVerifiedGuardianMobile,
   type GuardianContactProviders,
 } from "@/lib/guardian-invitations/contact";
 import { LoadingState } from "@/components/ui/skeleton";
+import { PhoneSecurityCheck } from "@/components/auth/phone-security-check";
 
 type Notice = { text: string; error?: boolean };
 type ProviderState = GuardianContactProviders | "unavailable";
@@ -27,6 +29,11 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
   const [mobile, setMobile] = useState("");
   const [notice, setNotice] = useState<Notice>();
   const [busy, setBusy] = useState(false);
+  const [captcha, setCaptcha] = useState("");
+  const [challengeVersion, setChallengeVersion] = useState(0);
+  const [currentCodeTarget, setCurrentCodeTarget] = useState("");
+  const [retryAt, setRetryAt] = useState(0);
+  const [retrySeconds, setRetrySeconds] = useState(0);
   const active = useRef(false);
   const pending = useRef(false);
 
@@ -70,6 +77,16 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
   const pendingMobile = guardianPhone(account?.new_phone);
   const emailEnabled = provider !== "unavailable" && provider?.email;
   const smsEnabled = provider !== "unavailable" && provider?.sms;
+  const captchaSiteKey = provider !== "unavailable" && provider?.captchaSiteKey;
+  const useCurrentMobile = !verifiedEmail;
+
+  useEffect(() => {
+    if (!retryAt) return;
+    const update = () => setRetrySeconds(Math.max(0, Math.ceil((retryAt - Date.now()) / 1000)));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [retryAt]);
 
   async function run(action: () => Promise<Notice>) {
     if (!active.current || pending.current) return;
@@ -116,17 +133,37 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
 
   async function requestMobile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!smsEnabled || pending.current) return;
-    const password = new FormData(event.currentTarget).get("currentPassword");
+    if (!smsEnabled || pending.current || !captcha) return;
+    const form = new FormData(event.currentTarget);
+    const password = form.get("currentPassword");
+    const currentCode = form.get("currentCode");
+    const securityToken = captcha;
+    setCaptcha(""); setChallengeVersion((value) => value + 1);
     event.currentTarget.reset();
     await run(async () => {
       if (!(await readGuardianContactProviders()).sms) throw new Error("SMS verification is unavailable for this school.");
-      const user = await requestGuardianMobileChange(client, createGuardianVerificationClient(), userId, mobile, String(password ?? ""));
+      if (useCurrentMobile && (!verifiedMobile || currentCodeTarget !== verifiedMobile)) throw new Error("Request a code for your current mobile before changing it.");
+      const user = useCurrentMobile
+        ? await requestGuardianMobileChangeWithOtp(client, createGuardianVerificationClient(), userId, mobile, String(currentCode ?? ""), securityToken)
+        : await requestGuardianMobileChange(client, createGuardianVerificationClient(), userId, mobile, String(password ?? ""), securityToken);
       if (active.current) {
         setAccount(user);
         setMobile("");
+        setCurrentCodeTarget("");
       }
       return { text: "SMS verification code requested. Enter the code sent to the pending number." };
+    });
+  }
+
+  async function requestCurrentCode() {
+    if (!smsEnabled || !captcha || !verifiedMobile || Date.now() < retryAt) return;
+    const securityToken = captcha;
+    setCaptcha(""); setChallengeVersion((value) => value + 1);
+    setRetryAt(Date.now() + 60_000);
+    await run(async () => {
+      const phone = await requestGuardianCurrentMobileCode(client, userId, securityToken);
+      if (active.current) setCurrentCodeTarget(phone);
+      return { text: "A verification code was requested for your current mobile. Keep this number accessible until the new number is verified." };
     });
   }
 
@@ -211,7 +248,7 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
             </div>
             {pendingMobile && <p className="break-all rounded-xl border border-[var(--border)] p-3 text-sm">SMS verification pending for {pendingMobile}.</p>}
             {!provider && <LoadingState variant="form" className="text-sm muted">Checking contact verification availability…</LoadingState>}
-            {smsEnabled && verifiedEmail ? (
+            {smsEnabled && (verifiedEmail || verifiedMobile) ? (
               <div className="max-w-md space-y-4">
                 {pendingMobile && (
                   <form onSubmit={(event) => void verifyMobile(event)} className="space-y-3">
@@ -222,21 +259,30 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
                     <button type="submit" className={primaryButton} disabled={busy}>Verify mobile number</button>
                   </form>
                 )}
+                {useCurrentMobile && <div className="space-y-2 text-sm">
+                  <p className="muted">Verify your current mobile first, then confirm the new number. If you lost your current number, ask the school office to verify your identity.</p>
+                  <button type="button" className={button} disabled={busy || !captcha || retrySeconds > 0} onClick={() => void requestCurrentCode()}>
+                    {retrySeconds > 0 ? `Current-mobile code available in ${retrySeconds}s` : "Send code to current mobile"}</button>
+                  {currentCodeTarget && <p role="status" className="muted">Current-mobile code requested for {currentCodeTarget}.</p>}
+                </div>}
                 <form onSubmit={(event) => void requestMobile(event)} className="space-y-3">
-                  <p className="text-sm muted">Confirm your password and enter the code sent to the new number. Include the country code.</p>
+                  <p className="text-sm muted">{useCurrentMobile ? "Enter the code from your current number to authorize the change." : "Confirm your password and enter the code sent to the new number. Include the country code."}</p>
                   <label className={label}><span>New mobile number</span>
                     <input type="tel" autoComplete="tel" placeholder="+91" className="field" required maxLength={25}
                       value={mobile} disabled={busy} onChange={(event) => setMobile(event.target.value)} />
                   </label>
-                  <label className={label}><span>Current password</span>
+                  {useCurrentMobile ? <label className={label}><span>Current-mobile verification code</span>
+                    <input name="currentCode" type="text" inputMode="numeric" autoComplete="one-time-code" className="field" required minLength={6} maxLength={6} pattern="[0-9]{6}" disabled={busy} />
+                  </label> : <label className={label}><span>Current password</span>
                     <input name="currentPassword" type="password" autoComplete="current-password" className="field" required disabled={busy} />
-                  </label>
-                  <button type="submit" className={primaryButton} disabled={busy || !mobile.trim()}>Send SMS code</button>
+                  </label>}
+                  <button type="submit" className={primaryButton} disabled={busy || !mobile.trim() || !captcha || (useCurrentMobile && !currentCodeTarget)}>Send SMS code</button>
                 </form>
+                {captchaSiteKey && <PhoneSecurityCheck key={challengeVersion} siteKey={captchaSiteKey} onToken={setCaptcha} />}
               </div>
             ) : provider && provider !== "unavailable" &&
               <p className="text-sm muted">{!smsEnabled ? "SMS verification is unavailable. The school must enable phone authentication and configure an SMS provider before you can verify a new mobile."
-                : "A verified sign-in email is required to confirm your password. Contact the school office."}</p>}
+                : "A verified sign-in email or current mobile is required. Contact the school office."}</p>}
           </section>
         </>}
     </div>

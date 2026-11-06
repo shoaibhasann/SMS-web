@@ -729,6 +729,14 @@
       "version": "20261106120548",
       "name": "school_audit_history",
       "provenance": "Curated, live-session school audit projections from existing governed records; no client audit mutation or raw legacy payload reads."
+    },
+    {
+      "path": "supabase/migrations/20261106133315_guardian_hybrid_phone_auth.sql",
+      "sha256": "ed9b38f0490bf7d307d25d7de1c379d97ea766137f8a5d8ef6323743bc29ad44",
+      "kind": "pending",
+      "version": "20261106133315",
+      "name": "guardian_hybrid_phone_auth",
+      "provenance": "Phone-only guardian invitations and verified identity-preserving enrollment with private CAPTCHA permits and atomic SMS spend reservations; live provider enablement remains gated."
     }
   ],
   "excluded": [
@@ -767,5 +775,5 @@
     "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "504dbcadd4a0ec9344b26235e25411e899744c732ab2f12f570a8fa4539a85d0"
+  "order_sha256": "8b5e01b2338f7503be80f5a888be352959eccf531ceaaa2093794023485ff3b2"
 }

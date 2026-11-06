@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,8 +16,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [method, setMethod] = useState<"email" | "mobile">("email");
+  const [mobileBusy, setMobileBusy] = useState(false);
   const [error, setError] = useState("");
-  const busy = loading || googleLoading;
+  const busy = loading || googleLoading || mobileBusy;
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
@@ -97,6 +100,15 @@ export default function LoginPage() {
             <h1 id="login-heading" className="login-heading">Welcome back</h1>
             <p className="login-intro">Sign in to your school workspace.</p>
 
+            <div role="group" aria-label="Sign-in method" className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+              {([["email", "Email & password"], ["mobile", "Guardian mobile"]] as const).map(([value, title]) => <button key={value} type="button"
+                aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); }}
+                className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{title}</button>)}
+            </div>
+
+            {method === "mobile" ? <GuardianPhoneOtpForm purpose="login" onBusyChange={setMobileBusy} onVerified={() => {
+              router.replace("/dashboard"); router.refresh();
+            }} /> : <>
             <form onSubmit={signIn} className="login-form" aria-busy={busy}>
               <div>
                 <label htmlFor="login-email" className="login-label">Email address</label>
@@ -172,6 +184,7 @@ export default function LoginPage() {
               )}
               {googleLoading ? "Opening Google…" : "Continue with Google"}
             </button>
+            </>}
 
             <p className="login-access-note">School access is managed by your administrator.</p>
           </div>

@@ -9,7 +9,7 @@ export type SchoolInvitation = {
 
 export type IssuedInvitation = Pick<SchoolInvitation, "id" | "expires_at"> & { token: string };
 
-export function invitationStatus(invitation: SchoolInvitation, now: number) {
+export function invitationStatus(invitation: Pick<SchoolInvitation, "accepted_at" | "revoked_at" | "expires_at">, now: number) {
   if (invitation.accepted_at) return "Accepted";
   if (invitation.revoked_at) return "Revoked";
   return Date.parse(invitation.expires_at) <= now ? "Expired" : "Pending";
