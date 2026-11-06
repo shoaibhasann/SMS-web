@@ -4,6 +4,8 @@
 
 **Current scope:** prepare mobile notification preferences and manage registered app devices. Guardian app alerts cover absence/results/leave; Student app alerts cover results/leave. Student settings must not advertise absence delivery. The native app and real phone delivery are not included in this backend slice. Sending and the recurring dispatcher remain OFF until setup is verified. No SMS/email/push success should be inferred from a preference save.
 
+Engineering verified runtime `a710c3e` on the stable main/Production URL. Guardian save/reload/restore and Student own-device isolation pass; founder acceptance below remains pending. Delivery is OFF.
+
 Use the existing privately supplied Student and Guardian QA accounts. Do not include credentials, installation IDs/proofs, FIDs or provider keys in screenshots or this document. Engineering results do not tick these boxes. Confirm the current main deployment before testing.
 
 ## Check now — web account settings

@@ -10,7 +10,8 @@ Source20261106153406 is hosted20261106155042, exactSHA25698505d0429f846c78ac0db8
 
 Hosted native QA registers3syntheticFIDdevices and submits1newStudentleave for independentPrincipal approval. Registration/proof/collision/role/version protections pass. Controlled serviceSQL claims3newjobs, simulates1invalidregistration without a provider call, then verifies2heldjobs suppressed after opt-out/revoke and2latefinishes denied. All3devices endrevoked, bothpreferencebaselines restored,0jobsaccepted and all7ownedSDKAuthsessionsclosedlocally. Originalattendance/fees/payments/links/leave/inboxreadstate remain unchanged. LocalGuardianbrowser save→hardreload→restore also passes. All1,971tests/147files, lint/types andoptimizedbuildpass. [Detailed evidence](NATIVE-PUSH-QA.md) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md).
 
-Sending, Firebase credentials and scheduler activation remainOFF; actualnativeapp/realphonedelivery is unverified. NoSMS/email/providerfallback is activated.
+Sending, Firebase credentials and scheduler activation remainOFF; actualnativeapp/realphonedelivery is unverified. NoSMS/email/providerfallback is activated. Runtime `a710c3e` is Production Ready as `dpl_Deco5r5NQA8UhedHGUPrFS8ejJEQ` at the stable alias. Deployed Guardian save/reload/restore and Student own-device/noabsence controls pass; both browser sessions are signed out. Public checklist bytes match source, status remainsOFF and unauthenticated dispatch401. Existing theme is unchanged.
+
 
 
 ## Family Notifications v2 — 6 November 2026
