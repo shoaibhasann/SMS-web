@@ -1,8 +1,8 @@
 # Implementation phases
 
-## Official attendance PDF export - 7 November 2026
+## Official attendance PDF export - main/Production verified, 7 November 2026
 
-Student and Parent web reports export the selected supported academic year/month with verified identity, monthly/session counts, explicit incomplete states, formula and cutoff. Fresh authorization and source comparisons surround local generation; no schema, attendance, link or provider writes are introduced. [Current validation/release evidence](ATTENDANCE-PDF-QA.md) · [Founder PDF checklist](../../public/qa/attendance-pdf-checklist.md). Whole web **3,198 tests / 190 files**, lint/build/types, 51 actual SDK assertions and six actual local browser PDF downloads pass. Full data-preservation proof retains all 3,244 prior application rows. Main/Production status is recorded in the focused evidence; founder acceptance stays separate.
+Student and Parent web reports export the selected supported academic year/month with verified identity, monthly/session counts, explicit incomplete states, formula and cutoff. Fresh authorization and source comparisons surround local generation; no schema, attendance, link or provider writes are introduced. [Current validation/release evidence](ATTENDANCE-PDF-QA.md) · [Founder PDF checklist](../../public/qa/attendance-pdf-checklist.md). Whole web **3,198 tests / 190 files**, lint/build/types, 51 actual SDK assertions and six actual local browser PDF downloads pass. Full data-preservation proof retains all 3,244 prior application rows. Runtime `2430ce0` is main/Production Ready; actual Student/Parent stable-URL downloads, refresh and incomplete-record withholding pass, with all 3,244 prior rows unchanged and owned sessions zero. The focused evidence separates the tested runtime from the documentation-only follow-up; founder acceptance stays separate.
 
 ## Previous academic-year official attendance — main/Production verified, 7 November 2026
 
