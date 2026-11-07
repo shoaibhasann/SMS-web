@@ -2,7 +2,7 @@
 
 7 November 2026 · Founder acceptance pending
 
-Use [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) only after the matching calendar release is confirmed. Use fresh isolated school accounts supplied privately. Changing an existing school's rules affects real operations; never use original founder data for destructive or boundary tests.
+Calendar runtime `7883753` is verified on [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Open **Settings → Calendar & daily attendance rules** as a School Admin or Principal and complete the authenticator check. Use fresh isolated school accounts supplied privately. Changing an existing school's rules affects real operations; use isolated fixtures for boundary tests. Existing schools remain unconfigured until the office explicitly saves rules.
 
 - [ ] **SC-01 — Unconfigured:** An untouched school is labelled unconfigured; no weekdays, holidays or correction window have silently been selected for it.
 - [ ] **SC-02 — Office authority:** Admin and Principal can manage their own calendar after native MFA. Teacher, Student, Guardian, another school and signed-out sessions cannot configure it.
