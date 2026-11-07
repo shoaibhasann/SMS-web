@@ -45,6 +45,22 @@ export type AttendanceEntry = {
 export type AttendanceSnapshot = {
   students: AttendanceStudent[];
   entries: Record<string, AttendanceEntry>;
+  day?: AttendanceDayContext;
+};
+
+export type AttendanceDayContext = {
+  day: string;
+  server_today: string;
+  revision: number;
+  configured: boolean;
+  is_working: boolean | null;
+  source: "unconfigured" | "weekday" | "exception";
+  label: string | null;
+  policy_revision: number | null;
+  exception_revision: number | null;
+  correction_window_days: number | null;
+  can_request_correction: boolean;
+  can_mark_holiday: boolean;
 };
 
 export type AttendanceChange = {

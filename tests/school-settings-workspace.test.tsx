@@ -6,6 +6,7 @@ import { SchoolSettingsError, type SchoolSettings, type SchoolSettingsIntent } f
 
 const mocks = vi.hoisted(() => ({ access: vi.fn(), load: vi.fn(), save: vi.fn(), auth: vi.fn() }));
 vi.mock("@/components/admin/school-staff-mfa-policy", () => ({ SchoolStaffMfaPolicy: () => <section aria-label="School authenticator policy" /> }));
+vi.mock("@/components/admin/school-attendance-calendar", () => ({ SchoolAttendanceCalendar: () => <section id="attendance-calendar" aria-label="School attendance calendar" /> }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: mocks.auth } }) }));
 vi.mock("@/lib/attendance/repository", () => ({ loadSchoolManagementAccess: mocks.access }));
 vi.mock("@/lib/admin/school-settings", async (original) => ({ ...await original<typeof import("@/lib/admin/school-settings")>(), loadSchoolSettings: mocks.load, saveSchoolSettings: mocks.save }));
@@ -44,6 +45,8 @@ describe("real school settings workspace", () => {
     expect(screen.getByRole("link", { name: "Open guardian access" })).toHaveAttribute("href", "/modules/guardian-invitations");
     expect(screen.getByText(/do not certify full onboarding/)).toBeInTheDocument();
     expect(screen.getByText("Timezone: UTC")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Calendar & daily attendance rules" })).toHaveAttribute("href", "#attendance-calendar");
+    expect(screen.getByRole("region", { name: "School attendance calendar" })).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 

@@ -303,16 +303,16 @@ describe("student and parent attendance", () => {
       scenario: "a failed fetch",
       response: { data: null, error: { message: "read rejected" } },
       message: "Attendance could not be loaded. Refresh to try again.",
-      rate: "—",
+      savedCount: "—",
     },
-    { scenario: "an empty history", response: result([]), message: "No attendance records available.", rate: "—" },
+    { scenario: "an empty history", response: result([]), message: "No attendance records available.", savedCount: "—" },
     {
       scenario: "a recorded absence",
       response: result([{ attendance_date: "2026-11-03", academic_year_id: "year", status: "absent" }]),
       message: "Absent",
-      rate: "0%",
+      savedCount: "0 of 1",
     },
-  ])("shows the correct history and rate for $scenario", async ({ response, message, rate }) => {
+  ])("shows the correct history and saved-record count for $scenario", async ({ response, message, savedCount }) => {
     resolveQuery = (query) => {
       if (query.table === "students") return result(student("current"));
       if (query.table === "attendance") return response;
@@ -329,7 +329,22 @@ describe("student and parent attendance", () => {
     } else {
       expect(history.queryByRole("alert")).not.toBeInTheDocument();
     }
-    expect(within(screen.getByText("Attendance", { exact: true }).parentElement!).getByText(rate)).toBeInTheDocument();
+    expect(within(screen.getByText("Present or late", { exact: true }).parentElement!).getByText(savedCount)).toBeInTheDocument();
+  });
+  it.each(["student", "parent"] as const)("labels %s attendance as a saved sample instead of an official rate", async role => {
+    const rows = ["present", "late", "half_day", "leave", "holiday", "absent"].map((status, index) => ({ status, attendance_date: `2026-11-0${6 - index}`, academic_year_id: "year" }));
+    resolveQuery = query => {
+      if (query.table === "attendance") return result(rows, 120);
+      if (role === "parent") return parentResolver(query);
+      return query.table === "students" ? result(student("current")) : academicResult(query);
+    };
+    render(<RoleDashboard role={role} schoolId="school" userId={`${role}-user`} />);
+    await screen.findByText("2 of 6");
+    const metric = within(screen.getByText("Present or late", { exact: true }).parentElement!);
+    expect(metric.getByText("Saved record sample (up to 60); not an official rate")).toBeInTheDocument();
+    expect(metric.queryByText(/%/)).not.toBeInTheDocument();
+    expect(metric.queryByText(/120/)).not.toBeInTheDocument();
+    expect(queries.find(query => query.table === "attendance")?.range).toEqual([0, 59]);
   });
 
   it("keeps the selected child's loaded data when the same child is selected again", async () => {

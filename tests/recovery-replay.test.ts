@@ -55,13 +55,13 @@ describe("recovery source boundary", () => {
 
   it("keeps tenant bootstrap scripts archived but outside the replay plan", async () => {
     const actual = await readRecoveryManifest();
-    expect(actual.plan).toHaveLength(95);
-    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(25);
+    expect(actual.plan).toHaveLength(96);
+    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(26);
     expect(actual.plan.some((source) => source.path.endsWith("20261030_academic_teacher_self_management.sql"))).toBe(false);
     expect(actual.plan.some((source) => /20261030094244|20261030095353/.test(source.path))).toBe(false);
     const before = await readRecoverySources(actual, { applyPending: false });
     const after = await readRecoverySources(actual);
-    expect(after.length - before.length).toBe(25);
+    expect(after.length - before.length).toBe(26);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
@@ -90,7 +90,7 @@ describe("complete empty application replay", () => {
         count(*) filter(where c.relkind='v')::int as views
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where n.nspname in ('public','app_private')`);
-      expect(counts.rows).toEqual([{ tables: 125, views: 5 }]);
+      expect(counts.rows).toEqual([{ tables: 128, views: 5 }]);
       expect((await db.query("select count(*)::int as schools from public.schools")).rows).toEqual([{ schools: 0 }]);
       expect((await db.query("select count(*)::int as users from auth.users")).rows).toEqual([{ users: 0 }]);
       expect((await db.query("select count(*)::int as profiles from public.profiles")).rows).toEqual([{ profiles: 0 }]);
@@ -119,6 +119,17 @@ describe("complete empty application replay", () => {
         { proname: "get_family_notification_inbox_v2", definer: false, browser: true, anonymous: false, server: false },
         { proname: "get_my_gate_alert_preferences", definer: false, browser: true, anonymous: false, server: false },
       ]);
+      expect((await db.query(`select p.prosecdef as definer,p.provolatile,
+        has_function_privilege('authenticated',p.oid,'EXECUTE') as browser,
+        has_function_privilege('anon',p.oid,'EXECUTE') as anonymous,
+        has_function_privilege('service_role',p.oid,'EXECUTE') as server from pg_proc p
+        where p.oid=to_regprocedure('public.get_school_attendance_calendar(uuid,date,date)')`)).rows)
+        .toEqual([{ definer: false, provolatile: "v", browser: true, anonymous: false, server: false }]);
+      expect((await db.query(`select has_table_privilege('authenticated','app_private.school_attendance_policy_versions','INSERT') as policy,
+        has_table_privilege('authenticated','public.school_holidays','INSERT,UPDATE,DELETE') as legacy_holiday,
+        has_any_column_privilege('authenticated','public.school_holidays','INSERT,UPDATE,REFERENCES') as legacy_column_write,
+        has_function_privilege('authenticated','app_private.resolve_attendance_calendar_day(uuid,date)','EXECUTE') as unchecked`)).rows)
+        .toEqual([{ policy: false, legacy_holiday: false, legacy_column_write: false, unchecked: false }]);
       expect((await db.query<{ tgname: string }>("select tgname from pg_trigger where tgrelid='auth.users'::regclass and not tgisinternal order by tgname")).rows.map((row) => row.tgname)).toEqual([
         "follow_guardian_auth_contact", "guard_guardian_auth_contact", "on_auth_user_created",
       ]);
@@ -137,6 +148,7 @@ describe("complete empty application replay", () => {
       expect((await db.query("select to_regprocedure('public.save_assessment_mark(uuid,timestamptz,uuid,uuid,timestamptz,numeric,text,numeric,text)') is null as pending")).rows).toEqual([{ pending: true }]);
       expect((await db.query("select to_regprocedure('public.ingest_gate_attendance_event(uuid,text,text,text,text,timestamptz)') is null as pending")).rows).toEqual([{ pending: true }]);
       expect((await db.query("select to_regprocedure('public.get_my_gate_alert_preferences()') is null as pending")).rows).toEqual([{ pending: true }]);
+      expect((await db.query("select to_regprocedure('public.get_school_attendance_calendar(uuid,date,date)') is null as pending")).rows).toEqual([{ pending: true }]);
       expect((await db.query("select count(*)::int as tables from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','app_private') and c.relkind='r'")).rows).toEqual([{ tables: 99 }]);
     } finally { await db.close(); }
   }, 30_000);

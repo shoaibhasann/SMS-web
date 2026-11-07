@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { attendanceStatuses } from "./types";
+import { loadAttendanceDayContext } from "./day-context";
+import { boundMfaSession } from "@/lib/auth/staff-mfa";
 import type {
   AttendanceChange,
   AttendanceContext,
@@ -216,11 +218,11 @@ function compareRosterStudents(left: AttendanceStudent, right: AttendanceStudent
  * intervening writes, and the existing student/date key prevents duplicate
  * new marks. Today's batch remains a per-pupil save.
  */
-export function createAttendanceRepository(client: SupabaseClient): AttendanceRepository {
+export function createAttendanceRepository(client: SupabaseClient, expectedUserId: string): AttendanceRepository {
   return {
     async load(context: AttendanceContext, date: string): Promise<AttendanceSnapshot> {
       validateScope(context, date);
-      const [students, attendanceRows] = await Promise.all([
+      const [students, attendanceRows, day] = await Promise.all([
         readPages<AttendanceStudent>((from, to) => client.rpc("list_attendance_register_students", {
           p_school_id: context.schoolId,
           p_year_id: context.academicYearId,
@@ -237,6 +239,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
           .eq("attendance_date", date)
           .order("student_id", { ascending: true })
           .range(from, to), "Saved attendance could not be loaded"),
+        loadAttendanceDayContext(client, expectedUserId, context, date),
       ]);
       const studentIds = new Set<string>();
       for (const student of students) {
@@ -255,7 +258,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         entries[entry.student_id] = entry;
       }
 
-      return { students: students.sort(compareRosterStudents), entries };
+      return { students: students.sort(compareRosterStudents), entries, day };
     },
 
     async save(
@@ -265,7 +268,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
       changes: AttendanceChange[],
     ): Promise<AttendanceSaveResult> {
       validateScope(context, date);
-      if (!userId.trim()) throw new Error("Sign in again before saving attendance.");
+      if (!userId.trim() || userId !== expectedUserId) throw new Error("Sign in again before saving attendance.");
       const seen = new Set<string>();
       // Validate the entire request before any writes, so malformed input cannot
       // produce a partly applied operation.
@@ -394,6 +397,8 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
       if (change.expected && (!change.expected.id || change.expected.revision === undefined)) {
         throw new Error("Reload this attendance register before submitting a correction.");
       }
+      const session = await boundMfaSession(client, expectedUserId, new AbortController().signal);
+      if (!session) throw new Error("Sign in again before requesting an attendance correction.");
       const { data, error } = await client.rpc("request_attendance_correction", {
         p_school_id: context.schoolId,
         p_year_id: context.academicYearId,
@@ -405,7 +410,7 @@ export function createAttendanceRepository(client: SupabaseClient): AttendanceRe
         p_status: change.status,
         p_reason: reason.trim(),
         p_request_id: requestId,
-      });
+      }).setHeader("Authorization", `Bearer ${session.access_token}`);
       if (error) {
         const conflict = error.code === "PT409" || error.code === "40001";
         throw Object.assign(new Error(conflict

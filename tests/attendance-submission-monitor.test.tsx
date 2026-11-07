@@ -150,3 +150,21 @@ describe("attendance submission monitor", () => {
     expect(within(screen.getByRole("region")).queryByRole("button", { name: "Configure attendance cutoff" })).not.toBeInTheDocument();
   });
 });
+
+describe("configured school closures", () => {
+  it("explains a closed school day without a pending or complete-register claim", async () => {
+    const value = monitor({ sections: [], calendar_day: { day: "2026-11-05", configured: true, is_working: false, label: "School holiday" } });
+    read.mockResolvedValue(value);
+    render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" />);
+    expect(await screen.findByText(/School holiday. No daily register is required/)).toHaveAttribute("role", "status");
+    expect(screen.queryByText("Complete means every pupil in the current register has a saved mark.")).not.toBeInTheDocument();
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+  });
+  it("rejects inconsistent closed-day metadata that also reports a pending roster", async () => {
+    const value = monitor({ calendar_day: { day: "2026-11-05", configured: true, is_working: false, label: "School holiday" } });
+    read.mockResolvedValue(value);
+    render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Partial")).not.toBeInTheDocument();
+  });
+});

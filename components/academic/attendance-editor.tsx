@@ -69,7 +69,7 @@ function ScopedAttendanceEditor({
   readOnly = false,
 }: Props & { context: AttendanceContext }) {
   const [defaultRepository] = useState(() =>
-    suppliedRepository ?? createAttendanceRepository(createClient()),
+    suppliedRepository ?? createAttendanceRepository(createClient(), userId),
   );
   const repository = suppliedRepository ?? defaultRepository;
   const today = schoolDate();
@@ -92,9 +92,13 @@ function ScopedAttendanceEditor({
   const requestKey = JSON.stringify([contextKey, date, revision, rosterVersion]);
   const snapshot = loaded?.key === requestKey ? loaded.snapshot : null;
   const ready = snapshot !== null;
-  const historical = date < today;
-  const requestHistorical = !readOnly && historical && !reviewOnlyHistory && Boolean(repository.requestCorrection);
-  const canEdit = !readOnly && (date === today || requestHistorical);
+  const schoolToday = snapshot?.day?.server_today ?? today;
+  const historical = date < schoolToday;
+  const closedDay = snapshot?.day?.is_working === false;
+  const canMarkHoliday = snapshot?.day?.can_mark_holiday === true;
+  const requestHistorical = !readOnly && historical && !reviewOnlyHistory && !closedDay
+    && snapshot?.day?.can_request_correction !== false && Boolean(repository.requestCorrection);
+  const canEdit = !readOnly && !closedDay && (date === schoolToday || requestHistorical);
   const students = snapshot?.students ?? [];
   const dirtyIds = Object.keys(draft).filter(
     (id) => draft[id] !== snapshot?.entries[id]?.status,
@@ -153,6 +157,7 @@ function ScopedAttendanceEditor({
 
   function mark(studentId: string, status: AttendanceStatus) {
     if (!ready || !canEdit || savingRef.current || (historical && dirty && !dirtyIds.includes(studentId))) return;
+    if (!canMarkHoliday && (status === "holiday" || snapshot?.entries[studentId]?.status === "holiday")) return;
     setMessage("");
     setDraft((previous) => {
       const next = { ...previous };
@@ -173,7 +178,7 @@ function ScopedAttendanceEditor({
   }
 
   function markHoliday() {
-    if (!snapshot || !canEdit || historical || savingRef.current) return;
+    if (!snapshot || !canEdit || !canMarkHoliday || historical || savingRef.current) return;
     const next: Record<string, AttendanceStatus> = {};
     for (const student of students) {
       if (snapshot.entries[student.id]?.status !== "holiday") next[student.id] = "holiday";
@@ -267,13 +272,20 @@ function ScopedAttendanceEditor({
         <div className="flex flex-wrap gap-2">
           {canEdit && !historical && <>
             <button type="button" onClick={markUnmarkedPresent} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark unmarked present</button>
-            <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>
+            {canMarkHoliday && <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>}
           </>}
           <button type="button" onClick={reload} disabled={saving} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">{dirty ? "Discard changes and reload" : "Reload register"}</button>
         </div>
       </div>
       {loadError ? <p role="alert" className="text-sm text-red-600">{loadError} Saving is disabled until the register loads successfully.</p> : !ready ? <LoadingState variant="table" className="text-sm muted">Loading attendance register…</LoadingState> : (
         <>
+          {snapshot.day && <p role="status" className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-6">
+            {!snapshot.day.configured ? "School calendar is not configured for this date. Existing daily attendance rules remain in effect."
+              : closedDay ? `${snapshot.day.label ?? "School closed"}. No daily register is required; existing history stays available. Gate scans are held for review.`
+                : `${snapshot.day.label ?? "School working day"}. The saved school calendar applies to this register and gate attendance.`}
+            {historical && snapshot.day.can_request_correction === false && !reviewOnlyHistory && !readOnly
+              ? " Teacher correction requests are unavailable under the current school policy or assignment. Contact the school office." : ""}
+          </p>}
           <p className="text-xs muted">{students.length} students · {marked} marked · {students.length - marked} unmarked. {readOnly ? "This academic year is read-only." : historical
             ? requestHistorical ? "For past dates, request one pupil’s correction at a time." : "Past attendance changes through the correction review."
             : "Only changed records are saved."}</p>
@@ -291,9 +303,9 @@ function ScopedAttendanceEditor({
                   <p className="truncate text-sm font-semibold">{studentName(student)}</p>
                   <p className="text-xs muted">{student.admission_no} · Roll {student.roll_no || "—"}</p>
                 </div>
-                <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving || !canEdit || (historical && dirty && !dirtyIds.includes(student.id))} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
+                <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving || !canEdit || !canMarkHoliday && snapshot?.entries[student.id]?.status === "holiday" || (historical && dirty && !dirtyIds.includes(student.id))} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
                   <option value="" disabled>Unmarked</option>
-                  {attendanceStatuses.map((status) => <option key={status} value={status}>{attendanceLabels[status]}</option>)}
+                  {attendanceStatuses.map((status) => <option key={status} value={status} disabled={status === "holiday" && !canMarkHoliday}>{attendanceLabels[status]}</option>)}
                 </select>
               </div>
             )) : <p className="p-5 text-sm muted">{students.length ? "No students match your search." : "No students found for this class and section on the selected date."}</p>}

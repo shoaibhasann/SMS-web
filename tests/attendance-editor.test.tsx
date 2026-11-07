@@ -20,6 +20,8 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: () => { throw new Error("Attendance tests must use the injected repository."); },
 }));
 
+vi.mock("../lib/auth/staff-mfa", () => ({ boundMfaSession: vi.fn(async () => ({ access_token: "captured-owner-token" })) }));
+
 const context: AttendanceContext = {
   schoolId: "school-a",
   academicYearId: "year-a",
@@ -31,6 +33,9 @@ const userId = "teacher-a";
 
 function initialSnapshot(): AttendanceSnapshot {
   return {
+    day: { day: schoolDate(), server_today: schoolDate(), revision: 0, configured: false, is_working: null,
+      source: "unconfigured", label: null, policy_revision: null, exception_revision: null, correction_window_days: null,
+      can_request_correction: true, can_mark_holiday: true },
     students: [
       { id: "a", first_name: "Aarav", admission_no: "A-1", roll_no: "1" },
       { id: "b", first_name: "Anaya", admission_no: "A-2", roll_no: "2" },
@@ -450,7 +455,7 @@ describe("historical correction request conflicts", () => {
       if (requests === 1) return { data: null, error: { code, message: "The before record is stale." } };
       return { data: args.p_request_id, error: null };
     });
-    const actual = createAttendanceRepository({ rpc } as unknown as SupabaseClient);
+    const actual = createAttendanceRepository({ rpc: (...args: Parameters<typeof rpc>) => ({ setHeader: () => rpc(...args) }) } as unknown as SupabaseClient, userId);
     const repository = { ...base, requestCorrection: actual.requestCorrection };
     const onCorrectionRequested = vi.fn();
     render(<AttendanceEditor context={context} userId={userId} repository={repository} onCorrectionRequested={onCorrectionRequested} />);
@@ -483,5 +488,50 @@ describe("historical correction request conflicts", () => {
     expect(rpc.mock.calls[0][1].p_request_id).not.toBe(rpc.mock.calls[1][1].p_request_id);
     expect(onCorrectionRequested).toHaveBeenCalledTimes(1);
     expect(base.save).not.toHaveBeenCalled();
+  });
+});
+
+describe("server-governed school calendar controls", () => {
+  it("keeps retained rows readable on a closed date and exposes no attendance write controls", async () => {
+    const { repository } = persistedRepository();
+    repository.load.mockImplementation(async () => ({ ...initialSnapshot(), day: { ...initialSnapshot().day!, configured: true,
+      is_working: false, source: "exception", label: "School holiday", revision: 2, policy_revision: 1, exception_revision: 2,
+      correction_window_days: 7, can_mark_holiday: false, can_request_correction: false } }));
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
+    await loaded();
+    expect(screen.getByText(/School holiday. No daily register is required/)).toBeInTheDocument();
+    expect(attendance("Aarav")).toHaveValue("absent");
+    expect(attendance("Aarav")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Save Attendance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark holiday" })).not.toBeInTheDocument();
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+  it("does not give a Teacher Holiday controls or permission to replace an existing Holiday", async () => {
+    const user = userEvent.setup(), { repository } = persistedRepository();
+    repository.load.mockImplementation(async () => ({ ...initialSnapshot(), day: { ...initialSnapshot().day!, can_mark_holiday: false } }));
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
+    await loaded();
+    expect(screen.queryByRole("button", { name: "Mark holiday" })).not.toBeInTheDocument();
+    expect(attendance("Anaya")).toHaveValue("holiday");
+    expect(attendance("Anaya")).toBeDisabled();
+    expect(attendance("Aarav").querySelector('option[value="holiday"]')).toBeDisabled();
+    await user.selectOptions(attendance("Aarav"), "present");
+    expect(attendance("Aarav")).toHaveValue("present");
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+  it("renders past history read-only when the server closes the Teacher correction window", async () => {
+    const user = userEvent.setup(), { repository } = persistedRepository();
+    const requestCorrection = vi.fn();
+    repository.load.mockImplementation(async (_scope, selectedDay) => ({ ...initialSnapshot(), day: { ...initialSnapshot().day!,
+      day: selectedDay, can_mark_holiday: false, can_request_correction: false } }));
+    render(<AttendanceEditor context={context} userId={userId} repository={{ ...repository, requestCorrection }} />);
+    await loaded();
+    const past = schoolDate(new Date(Date.now() - 86_400_000));
+    fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: past } });
+    await screen.findByText(/Teacher correction requests are unavailable under the current school policy/);
+    expect(attendance("Aarav")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Request correction" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reload register" }));
+    expect(requestCorrection).not.toHaveBeenCalled();
   });
 });

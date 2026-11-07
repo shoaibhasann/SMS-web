@@ -7,6 +7,7 @@ import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 import { SchoolStaffMfaPolicy } from "@/components/admin/school-staff-mfa-policy";
+import { SchoolAttendanceCalendar } from "@/components/admin/school-attendance-calendar";
 import { loadSchoolSettings, saveSchoolSettings, schoolBoards, schoolDetails, SchoolSettingsError, validateSchoolDetails,
   type SchoolDetails, type SchoolSettings, type SchoolSettingsIntent } from "@/lib/admin/school-settings";
 
@@ -31,6 +32,7 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
   const [sessionChanged, setSessionChanged] = useState(false);
   const [locked, setLocked] = useState(false);
   const [policyLocked, setPolicyLocked] = useState(false);
+  const [calendarLocked, setCalendarLocked] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
@@ -56,7 +58,8 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
       <div className="rounded-2xl bg-[var(--surface-2)] p-3 text-[var(--primary)]"><Building2 size={24} aria-hidden="true" /></div>
       <div><p className="text-xs font-semibold uppercase tracking-wider muted">School workspace</p>
         <h1 className="mt-1 text-2xl font-bold sm:text-3xl">School settings</h1>
-        <p className="mt-2 text-sm leading-6 muted">Keep your school details current and follow the connected setup steps.</p></div>
+        <p className="mt-2 text-sm leading-6 muted">Keep your school details current and follow the connected setup steps.</p>
+        <a href="#attendance-calendar" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)] hover:underline">Calendar &amp; daily attendance rules</a></div>
     </header>
     {sessionChanged ? <section className="card space-y-3 p-5"><p role="alert">Your sign-in changed. Reopen school settings after signing in.</p><Link href="/login" className={button}>Return to sign in</Link></section>
       : error ? <section className="card space-y-3 p-5"><p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>
@@ -64,11 +67,12 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
         : !access ? <LoadingState variant="form">Checking school settings access…</LoadingState>
           : <>
             <label className="card block space-y-2 p-4 text-sm font-semibold"><span>School</span>
-              <select className="field" value={selected?.id ?? ""} disabled={locked || policyLocked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
+              <select className="field" value={selected?.id ?? ""} disabled={locked || policyLocked || calendarLocked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
                 <option value="">Choose a school</option>{access.schools.map((school) => <option value={school.id} key={school.id}>{school.name}</option>)}
               </select>
-              {(locked || policyLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
+              {(locked || policyLocked || calendarLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
             </label>
+            {selected && <SchoolAttendanceCalendar client={client} schoolId={selected.id} userId={userId} onLock={setCalendarLocked} />}
             {selected && <SchoolEditor key={selected.id} client={client} schoolId={selected.id} userId={userId} onLock={setLocked} />}
             {selected && <SchoolStaffMfaPolicy key={`mfa-${selected.id}`} client={client} schoolId={selected.id} userId={userId} onLock={setPolicyLocked} />}
           </>}

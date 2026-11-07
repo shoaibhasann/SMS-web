@@ -258,7 +258,7 @@ function Card({ title, icon, children, right, preview = true }: { title: string;
 }
 function Stat({ label, value, tone = "blue", loading = false }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple"; loading?: boolean }) {
   const icon = tone === "green" ? CalendarCheck : tone === "orange" ? IndianRupee : tone === "purple" ? ClipboardList : BookOpen;
-  return <DashboardMetric label={label} value={value} icon={icon} loading={loading} tone={tone === "purple" ? "violet" : tone === "orange" ? "amber" : tone} featured={tone === "green"} context={tone === "green" ? "Present or late / retained records" : "Available school records"} />;
+  return <DashboardMetric label={label} value={value} icon={icon} loading={loading} tone={tone === "purple" ? "violet" : tone === "orange" ? "amber" : tone} featured={tone === "green"} context={tone === "green" ? "Saved record sample (up to 60); not an official rate" : "Available school records"} />;
 }
 
 export function RoleDashboard({
@@ -967,10 +967,10 @@ function FamilyFeeBalances({ rows, total, error, loading }: {
   </Card>;
 }
 
-function attendanceRate(rows: FamilyAttendanceRow[]) {
+function attendanceSavedCount(rows: FamilyAttendanceRow[]) {
   if (!rows.length) return "—";
   const present = rows.filter((row) => row.status === "present" || row.status === "late").length;
-  return `${Math.round(present / rows.length * 100)}%`;
+  return `${present} of ${rows.length}`;
 }
 
 function AttendanceHistory({ title, rows, error, loading }: {
@@ -1052,7 +1052,7 @@ function StudentDashboard({ userId }: { userId: string }) {
           { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
         />
       <div className="dashboard-metrics">
-        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" loading={!student && !message} />
+        <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!student && !message} />
         <Stat label="Class Logs" value={logs.length} loading={!student && !message} />
         <Stat label="Homework / Work" value={activities.length} tone="purple" loading={!student && !message} />
         <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!student && !message} />
@@ -1140,7 +1140,7 @@ function ParentDashboard({ userId }: { userId: string }) {
           { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
         />
       <div className="dashboard-metrics">
-        <Stat label="Attendance" value={attendanceRate(attendance)} tone="green" loading={!child && !message} />
+        <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!child && !message} />
         <Stat label="Academic Logs" value={logs.length} loading={!child && !message} />
         <Stat label="Homework / Projects" value={activities.length} tone="purple" loading={!child && !message} />
         <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!child && !message} />

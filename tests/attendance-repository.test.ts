@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createAttendanceRepository, loadEnrolledStudents } from "../lib/attendance/repository";
 import type { AttendanceChange, AttendanceContext, AttendanceEntry, AttendanceStatus } from "../lib/attendance/types";
+
+vi.mock("../lib/auth/staff-mfa", () => ({ boundMfaSession: vi.fn(async () => ({ access_token: "captured-owner-token" })) }));
 
 type Row = Record<string, unknown>;
 type Table = "students" | "enrollments" | "attendance" | "register";
@@ -34,6 +36,12 @@ class FakeDatabase {
     return {
       from: (table: Table) => new FakeQuery(this, table),
       rpc: (name: string, args: Row, options: { count: string }) => {
+        if (name === "get_attendance_day_context") return { setHeader: () => Promise.resolve({ data: {
+          user_id: "teacher", school_id: args.p_school_id, academic_year_id: args.p_year_id,
+          class_id: args.p_class_id, section_id: args.p_section_id, day: args.p_day, server_today: "2026-11-07",
+          timezone: "Asia/Kolkata", revision: 0, configured: false, is_working: null, source: "unconfigured", label: null,
+          policy_revision: null, exception_revision: null, correction_window_days: null, can_request_correction: false, can_mark_holiday: false,
+        }, error: null }) };
         if (name !== "list_attendance_register_students") throw new Error(`Unexpected RPC ${name}`);
         const query = new FakeQuery(this, "register");
         query.query.payload = args;
@@ -148,7 +156,7 @@ describe("attendance repository load", () => {
     statuses.forEach((status, index) => { addStudent(db, String(index), String(index + 1)); addEntry(db, String(index), status, status === "holiday" ? "School/Class Holiday" : null); });
     addStudent(db, "missing", "7");
 
-    const snapshot = await createAttendanceRepository(db.client()).load(context, date);
+    const snapshot = await createAttendanceRepository(db.client(), "teacher").load(context, date);
 
     expect(snapshot.students).toHaveLength(7);
     expect(Object.values(snapshot.entries).map((row) => row.status).sort()).toEqual([...statuses].sort());
@@ -172,7 +180,7 @@ describe("attendance repository load", () => {
     addEntry(db, "other-year", "absent", null, { academic_year_id: "year-b" });
     addEntry(db, "other-section", "absent", null, { section_id: "section-b" });
     addEntry(db, "other-date", "absent", null, { attendance_date: "2026-11-03" });
-    const snapshot = await createAttendanceRepository(db.client()).load(context, date);
+    const snapshot = await createAttendanceRepository(db.client(), "teacher").load(context, date);
     expect(snapshot.students).toHaveLength(407);
     expect(Object.keys(snapshot.entries)).toHaveLength(407);
     expect(snapshot.students[406].roll_no).toBe("407");
@@ -192,7 +200,7 @@ describe("attendance repository load", () => {
     addStudent(db, "wrong-section", "1"); db.rows.enrollments[2].section_id = "section-b";
     addStudent(db, "wrong-year", "1"); db.rows.enrollments[3].academic_year_id = "year-b";
     addStudent(db, "wrong-class", "1"); db.rows.enrollments[4].class_id = "class-b";
-    const snapshot = await createAttendanceRepository(db.client()).load(context, date);
+    const snapshot = await createAttendanceRepository(db.client(), "teacher").load(context, date);
     expect(snapshot.students.map((student) => [student.id, student.roll_no])).toEqual([["active", "2"]]);
   });
 
@@ -212,7 +220,7 @@ describe("attendance repository load", () => {
     if (mode === "unknown-status") db.rows.attendance[0].status = "unmarked";
     if (mode === "duplicate-entry") addEntry(db, "pupil", "absent");
     if (mode === "duplicate-enrollment") db.rows.enrollments.push({ ...db.rows.enrollments[0], id: "duplicate" });
-    await expect(createAttendanceRepository(db.client()).load(context, date)).rejects.toThrow(/unsupported|duplicate/);
+    await expect(createAttendanceRepository(db.client(), "teacher").load(context, date)).rejects.toThrow(/unsupported|duplicate/);
     expect(writes(db)).toEqual([]);
   });
 
@@ -220,7 +228,7 @@ describe("attendance repository load", () => {
     const db = new FakeDatabase();
     addStudent(db, "pupil");
     db.failure = (query) => query.table === table ? { message: "Network unavailable" } : null;
-    await expect(createAttendanceRepository(db.client()).load(context, date)).rejects.toThrow("Network unavailable");
+    await expect(createAttendanceRepository(db.client(), "teacher").load(context, date)).rejects.toThrow("Network unavailable");
   });
 
   it("rejects pagination that becomes incomplete while loading", async () => {
@@ -230,7 +238,7 @@ describe("attendance repository load", () => {
     db.beforeExecute = async (query) => {
       if (query.table === "register" && query.from > 0) db.rows.enrollments.pop();
     };
-    await expect(createAttendanceRepository(db.client()).load(context, date)).rejects.toThrow("records changed while loading");
+    await expect(createAttendanceRepository(db.client(), "teacher").load(context, date)).rejects.toThrow("records changed while loading");
   });
 
   it("loads a transferred pupil's old mark in the original section and only lists the pupil in the new current section", async () => {
@@ -243,13 +251,13 @@ describe("attendance repository load", () => {
     db.historicalRosters.set(`${newContext.sectionId}/${date}`, []);
     db.rows.enrollments[0].section_id = newContext.sectionId;
     db.rows.enrollments[0].roll_no = "8";
-    const repository = createAttendanceRepository(db.client());
+    const repository = createAttendanceRepository(db.client(), "teacher");
 
     const oldSnapshot = await repository.load(context, date);
     expect(oldSnapshot.students[0].roll_no).toBe("12");
     expect(oldSnapshot.entries.pupil).toEqual(oldMark);
-    expect(await repository.load(newContext, date)).toEqual({ students: [], entries: {} });
-    expect(await repository.load(context, transferDay)).toEqual({ students: [], entries: {} });
+    expect(await repository.load(newContext, date)).toMatchObject({ students: [], entries: {}, day: { configured: false } });
+    expect(await repository.load(context, transferDay)).toMatchObject({ students: [], entries: {}, day: { configured: false } });
     const destination = await repository.load(newContext, transferDay);
     expect(destination.students[0].roll_no).toBe("8");
     expect(destination.entries).toEqual({});
@@ -265,7 +273,7 @@ describe("attendance repository save", () => {
     addEntry(db, "leave", "leave", "Approved");
     const untouched = structuredClone(db.rows.attendance.slice(1));
 
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [change("edited", "late", original)]);
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [change("edited", "late", original)]);
 
     expect(result).toEqual({ saved: [{ student_id: "edited", status: "late", remarks: "Parent informed" }], failures: [] });
     expect(db.rows.attendance.slice(1)).toEqual(untouched);
@@ -295,7 +303,7 @@ describe("attendance repository save", () => {
     if (mode === "date") db.rows.attendance[0].attendance_date = "2026-11-03";
     if (mode === "deleted") db.rows.attendance = [];
     const before = structuredClone(db.rows.attendance);
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [change("pupil", "present", original)]);
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [change("pupil", "present", original)]);
     expect(result.saved).toEqual([]);
     expect(result.failures).toEqual([{ studentId: "pupil", message: expect.stringContaining("changed elsewhere") }]);
     expect(db.rows.attendance).toEqual(before);
@@ -306,7 +314,7 @@ describe("attendance repository save", () => {
     const db = new FakeDatabase();
     addStudent(db, "new"); addStudent(db, "race");
     addEntry(db, "race", "leave", "Recorded in another tab");
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [
       change("new", "absent", null), change("race", "present", null),
     ]);
     expect(result.saved).toEqual([{ student_id: "new", status: "absent", remarks: null }]);
@@ -326,7 +334,7 @@ describe("attendance repository save", () => {
     db.rows.attendance[0].status = "leave";
     db.failure = (query) => query.payload?.student_id === "policy" ? { message: "Row access denied", code: "42501" } : null;
     db.beforeExecute = async (query) => { if (query.payload?.student_id === "network") throw new Error("Connection interrupted"); };
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [
       change("ok", "present", null), change("conflict", "present", original), change("policy", "late", null), change("network", "absent", null),
     ]);
     expect(result.saved.map((entry) => entry.student_id)).toEqual(["ok"]);
@@ -341,7 +349,7 @@ describe("attendance repository save", () => {
     db.rows.enrollments[1].status = "withdrawn";
     db.rows.enrollments[2].section_id = "other-section";
     db.rows.students[3].school_id = "other-school";
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [
       ...["good", "withdrawn", "moved", "foreign"].map((id) => change(id, "present", null)),
     ]);
     expect(result.saved.map((entry) => entry.student_id)).toEqual(["good"]);
@@ -353,7 +361,7 @@ describe("attendance repository save", () => {
     const db = new FakeDatabase();
     addStudent(db, "pupil");
     const original = addEntry(db, "pupil", "holiday", "School/Class Holiday");
-    const repository = createAttendanceRepository(db.client());
+    const repository = createAttendanceRepository(db.client(), "teacher");
     expect(await repository.save(context, date, "teacher", [])).toEqual({ saved: [], failures: [] });
     expect(await repository.save(context, date, "teacher", [change("pupil", "holiday", original)])).toEqual({ saved: [original], failures: [] });
     expect(writes(db)).toHaveLength(0);
@@ -363,7 +371,7 @@ describe("attendance repository save", () => {
     const db = new FakeDatabase();
     addStudent(db, "pupil");
     const original = addEntry(db, "pupil", "holiday", "School/Class Holiday");
-    const result = await createAttendanceRepository(db.client()).save(context, date, "teacher", [change("pupil", "present", original)]);
+    const result = await createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [change("pupil", "present", original)]);
     expect(result.saved[0]).toEqual({ student_id: "pupil", status: "present", remarks: "School/Class Holiday" });
   });
 
@@ -375,7 +383,7 @@ describe("attendance repository save", () => {
     if (mode === "unknown-status") changes[1].status = "unmarked" as AttendanceStatus;
     if (mode === "wrong-expected-student") changes[1].expected = { student_id: "someone-else", status: "late", remarks: null };
     if (mode === "unknown-expected-status") changes[1].expected = { student_id: "invalid", status: "unknown" as AttendanceStatus, remarks: null };
-    await expect(createAttendanceRepository(db.client()).save(context, date, "teacher", changes)).rejects.toThrow();
+    await expect(createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", changes)).rejects.toThrow();
     expect(writes(db)).toHaveLength(0);
   });
 
@@ -383,7 +391,7 @@ describe("attendance repository save", () => {
     const db = new FakeDatabase();
     addStudent(db, "pupil");
     db.failure = (query) => query.table === "enrollments" ? { message: "Enrollment service unavailable" } : null;
-    await expect(createAttendanceRepository(db.client()).save(context, date, "teacher", [change("pupil", "present", null)])).rejects.toThrow("Enrollment service unavailable");
+    await expect(createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", [change("pupil", "present", null)])).rejects.toThrow("Enrollment service unavailable");
     expect(writes(db)).toHaveLength(0);
   });
 
@@ -392,7 +400,7 @@ describe("attendance repository save", () => {
     const releases: (() => void)[] = [];
     for (let index = 0; index < 9; index++) addStudent(db, String(index));
     db.beforeExecute = (query) => query.action === "insert" ? new Promise<void>((resolve) => { releases.push(resolve); }) : Promise.resolve();
-    const pending = createAttendanceRepository(db.client()).save(context, date, "teacher", Array.from({ length: 9 }, (_, index) => change(String(index), "present", null)));
+    const pending = createAttendanceRepository(db.client(), "teacher").save(context, date, "teacher", Array.from({ length: 9 }, (_, index) => change(String(index), "present", null)));
     for (let turn = 0; turn < 50; turn++) {
       await Promise.resolve();
       while (releases.length) releases.shift()!();
@@ -406,7 +414,7 @@ describe("attendance repository save", () => {
 describe("attendance repository scope validation", () => {
   it.each(["", "2026-2-1", "2026-02-30", "not-a-date", "2026-11-02T00:00:00Z"])("rejects invalid date %j before reads or writes", async (invalidDate) => {
     const db = new FakeDatabase();
-    const repository = createAttendanceRepository(db.client());
+    const repository = createAttendanceRepository(db.client(), "teacher");
     await expect(repository.load(context, invalidDate)).rejects.toThrow("valid attendance date");
     await expect(repository.save(context, invalidDate, "teacher", [])).rejects.toThrow("valid attendance date");
     expect(db.calls).toHaveLength(0);
@@ -414,7 +422,7 @@ describe("attendance repository scope validation", () => {
 
   it("rejects incomplete context and missing user before touching data", async () => {
     const db = new FakeDatabase();
-    const repository = createAttendanceRepository(db.client());
+    const repository = createAttendanceRepository(db.client(), "teacher");
     await expect(repository.load({ ...context, sectionId: "" }, date)).rejects.toThrow("section");
     await expect(repository.save(context, date, " ", [])).rejects.toThrow("Sign in");
     expect(db.calls).toHaveLength(0);

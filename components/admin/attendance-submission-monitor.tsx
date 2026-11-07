@@ -27,6 +27,7 @@ type Monitor = {
   roster_issue_count: number;
   session_state: "active" | "missing" | "ambiguous" | "outside_dates";
   sections: SectionProgress[];
+  calendar_day?: { day: string; configured: boolean; is_working: boolean | null; label: string | null };
 };
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
@@ -39,6 +40,11 @@ function validMonitor(data: unknown): data is Monitor {
     && (record.cutoff_at === null || typeof record.cutoff_at === "string")
     && count(record.revision) && count(record.roster_issue_count) && typeof record.can_edit === "boolean"
     && ["active", "missing", "ambiguous", "outside_dates"].includes(record.session_state)
+    && (record.calendar_day === undefined || record.calendar_day && record.calendar_day.day === record.day
+      && typeof record.calendar_day.configured === "boolean"
+      && (record.calendar_day.configured ? typeof record.calendar_day.is_working === "boolean" : record.calendar_day.is_working === null)
+      && (record.calendar_day.label === null || typeof record.calendar_day.label === "string" && record.calendar_day.label.trim().length > 0 && record.calendar_day.label.length <= 120)
+      && (record.calendar_day.is_working !== false || Array.isArray(record.sections) && record.sections.length === 0))
     && Array.isArray(record.sections) && record.sections.every((section) => section
       && typeof section.section_id === "string" && typeof section.class_name === "string"
       && typeof section.section_name === "string" && count(section.expected_count)
@@ -129,14 +135,17 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
                 {record.roster_issue_count > 0 && <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">
                   {record.roster_issue_count} roster {record.roster_issue_count === 1 ? "record needs" : "records need"} a valid active class and section. Review the student placements to complete the school register.
                 </p>}
-                {record.session_state === "active" && <p role="status" className={`text-sm font-semibold ${pending ? "text-amber-800 dark:text-amber-300" : "muted"}`}>
+                {record.calendar_day?.is_working === false && <p role="status" className="rounded-xl bg-[var(--surface-2)] px-3 py-2 text-sm font-semibold">
+                  {record.calendar_day.label ?? "School closed"}. No daily register is required; there are no pending attendance submissions for this date.
+                </p>}
+                {record.session_state === "active" && record.calendar_day?.is_working !== false && <p role="status" className={`text-sm font-semibold ${pending ? "text-amber-800 dark:text-amber-300" : "muted"}`}>
                   {pending ? `${pending} ${pending === 1 ? "section has" : "sections have"} pending attendance after cutoff.`
                     : "Complete means every pupil in the current register has a saved mark."}
                 </p>}
                 {record.session_state !== "active" ? <p className="text-sm muted">{record.session_state === "outside_dates"
                   ? "Today is outside the current academic year dates."
                   : "Set exactly one current academic year to monitor today’s registers."}</p>
-                  : record.sections.length === 0 ? <p className="text-sm muted">{record.roster_issue_count > 0
+                  : record.calendar_day?.is_working === false ? null : record.sections.length === 0 ? <p className="text-sm muted">{record.roster_issue_count > 0
                     ? "Fix the student placements to see their attendance registers."
                     : "No enrolled sections need attendance today."}</p>
                     : <ul className="divide-y divide-[var(--border)]">
