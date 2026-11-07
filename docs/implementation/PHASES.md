@@ -1,8 +1,8 @@
 # Implementation phases
 
-## Historical calendar CSV import — 7 November 2026
+## Historical calendar CSV import — main/Production verified, 7 November 2026
 
-Admin/Principal can fill strictly past, previously unconfigured school-calendar dates through bounded CSV → checked server preview → acknowledged atomic import. Existing calendar decisions and pupil marks are preserved; schoolwide reporting impact is explicit, with required MFA and stale-preview/retry protection. [Engineering evidence](HISTORICAL-CALENDAR-QA.md) · [Founder checklist](../../public/qa/historical-calendar-checklist.md). Validation/release status is recorded in the focused evidence; founder acceptance remains pending.
+Actual Admin/Principal native MFA gates a bounded historical CSV → server preview → acknowledged atomic gap import, with duplicate/invalid/configured-date rejection, checked impact hashes and exact retries. Existing marks remain unchanged; actual family rates move from calendar-incomplete to 58.33% only for the complete pupil, while the missing sibling stays unresolved. Whole web **3,086 tests / 187 files**, lint/build/types and hosted core 117 checks pass; a nine-check approved-review retry drill proves the shared calendar fence, with its narrower concurrency boundary recorded. Local Admin/family and stable Production Principal save/hard-refresh plus Guardian readback pass. Runtime `0c682cb` is main/Production Ready; final read-only proof retains all 3,177 pre-Production rows and 3,107 originals, with only two new dates/one receipt (3,180 rows total), and owned sessions zero. [Engineering evidence](HISTORICAL-CALENDAR-QA.md) separates the tested runtime from the later documentation-only rollout. [Founder checklist](../../public/qa/historical-calendar-checklist.md) stays unchecked; actual school history approval remains open.
 
 
 Current web backlog: [remaining code, demo screens and activation gates](WEB-REMAINING.md), updated 7 November 2026.

@@ -1,6 +1,6 @@
 # SMS product requirements
 
-**Historical calendar gap import — 7 November:** Admin/Principal with verified MFA can preview and import bounded past working/holiday CSV facts, only where the school calendar is unconfigured. One invalid or configured date rejects the whole batch. Required reason/impact acknowledgement, revision/hash rechecks and exact retry receipts protect the write. Old marks remain unchanged; schoolwide rate effects are shown explicitly. [Measured status](../implementation/HISTORICAL-CALENDAR-QA.md) · [Founder checklist](../../public/qa/historical-calendar-checklist.md). Founder acceptance and broader reporting remain open.
+**Historical calendar gap import — 7 November:** Admin/Principal with verified MFA can preview and import bounded past working/holiday CSV facts, only where the school calendar is unconfigured. One invalid or configured date rejects the whole batch. Required reason/impact acknowledgement, revision/hash rechecks and exact retry receipts protect the write. Old marks remain unchanged; schoolwide rate effects are shown explicitly. [Measured status](../implementation/HISTORICAL-CALENDAR-QA.md) · [Founder checklist](../../public/qa/historical-calendar-checklist.md). Main runtime `0c682cb` is Production Ready; actual Office import/refresh and family readback are verified, with 3,086 whole web tests passing. Founder acceptance and broader reporting remain open.
 
 7 November 2026 · Founder-aligned scope · Commercial sign-off pending
 
