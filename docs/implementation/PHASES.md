@@ -1,8 +1,8 @@
 # Implementation phases
 
-## Previous academic-year official attendance — 7 November 2026
+## Previous academic-year official attendance — main/Production verified, 7 November 2026
 
-Student/Parent web dashboards and Attendance add scoped year/month selection, with previous-year enrollment, historical section mapping, approved calendar weighting and fail-closed incomplete states. Current/mobile API compatibility is retained through one calculator; selected-year preferences are account/role/school/pupil scoped. [Focused evidence](PREVIOUS-YEAR-ATTENDANCE-QA.md) · [Founder checklist](../../public/qa/previous-year-attendance-checklist.md). Hosted/browser/preservation and release status are recorded in the focused evidence; founder acceptance remains open.
+Student/Parent web dashboards and Attendance add scoped year/month selection, with previous-year enrollment, historical section mapping, approved calendar weighting and fail-closed incomplete states. Current/mobile API compatibility is retained through one calculator; selected-year preferences are account/role/school/pupil scoped. [Focused evidence](PREVIOUS-YEAR-ATTENDANCE-QA.md) · [Founder checklist](../../public/qa/previous-year-attendance-checklist.md). Whole web **3,149 tests / 188 files**, lint/build/types and the 223-assertion native SDK suite pass. Runtime `7eb7a02` is main/Production Ready; actual Student/Parent year selection, hard refresh, sibling isolation and missing-record withholding pass on the stable URL. Final preservation and the later documentation-only rollout are recorded in the focused evidence; founder acceptance remains open.
 
 
 ## Historical calendar CSV import — main/Production verified, 7 November 2026
