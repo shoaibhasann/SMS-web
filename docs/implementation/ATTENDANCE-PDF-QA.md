@@ -28,6 +28,10 @@ The bounded Production browser error inspection has zero entries for the Product
 
 Final read-only proof at **20:01:10 IST** retains all **3,244 phase-baseline and pre-Production application full-row hashes / 129 tables**. All 137 native identity/contact/metadata references, 27 factor descriptors, 443 historical-session descriptors and 65 routine references remain exact, with owned sessions zero. Marks/links/alert/preferences/gate counts and denied raw authenticated student/enrollment INSERT grants remain unchanged. Frozen SHA-256 references are export client `741dc093c885382c0ab7540931cacb6395cab5576a0f1579428cb807fd7657ab`, renderer `9948b3f63b80021b7b50ac427cbd6f24408134ee57109ce235c01e0a7c5be23c` and unchanged calculator client `cdc47bafdb6d707025bff7d7b6ff0b78e1a16e5ab400b4ed7d4543213e9003f8`. Private `final-proof.json` and companion snapshots contain the comparison. No application writes or provider sends occur. The subsequent evidence/checklist rollout is documentation-only; the tested runtime source remains `2430ce0`. Founder acceptance remains independent and unchecked.
 
+## Subsequent Office report phase
+
+Class/school weighted reports reuse this PDF engine and are tracked separately in [current Office evidence](OFFICE-ATTENDANCE-REPORTS-QA.md). The earlier family-only boundary below describes this checkpoint.
+
 ## Remaining acceptance
 
 Founder/school review of its actual calendar/enrollment records and the exported document remains open. Native-app export, digital signatures, class/school aggregate reports and daily-row PDF histories are outside this change.

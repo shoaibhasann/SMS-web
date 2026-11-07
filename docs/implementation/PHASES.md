@@ -1,5 +1,9 @@
 # Implementation phases
 
+## Official class and school attendance reports - 7 November 2026
+
+Actual School Admin/Principal can select school, year/month, whole-school/class and section reports with weighted pupil-day totals, historical move attribution, explicit review coverage and local PDF export. Current-family APIs stay compatible through one private calculator. Lower/foreign roles and stale native sessions cannot retrieve Office data. [Current verification/release evidence](OFFICE-ATTENDANCE-REPORTS-QA.md) · [Founder checklist](../../public/qa/office-attendance-reports-checklist.md). Whole web **3,299 tests / 195 files**, lint/build/subsequent types pass. Native Office/family and final PDF verification are recorded in the focused evidence; founder acceptance remains separate.
+
 ## Official attendance PDF export - main/Production verified, 7 November 2026
 
 Student and Parent web reports export the selected supported academic year/month with verified identity, monthly/session counts, explicit incomplete states, formula and cutoff. Fresh authorization and source comparisons surround local generation; no schema, attendance, link or provider writes are introduced. [Current validation/release evidence](ATTENDANCE-PDF-QA.md) · [Founder PDF checklist](../../public/qa/attendance-pdf-checklist.md). Whole web **3,198 tests / 190 files**, lint/build/types, 51 actual SDK assertions and six actual local browser PDF downloads pass. Full data-preservation proof retains all 3,244 prior application rows. Runtime `2430ce0` is main/Production Ready; actual Student/Parent stable-URL downloads, refresh and incomplete-record withholding pass, with all 3,244 prior rows unchanged and owned sessions zero. The focused evidence separates the tested runtime from the documentation-only follow-up; founder acceptance stays separate.

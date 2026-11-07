@@ -2,6 +2,7 @@ import "regenerator-runtime/runtime.js";
 import fontkit from "@pdf-lib/fontkit";
 import { PDFDocument, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { parseFamilyAttendanceSummary, type AttendanceSummaryPeriod, type FamilyAttendanceSummary } from "./family-summary";
+import { parseOfficeAttendanceReport, type OfficeAttendancePeriod, type OfficeAttendanceReport } from "./office-reports";
 
 export class AttendanceReportPdfError extends Error {
   constructor(message: string) { super(message); this.name = "AttendanceReportPdfError"; }
@@ -15,12 +16,23 @@ const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "sh
 const monthFormat = new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "UTC" });
 const number = new Intl.NumberFormat("en-IN", { maximumFractionDigits: 2 });
 const dateLabel = (date: string) => dateFormat.format(new Date(`${date}T00:00:00Z`));
-const stateLabels: Record<AttendanceSummaryPeriod["state"], string> = {
+const stateLabels: Record<AttendanceSummaryPeriod["state"] | "no_pupils", string> = {
+  no_pupils: "No enrolled pupils",
   complete: "Complete register", calendar_unconfigured: "Calendar setup needed", attendance_incomplete: "Awaiting attendance",
   enrollment_unverified: "Enrollment needs review", inconsistent: "Records need review", no_working_days: "No working days",
   not_enrolled: "No enrollment", not_started: "No elapsed school days",
 };
-function explanation(period: AttendanceSummaryPeriod) {
+function explanation(period: AttendanceSummaryPeriod | OfficeAttendancePeriod) {
+  if ("pupil_count" in period) {
+    if (period.state === "no_pupils") return "No enrolled pupils are available in this scope. A percentage does not apply.";
+    if (period.state === "enrollment_unverified") return `${period.unverified_pupils} pupil enrollment or historical placement requires review. The weighted rate is withheld.`;
+    if (period.state === "inconsistent") return `${period.invalid_days} working pupil-day records need school review. Percentage withheld.`;
+    if (period.state === "calendar_unconfigured") return `${period.unconfigured_days} pupil-days have no verified school calendar. Percentage withheld.`;
+    if (period.state === "attendance_incomplete") return `${period.unmarked_days} working pupil-days are unmarked; missing marks are not assumed Absent. Percentage withheld.`;
+    if (period.state === "no_working_days") return "No eligible working pupil-days occur in this scope. A percentage does not apply.";
+    if (period.state === "not_started") return "No verified elapsed enrollment days occur in this scope and period.";
+    return "Weighted earned pupil-days divided by eligible working pupil-days; individual percentages are not averaged.";
+  }
   if (period.state === "calendar_unconfigured") return `${period.unconfigured_days} enrolled day(s) have no verified school calendar. Percentage withheld.`;
   if (period.state === "attendance_incomplete") return `${period.unmarked_days} working day(s) are unmarked. Missing marks are not counted as Absent. Percentage withheld.`;
   if (period.state === "enrollment_unverified") return "The school must verify enrollment dates. Percentage withheld.";
@@ -51,17 +63,28 @@ async function readFont(name: string, signal?: AbortSignal) {
 
 export async function buildAttendanceReportPdf(input: AttendanceReportPdfInput, signal?: AbortSignal): Promise<{ bytes: Uint8Array; filename: string }> {
   signal?.throwIfAborted();
-  const { summary, generatedAt } = input;
+  const { summary } = input;
   parseFamilyAttendanceSummary(summary, summary.user_id, { id: summary.student_id, school_id: summary.school_id }, summary.role, summary.month);
-  if (summary.session_state !== "active" || !summary.year || !summary.month_summary || !summary.year_summary || !Number.isFinite(generatedAt.getTime())) {
+  return renderAttendanceReportPdf(input, signal);
+}
+export async function buildOfficeAttendanceReportPdf(report: OfficeAttendanceReport, generatedAt: Date, signal?: AbortSignal): Promise<{ bytes: Uint8Array; filename: string }> {
+  signal?.throwIfAborted();
+  parseOfficeAttendanceReport(report, report.user_id, { schoolId: report.school_id, academicYearId: report.year?.id, month: report.month, classId: report.scope?.class_id, sectionId: report.scope?.section_id });
+  return renderAttendanceReportPdf({ report, generatedAt }, signal);
+}
+async function renderAttendanceReportPdf(input: AttendanceReportPdfInput | { report: OfficeAttendanceReport; generatedAt: Date }, signal?: AbortSignal): Promise<{ bytes: Uint8Array; filename: string }> {
+  signal?.throwIfAborted();
+  const office = "report" in input, summary = office ? input.report : input.summary, { generatedAt } = input;
+  if ((!office && input.summary.session_state !== "active") || !summary.year || !summary.month_summary || !summary.year_summary || !Number.isFinite(generatedAt.getTime())) {
     throw new AttendanceReportPdfError("Choose a supported academic year and reporting month before exporting.");
   }
-  const schoolName = label(input.schoolName), studentName = label(input.studentName), admissionNo = label(input.admissionNo), yearName = label(summary.year.name);
+  const schoolName = label(office ? input.report.school_name : input.schoolName), studentName = office ? "" : label(input.studentName), admissionNo = office ? "" : label(input.admissionNo), yearName = label(summary.year.name);
+  const scopeName = office ? label(input.report.scope.class_name ? `${input.report.scope.class_name}${input.report.scope.section_name ? ` - ${input.report.scope.section_name}` : " - All sections"}` : "Whole school") : "";
   const generated = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }).format(generatedAt);
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
   const latin = await doc.embedFont(await readFont("NotoSans-Regular", signal), { subset: true });
-  const hindi = /[\u0900-\u097f]/u.test(`${schoolName}${studentName}${admissionNo}${yearName}`)
+  const hindi = /[\u0900-\u097f]/u.test(`${schoolName}${studentName}${admissionNo}${yearName}${scopeName}`)
     ? await doc.embedFont(await readFont("NotoSansDevanagari-Regular", signal), { subset: true }) : undefined;
   const latinSet = new Set(latin.getCharacterSet()), hindiSet = new Set(hindi?.getCharacterSet());
   const graphemes = new Intl.Segmenter("en", { granularity: "grapheme" });
@@ -114,25 +137,26 @@ export async function buildAttendanceReportPdf(input: AttendanceReportPdfInput, 
   newPage();
   paragraph(schoolName, 16, ink, 23);
   paragraph("Official attendance report", 21, blue, 31);
-  paragraph(`Student: ${studentName}`, 12, ink, 19);
-  paragraph(`Admission no.: ${admissionNo}`, 9, muted, 15);
+  paragraph(office ? `Scope: ${scopeName}` : `Student: ${studentName}`, 12, ink, 19);
+  paragraph(office ? `${input.report.pupil_count} scope pupil candidates | Counts below are pupil-days` : `Admission no.: ${admissionNo}`, 9, muted, 15);
   y -= 6;
   paragraph(`Academic year: ${yearName}`, 10, ink, 16);
   paragraph(`${dateLabel(summary.year.start_date)} - ${dateLabel(summary.year.end_date)} | Reporting month: ${monthFormat.format(new Date(`${summary.month}T00:00:00Z`))}`, 9, muted, 15);
   const cutoff = summary.year.end_date < summary.server_today ? summary.year.end_date : summary.server_today;
   paragraph(`Records through: ${dateLabel(cutoff)} (IST) | Generated: ${generated} IST`, 8, muted, 14);
   y -= 11;
-  function period(title: string, value: AttendanceSummaryPeriod) {
+  function period(title: string, value: AttendanceSummaryPeriod | OfficeAttendancePeriod) {
     const rows: [string, number, string, number][] = [
-      ["Working days", value.working_days, "Closed days excluded", value.closed_days],
-      ["Earned days", value.earned_days, "Unmarked working days", value.unmarked_days],
+      [office ? "Working pupil-days" : "Working days", value.working_days, office ? "Closed pupil-days excluded" : "Closed days excluded", value.closed_days],
+      [office ? "Earned pupil-days" : "Earned days", value.earned_days, office ? "Unmarked pupil-days" : "Unmarked working days", value.unmarked_days],
       ["Present", value.present_days, "Late", value.late_days],
       ["Half Day", value.half_days, "Leave", value.leave_days],
       ["Absent", value.absent_days, "Records to review", value.invalid_days],
-      ["Calendar unconfigured", value.unconfigured_days, "Enrolled calendar days", value.enrollment_days],
+      ["Calendar unconfigured", value.unconfigured_days, office ? "Enrolled pupil-days" : "Enrolled calendar days", value.enrollment_days],
     ];
-    const explanationRows = wrap(explanation(value), 8.5);
-    reserve(80 + explanationRows.length * 13 + rows.length * 18);
+    if ("pupil_count" in value) rows.push(["Pupils in period", value.pupil_count, "Verified pupil records", value.complete_pupils], ["Pupils requiring review", value.incomplete_pupils, "Unverified pupils", value.unverified_pupils]);
+    const rowHeight = office ? 14 : 18, explanationRows = wrap(explanation(value), 8.5);
+    reserve(87 + explanationRows.length * 13 + rows.length * rowHeight);
     page.drawLine({ start: { x: margin, y: y + 7 }, end: { x: width - margin, y: y + 7 }, thickness: 0.75, color: line });
     draw(title, margin, y - 7, 12, blue);
     draw(value.percentage === null ? "Not available" : `${number.format(value.percentage)}%`, margin, y - 36, value.percentage === null ? 16 : 24);
@@ -142,10 +166,11 @@ export async function buildAttendanceReportPdf(input: AttendanceReportPdfInput, 
     paragraph(value.from && value.to ? `${dateLabel(value.from)} - ${dateLabel(value.to)}` : "No verified elapsed reporting range", 8, muted, 13);
     y -= 3;
     for (const [left, leftValue, right, rightValue] of rows) {
-      page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: 18, color: rgb(0.96, 0.97, 0.99) });
-      draw(left, margin + 8, y - 2, 8); draw(number.format(leftValue), margin + 215, y - 2, 9, blue);
-      draw(right, margin + 265, y - 2, 8); draw(number.format(rightValue), width - margin - 26, y - 2, 9, blue);
-      y -= 18;
+      page.drawRectangle({ x: margin, y: y - 8, width: contentWidth, height: rowHeight, color: rgb(0.96, 0.97, 0.99) });
+      const leftNumber = number.format(leftValue), rightNumber = number.format(rightValue);
+      draw(left, margin + 8, y - 2, 8); draw(leftNumber, margin + 245 - measure(leftNumber, 9), y - 2, 9, blue);
+      draw(right, margin + 265, y - 2, 8); draw(rightNumber, width - margin - 8 - measure(rightNumber, 9), y - 2, 9, blue);
+      y -= rowHeight;
     }
     y -= 19;
   }
@@ -153,13 +178,13 @@ export async function buildAttendanceReportPdf(input: AttendanceReportPdfInput, 
   period("Academic session attendance", summary.year_summary);
   reserve(88);
   paragraph("CALCULATION & RECORD NOTES", 8, blue, 15);
-  paragraph("Present/Late = 1 day; Half Day = 0.5; Leave/Absent = 0. School-closed days are excluded. An unmarked working day never becomes an assumed absence. The enrolled period uses verified historical placement and school calendar records.", 8, muted, 12);
+  paragraph(office ? "Weighted rate = total earned pupil-days / total eligible working pupil-days x 100. Present/Late = 1, Half Day = 0.5, Leave/Absent = 0. Closed school days are excluded for each enrolled pupil. Historical class/section membership is split by date; missing marks never become assumed absences." : "Present/Late = 1 day; Half Day = 0.5; Leave/Absent = 0. School-closed days are excluded. An unmarked working day never becomes an assumed absence. The enrolled period uses verified historical placement and school calendar records.", 8, muted, 12);
   paragraph(`Formula: ${summary.formula} | School calendar revision: ${summary.calendar_revision}`, 8, muted, 14);
   paragraph("This export reflects the verified records available when generated, including approved corrections. It is not a digitally signed certificate. Downloaded files remain available to their holder after account or child-link access changes.", 8, muted, 12);
   for (const [index, item] of doc.getPages().entries()) {
     page = item;
     page.drawLine({ start: { x: margin, y: 39 }, end: { x: width - margin, y: 39 }, thickness: 0.5, color: line });
-    draw("SMS | Family attendance report", margin, 25, 7, muted);
+    draw(office ? "SMS | School and class attendance report" : "SMS | Family attendance report", margin, 25, 7, muted);
     draw(`Page ${index + 1} of ${doc.getPageCount()}`, width - margin - 65, 25, 7, muted);
   }
   doc.setTitle(`Official attendance - ${summary.month.slice(0, 7)}`);
@@ -168,5 +193,5 @@ export async function buildAttendanceReportPdf(input: AttendanceReportPdfInput, 
   signal?.throwIfAborted();
   const bytes = await doc.save();
   signal?.throwIfAborted();
-  return { bytes, filename: `attendance-${summary.year.start_date}-${summary.year.end_date}-${summary.month.slice(0, 7)}.pdf` };
+  return { bytes, filename: `attendance-${office ? `${input.report.scope.section_id ? "section" : input.report.scope.class_id ? "class" : "school"}-` : ""}${summary.year.start_date}-${summary.year.end_date}-${summary.month.slice(0, 7)}.pdf` };
 }

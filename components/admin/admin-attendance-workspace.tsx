@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
@@ -48,6 +49,7 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p>
         <h1 className="mt-1 text-3xl font-black">Attendance</h1>
         <p className="mt-2 text-sm muted">Record current attendance or view saved registers from earlier academic years.</p>
+        <Link href="/modules/reports" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">Official class and school reports</Link>
       </header>
       {!access ? <LoadingState variant="form" className="text-sm muted">Checking attendance access…</LoadingState>
         : !access.data ? (

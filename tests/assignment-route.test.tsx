@@ -60,6 +60,9 @@ vi.mock("@/components/admin/audit-history-workspace", () => ({
 vi.mock("@/components/admin/school-settings-workspace", () => ({
   SchoolSettingsWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real school settings">{userId}</section>,
 }));
+vi.mock("@/components/admin/official-attendance-reports", () => ({
+  OfficialAttendanceReports: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Official office attendance reports">{role} {userId}</section>,
+}));
 vi.mock("@/components/admin/parent-directory-workspace", () => ({
   ParentDirectoryWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real parent directory">{userId}</section>,
 }));
@@ -148,6 +151,21 @@ describe("real school settings route", () => {
     currentModule = "settings"; readRoles.mockResolvedValue({ data: [{ role }], error: null }); render(<ModulePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
     expect(screen.queryByRole("region", { name: "Real school settings" })).not.toBeInTheDocument();
+  });
+});
+
+describe("official office attendance report route", () => {
+  it.each(["school_admin", "principal"])("opens the verified report workspace for %s", async (role) => {
+    currentModule = "reports"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Official office attendance reports" })).toHaveTextContent(`${role === "school_admin" ? "admin" : role} actor`);
+  });
+  it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("does not mount the office reader for %s", async (role) => {
+    currentModule = "reports"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    if (role === "accountant") expect(await screen.findByRole("heading", { name: /^Reports$/ })).toBeInTheDocument();
+    else expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(screen.queryByRole("region", { name: "Official office attendance reports" })).not.toBeInTheDocument();
   });
 });
 
