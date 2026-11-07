@@ -28,6 +28,7 @@ import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment 
 import { useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
+import { OfficialAttendanceSummary } from "@/components/family/official-attendance-summary";
 import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submission-monitor";
 import {
   guardianAttendancePath,
@@ -1017,6 +1018,7 @@ function FamilyMissedWork({ logs, activities, attendance, loading = false }: { l
 
 function StudentDashboard({ userId }: { userId: string }) {
   const [supabase] = useState(createClient);
+  const [summaryStudent, setSummaryStudent] = useState<FamilyStudent | null>(null);
   const [data, setData] = useState<StudentDashboardData>(emptyStudentDashboard);
   const { student, enrollment, attendance, attendanceError, logs, activities, fees, feesError, feeCount } = data;
   const [message, setMessage] = useState("");
@@ -1031,6 +1033,7 @@ function StudentDashboard({ userId }: { userId: string }) {
           setMessage("No student profile is linked to this account.");
           return;
         }
+        setSummaryStudent(student);
         const data = await loadStudentDashboardData(supabase, student, controller.signal);
         if (data && !controller.signal.aborted) setData(data);
       } catch (error) {
@@ -1051,6 +1054,7 @@ function StudentDashboard({ userId }: { userId: string }) {
         details={[{ label: "Admission", value: student?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
           { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
         />
+      <OfficialAttendanceSummary client={supabase} userId={userId} student={summaryStudent} role="student" loading={!summaryStudent && !message} />
       <div className="dashboard-metrics">
         <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!student && !message} />
         <Stat label="Class Logs" value={logs.length} loading={!student && !message} />
@@ -1085,6 +1089,7 @@ function ParentDashboard({ userId }: { userId: string }) {
   const { student: child, attendance, attendanceError, enrollment, logs, activities, fees, feesError, feeCount } =
     childData?.studentId === selected ? childData.data : emptyStudentDashboard;
   const [message, setMessage] = useState("");
+  const summaryStudent = children.find(student => student.id === selected) ?? null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -1139,6 +1144,7 @@ function ParentDashboard({ userId }: { userId: string }) {
         details={[{ label: "Admission", value: child?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
           { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
         />
+      <OfficialAttendanceSummary client={supabase} userId={userId} student={summaryStudent} role="parent" loading={!summaryStudent && !message} />
       <div className="dashboard-metrics">
         <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!child && !message} />
         <Stat label="Academic Logs" value={logs.length} loading={!child && !message} />

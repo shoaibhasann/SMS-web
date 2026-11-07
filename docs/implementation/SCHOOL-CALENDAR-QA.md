@@ -43,6 +43,8 @@ Pre-DDL and core checkpoints preserve all 2,980 original application rows across
 
 The private starting baseline is captured independently from the prior release. Fixture records, passwords, native factors and event credentials must remain outside Git. Never restore over another actor's concurrent changes to manufacture a passing comparison.
 
+Follow-up: the [official family-rate phase](OFFICIAL-ATTENDANCE-QA.md) implements the subsequently user-approved formula. Its verification is tracked separately from this calendar release.
+
 ## Acceptance boundary
 
 Use the [focused founder checklist](../../public/qa/school-calendar-checklist.md). Physical terminal adapters/delivery, native binary distribution, school-specific official rate calculations, overnight calendars and provider activation remain separate work. The existing [gate ingestion](GATE-ATTENDANCE-QA.md) and [optional Guardian gate alerts](GATE-ALERTS-QA.md) retain their independent release evidence.

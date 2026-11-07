@@ -6,7 +6,7 @@ import { RoleDashboard } from "../components/dashboard/role-dashboard";
 import { loadFamilyAttendance } from "../lib/attendance/family";
 import { createClient } from "../lib/supabase/client";
 
-const { from, client, effectiveAssignments, attendanceEditor, familyFeeLedger, officeFinanceSummary } = vi.hoisted(() => {
+const { from, client, effectiveAssignments, attendanceEditor, familyFeeLedger, officeFinanceSummary, officialAttendance } = vi.hoisted(() => {
   const from = vi.fn();
   return {
     from,
@@ -14,6 +14,7 @@ const { from, client, effectiveAssignments, attendanceEditor, familyFeeLedger, o
     attendanceEditor: vi.fn(),
     familyFeeLedger: vi.fn(),
     officeFinanceSummary: vi.fn(),
+    officialAttendance: vi.fn(),
     client: {
       from,
       rpc: () => ({ abortSignal: () => ({ returns: async () => ({ data: [], error: null }) }) }),
@@ -27,6 +28,7 @@ vi.mock("@/components/layout/app-shell", () => ({ AppShell: ({ children }: { chi
 vi.mock("@/components/academic/attendance-editor", () => ({ AttendanceEditor: (props: unknown) => { attendanceEditor(props); return null; } }));
 vi.mock("@/lib/assignments/attendance-coverage", () => ({ loadEffectiveAttendanceAssignments: effectiveAssignments }));
 vi.mock("@/components/admin/attendance-submission-monitor", () => ({ AttendanceSubmissionMonitor: () => null }));
+vi.mock("@/components/family/official-attendance-summary", () => ({ OfficialAttendanceSummary: (props: unknown) => { officialAttendance(props); return <section aria-label="Official attendance test panel" />; } }));
 vi.mock("@/lib/finance/fee-changes", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/finance/fee-changes")>(),
   getFamilyFeeLedger: familyFeeLedger,
@@ -160,6 +162,30 @@ function attendanceHistory(title: string) {
 }
 
 describe("dashboard loading presentation", () => {
+  it.each(["student", "parent"] as const)("starts the %s official report without waiting for unrelated fee reads", async role => {
+    const fees = deferred<ReturnType<typeof emptyFeeLedger>>(); familyFeeLedger.mockReturnValue(fees.promise);
+    resolveQuery = query => role === "parent" ? parentResolver(query) : query.table === "students" ? result(student("current")) : academicResult(query);
+    const { container } = render(<RoleDashboard role={role} schoolId="school" userId={`${role}-user`} />);
+    const expectedId = role === "parent" ? "a" : "current";
+    await waitFor(() => expect(officialAttendance).toHaveBeenLastCalledWith(expect.objectContaining({ userId: `${role}-user`, role,
+      student: expect.objectContaining({ id: expectedId, school_id: "school" }), loading: false })));
+    expect(container.querySelector('[data-skeleton="form"]')).toBeInTheDocument();
+    const identity = within(screen.getByRole("heading", { name: role === "parent" ? "Child Details" : "My Profile & Class" }).closest("section")!);
+    expect(identity.queryByText(`Student ${expectedId}`, { exact: true })).not.toBeInTheDocument();
+    await act(async () => fees.resolve(emptyFeeLedger()));
+    expect(await identity.findByText(`Student ${expectedId}`, { exact: true })).toBeInTheDocument();
+  });
+  it.each(["student", "parent"] as const)("binds the %s official report separately to the verified profile and role", async role => {
+    resolveQuery = query => role === "parent" ? parentResolver(query) : query.table === "students" ? result(student("current")) : academicResult(query);
+    render(<RoleDashboard role={role} schoolId="school" userId={`${role}-user`} />);
+    await waitFor(() => expect(officialAttendance).toHaveBeenLastCalledWith(expect.objectContaining({ userId: `${role}-user`, role,
+      student: expect.objectContaining({ id: role === "parent" ? "a" : "current", school_id: "school" }), loading: false })));
+    expect(screen.getByRole("region", { name: "Official attendance test panel" })).toBeInTheDocument();
+    if (role === "parent") {
+      fireEvent.change(screen.getByRole("combobox", { name: "Select child" }), { target: { value: "b" } });
+      await waitFor(() => expect(officialAttendance).toHaveBeenLastCalledWith(expect.objectContaining({ role: "parent", userId: "parent-user", student: expect.objectContaining({ id: "b" }) })));
+    }
+  });
   it.each(["student", "parent"] as const)("keeps unverified %s values behind skeletons instead of showing zero or empty work", (role) => {
     resolveQuery = () => new Promise<QueryResult>(() => {});
     const { container } = render(<RoleDashboard role={role} schoolId="school" userId="pending-user" />);

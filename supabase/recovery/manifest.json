@@ -839,6 +839,14 @@
       "version": "20261107104519",
       "name": "govern_school_attendance_calendar",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107114728_family_official_attendance_summary.sql",
+      "sha256": "73585dcdf108492bb6feee60977db0f25896cb61cff4a154c4d665a33968593a",
+      "kind": "pending",
+      "version": "20261107114728",
+      "name": "family_official_attendance_summary",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -877,5 +885,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "46f49eb3c40f18c9edd5e18f127073e5b556e6e0cdb91c37216d6e874e506850"
+  "order_sha256": "d5d658df4e85d5de36cddcfb7da762ce273db5ed0acedc191e59374db689f808"
 }
