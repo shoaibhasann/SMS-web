@@ -1,5 +1,9 @@
 # Manual QA for SMS Production
 
+## Gate operations workspace - 7 November 2026
+
+Actual same-school School Admin/Principal native MFA gates Attendance > Gate operations: one-time device setup, retained revocations, explicit pupil/identifier mapping and paginated immutable IN/OUT receipts. Held scans remain read-only; existing attendance correction review is linked without replaying receipts. Whole web **3,403 tests / 198 files**, lint/build/subsequent types and actual 114-check native/Edge lifecycle plus local two-role revoke/refresh pass. [Current verification/release evidence](GATE-OPERATIONS-QA.md) · [Founder checklist](../../public/qa/gate-operations-checklist.md). Physical hardware/vendor/phone acceptance remains separate.
+
 ## Official class and school attendance reports - main/Production verified, 7 November 2026
 
 Actual School Admin/Principal can select school, year/month, whole-school/class and section reports with weighted pupil-day totals, historical move attribution, explicit review coverage and local PDF export. Current-family APIs stay compatible through one private calculator. Lower/foreign roles and stale native sessions cannot retrieve Office data. [Current verification/release evidence](OFFICE-ATTENDANCE-REPORTS-QA.md) · [Founder checklist](../../public/qa/office-attendance-reports-checklist.md). Whole web **3,299 tests / 195 files**, lint/build/subsequent types pass. Runtime `aafd217` is main/Production Ready. Actual stable-URL Admin/Principal MFA, scoped reports, refresh and four real PDF downloads pass. Final proof retains all 3,254 post-seed rows, including all 3,244 originals, with owned sessions zero. Native Office/family and PDF details are recorded in the focused evidence; founder acceptance remains separate.

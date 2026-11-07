@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { AttendanceSubmissionMonitor } from "@/components/admin/attendance-submission-monitor";
+import { GateOperationsWorkspace } from "@/components/admin/gate-operations-workspace";
 import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/attendance/repository";
 import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
@@ -29,7 +30,18 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
   const [reviewRevision, setReviewRevision] = useState(0);
   const [monitorRevision, setMonitorRevision] = useState(0);
   const [cutoffSaving, setCutoffSaving] = useState(false);
-  const scopeLocked = locked || cutoffSaving;
+  const [gateBusy, setGateBusy] = useState(false);
+  const [view, setView] = useState<"register" | "gate">("register");
+  const reviewToggle = useRef<HTMLButtonElement>(null), focusReview = useRef(false);
+  const scopeLocked = locked || cutoffSaving || gateBusy;
+
+  useEffect(() => {
+    if (view === "register" && showCorrections && focusReview.current) {
+      focusReview.current = false;
+      reviewToggle.current?.focus();
+      reviewToggle.current?.scrollIntoView?.({ block: "center" });
+    }
+  }, [view, showCorrections]);
 
   useEffect(() => {
     let active = true;
@@ -70,10 +82,15 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
                 {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
               </select>
             </label>
-            {schoolId ? <>
+            {schoolId && <div role="group" aria-label="Attendance workspace" className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+              {([["register", "Daily register"], ["gate", "Gate operations"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={view === value}
+                disabled={scopeLocked} onClick={() => setView(value)} className={`min-h-11 rounded-lg px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 ${view === value ? "bg-[var(--primary)] text-white dark:text-[var(--bg)]" : "muted hover:bg-[var(--surface)]"}`}>{label}</button>)}
+            </div>}
+            {schoolId && view === "gate" ? <GateOperationsWorkspace key={`gate:${schoolId}:${access.data.userId}`} schoolId={schoolId} userId={access.data.userId} onBusyChange={setGateBusy}
+              onReviewAttendance={() => { focusReview.current = true; setView("register"); setShowCorrections(true); }} /> : schoolId ? <>
               <AttendanceSubmissionMonitor key={`monitor:${schoolId}`} schoolId={schoolId} userId={access.data.userId}
                 settings disabled={scopeLocked} refreshVersion={monitorRevision} onBusyChange={setCutoffSaving} />
-              <button type="button" aria-expanded={showCorrections} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold"
+              <button ref={reviewToggle} type="button" aria-expanded={showCorrections} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold"
                 onClick={() => setShowCorrections((value) => !value)}>{showCorrections ? "Hide attendance corrections" : "Review attendance corrections"}</button>
               {showCorrections && <AttendanceCorrectionQueue key={schoolId} client={client} schoolId={schoolId}
                 userId={access.data.userId} disabled={scopeLocked} onReviewed={() => {

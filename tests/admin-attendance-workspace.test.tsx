@@ -12,6 +12,9 @@ const { client, from, getUser, editor } = vi.hoisted(() => {
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/components/admin/attendance-submission-monitor", () => ({ AttendanceSubmissionMonitor: () => null }));
+vi.mock("@/components/academic/attendance-correction-queue", () => ({ AttendanceCorrectionQueue: () => <section aria-label="Attendance correction review" /> }));
+vi.mock("@/components/admin/gate-operations-workspace", () => ({ GateOperationsWorkspace: ({ schoolId, userId, onBusyChange, onReviewAttendance }: { schoolId: string; userId: string; onBusyChange: (value: boolean) => void; onReviewAttendance: () => void }) =>
+  <section aria-label="Gate operations test"><span>{schoolId}:{userId}</span><button onClick={() => onBusyChange(true)}>Start gate save</button><button onClick={() => onBusyChange(false)}>Finish gate save</button><button onClick={onReviewAttendance}>Open attendance review</button></section> }));
 
 type EditorProps = {
   context: AttendanceContext;
@@ -92,6 +95,22 @@ function allowBothSchools() {
 }
 
 describe("AdminAttendanceWorkspace", () => {
+  it("opens gate operations only on explicit selection and freezes scope during a gate save", async () => {
+    const user = userEvent.setup();
+    render(<AdminAttendanceWorkspace />);
+    await screen.findByRole("group", { name: "Attendance editor" });
+    expect(screen.queryByRole("region", { name: "Gate operations test" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /^Gate operations$/ }));
+    expect(screen.getByRole("region", { name: "Gate operations test" })).toHaveTextContent("north:admin-user");
+    expect(screen.queryByRole("group", { name: "Attendance editor" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Start gate save" }));
+    expect(screen.getByRole("button", { name: /^Daily register$/ })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Finish gate save" }));
+    await user.click(screen.getByRole("button", { name: "Open attendance review" }));
+    await screen.findByRole("group", { name: "Attendance editor" });
+    expect(screen.getByRole("region", { name: "Attendance correction review" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide attendance corrections" })).toHaveFocus();
+  });
   it("opens the register when the administrator has one school, class, and section", async () => {
     render(<AdminAttendanceWorkspace />);
 
