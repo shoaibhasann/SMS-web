@@ -3,12 +3,13 @@
 import { Suspense, useEffect, useState } from "react";
 import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { canAccessModule } from "@/lib/modules";
 import { resolveUiRole, type UiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
+import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { TeacherModuleView } from "@/components/teacher/teacher-views";
 import { TeacherAcademicActivityWorkspace } from "@/components/academic/teacher-activity-workspace";
 import { AdminModulePlaceholder } from "@/components/admin/admin-module-placeholder";
@@ -51,6 +52,7 @@ export default function ModulePage() {
 function ModuleContent() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const moduleName = String(params?.module || "");
   const guardianView = ["attendance", "notifications", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
   const initialChildId = searchParams.get("child") ?? undefined;
@@ -95,6 +97,11 @@ function ModuleContent() {
             : "No recognized role is assigned to this login.",
         });
       } catch (error) {
+        if (isCurrent() && error instanceof StaffMfaRequiredError) {
+          setAccess(null);
+          router.replace(mfaPath(`/modules/${moduleName}${searchParams.size ? `?${searchParams.toString()}` : ""}`));
+          return;
+        }
         if (isCurrent()) setAccess({
           key: accessKey,
           role: null,
@@ -127,7 +134,7 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, guardianView]);
+  }, [accessKey, guardianView, moduleName, router, searchParams]);
 
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {

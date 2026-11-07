@@ -42,10 +42,25 @@ create table auth.users (
   phone_change_token varchar(255) default '',
   phone_change_sent_at timestamptz
 );
+-- Minimal observed native MFA contract, deliberately excluding factor secrets,
+-- challenges and provider credentials. Supabase Auth owns these in production.
+create type auth.aal_level as enum ('aal1','aal2','aal3');
+create type auth.factor_type as enum ('totp','webauthn','phone','recovery_code');
+create type auth.factor_status as enum ('unverified','verified');
+create table auth.mfa_factors (
+  id uuid primary key,
+  user_id uuid not null references auth.users(id),
+  factor_type auth.factor_type not null,
+  status auth.factor_status not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
 create table auth.sessions (
   id uuid primary key,
   user_id uuid not null references auth.users(id),
-  not_after timestamptz
+  not_after timestamptz,
+  aal auth.aal_level,
+  factor_id uuid
 );
 create table auth.mfa_amr_claims (
   session_id uuid not null references auth.sessions(id),

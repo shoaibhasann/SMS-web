@@ -4,9 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
 import { canAccessModule, getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules } from "../lib/modules";
 
-const { getUser, readRoles, readProfile, onAuthStateChange, auditRender } = vi.hoisted(() => ({
-  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(), auditRender: vi.fn(),
+const { getUser, readRoles, readProfile, onAuthStateChange, auditRender, replace, routeSecurity } = vi.hoisted(() => ({
+  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(), auditRender: vi.fn(), replace: vi.fn(), routeSecurity: vi.fn(),
 }));
+const routeRouter = { push: vi.fn(), replace };
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: routeSecurity }));
 
 let currentModule: string;
 let searchParams: URLSearchParams;
@@ -14,7 +16,7 @@ let searchParams: URLSearchParams;
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: currentModule }),
   useSearchParams: () => searchParams,
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => routeRouter,
 }));
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -93,6 +95,7 @@ vi.mock("@/components/family/guardian-contact-settings", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  routeSecurity.mockImplementation(async () => ({ user_id: (await getUser()).data.user?.id ?? "actor", allowed: true }));
   currentModule = "teacher-assignments";
   searchParams = new URLSearchParams();
   getUser.mockResolvedValue({ data: { user: { id: "actor" } }, error: null });
@@ -102,6 +105,13 @@ beforeEach(() => {
 });
 
 describe("real school settings route", () => {
+  it("blocks a mixed-role guardian view behind the same account MFA challenge before protected reads", async () => {
+    currentModule = "attendance"; searchParams.set("view", "guardian"); searchParams.set("child", "own-child");
+    routeSecurity.mockResolvedValueOnce({ user_id: "actor", allowed: false, required: true, action: "challenge" });
+    render(<ModulePage />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/mfa?next=%2Fmodules%2Fattendance%3Fview%3Dguardian%26child%3Down-child"));
+    expect(readProfile).not.toHaveBeenCalled(); expect(readRoles).not.toHaveBeenCalled();
+  });
   it.each(["school_admin", "principal", "super_admin"])("opens real school settings for %s", async (role) => {
     currentModule = "settings"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);

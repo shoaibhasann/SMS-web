@@ -20,6 +20,12 @@ const { getUser, from, rpc, onAuthStateChange, client } = vi.hoisted(() => {
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: "guardian-invitations" }),
   useSearchParams: () => new URLSearchParams(),
+  useRouter: () => guardianRouter,
+}));
+const guardianRouter = { replace: vi.fn() };
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({
+  ...await original<typeof import("@/lib/auth/staff-mfa")>(),
+  readStaffMfaStatus: vi.fn(async () => ({ user_id: "school-principal", allowed: true })),
 }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/components/layout/app-shell", () => ({

@@ -55,13 +55,13 @@ describe("recovery source boundary", () => {
 
   it("keeps tenant bootstrap scripts archived but outside the replay plan", async () => {
     const actual = await readRecoveryManifest();
-    expect(actual.plan).toHaveLength(89);
-    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(19);
+    expect(actual.plan).toHaveLength(91);
+    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(21);
     expect(actual.plan.some((source) => source.path.endsWith("20261030_academic_teacher_self_management.sql"))).toBe(false);
     expect(actual.plan.some((source) => /20261030094244|20261030095353/.test(source.path))).toBe(false);
     const before = await readRecoverySources(actual, { applyPending: false });
     const after = await readRecoverySources(actual);
-    expect(after.length - before.length).toBe(19);
+    expect(after.length - before.length).toBe(21);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
@@ -90,7 +90,7 @@ describe("complete empty application replay", () => {
         count(*) filter(where c.relkind='v')::int as views
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where n.nspname in ('public','app_private')`);
-      expect(counts.rows).toEqual([{ tables: 112, views: 5 }]);
+      expect(counts.rows).toEqual([{ tables: 115, views: 5 }]);
       expect((await db.query("select count(*)::int as schools from public.schools")).rows).toEqual([{ schools: 0 }]);
       expect((await db.query("select count(*)::int as users from auth.users")).rows).toEqual([{ users: 0 }]);
       expect((await db.query("select count(*)::int as profiles from public.profiles")).rows).toEqual([{ profiles: 0 }]);
@@ -173,6 +173,22 @@ describe("complete empty application replay", () => {
       const before = catalogFingerprint(await captureCatalog(db));
       await expect(applyRecoveryPlan(db)).rejects.toThrow(/complete local managed-service table contract/);
       expect(catalogFingerprint(await captureCatalog(db))).toEqual(before);
+    } finally { await db.close(); }
+  });
+
+  it.each([
+    "drop table auth.mfa_factors", "alter table auth.sessions drop column aal",
+    "alter table auth.sessions drop column factor_id", "alter table auth.mfa_factors drop column status",
+    "alter table auth.sessions alter column factor_id type text",
+  ])("rejects incomplete native MFA contracts before applying application SQL: %s", async (sql) => {
+    const db = new PGlite({ extensions: recoveryExtensions });
+    try {
+      await db.exec(await readFile(new URL("../scripts/database-recovery/platform-contract.sql", import.meta.url), "utf8"));
+      await db.exec(sql);
+      const before = catalogFingerprint(await captureCatalog(db));
+      await expect(applyRecoveryPlan(db)).rejects.toThrow(/complete local managed-service/);
+      expect(catalogFingerprint(await captureCatalog(db))).toEqual(before);
+      expect((await db.query("select count(*)::int as count from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in('public','app_private') and c.relkind='r'")).rows).toEqual([{ count: 0 }]);
     } finally { await db.close(); }
   });
 

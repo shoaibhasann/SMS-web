@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountSettingsPage from "../app/(dashboard)/account/settings/page";
 
 const { getUser, profile, roles } = vi.hoisted(() => ({ getUser: vi.fn(), profile: vi.fn(), roles: vi.fn() }));
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: async () => ({ user_id: "owner", allowed: true }) }));
 vi.mock("next/navigation", () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser },
   from: (table: string) => ({ select: () => ({ eq: () => table === "profiles" ? { maybeSingle: profile } : roles() }) }) }) }));

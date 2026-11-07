@@ -5,6 +5,7 @@ import { SchoolSettingsWorkspace } from "@/components/admin/school-settings-work
 import { SchoolSettingsError, type SchoolSettings, type SchoolSettingsIntent } from "@/lib/admin/school-settings";
 
 const mocks = vi.hoisted(() => ({ access: vi.fn(), load: vi.fn(), save: vi.fn(), auth: vi.fn() }));
+vi.mock("@/components/admin/school-staff-mfa-policy", () => ({ SchoolStaffMfaPolicy: () => <section aria-label="School authenticator policy" /> }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: mocks.auth } }) }));
 vi.mock("@/lib/attendance/repository", () => ({ loadSchoolManagementAccess: mocks.access }));
 vi.mock("@/lib/admin/school-settings", async (original) => ({ ...await original<typeof import("@/lib/admin/school-settings")>(), loadSchoolSettings: mocks.load, saveSchoolSettings: mocks.save }));

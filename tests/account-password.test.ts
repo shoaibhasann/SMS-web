@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { changeOwnPassword, validatePasswordChange } from "../lib/account/password";
 
-const { create, verify, update, close, getUser } = vi.hoisted(() => ({
-  create: vi.fn(), verify: vi.fn(), update: vi.fn(), close: vi.fn(), getUser: vi.fn(),
+const { create, verify, update, close, getUser, security, boundClient, securedUpdate } = vi.hoisted(() => ({
+  create: vi.fn(), verify: vi.fn(), update: vi.fn(), close: vi.fn(), getUser: vi.fn(), security: vi.fn(), boundClient: vi.fn(), securedUpdate: vi.fn(),
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: create }));
+vi.mock("@/lib/auth/staff-mfa", () => ({ readStaffMfaStatus: security, createBoundMfaClient: boundClient }));
 const owner = { id: "owner", email: "owner@example.test", email_confirmed_at: "2026-11-06T00:00:00Z" };
 const input = { currentPassword: "Current secure password1", newPassword: "Different secure password2", confirmation: "Different secure password2" };
 const primary = { auth: { getUser } } as unknown as SupabaseClient;
@@ -19,10 +20,28 @@ beforeEach(() => {
   update.mockResolvedValue({ data: { user: owner }, error: null });
   close.mockResolvedValue({ error: null });
   create.mockReturnValue({ auth: { signInWithPassword: verify, updateUser: update, signOut: close } });
+  security.mockResolvedValue({ allowed: true, required: false, current_aal: "aal1" });
+  securedUpdate.mockResolvedValue({ data: { user: owner }, error: null });
+  boundClient.mockResolvedValue({ auth: { updateUser: securedUpdate } });
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 
 describe("verified own password changes", () => {
+  it("keeps password confirmation AAL1 separate from the validated current AAL2 mutation", async () => {
+    security.mockResolvedValue({ allowed: true, required: true, current_aal: "aal2" });
+    await changeOwnPassword(primary, "owner", input);
+    expect(verify).toHaveBeenCalledWith({ email: owner.email, password: input.currentPassword });
+    expect(update).not.toHaveBeenCalled();
+    expect(boundClient).toHaveBeenCalledWith(primary, "owner", undefined);
+    expect(securedUpdate).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
+    expect(close).toHaveBeenCalledWith({ scope: "local" });
+  });
+  it("rejects a newly required MFA challenge before password mutation", async () => {
+    security.mockResolvedValueOnce({ allowed: true, required: false, current_aal: "aal1" }).mockResolvedValueOnce({ allowed: false, required: true, current_aal: "aal1" });
+    await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/Verify your authenticator/);
+    expect(update).not.toHaveBeenCalled(); expect(securedUpdate).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledWith({ scope: "local" });
+  });
   it("enforces twelve characters, bounded UTF-8 bytes, a new value and matching confirmation", () => {
     for (const patch of [{ currentPassword: "" }, { newPassword: "short", confirmation: "short" },
       { newPassword: " ".repeat(12), confirmation: " ".repeat(12) },

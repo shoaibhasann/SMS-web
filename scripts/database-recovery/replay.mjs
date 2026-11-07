@@ -108,12 +108,21 @@ async function replaySources(db, sources) {
   ) as occupied`);
   if (existing.rows[0].occupied) throw new Error("Recovery replay requires an empty application schema; no existing data was changed.");
   const missingContract = await db.query(`select expected.schema,expected.name from (values
-    ('auth','users'),('auth','sessions'),('auth','mfa_amr_claims'),
+    ('auth','users'),('auth','sessions'),('auth','mfa_amr_claims'),('auth','mfa_factors'),
     ('storage','buckets'),('storage','objects')
   ) as expected(schema,name) left join pg_catalog.pg_namespace n on n.nspname=expected.schema
     left join pg_catalog.pg_class c on c.relnamespace=n.oid and c.relname=expected.name
     where c.oid is null or c.relkind not in ('r','p')`);
   if (missingContract.rows.length) throw new Error("Recovery requires the complete local managed-service table contract before replay; no source SQL was applied.");
+  const missingMfaContract = await db.query(`select expected.relation,expected.column_name from (values
+    ('auth.sessions','aal','auth.aal_level'),('auth.sessions','factor_id','uuid'),
+    ('auth.mfa_factors','id','uuid'),('auth.mfa_factors','user_id','uuid'),
+    ('auth.mfa_factors','factor_type','auth.factor_type'),('auth.mfa_factors','status','auth.factor_status')
+  ) expected(relation,column_name,column_type) left join pg_catalog.pg_attribute attribute
+    on attribute.attrelid=pg_catalog.to_regclass(expected.relation) and attribute.attname=expected.column_name
+      and not attribute.attisdropped
+    where attribute.attnum is null or attribute.atttypid is distinct from pg_catalog.to_regtype(expected.column_type)`);
+  if (missingMfaContract.rows.length) throw new Error("Recovery requires the complete local managed-service MFA column contract before replay; no source SQL was applied.");
   const managedTables = await db.query(`select pg_catalog.format('%I.%I',n.nspname,c.relname) as relation
     from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid=c.relnamespace
     where n.nspname in ('auth','storage') and c.relkind in ('r','p') order by n.nspname,c.relname`);

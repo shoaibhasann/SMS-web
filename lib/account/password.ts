@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createBoundMfaClient, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 export type PasswordChange = { currentPassword: string; newPassword: string; confirmation: string };
 export type PasswordChangeResult = { changed: true; temporarySessionClosed: boolean };
@@ -44,6 +45,8 @@ export async function changeOwnPassword(primary: SupabaseClient, ownerId: string
   if (original.error) throw new PasswordChangeError("Sign in again before changing your password.", "account_changed");
   const email = checkOwner(original.data.user, ownerId, undefined, signal);
   if (!original.data.user?.email_confirmed_at) throw new PasswordChangeError("Verify your account email before changing your password.", "unverified_email");
+  const security = await readStaffMfaStatus(primary, ownerId, signal);
+  if (!security?.allowed) throw new PasswordChangeError("Verify your authenticator before changing your password.", "mfa_required");
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
@@ -59,7 +62,12 @@ export async function changeOwnPassword(primary: SupabaseClient, ownerId: string
     const current = await primary.auth.getUser();
     if (current.error) throw new PasswordChangeError("Your sign-in changed. Reopen settings before trying again.", "account_changed");
     checkOwner(current.data.user, ownerId, email, signal);
-    const updated = await verifier.auth.updateUser({ password: input.newPassword, current_password: input.currentPassword });
+    const currentSecurity = await readStaffMfaStatus(primary, ownerId, signal);
+    if (!currentSecurity?.allowed) throw new PasswordChangeError("Verify your authenticator before changing your password.", "mfa_required");
+    // Fresh password proof stays separate from the current AAL2 native session. An AAL1 verifier must not downgrade MFA.
+    const mutationClient = currentSecurity.current_aal === "aal2" || currentSecurity.required
+      ? await createBoundMfaClient(primary, ownerId, signal) : verifier;
+    const updated = await mutationClient.auth.updateUser({ password: input.newPassword, current_password: input.currentPassword });
     failed(updated.error, "update");
     if (updated.data.user?.id !== ownerId) throw new PasswordChangeError("The password change could not be confirmed. Try signing in with the new password before retrying.", "unconfirmed");
   } catch (error) {

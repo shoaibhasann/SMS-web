@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import { normalizeIndianMobile } from "@/lib/auth/phone";
 import { NativePushSettings } from "@/components/notifications/native-push-settings";
 import type { NativePushRole } from "@/lib/notifications/native-push";
+import { AccountAuthenticator } from "@/components/account/account-authenticator";
 
 type Details = { name: string; email: string | null; verified: boolean; phone: string | null; providers: string[]; oauthOnly: boolean };
 type Result = { details: Details } | { error: string };
@@ -127,6 +128,7 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
           <p className="text-xs leading-6 muted">School profile changes need school verification. Sign-in details cannot be edited on this page.</p>
           {hasGuardianRole && <Link href="/modules/profile?view=guardian" className={`${button} text-blue-700 dark:text-blue-300`}>Verified guardian contact settings</Link>}
         </section>
+        <AccountAuthenticator userId={userId} />
         <NativePushSettings userId={userId} roles={pushRoles} />
         <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="password-heading">
           <div className="flex items-center gap-2"><KeyRound size={19} aria-hidden="true" /><h2 id="password-heading" className="font-semibold">Change password</h2></div>

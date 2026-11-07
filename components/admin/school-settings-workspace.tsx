@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { SchoolStaffMfaPolicy } from "@/components/admin/school-staff-mfa-policy";
 import { loadSchoolSettings, saveSchoolSettings, schoolBoards, schoolDetails, SchoolSettingsError, validateSchoolDetails,
   type SchoolDetails, type SchoolSettings, type SchoolSettingsIntent } from "@/lib/admin/school-settings";
 
@@ -29,6 +30,7 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
   const [error, setError] = useState("");
   const [sessionChanged, setSessionChanged] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [policyLocked, setPolicyLocked] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
@@ -62,12 +64,13 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
         : !access ? <LoadingState variant="form">Checking school settings access…</LoadingState>
           : <>
             <label className="card block space-y-2 p-4 text-sm font-semibold"><span>School</span>
-              <select className="field" value={selected?.id ?? ""} disabled={locked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
+              <select className="field" value={selected?.id ?? ""} disabled={locked || policyLocked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
                 <option value="">Choose a school</option>{access.schools.map((school) => <option value={school.id} key={school.id}>{school.name}</option>)}
               </select>
-              {locked && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
+              {(locked || policyLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
             </label>
             {selected && <SchoolEditor key={selected.id} client={client} schoolId={selected.id} userId={userId} onLock={setLocked} />}
+            {selected && <SchoolStaffMfaPolicy key={`mfa-${selected.id}`} client={client} schoolId={selected.id} userId={userId} onLock={setPolicyLocked} />}
           </>}
   </div>;
 }

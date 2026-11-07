@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { guardianAttendancePath, rememberFamilyChild } from "@/lib/attendance/family";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { mfaPath } from "@/lib/auth/staff-mfa";
 
 const primaryButton = "w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50";
 const textButton = "text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
@@ -209,6 +210,7 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
         <div className="space-y-4">
           <p className="break-words text-sm muted">Signed in as <strong>{account.email ?? "your account"}</strong>.</p>
           <p className="text-sm muted">Accept the invitation to link your school account and {details.access}.</p>
+          {kind === "teacher" && <p className="text-xs leading-6 muted">If your school requires an authenticator, <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">set up account security</Link> before accepting. You will return to this invitation.</p>}
           <button type="button" className={primaryButton} onClick={acceptInvite} disabled={pending}>Accept invitation</button>
           <button type="button" className={textButton} onClick={switchAccount} disabled={pending}>Use a different account</button>
           {pending && <p role="status" className="text-sm muted">Please wait…</p>}

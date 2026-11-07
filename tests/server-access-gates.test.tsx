@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import DashboardPage from "@/app/(dashboard)/dashboard/page";
 import LegacyAcademicPage from "@/app/(dashboard)/modules/academic/page";
 
-const { getUser, profile, roles, eq } = vi.hoisted(() => ({
-  getUser: vi.fn(), profile: vi.fn(), roles: vi.fn(), eq: vi.fn(),
+const { getUser, profile, roles, eq, security } = vi.hoisted(() => ({
+  getUser: vi.fn(), profile: vi.fn(), roles: vi.fn(), eq: vi.fn(), security: vi.fn(),
 }));
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: security }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({
   auth: { getUser },
@@ -21,12 +22,18 @@ vi.mock("@/components/dashboard/role-dashboard", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  security.mockResolvedValue({ user_id: "verified-user", allowed: true });
   getUser.mockResolvedValue({ data: { user: { id: "verified-user" } }, error: null });
   profile.mockResolvedValue({ data: { is_active: true, school_id: "school-a" }, error: null });
   roles.mockResolvedValue({ data: [{ role: "school_admin", school_id: "school-a" }], error: null });
 });
 
 describe("server role gates", () => {
+  it.each(["enroll", "challenge", "sign_in"])("redirects MFA %s before reading school profile or roles", async (action) => {
+    security.mockResolvedValueOnce({ user_id: "verified-user", allowed: false, action });
+    await expect(DashboardPage()).rejects.toThrow("redirect:/mfa?next=%2Fdashboard");
+    expect(getUser).not.toHaveBeenCalled(); expect(eq).not.toHaveBeenCalled();
+  });
   it("redirects unauthenticated access before querying authority records", async () => {
     getUser.mockResolvedValue({ data: { user: null }, error: null });
     await expect(DashboardPage()).rejects.toThrow("redirect:/login");

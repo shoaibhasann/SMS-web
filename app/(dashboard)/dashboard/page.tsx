@@ -3,13 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { RoleDashboard } from "@/components/dashboard/role-dashboard";
 import { resolveUiRole, toUiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
+import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
   let access;
   try {
     access = await readActiveSchoolAccess(supabase);
-  } catch {
+  } catch (error) {
+    if (error instanceof StaffMfaRequiredError) redirect(mfaPath("/dashboard"));
     return (
       <main className="min-h-screen grid place-items-center bg-[var(--bg)] p-6">
         <div className="card max-w-xl p-8">

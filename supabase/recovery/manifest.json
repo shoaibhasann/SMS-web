@@ -785,6 +785,20 @@
       "version": "20261106192829",
       "name": "govern_school_settings_and_setup",
       "reason": "Govern allowlisted school profile changes with current-session role checks, versioned actor-bound retry receipts and private immutable history; derive guided setup counters from existing school records."
+    },
+    {
+      "path": "supabase/migrations/20261107052253_enforce_staff_totp_mfa.sql",
+      "sha256": "5f88f943c95ba0c7feb31e4d315919642ef348b96e1db06d61f429c0117f2b0c",
+      "kind": "pending",
+      "version": "20261107052253",
+      "name": "enforce_staff_totp_mfa"
+    },
+    {
+      "path": "supabase/migrations/20261107052717_staff_mfa_business_conflict_http_status.sql",
+      "sha256": "9741cd32e333cd04b64a3b93c31ce17e8d57d405f8a67f5f2ae0743b9ff0f460",
+      "kind": "pending",
+      "version": "20261107052717",
+      "name": "staff_mfa_business_conflict_http_status"
     }
   ],
   "excluded": [
@@ -820,8 +834,8 @@
   ],
   "platform_contract": {
     "path": "scripts/database-recovery/platform-contract.sql",
-    "sha256": "1ebe998f8ae0da375b8179c5039bfd51a28245175cefeb1179e2a8e75e457279",
+    "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "b4c97f1c6b69153e1066f3e69bd393d40ed6089f493b221b9dda0bb832845790"
+  "order_sha256": "38d7701003f207fe00838fb093f5c12ece44b45a7ad03fd32e1dd195bfc58327"
 }

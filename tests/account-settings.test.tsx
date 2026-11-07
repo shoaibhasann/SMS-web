@@ -9,6 +9,7 @@ const { authUser, profile, subscribe, change, signOut, eq, rpc } = vi.hoisted(()
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc, auth: { getUser: authUser, onAuthStateChange: subscribe, signOut },
   from: () => ({ select: () => ({ eq: (...args: unknown[]) => { eq(...args); return { maybeSingle: profile }; } }) }) }) }));
 vi.mock("@/lib/account/password", async (original) => ({ ...await original<typeof import("../lib/account/password")>(), changeOwnPassword: change }));
+vi.mock("@/components/account/account-authenticator", () => ({ AccountAuthenticator: () => <section aria-label="Own authenticator settings" /> }));
 const owner = { id: "owner", email: "owner@example.test", email_confirmed_at: "2026-11-06T00:00:00Z", identities: [{ provider: "email" }], user_metadata: { role: "super_admin" } };
 const newPassword = "New secure password12";
 function fill() {

@@ -7,7 +7,10 @@ import * as Icons from "lucide-react";
 import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules, roleLabels } from "@/lib/modules";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
-import type { UiRole } from "@/lib/auth/roles";
+import { toUiRole, type UiRole } from "@/lib/auth/roles";
+import { readActiveSchoolAccess } from "@/lib/auth/access";
+import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
 import { FamilyNotificationBell } from "@/components/notifications/family-notification-bell";
 
@@ -100,11 +103,54 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
   const [identity, setIdentity] = useState({ id: userId ?? "", email: "", name: "" });
   const [logoutError, setLogoutError] = useState("");
   const [accountChanged, setAccountChanged] = useState(false);
+  const [security, setSecurity] = useState<"checking" | "ready" | "error">("checking");
+  const [verifiedOnce, setVerifiedOnce] = useState(false);
+  const accessFingerprint = useRef("");
   const accountOwner = useRef(userId ?? "");
   const [query, setQuery] = useState("");
   const logoutPending = useRef(false);
   const menuDialog = useRef<HTMLDialogElement>(null);
   const searchDialog = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    let active = true, generation = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    async function check() {
+      const version = ++generation;
+      setSecurity("checking");
+      try {
+        const access = await readActiveSchoolAccess(supabase);
+        if (!active || generation !== version) return;
+        if (!access) { router.replace("/login"); return; }
+        if ((accountOwner.current && access.userId !== accountOwner.current) || !access.roles.some((row) => toUiRole(row.role) === role)) {
+          setAccountChanged(true); return;
+        }
+        const fingerprint = JSON.stringify([access.userId, access.profileSchoolId, [...access.roles].sort((a, b) => `${a.role}:${a.school_id}`.localeCompare(`${b.role}:${b.school_id}`))]);
+        if (accessFingerprint.current && fingerprint !== accessFingerprint.current) { setAccountChanged(true); return; }
+        accessFingerprint.current = fingerprint;
+        setVerifiedOnce(true);
+        setSecurity("ready");
+      } catch (failure) {
+        if (!active || generation !== version) return;
+        if (failure instanceof StaffMfaRequiredError) {
+          setSecurity("error");
+          router.replace(mfaPath(`${window.location.pathname}${window.location.search}`)); return;
+        }
+        setSecurity("error");
+      }
+    }
+    const focus = () => { void check(); };
+    const visible = () => { if (document.visibilityState === "visible") void check(); };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "INITIAL_SESSION") return;
+      generation += 1; setSecurity("checking"); clearTimeout(timer);
+      // Never await Auth inside its own event callback.
+      timer = setTimeout(() => { void check(); }, 0);
+    });
+    window.addEventListener("focus", focus); document.addEventListener("visibilitychange", visible);
+    void check();
+    return () => { active = false; generation += 1; clearTimeout(timer); subscription.unsubscribe(); window.removeEventListener("focus", focus); document.removeEventListener("visibilitychange", visible); };
+  }, [path, role, router, supabase]);
 
   useEffect(() => {
     let active = true;
@@ -198,8 +244,12 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
     </section>
   </main>;
 
+  if (security === "checking" && !verifiedOnce) return <WorkspaceSkeleton />;
+  if (security === "error") return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><section className="card max-w-lg space-y-4 p-6"><h1 className="text-xl font-bold">Account security unavailable</h1><p role="alert" className="text-sm muted">Your current access could not be verified. Reopen the workspace before continuing.</p><a href="/dashboard" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]">Reopen workspace</a></section></main>;
+
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="min-h-screen bg-[var(--bg)]" inert={security === "checking"} aria-busy={security === "checking"}>
+      {security === "checking" && <span role="status" className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-[var(--primary)]"><span className="sr-only">Verifying current account access…</span></span>}
       <a href="#workspace-main" className={`sr-only z-50 rounded-xl bg-[var(--surface)] p-3 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3 ${focus}`}>Skip to workspace</a>
       <aside aria-label="Desktop sidebar" className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
         <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--border)] px-6"><Brand /></div>
