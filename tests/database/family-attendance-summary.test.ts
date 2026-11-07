@@ -169,6 +169,16 @@ describe("enrollment and retained data consistency", () => {
       [id.schoolA, id.adminA, id.pupilA, id.yearA]);
     expect((await summary()).year_summary).toMatchObject({ state: "enrollment_unverified", enrollment_days: 0, percentage: null });
   });
+  it("withholds a withdrawn pupil's active placement without an audited end date", async () => {
+    await policy(); await completeMarks();
+    expect((await summary()).year_summary).toMatchObject({ state: "complete", working_days: 7, percentage: 64.29 });
+    await db.query("update public.students set status='withdrawn' where id=$1", [id.pupilA]);
+    const result = await summary();
+    expect(result.year_summary).toMatchObject({ state: "enrollment_unverified", from: null, to: null, enrollment_days: 0, percentage: null });
+    expect(result.month_summary).toMatchObject({ state: "enrollment_unverified", from: null, to: null, enrollment_days: 0, percentage: null });
+    expect((await db.query<{ status: string }>("select status from public.enrollments where student_id=$1 and academic_year_id=$2", [id.pupilA, id.yearA])).rows)
+      .toEqual([{ status: "active" }]);
+  });
   it("returns not-started for future admission without manufacturing zero attendance", async () => {
     await db.query("update public.students set admission_date=$1::date+1 where id=$2", [today, id.pupilA]);
     expect((await summary()).year_summary).toMatchObject({ state: "not_started", from: null, to: null, enrollment_days: 0, percentage: null });

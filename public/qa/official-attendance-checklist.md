@@ -1,8 +1,8 @@
 # SMS — official attendance percentage
 
-7 November 2026 · Founder acceptance pending · Release verification in progress
+7 November 2026 · Founder acceptance pending
 
-Use [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) after the matching release is confirmed. Sign in with the privately supplied Student or Guardian QA account and open Dashboard. Use isolated school fixtures for boundary tests; do not modify original founder records.
+Use the released [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Sign in with the privately supplied Student or Guardian QA account and open Dashboard. Use isolated school fixtures for boundary tests; do not modify original founder records.
 
 Approved formula: `(Present + Late + 0.5 × Half Day) / enrolled working days × 100`. Leave and Absent earn zero. School holidays and weekly closed days are excluded. Missing marks are not Absent and block a complete percentage.
 
@@ -11,7 +11,7 @@ Approved formula: `(Present + Late + 0.5 × Half Day) / enrolled working days ×
 - [ ] **AR-03 — Calendar:** Closed weekdays and school holiday exceptions do not increase the denominator. An extra working-day exception does. Retained closed-day marks are not rewritten.
 - [ ] **AR-04 — Missing marks:** An enrolled working day with no canonical mark shows an incomplete/pending explanation, not a fabricated Absent, zero or official percentage.
 - [ ] **AR-05 — Missing calendar:** A period containing enrolled dates without a configured calendar shows its setup gap. The app does not apply today's policy backwards.
-- [ ] **AR-06 — Joining date:** Dates before a verified admission/promotion are excluded. An unknown admission date is explained; import time is not treated as historical joining proof.
+- [ ] **AR-06 — Joining date:** Dates before a verified admission/promotion are excluded. An unknown admission date is explained; import time is not treated as historical joining proof. A withdrawn pupil with a still-active placement and no verified end date must not receive an official rate.
 - [ ] **AR-07 — Placement:** A section move preserves earlier marks, counts the pupil once per day and does not count records belonging to another dated placement.
 - [ ] **AR-08 — Withdrawal/promotion:** Governed withdrawal stops the reporting span after its effective day; staged/cancelled placements do not create attendance days in the current year.
 - [ ] **AR-09 — Date limits:** Future days and dates outside the school year are excluded. Missing, ambiguous or unsupported school-year configuration is explained.

@@ -847,6 +847,14 @@
       "version": "20261107114728",
       "name": "family_official_attendance_summary",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107120830_reject_unended_withdrawn_attendance_summary.sql",
+      "sha256": "9705c3de63918b1f05aca93a93bb4a382bf5a69a1545b04b8bb3be59344f9371",
+      "kind": "pending",
+      "version": "20261107120830",
+      "name": "reject_unended_withdrawn_attendance_summary",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -885,5 +893,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "d5d658df4e85d5de36cddcfb7da762ce273db5ed0acedc191e59374db689f808"
+  "order_sha256": "9334383c85816def0f6065f51db7697460c4250892eaaf4b4f0371916b918dbd"
 }
