@@ -30,4 +30,4 @@ These are school-inbox choices. Both gate options start OFF for each Guardian/ch
 - [ ] **GNA-17 — Legacy app:** The older three-kind app still loads absence/result/leave updates. New gate items require the updated five-kind app; a new inbox kind must not break an installed older client.
 - [ ] **GNA-18 — Native and hardware acceptance:** On a separately distributed updated native build, test the same choices and inbox. Physical terminal behavior and real phone-push display require their own acceptance; a browser or synthetic event cannot close those checks.
 
-All cases remain unchecked until founder testing. Use fresh QA relationships for revoke/re-invite and Mark all; do not remove original links or mark old founder notifications read. Late-attendance automation, broader notification triggers and device purchase/activation remain separate scope.
+All cases remain unchecked until founder testing. Use fresh QA relationships for revoke/re-invite and Mark all; do not remove original links or mark old founder notifications read. Separate Late-only alerts, broader notification triggers and device purchase/activation remain separate scope.
