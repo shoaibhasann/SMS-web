@@ -1,5 +1,10 @@
 # Manual QA for SMS Production
 
+## Previous academic-year official attendance — 7 November 2026
+
+Student/Parent web dashboards and Attendance add scoped year/month selection, with previous-year enrollment, historical section mapping, approved calendar weighting and fail-closed incomplete states. Current/mobile API compatibility is retained through one calculator; selected-year preferences are account/role/school/pupil scoped. [Focused evidence](PREVIOUS-YEAR-ATTENDANCE-QA.md) · [Founder checklist](../../public/qa/previous-year-attendance-checklist.md). Hosted/browser/preservation and release status are recorded in the focused evidence; founder acceptance remains open.
+
+
 ## Historical calendar CSV import — main/Production verified, 7 November 2026
 
 Actual Admin/Principal native MFA gates a bounded historical CSV → server preview → acknowledged atomic gap import, with duplicate/invalid/configured-date rejection, checked impact hashes and exact retries. Existing marks remain unchanged; actual family rates move from calendar-incomplete to 58.33% only for the complete pupil, while the missing sibling stays unresolved. Whole web **3,086 tests / 187 files**, lint/build/types and hosted core 117 checks pass; a nine-check approved-review retry drill proves the shared calendar fence, with its narrower concurrency boundary recorded. Local Admin/family and stable Production Principal save/hard-refresh plus Guardian readback pass. Runtime `0c682cb` is main/Production Ready; final read-only proof retains all 3,177 pre-Production rows and 3,107 originals, with only two new dates/one receipt (3,180 rows total), and owned sessions zero. [Engineering evidence](HISTORICAL-CALENDAR-QA.md) separates the tested runtime from the later documentation-only rollout. [Founder checklist](../../public/qa/historical-calendar-checklist.md) stays unchecked; actual school history approval remains open.

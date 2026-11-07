@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FamilyAttendanceRegister } from "../components/academic/family-attendance-register";
 import { loadFamilyAttendance, loadFamilyStudents, type FamilyStudent } from "../lib/attendance/family";
 
-const { client } = vi.hoisted(() => ({
+const { client, officialSummary } = vi.hoisted(() => ({
+  officialSummary: vi.fn(),
   client: {
     from: vi.fn(),
     rpc: () => ({ abortSignal: () => ({ returns: async () => ({ data: [], error: null }) }) }),
@@ -13,6 +14,7 @@ const { client } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
+vi.mock("@/components/family/official-attendance-summary", () => ({ OfficialAttendanceSummary: (props: unknown) => { officialSummary(props); return null; } }));
 vi.mock("@/lib/attendance/family", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/attendance/family")>(),
   loadFamilyStudents: vi.fn(),
@@ -45,6 +47,7 @@ beforeEach(() => {
   sessionStorage.clear();
   loadStudents.mockReset();
   loadHistory.mockReset();
+  officialSummary.mockClear();
 });
 
 describe("FamilyAttendanceRegister", () => {
@@ -59,6 +62,7 @@ describe("FamilyAttendanceRegister", () => {
     expect(await screen.findByRole("combobox", { name: "Select child" })).toHaveValue(expected.id);
     await screen.findByRole("table", { name: "Attendance history" });
     expect(loadHistory).toHaveBeenCalledExactlyOnceWith(client, expected, { offset: 0, limit: 30 });
+    expect(officialSummary).toHaveBeenLastCalledWith(expect.objectContaining({ client, userId: "guardian", student: expected, role: "parent", showHistoryLink: false }));
   });
 
   it("keeps a student's history scoped to their linked pupil across the 30-record page boundary", async () => {
@@ -115,6 +119,7 @@ describe("FamilyAttendanceRegister", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Loading attendance");
     expect(screen.queryByRole("table", { name: "Attendance history" })).not.toBeInTheDocument();
     expect(loadHistory).toHaveBeenLastCalledWith(client, pupilTwo, { offset: 0, limit: 30 });
+    expect(officialSummary).toHaveBeenLastCalledWith(expect.objectContaining({ student: pupilTwo, role: "parent" }));
 
     await user.selectOptions(selection, pupilOne.id);
     expect(await screen.findByRole("cell", { name: "Holiday" })).toBeInTheDocument();

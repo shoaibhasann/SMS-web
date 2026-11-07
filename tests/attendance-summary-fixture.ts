@@ -16,3 +16,12 @@ export function attendanceSummaryFixture(patch: Partial<FamilyAttendanceSummary>
     year: { id: summaryId(4), name: "2026–2027", start_date: "2026-04-01", end_date: "2027-03-31" }, session_state: "active",
     month_summary: summaryPeriod(), year_summary: summaryPeriod(), ...patch };
 }
+export const previousSummaryYear = { id: summaryId(5), name: "2025–2026", start_date: "2025-04-01", end_date: "2026-03-31", is_current: false };
+export function attendanceReportContextFixture(patch: Partial<import("@/lib/attendance/family-summary").FamilyAttendanceReportContext> = {}): import("@/lib/attendance/family-summary").FamilyAttendanceReportContext {
+  return { user_id: summaryOwner, student_id: summaryStudent.id, school_id: summaryStudent.school_id, role: "parent", server_today: "2026-11-07", timezone: "Asia/Kolkata",
+    current_year_id: summaryId(4), current_session_state: "active", years: [{ ...attendanceSummaryFixture().year!, is_current: true }, previousSummaryYear], ...patch };
+}
+export function previousAttendanceSummaryFixture(patch: Partial<FamilyAttendanceSummary> = {}): FamilyAttendanceSummary {
+  return attendanceSummaryFixture({ year: previousSummaryYear, month: "2026-03-01", month_summary: summaryPeriod({ from: "2026-03-01", to: "2026-03-07" }),
+    year_summary: summaryPeriod({ from: "2026-03-01", to: "2026-03-07" }), ...patch });
+}

@@ -97,3 +97,73 @@ export async function loadFamilyAttendanceSummary(client: SupabaseClient, userId
   await authorize();
   return parseFamilyAttendanceSummary(data, userId, student, role, month);
 }
+
+export type FamilyAttendanceReportYear = NonNullable<FamilyAttendanceSummary["year"]> & { is_current: boolean };
+export type FamilyAttendanceReportContext = {
+  user_id: string; student_id: string; school_id: string; role: FamilyAttendanceSummaryRole;
+  server_today: string; timezone: "Asia/Kolkata"; current_year_id: string | null;
+  current_session_state: FamilyAttendanceSummary["session_state"]; years: FamilyAttendanceReportYear[];
+};
+export function parseFamilyAttendanceReportContext(value: unknown, userId: string, student: { id: string; school_id: string }, role: FamilyAttendanceSummaryRole): FamilyAttendanceReportContext {
+  const row = object(value);
+  if (!uuid(userId) || !uuid(student.id) || !uuid(student.school_id) || row.user_id !== userId || row.student_id !== student.id || row.school_id !== student.school_id
+    || !["student", "parent"].includes(role) || row.role !== role || row.timezone !== "Asia/Kolkata" || !validCalendarDate(row.server_today)
+    || !["active", "missing", "ambiguous", "unsupported"].includes(String(row.current_session_state)) || !Array.isArray(row.years)
+    || !(row.current_year_id === null || uuid(row.current_year_id))) throw invalid();
+  const ids = new Set<string>(); let current = 0;
+  for (const value of row.years) {
+    const year = object(value);
+    if (!uuid(year.id) || ids.has(year.id) || typeof year.name !== "string" || !year.name.trim() || year.name.length > 200 || /[\u0000-\u001f\u007f-\u009f]/.test(year.name)
+      || !validCalendarDate(year.start_date) || !validCalendarDate(year.end_date) || year.start_date > year.end_date || days(year.start_date, year.end_date) > 366
+      || typeof year.is_current !== "boolean" || (year.is_current ? year.start_date > row.server_today || year.id !== row.current_year_id : year.end_date >= row.server_today || year.id === row.current_year_id)) throw invalid();
+    ids.add(year.id); if (year.is_current) current++;
+  }
+  if (["missing", "ambiguous"].includes(String(row.current_session_state)) ? row.current_year_id !== null || current !== 0
+    : !uuid(row.current_year_id) || current > 1 || row.current_session_state === "unsupported" && current !== 0) throw invalid();
+  return value as FamilyAttendanceReportContext;
+}
+async function reportAuthorization(client: SupabaseClient, userId: string, student: { id: string; school_id: string }, role: FamilyAttendanceSummaryRole, signal: AbortSignal) {
+  if (!uuid(userId) || !uuid(student.id) || !uuid(student.school_id) || !["student", "parent"].includes(role)) throw new FamilyAttendanceSummaryError("Sign in again before loading attendance.", "access");
+  const session = await boundMfaSession(client, userId, signal).catch(() => { signal.throwIfAborted(); throw new FamilyAttendanceSummaryError("Your sign-in changed. Reopen your dashboard.", "access"); });
+  signal.throwIfAborted();
+  if (!session) throw new FamilyAttendanceSummaryError("Sign in again to load official attendance.", "access");
+  return session.access_token;
+}
+function reportError(error: { code?: string } | null) {
+  if (!error) return;
+  if (["42501", "PGRST301", "PGRST302"].includes(error.code ?? "")) throw new FamilyAttendanceSummaryError("Your attendance report access changed. Reopen attendance after signing in.", "access");
+  if (error.code === "22023") throw new FamilyAttendanceSummaryError("Choose a supported academic year and a reporting month within that year.", "validation");
+  throw new FamilyAttendanceSummaryError("Official attendance reports could not be loaded. Refresh to try again.");
+}
+export async function loadFamilyAttendanceReportContext(client: SupabaseClient, userId: string, student: { id: string; school_id: string }, role: FamilyAttendanceSummaryRole, signal: AbortSignal) {
+  const token = await reportAuthorization(client, userId, student, role, signal);
+  const { data, error } = await client.rpc("get_family_attendance_report_context", { p_role: role, p_student_id: student.id })
+    .setHeader("Authorization", `Bearer ${token}`).abortSignal(signal);
+  signal.throwIfAborted(); reportError(error); await reportAuthorization(client, userId, student, role, signal);
+  return parseFamilyAttendanceReportContext(data, userId, student, role);
+}
+export async function loadFamilyAttendanceReport(client: SupabaseClient, userId: string, student: { id: string; school_id: string }, role: FamilyAttendanceSummaryRole, academicYearId: string | null, month: string | null, signal: AbortSignal) {
+  if (academicYearId !== null && !uuid(academicYearId) || month !== null && !monthStart(month)) throw new FamilyAttendanceSummaryError("Choose a supported academic year and reporting month.", "validation");
+  const token = await reportAuthorization(client, userId, student, role, signal);
+  const { data, error } = await client.rpc("get_family_attendance_report", { p_role: role, p_student_id: student.id, p_academic_year_id: academicYearId, p_month: month })
+    .setHeader("Authorization", `Bearer ${token}`).abortSignal(signal);
+  signal.throwIfAborted(); reportError(error); await reportAuthorization(client, userId, student, role, signal);
+  const summary = parseFamilyAttendanceSummary(data, userId, student, role, month);
+  if (academicYearId !== null && (summary.year?.id !== academicYearId || summary.session_state !== "active")) throw invalid();
+  return summary;
+}
+
+function familyReportYearKey(userId: string, role: FamilyAttendanceSummaryRole, student: { id: string; school_id: string }): string | null {
+  return uuid(userId) && uuid(student.id) && uuid(student.school_id) && ["student", "parent"].includes(role)
+    ? `erp:attendance-report-year:${userId}:${role}:${student.school_id}:${student.id}` : null;
+}
+export function restoreFamilyReportYear(userId: string, role: FamilyAttendanceSummaryRole, student: { id: string; school_id: string }): string | null {
+  const key = familyReportYearKey(userId, role, student);
+  if (!key) return null;
+  try { const yearId = sessionStorage.getItem(key); return uuid(yearId) ? yearId : null; } catch { return null; }
+}
+export function rememberFamilyReportYear(userId: string, role: FamilyAttendanceSummaryRole, student: { id: string; school_id: string }, yearId: string | null): boolean {
+  const key = familyReportYearKey(userId, role, student);
+  if (!key || yearId !== null && !uuid(yearId)) return false;
+  try { if (yearId === null) sessionStorage.removeItem(key); else sessionStorage.setItem(key, yearId); return true; } catch { return false; }
+}

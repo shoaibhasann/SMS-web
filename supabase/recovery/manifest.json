@@ -871,6 +871,14 @@
       "version": "20261107124633",
       "name": "serialize_attendance_corrections_with_calendar_imports",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107133335_family_previous_year_attendance_reports.sql",
+      "sha256": "f4d331ad30f3416a9d9a073bbd9ca18136c421a758b721739fc3250e759ff998",
+      "kind": "pending",
+      "version": "20261107133335",
+      "name": "family_previous_year_attendance_reports",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -909,5 +917,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "da99e9766ab62f5f2ddcc4d4a3506eb0fdd221b6ad498fb79844d3a543c041e8"
+  "order_sha256": "f32e579b4c11937190ef204566e5afa1d08f8817554b0666b222ba8784b665cd"
 }

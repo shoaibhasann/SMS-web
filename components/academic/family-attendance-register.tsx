@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { guardianContactPath } from "@/lib/auth/redirect";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
+import { OfficialAttendanceSummary } from "@/components/family/official-attendance-summary";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -91,6 +92,7 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
                 </select>
               </label>
             )}
+            <OfficialAttendanceSummary client={client} userId={userId} student={student} role={role} showHistoryLink={false} />
             <StudentHistory key={`${student.school_id}:${student.id}`} client={client} student={student} />
           </>
         )}
@@ -120,6 +122,7 @@ function StudentHistory({ client, student }: { client: Client; student: FamilySt
       <header className="border-b border-[var(--border)] p-4">
         <h2 className="font-bold">Attendance history</h2>
         <p className="mt-1 text-sm muted">{studentName(student)} · {student.admission_no}</p>
+        <p className="mt-1 text-xs leading-5 muted">Saved records across all academic years. Use the official report above for the selected year.</p>
       </header>
       {!history ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance…</LoadingState>
         : history.error ? (

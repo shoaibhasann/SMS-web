@@ -53,3 +53,7 @@ The final focused checklist source SHA-256 is `f557c9e0c44cf7c28922e93247d0bb8e4
 ## Historical calendar follow-up
 
 The later [historical CSV import](HISTORICAL-CALENDAR-QA.md) fills approved past gaps through actual Office APIs, with retained attendance unchanged and explicit reporting impact. It supersedes the earlier limitation that only trusted QA seeding could supply historical calendar facts; the earlier release evidence above remains historical.
+
+## Previous academic-year report follow-up
+
+[Completed-year family reports](PREVIOUS-YEAR-ATTENDANCE-QA.md) extend the shared calculation with an authorized historical-year selector while preserving the current/mobile API. The earlier current-year-only evidence above remains a historical release checkpoint.
