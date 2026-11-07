@@ -137,7 +137,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
               const gate = notification.kind === "gate_arrival" || notification.kind === "gate_exit";
               const date = gate && notification.occurred_at ? `${gateTime.format(new Date(notification.occurred_at))} IST` : eventDate(notification.event_date);
               const type = notification.kind === "gate_arrival" ? "Arrival" : notification.kind === "gate_exit" ? "Exit"
-                : notification.kind === "absence" ? "Attendance" : notification.kind === "result_published" ? "Result" : "Leave";
+                : notification.kind === "late" ? "Late attendance" : notification.kind === "absence" ? "Attendance" : notification.kind === "result_published" ? "Result" : "Leave";
               return <li key={`${notification.kind}:${notification.id}`} className="flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2 text-xs"><span className="inline-flex items-center gap-1 font-semibold muted">{gate && (notification.kind === "gate_arrival" ? <LogIn size={13} aria-hidden="true" /> : <LogOut size={13} aria-hidden="true" />)}{type}</span>

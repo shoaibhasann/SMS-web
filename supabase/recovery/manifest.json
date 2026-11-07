@@ -895,6 +895,14 @@
       "version": "20261107155444",
       "name": "gate_office_workspace",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107164255_school_guardian_late_alerts.sql",
+      "sha256": "16fe86794d33576e429d1e75e3e64bab3e251f1067b4b5eeb369cc77e1c9cb50",
+      "kind": "pending",
+      "version": "20261107164255",
+      "name": "school_guardian_late_alerts",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -933,5 +941,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "7a702b3e6a85b96c4b51ad2c1f9d2b5323fe76bc9c0953e957b61371dcdac365"
+  "order_sha256": "8430f64b04b78ac04b7378c2c9db23d6bb30167b1a294c9e5d9f7d53f51ea0ae"
 }

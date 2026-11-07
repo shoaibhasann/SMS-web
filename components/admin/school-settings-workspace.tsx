@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 import { SchoolStaffMfaPolicy } from "@/components/admin/school-staff-mfa-policy";
 import { SchoolAttendanceCalendar } from "@/components/admin/school-attendance-calendar";
+import { SchoolLateAlertSettings } from "@/components/admin/school-late-alert-settings";
 import { loadSchoolSettings, saveSchoolSettings, schoolBoards, schoolDetails, SchoolSettingsError, validateSchoolDetails,
   type SchoolDetails, type SchoolSettings, type SchoolSettingsIntent } from "@/lib/admin/school-settings";
 
@@ -33,6 +34,7 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
   const [locked, setLocked] = useState(false);
   const [policyLocked, setPolicyLocked] = useState(false);
   const [calendarLocked, setCalendarLocked] = useState(false);
+  const [lateAlertsLocked, setLateAlertsLocked] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
@@ -67,12 +69,13 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
         : !access ? <LoadingState variant="form">Checking school settings access…</LoadingState>
           : <>
             <label className="card block space-y-2 p-4 text-sm font-semibold"><span>School</span>
-              <select className="field" value={selected?.id ?? ""} disabled={locked || policyLocked || calendarLocked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
+              <select className="field" value={selected?.id ?? ""} disabled={locked || policyLocked || calendarLocked || lateAlertsLocked || access.schools.length === 1} onChange={(event) => setSchoolId(event.target.value)}>
                 <option value="">Choose a school</option>{access.schools.map((school) => <option value={school.id} key={school.id}>{school.name}</option>)}
               </select>
-              {(locked || policyLocked || calendarLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
+              {(locked || policyLocked || calendarLocked || lateAlertsLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
             </label>
             {selected && <SchoolAttendanceCalendar client={client} schoolId={selected.id} userId={userId} onLock={setCalendarLocked} />}
+            {selected && <SchoolLateAlertSettings key={`late-alerts:${selected.id}:${userId}`} schoolId={selected.id} userId={userId} onLock={setLateAlertsLocked} />}
             {selected && <SchoolEditor key={selected.id} client={client} schoolId={selected.id} userId={userId} onLock={setLocked} />}
             {selected && <SchoolStaffMfaPolicy key={`mfa-${selected.id}`} client={client} schoolId={selected.id} userId={userId} onLock={setPolicyLocked} />}
           </>}
