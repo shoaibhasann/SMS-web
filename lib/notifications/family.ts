@@ -1,19 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { boundMfaSession } from "@/lib/auth/staff-mfa";
 
 export type FamilyNotificationRole = "parent" | "student";
-export type FamilyNotificationKind = "absence" | "result_published" | "leave_decision";
+export type FamilyNotificationKind = "absence" | "result_published" | "leave_decision" | "gate_arrival" | "gate_exit";
 export type FamilyNotificationCursor = { created_at: string; kind: FamilyNotificationKind; id: string };
 export type FamilyNotification = {
   id: string; kind: FamilyNotificationKind; student_id: string; student_name: string;
   created_at: string; read_at: string | null; event_date: string; source_id: string;
-  status: "absent" | "published" | "approved" | "rejected"; title: string; assessment_id: string | null;
+  status: "absent" | "published" | "approved" | "rejected" | "IN" | "OUT"; title: string; assessment_id: string | null;
+  occurred_at: string | null; delayed: boolean;
 };
 export type FamilyNotificationInbox = {
   notifications: FamilyNotification[]; unread_count: number; next_cursor: FamilyNotificationCursor | null;
 };
 
 export const familyNotificationsChangedEvent = "sms:family-notifications-changed";
-const kinds: readonly string[] = ["absence", "result_published", "leave_decision"];
+const kinds: readonly string[] = ["absence", "result_published", "leave_decision", "gate_arrival", "gate_exit"];
 const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const timestamp = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value)) && value.includes("T");
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -33,6 +35,7 @@ function cursor(value: unknown): FamilyNotificationCursor {
   if (!uuid(row.id) || !timestamp(row.created_at) || !kinds.includes(row.kind as string)) throw invalid();
   return { id: row.id, created_at: row.created_at, kind: row.kind as FamilyNotificationKind };
 }
+function isGate(kind: FamilyNotificationKind) { return kind === "gate_arrival" || kind === "gate_exit"; }
 function notification(value: unknown): FamilyNotification {
   const row = record(value);
   const date = typeof row.event_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(row.event_date)
@@ -41,14 +44,18 @@ function notification(value: unknown): FamilyNotification {
   if (!uuid(row.id) || !uuid(row.student_id) || !uuid(row.source_id) || !timestamp(row.created_at)
     || !(row.read_at === null || timestamp(row.read_at)) || !date
     || typeof row.student_name !== "string" || !row.student_name.trim()
-    || typeof row.title !== "string" || !row.title.trim()
+    || typeof row.title !== "string" || !row.title.trim() || typeof row.delayed !== "boolean"
+    || !(row.kind === "gate_arrival" || row.kind === "gate_exit" ? timestamp(row.occurred_at) && /(?:Z|[+-]\d{2}:\d{2})$/i.test(row.occurred_at) : row.occurred_at === null && row.delayed === false)
     || !(row.kind === "absence" && row.status === "absent" && row.assessment_id === null
       || row.kind === "result_published" && row.status === "published" && uuid(row.assessment_id)
-      || row.kind === "leave_decision" && ["approved", "rejected"].includes(row.status as string) && row.assessment_id === null)) throw invalid();
+      || row.kind === "leave_decision" && ["approved", "rejected"].includes(row.status as string) && row.assessment_id === null
+      || row.kind === "gate_arrival" && row.status === "IN" && row.assessment_id === null
+      || row.kind === "gate_exit" && row.status === "OUT" && row.assessment_id === null)) throw invalid();
   return {
     id: row.id, kind: row.kind as FamilyNotificationKind, student_id: row.student_id, student_name: row.student_name,
     created_at: row.created_at, read_at: row.read_at as string | null, event_date: row.event_date as string,
     source_id: row.source_id, status: row.status as FamilyNotification["status"], title: row.title, assessment_id: row.assessment_id as string | null,
+    occurred_at: row.occurred_at as string | null, delayed: row.delayed as boolean,
   };
 }
 function rpcError(error: { code?: string } | null) {
@@ -58,23 +65,33 @@ function rpcError(error: { code?: string } | null) {
   throw new Error("Notifications could not be confirmed. Refresh to check the saved status before retrying.");
 }
 
+async function authorization(client: SupabaseClient, userId: string, signal?: AbortSignal) {
+  if (!uuid(userId)) throw new Error("Sign in again to check notifications.");
+  const session = await boundMfaSession(client, userId, signal);
+  if (!session) throw new Error("Sign in again to check notifications.");
+  signal?.throwIfAborted();
+  return `Bearer ${session.access_token}`;
+}
+
 export async function loadFamilyNotificationInbox(client: SupabaseClient, options: {
-  role: FamilyNotificationRole; unreadOnly?: boolean; cursor?: FamilyNotificationCursor | null; limit?: number;
+  userId: string; role: FamilyNotificationRole; unreadOnly?: boolean; cursor?: FamilyNotificationCursor | null; limit?: number;
 }, signal?: AbortSignal): Promise<FamilyNotificationInbox> {
   const limit = options.limit ?? 30;
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50 || (options.unreadOnly !== undefined && typeof options.unreadOnly !== "boolean")) throw invalid();
   const before = options.cursor ? cursor(options.cursor) : null;
-  const request = client.rpc("get_family_notification_inbox", {
+  const header = await authorization(client, options.userId, signal);
+  const request = client.rpc("get_family_notification_inbox_v2", {
     p_role: role(options.role), p_unread_only: options.unreadOnly ?? false, p_limit: limit,
     p_before_created_at: before?.created_at ?? null, p_before_kind: before?.kind ?? null, p_before_id: before?.id ?? null,
-  });
+  }).setHeader("Authorization", header);
   const { data, error } = await (signal ? request.abortSignal(signal) : request);
-  rpcError(error);
+  signal?.throwIfAborted(); rpcError(error);
   const result = record(data);
   if (!Array.isArray(result.notifications) || result.notifications.length > limit) throw invalid();
   const rows = result.notifications.map(notification);
   if (new Set(rows.map((row) => `${row.kind}:${row.id}`)).size !== rows.length
-    || options.unreadOnly && rows.some((row) => row.read_at !== null)) throw invalid();
+    || options.unreadOnly && rows.some((row) => row.read_at !== null)
+    || options.role === "student" && rows.some(row => isGate(row.kind))) throw invalid();
   const next = result.next_cursor === null ? null : cursor(result.next_cursor);
   const last = rows.at(-1);
   if (next && (!last || next.id !== last.id || next.kind !== last.kind || next.created_at !== last.created_at)) throw invalid();
@@ -82,26 +99,30 @@ export async function loadFamilyNotificationInbox(client: SupabaseClient, option
   return { notifications: rows, unread_count: count(result.unread_count), next_cursor: next };
 }
 
-export async function loadFamilyNotificationUnreadCount(client: SupabaseClient, view: FamilyNotificationRole, signal?: AbortSignal) {
-  const request = client.rpc("get_family_notification_unread_count", { p_role: role(view) });
+export async function loadFamilyNotificationUnreadCount(client: SupabaseClient, view: FamilyNotificationRole, userId: string, signal?: AbortSignal) {
+  const header = await authorization(client, userId, signal);
+  const request = client.rpc("get_family_notification_unread_count_v2", { p_role: role(view) }).setHeader("Authorization", header);
   const { data, error } = await (signal ? request.abortSignal(signal) : request);
-  rpcError(error); return count(data);
+  signal?.throwIfAborted(); rpcError(error); return count(data);
 }
 
 export async function markFamilyNotificationRead(client: SupabaseClient, view: FamilyNotificationRole,
-  kind: FamilyNotificationKind, id: string, signal?: AbortSignal): Promise<string | null> {
-  if (!kinds.includes(kind) || !uuid(id)) throw invalid();
-  const request = client.rpc("mark_family_notification_read", { p_role: role(view), p_kind: kind, p_id: id });
+  kind: FamilyNotificationKind, id: string, userId: string, signal?: AbortSignal): Promise<string | null> {
+  if (!kinds.includes(kind) || !uuid(id) || view === "student" && isGate(kind)) throw invalid();
+  const header = await authorization(client, userId, signal);
+  const request = client.rpc("mark_family_notification_read_v2", { p_role: role(view), p_kind: kind, p_id: id }).setHeader("Authorization", header);
   const { data, error } = await (signal ? request.abortSignal(signal) : request);
-  rpcError(error);
+  signal?.throwIfAborted(); rpcError(error);
+  await authorization(client, userId, signal);
   if (data !== null && !timestamp(data)) throw invalid();
   return data;
 }
 
-export async function markAllFamilyNotificationsRead(client: SupabaseClient, view: FamilyNotificationRole, signal?: AbortSignal) {
-  const request = client.rpc("mark_all_family_notifications_read", { p_role: role(view) });
+export async function markAllFamilyNotificationsRead(client: SupabaseClient, view: FamilyNotificationRole, userId: string, signal?: AbortSignal) {
+  const header = await authorization(client, userId, signal);
+  const request = client.rpc("mark_all_family_notifications_read_v2", { p_role: role(view) }).setHeader("Authorization", header);
   const { data, error } = await (signal ? request.abortSignal(signal) : request);
-  rpcError(error); return count(data);
+  signal?.throwIfAborted(); rpcError(error); await authorization(client, userId, signal); return count(data);
 }
 
 export function familyNotificationsHref(view: FamilyNotificationRole) {
@@ -110,8 +131,9 @@ export function familyNotificationsHref(view: FamilyNotificationRole) {
 
 export function notificationHref(value: FamilyNotification, view: FamilyNotificationRole) {
   const row = notification(value), params = new URLSearchParams({ child: row.student_id });
+  if (view === "student" && isGate(row.kind)) throw invalid();
   if (role(view) === "parent") params.set("view", "guardian");
-  const path = row.kind === "absence" ? "attendance" : row.kind === "result_published" ? "results" : "student-leave";
+  const path = row.kind === "absence" || isGate(row.kind) ? "attendance" : row.kind === "result_published" ? "results" : "student-leave";
   if (row.kind === "result_published") params.set("assessment", row.assessment_id!);
   if (row.kind === "leave_decision") params.set("request", row.source_id);
   return `/modules/${path}?${params}`;

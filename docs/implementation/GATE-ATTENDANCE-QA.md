@@ -2,6 +2,8 @@
 
 7 November 2026 · Hosted synthetic gate/family workflow verified · Main/Production runtime `d095766` Ready
 
+Later follow-up: [Optional Guardian arrival/exit inbox alerts](GATE-ALERTS-QA.md) adds per-current-child OFF-by-default settings and v2 inbox support, keeping absence alerts independent. Its browser/main release and real delivery gates are separate. This ingress record and its measured runtime/checklist hash below remain historical evidence; the current checklist's boundary paragraph now links to that follow-up.
+
 The agreed pilot uses one student gate IN/OUT device. An eligible IN creates the pupil's existing daily class-register mark as Present/Late under the configured school rule. Repeated delivery must be idempotent. OUT records departure evidence and leaves the day's attendance intact. No classroom or staff device capture is included. No physical device has been selected, connected or tested.
 
 This record separates synthetic connector input, canonical attendance, web readback and real hardware/provider acceptance. An accepted QA event is not a verified physical arrival, a biometric identity check or notification delivery. Main runtime `d095766` is Production Ready; the Guardian browser test below ran before this web build against the already deployed SQL/Edge backend and unchanged existing Attendance UI.

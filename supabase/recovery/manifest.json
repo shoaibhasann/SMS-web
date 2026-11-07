@@ -823,6 +823,14 @@
       "version": "20261107082956",
       "name": "govern_gate_attendance_ingestion",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107094329_govern_guardian_gate_alerts.sql",
+      "sha256": "f25e5a9544afc796b77d3238efa60f6ec95640d3c082c15799927842c4ff3a30",
+      "kind": "pending",
+      "version": "20261107094329",
+      "name": "govern_guardian_gate_alerts",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -861,5 +869,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "6bb42ebc2bcc048074ece3398b202ed58bd95bb6418150cfe4ca4cfbe554d5cb"
+  "order_sha256": "24d5f5911bbe8ce1fbfb11fb36e78d8216c830be1a418a32a88eb43ab8f01360"
 }

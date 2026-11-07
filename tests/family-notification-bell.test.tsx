@@ -16,7 +16,7 @@ describe("family notification bell", () => {
     const bell = await screen.findByRole("link", { name: "Open notifications, 152 unread" });
     expect(bell).toHaveAttribute("href", "/modules/notifications?view=guardian"); expect(screen.getByText("99+")).toHaveAttribute("aria-hidden", "true");
     expect(bell.className).toContain("inline-flex"); expect(bell.className).not.toContain("hidden");
-    expect(load.mock.calls[0][1]).toBe("parent");
+    expect(load.mock.calls[0][1]).toBe("parent"); expect(load.mock.calls[0][2]).toBe(uid);
   });
   it("has no fake badge when there are zero unread notifications", async () => {
     render(<FamilyNotificationBell userId={uid} role="student" className="min-h-11" />);
@@ -36,14 +36,14 @@ describe("family notification bell", () => {
     const old = deferred<number>(), fresh = deferred<number>(); load.mockResolvedValueOnce(9).mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
     render(<FamilyNotificationBell userId={uid} role="parent" className="" />); await screen.findByRole("link", { name: "Open notifications, 9 unread" });
     fireEvent(window, new Event("focus")); expect(screen.queryByRole("link", { name: /9 unread/ })).not.toBeInTheDocument();
-    const signal = load.mock.calls[1][2] as AbortSignal; fireEvent(document, new Event("visibilitychange")); expect(signal.aborted).toBe(true);
+    const signal = load.mock.calls[1][3] as AbortSignal; fireEvent(document, new Event("visibilitychange")); expect(signal.aborted).toBe(true);
     await act(async () => fresh.resolve(2)); expect(screen.getByRole("link", { name: "Open notifications, 2 unread" })).toBeInTheDocument();
     await act(async () => old.resolve(99)); expect(screen.queryByRole("link", { name: /99 unread/ })).not.toBeInTheDocument();
   });
   it("hides an old account's bell and aborts pending requests on sign out", async () => {
     const pending = deferred<number>(); load.mockReturnValue(pending.promise);
     const view = render(<FamilyNotificationBell userId={uid} role="student" className="" />);
-    const signal = load.mock.calls[0][2] as AbortSignal; act(() => authChanged("SIGNED_OUT", null)); expect(signal.aborted).toBe(true);
+    const signal = load.mock.calls[0][3] as AbortSignal; act(() => authChanged("SIGNED_OUT", null)); expect(signal.aborted).toBe(true);
     expect(screen.queryByRole("link")).not.toBeInTheDocument(); await act(async () => pending.resolve(7)); expect(screen.queryByRole("link")).not.toBeInTheDocument();
     view.unmount(); expect(unsubscribe).toHaveBeenCalledOnce();
   });

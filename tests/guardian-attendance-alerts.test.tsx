@@ -7,12 +7,13 @@ import { FamilyNotificationBell } from "../components/notifications/family-notif
 import { familyNotificationsChangedEvent, type FamilyNotification, type FamilyNotificationInbox as Inbox } from "@/lib/notifications/family";
 
 const { load, count, mark, bulk, subscribe, unsubscribe } = vi.hoisted(() => ({ load: vi.fn(), count: vi.fn(), mark: vi.fn(), bulk: vi.fn(), subscribe: vi.fn(), unsubscribe: vi.fn() }));
+vi.mock("@/components/family/gate-alert-preferences", () => ({ GateAlertPreferences: () => <aside aria-label="Gate preferences" /> }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: subscribe } }) }));
 vi.mock("@/lib/notifications/family", async (original) => ({ ...await original<typeof import("@/lib/notifications/family")>(), loadFamilyNotificationInbox: load, loadFamilyNotificationUnreadCount: count, markFamilyNotificationRead: mark, markAllFamilyNotificationsRead: bulk }));
 
 const uid = "00000000-0000-4000-8000-000000000001";
 const readAt = "2026-11-06T12:00:00Z";
-const first: FamilyNotification = { id: "00000000-0000-4000-8000-000000000010", kind: "absence", student_id: "00000000-0000-4000-8000-000000000002", student_name: "First pupil", created_at: "2026-11-06T10:00:00Z", read_at: null, event_date: "2026-11-06", source_id: "00000000-0000-4000-8000-000000000011", status: "absent", title: "Marked absent", assessment_id: null };
+const first: FamilyNotification = { id: "00000000-0000-4000-8000-000000000010", kind: "absence", student_id: "00000000-0000-4000-8000-000000000002", student_name: "First pupil", created_at: "2026-11-06T10:00:00Z", read_at: null, event_date: "2026-11-06", source_id: "00000000-0000-4000-8000-000000000011", status: "absent", title: "Marked absent", assessment_id: null, occurred_at: null, delayed: false };
 const second: FamilyNotification = { ...first, id: "00000000-0000-4000-8000-000000000020", student_name: "Second pupil", kind: "result_published", status: "published", title: "Term results published", assessment_id: "00000000-0000-4000-8000-000000000021" };
 const third: FamilyNotification = { ...first, id: "00000000-0000-4000-8000-000000000030", kind: "leave_decision", status: "approved", title: "Leave approved" };
 function inbox(notifications: FamilyNotification[], unread_count = notifications.filter((row) => row.read_at === null).length, next_cursor: Inbox["next_cursor"] = null): Inbox { return { notifications, unread_count, next_cursor }; }
@@ -25,6 +26,24 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
+  it("shows child gate preferences only on full Guardian Notifications", async () => {
+    const view = render(<FamilyNotificationInbox userId={uid} role="parent" />); await screen.findByText("0 unread");
+    expect(screen.getByRole("complementary", { name: "Gate preferences" })).toBeInTheDocument();
+    view.rerender(<FamilyNotificationInbox userId={uid} role="parent" summary />); await screen.findByText("0 unread");
+    expect(screen.queryByRole("complementary", { name: "Gate preferences" })).not.toBeInTheDocument();
+    view.rerender(<FamilyNotificationInbox userId={uid} role="student" />); await screen.findByText("0 unread");
+    expect(screen.queryByRole("complementary", { name: "Gate preferences" })).not.toBeInTheDocument();
+  });
+  it("renders gate event time rather than receipt time and keeps kind-scoped read actions", async () => {
+    const gate = { ...first, kind: "gate_arrival" as const, status: "IN" as const, title: "Arrived at school", occurred_at: "2026-11-06T08:15:00+05:30", delayed: true };
+    load.mockResolvedValue(inbox([gate])); const user = userEvent.setup(); render(<FamilyNotificationInbox userId={uid} role="parent" />);
+    const link = await screen.findByRole("link", { name: /Arrived at school First pupil/ });
+    expect(link).toHaveAttribute("href", `/modules/attendance?child=${first.student_id}&view=guardian`);
+    expect(screen.getByText("Delayed update")).toBeInTheDocument();
+    const time = screen.getByText(/8:15/); expect(time).toHaveAttribute("datetime", gate.occurred_at); expect(time).toHaveTextContent("IST");
+    await user.click(screen.getByRole("button", { name: /Mark as read: First pupil, Arrived at school/ }));
+    expect(mark.mock.calls[0].slice(1, 5)).toEqual(["parent", "gate_arrival", first.id, uid]);
+  });
   it("updates the matching header bell from a fresh server count after a successful mark", async () => {
     load.mockResolvedValueOnce(inbox([first, second], 2)).mockResolvedValueOnce(inbox([{ ...first, read_at: readAt }, second], 1));
     count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
@@ -42,7 +61,7 @@ describe("family notification inbox", () => {
     const card = within(screen.getByRole("region", { name: "School updates" }));
     expect(await card.findAllByRole("listitem")).toHaveLength(5);
     expect(card.getByText("42 unread")).toBeInTheDocument();
-    expect(load.mock.calls[0][1]).toEqual({ role: "parent", unreadOnly: false, cursor: null, limit: 5 });
+    expect(load.mock.calls[0][1]).toEqual({ userId: uid, role: "parent", unreadOnly: false, cursor: null, limit: 5 });
     expect(card.getAllByRole("link", { name: /Marked absent First pupil/ })[0]).toHaveAttribute("href", `/modules/attendance?child=${first.student_id}&view=guardian`);
     expect(card.getAllByRole("link", { name: /Term results published Second pupil/ })[0]).toHaveAttribute("href", `/modules/results?child=${first.student_id}&view=guardian&assessment=${second.assessment_id}`);
     expect(card.getByRole("link", { name: "View all notifications" })).toHaveAttribute("href", "/modules/notifications?view=guardian");
@@ -139,7 +158,7 @@ describe("family notification inbox", () => {
     const pending = deferred<string | null>(); load.mockResolvedValue(inbox([first])); mark.mockReturnValue(pending.promise);
     const user = userEvent.setup(); const view = render(<GuardianAttendanceAlerts userId={uid} />);
     await user.click(await screen.findByRole("button", { name: /Mark as read: First pupil/ }));
-    const signal = mark.mock.calls[0][4] as AbortSignal;
+    const signal = mark.mock.calls[0][5] as AbortSignal;
     act(() => authChanged("SIGNED_IN", { user: { id: "other" } })); expect(signal.aborted).toBe(true);
     expect(screen.queryByText(first.title)).not.toBeInTheDocument(); expect(screen.getByRole("alert")).toHaveTextContent("Your sign-in changed.");
     await act(async () => pending.resolve(readAt)); expect(load).toHaveBeenCalledTimes(1);

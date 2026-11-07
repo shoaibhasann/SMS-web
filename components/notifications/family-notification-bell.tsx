@@ -27,11 +27,11 @@ function OwnFamilyNotificationBell({ userId, role, className }: { userId: string
   useEffect(() => {
     if (sessionChanged) return;
     const controller = new AbortController(); request.current = controller;
-    loadFamilyNotificationUnreadCount(client, role, controller.signal).then((value) => {
+    loadFamilyNotificationUnreadCount(client, role, userId, controller.signal).then((value) => {
       if (!controller.signal.aborted) setCount({ version, value });
     }, () => { /* A failed count must not show a fabricated zero or old account's badge. */ });
     return () => { controller.abort(); if (request.current === controller) request.current = null; };
-  }, [client, role, version, sessionChanged]);
+  }, [client, userId, role, version, sessionChanged]);
   useEffect(() => {
     if (sessionChanged) return;
     const refresh = () => setVersion((value) => value + 1);
