@@ -5,6 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, History, RefreshCw, Save } fro
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LoadingState } from "@/components/ui/skeleton";
+import { HistoricalCalendarImport } from "@/components/admin/historical-calendar-import";
 import { schoolDate } from "@/lib/attendance/types";
 import { calendarMonthRange, loadSchoolAttendanceCalendar, saveSchoolAttendanceCalendar, SchoolCalendarError, validateSchoolCalendarIntent,
   type CalendarMode, type SchoolAttendanceCalendar as CalendarRecord, type SchoolCalendarIntent } from "@/lib/attendance/calendar";
@@ -28,6 +29,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
   const [editor, setEditor] = useState<Editor>(), [intent, setIntent] = useState<SchoolCalendarIntent>();
   const [saving, setSaving] = useState(false), [conflict, setConflict] = useState(false), [sessionChanged, setSessionChanged] = useState(false);
   const [conflictKey, setConflictKey] = useState<string>();
+  const [importLocked, setImportLocked] = useState(false);
   const [notice, setNotice] = useState<{ error: boolean; text: string }>();
   const read = useRef<AbortController | null>(null), write = useRef<AbortController | null>(null);
   let range: { from: string; to: string } | undefined;
@@ -35,7 +37,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
   const from = range?.from, to = range?.to;
   const id = useId(), key = `${month}:${revision}`;
   const current: typeof loaded = !range ? { key, error: "Choose a valid calendar month." } : loaded?.key === key ? loaded : undefined;
-  const calendar = current?.data, locked = !!editor || !!intent || saving;
+  const calendar = current?.data, locked = !!editor || !!intent || saving || importLocked;
   useEffect(() => { onLock(locked); }, [locked, onLock]);
   useEffect(() => {
     if (!locked) return;
@@ -64,7 +66,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
     return () => { controller.abort(); if (read.current === controller) read.current = null; };
   }, [client, userId, schoolId, from, to, key, sessionChanged]);
 
-  function reload() { if (!write.current && !intent) setRevision(value => value + 1); }
+  function reload() { if (!write.current && !intent && !importLocked) setRevision(value => value + 1); }
   function moveMonth(offset: number) {
     if (locked) return;
     try {
@@ -105,7 +107,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
   return <section id="attendance-calendar" className="scroll-mt-24 space-y-4" aria-labelledby={`${id}-title`}>
     <header className="flex flex-wrap items-start justify-between gap-3"><div><h2 id={`${id}-title`} className="flex items-center gap-2 text-xl font-bold"><CalendarDays size={21} aria-hidden="true" />Calendar &amp; daily attendance rules</h2>
       <p className="mt-1 text-sm leading-6 muted">One school schedule for manual and gate attendance. Changes preserve saved marks and history.</p></div>
-      <button type="button" className={control} disabled={saving || !!intent || sessionChanged} onClick={reload}><RefreshCw size={15} aria-hidden="true" />Reload calendar</button></header>
+      <button type="button" className={control} disabled={saving || !!intent || importLocked || sessionChanged} onClick={reload}><RefreshCw size={15} aria-hidden="true" />Reload calendar</button></header>
     {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your sign-in changed. Reopen school settings.</p>
       : !current ? <LoadingState variant="form">Loading school attendance calendar…</LoadingState>
         : current.error ? <div className="card space-y-3 p-4"><p role="alert" className="text-sm text-red-700 dark:text-red-300">{current.error}</p>
@@ -127,7 +129,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
               </section>
               <section className="card space-y-4 p-4" aria-label="Manage daily attendance rules">
                 <div><h3 className="font-semibold">Plan a calendar change</h3><p className="mt-1 text-xs leading-5 muted">Use today or a future date. Today is locked after any attendance or gate evidence. Past records are never rewritten.</p></div>
-                {!editor ? <><div className="flex flex-wrap gap-2"><button type="button" className={control} disabled={!calendar.can_edit} onClick={() => begin("policy")}>Set weekly rules</button><button type="button" className={control} disabled={!calendar.can_edit || calendar.policy_count === 0} onClick={() => begin("exception")}>Add dated exception</button></div>
+                {!editor ? <><div className="flex flex-wrap gap-2"><button type="button" className={control} disabled={!calendar.can_edit || importLocked} onClick={() => begin("policy")}>Set weekly rules</button><button type="button" className={control} disabled={!calendar.can_edit || importLocked || calendar.policy_count === 0} onClick={() => begin("exception")}>Add dated exception</button></div>
                   {calendar.policy_count === 0 && <p className="text-xs leading-5 muted">Configure weekly rules before adding dated exceptions.</p>}</>
                   : <form aria-label={editor.kind === "policy" ? "School weekly attendance rules" : "School calendar exception"} className="space-y-4" onSubmit={save}>
                     <fieldset disabled={saving || !!intent || conflict} className="space-y-4">
@@ -158,6 +160,7 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
                 <div><h4 className="text-sm font-semibold">Dated exceptions</h4>{calendar.exceptions.length ? <ul className="mt-2 max-h-64 space-y-2 overflow-y-auto" tabIndex={0} aria-label="Dated exception history">{calendar.exceptions.map(exception => <li key={exception.revision} className="rounded-xl bg-[var(--surface-2)] p-3 text-xs leading-5"><strong>{formatDate(exception.day)} · {modeLabel[exception.mode]}</strong><p className="break-words">{exception.label ?? "Weekly schedule inherited"} · Revision {exception.revision}</p><p className="mt-1 break-words muted">{exception.reason}</p></li>)}</ul> : <p className="mt-2 text-sm muted">No dated exceptions saved.</p>}</div></div>
             </section>
           </>}
+    {!sessionChanged && <HistoricalCalendarImport client={client} userId={userId} schoolId={schoolId} disabled={!calendar || !!editor || !!intent || saving} onLock={setImportLocked} onImported={() => setRevision(value => value + 1)} />}
   </section>;
 }
 
@@ -167,7 +170,7 @@ function MonthGrid({ calendar }: { calendar: CalendarRecord }) {
     <tbody>{Array.from({ length: Math.ceil(cells.length / 7) }, (_, week) => <tr key={week}>{Array.from({ length: 7 }, (_, dayIndex) => {
       const day = cells[week * 7 + dayIndex];
       return <td key={dayIndex} className="p-0.5 align-top">{day && <div className={`min-h-16 rounded-lg border p-1.5 ${day.day === calendar.server_today ? "border-[var(--primary)]" : "border-[var(--border)]"} ${day.configured && day.is_working === false ? "bg-amber-500/10" : "bg-[var(--surface-2)]"}`} title={day.label ?? undefined}>
-        <time dateTime={day.day} className="block font-semibold">{Number(day.day.slice(-2))}</time><span className="mt-1 block break-words text-[10px] leading-4 muted">{!day.configured ? "Not set" : day.is_working ? "Working" : "Closed"}</span>{day.source === "exception" && <span className="sr-only">{day.label ?? "Dated exception"}</span>}
+        <time dateTime={day.day} className="block font-semibold">{Number(day.day.slice(-2))}</time><span className="mt-1 block break-words text-[10px] leading-4 muted">{!day.configured ? "Not set" : day.is_working ? "Working" : "Closed"}</span>{(day.source === "exception" || day.source === "import") && <span className="sr-only">{day.label ?? "Dated exception"}</span>}
       </div>}</td>;
     })}</tr>)}</tbody></table></div>;
 }

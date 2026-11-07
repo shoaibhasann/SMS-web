@@ -49,3 +49,7 @@ Use the [focused checklist](../../public/qa/official-attendance-checklist.md). A
 The measured frontend runtime is `d18b4eb`; the final source follow-up carries the already-applied forward migration, recovery plan, regression case and this evidence without changing the tested frontend/helper. The runtime error-level deployment log scan over 15 minutes returned no error records. This does not certify sustained load or long-term monitoring/drains.
 
 The final focused checklist source SHA-256 is `f557c9e0c44cf7c28922e93247d0bb8e4e9d81c61878ea1e13b3962a756abc5d`. Founder boxes remain unchecked; deployed-byte readback is checked with the final source release.
+
+## Historical calendar follow-up
+
+The later [historical CSV import](HISTORICAL-CALENDAR-QA.md) fills approved past gaps through actual Office APIs, with retained attendance unchanged and explicit reporting impact. It supersedes the earlier limitation that only trusted QA seeding could supply historical calendar facts; the earlier release evidence above remains historical.

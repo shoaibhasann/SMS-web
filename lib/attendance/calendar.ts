@@ -4,8 +4,8 @@ import { boundMfaSession } from "@/lib/auth/staff-mfa";
 export type CalendarMode = "holiday" | "working" | "inherit";
 export type AttendancePolicyVersion = { revision: number; effective_from: string; working_days: number[]; correction_window_days: number; reason: string; actor_id: string; created_at: string };
 export type AttendanceExceptionVersion = { revision: number; day: string; mode: CalendarMode; label: string | null; reason: string; actor_id: string; created_at: string };
-export type CalendarDay = { day: string; configured: boolean; is_working: boolean | null; source: "unconfigured" | "weekday" | "exception";
-  label: string | null; policy_revision: number | null; exception_revision: number | null; correction_window_days: number | null };
+export type CalendarDay = { day: string; configured: boolean; is_working: boolean | null; source: "unconfigured" | "weekday" | "exception" | "import";
+  label: string | null; policy_revision: number | null; exception_revision: number | null; correction_window_days: number | null; import_revision?: number | null };
 export type SchoolAttendanceCalendar = { user_id: string; school_id: string; revision: number; can_edit: boolean; server_today: string;
   timezone: "Asia/Kolkata"; from: string; to: string; history_limit: 50; policy_count: number; exception_count: number;
   policies: AttendancePolicyVersion[]; exceptions: AttendanceExceptionVersion[]; days: CalendarDay[] };
@@ -63,10 +63,14 @@ export function parseSchoolAttendanceCalendar(value: unknown, userId: string, sc
   for (let index = 0; index < row.days.length; index++) {
     const day = object(row.days[index]);
     if (day.day !== new Date(start + index * 86400000).toISOString().slice(0, 10) || typeof day.configured !== "boolean"
-      || !(day.is_working === null || typeof day.is_working === "boolean") || !["unconfigured", "weekday", "exception"].includes(String(day.source))
+      || !(day.is_working === null || typeof day.is_working === "boolean") || !["unconfigured", "weekday", "exception", "import"].includes(String(day.source))
       || !(day.label === null || text(day.label, 1, 120))
       || ![day.policy_revision, day.exception_revision].every(item => item === null || revision(item) && item > 0 && item <= Number(row.revision))
-      || !(day.correction_window_days === null || integer(day.correction_window_days, 365))) throw invalid();
+      || !(day.correction_window_days === null || integer(day.correction_window_days, 365))
+      || (day.source === "import" ? !day.configured || typeof day.is_working !== "boolean" || day.day >= row.server_today
+        || day.policy_revision !== null || day.exception_revision !== null || day.correction_window_days !== null
+        || !revision(day.import_revision) || day.import_revision < 1 || day.import_revision > Number(row.revision)
+        : day.import_revision !== undefined && day.import_revision !== null)) throw invalid();
   }
   return value as SchoolAttendanceCalendar;
 }

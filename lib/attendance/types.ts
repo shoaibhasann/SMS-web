@@ -54,11 +54,12 @@ export type AttendanceDayContext = {
   revision: number;
   configured: boolean;
   is_working: boolean | null;
-  source: "unconfigured" | "weekday" | "exception";
+  source: "unconfigured" | "weekday" | "exception" | "import";
   label: string | null;
   policy_revision: number | null;
   exception_revision: number | null;
   correction_window_days: number | null;
+  import_revision?: number | null;
   can_request_correction: boolean;
   can_mark_holiday: boolean;
 };

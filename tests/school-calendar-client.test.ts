@@ -38,6 +38,27 @@ describe("school calendar client contract", () => {
   ])("rejects partial or mismapped calendar snapshots", patch => {
     expect(() => parseSchoolAttendanceCalendar({ ...calendarFixture(), ...patch }, uid, schoolId, "2026-11-01", "2026-11-30")).toThrow("could not be verified");
   });
+  it("retains verified imported past-day provenance without a weekly correction policy", () => {
+    const fixture = calendarFixture({ revision: 3 });
+    fixture.days[0] = { ...fixture.days[0], configured: true, is_working: false, source: "import", label: "Historical school holiday", import_revision: 3 };
+    const parsed = parseSchoolAttendanceCalendar(fixture, uid, schoolId, fixture.from, fixture.to);
+    expect(parsed.days[0]).toEqual(fixture.days[0]);
+    expect(parsed.days[0].correction_window_days).toBeNull();
+  });
+  it.each([
+    { import_revision: undefined }, { import_revision: 0 }, { import_revision: 4 },
+    { policy_revision: 1 }, { exception_revision: 1 }, { correction_window_days: 0 },
+    { configured: false }, { is_working: null },
+  ])("rejects unverifiable imported calendar metadata: %j", patch => {
+    const fixture = calendarFixture({ revision: 3 });
+    fixture.days[0] = { ...fixture.days[0], configured: true, is_working: true, source: "import", label: "Historical working day", import_revision: 3, ...patch };
+    expect(() => parseSchoolAttendanceCalendar(fixture, uid, schoolId, fixture.from, fixture.to)).toThrow("could not be verified");
+  });
+  it("rejects an import applied on the server's current day", () => {
+    const fixture = calendarFixture({ revision: 3 });
+    fixture.days[6] = { ...fixture.days[6], configured: true, is_working: true, source: "import", label: "Working day", import_revision: 3 };
+    expect(() => parseSchoolAttendanceCalendar(fixture, uid, schoolId, fixture.from, fixture.to)).toThrow("could not be verified");
+  });
   it("validates explicit rules without choosing weekdays or a correction window", () => {
     expect(validateSchoolCalendarIntent(intent())).toBeNull();
     expect(validateSchoolCalendarIntent({ ...intent(), kind: "unknown" } as unknown as SchoolCalendarIntent)).not.toBeNull();

@@ -26,11 +26,16 @@ export async function loadAttendanceDayContext(client: SupabaseClient, userId: s
     || !(row.label === null || typeof row.label === "string" && row.label.trim() && row.label.length <= 120 && !/[\u0000-\u001f\u007f]/.test(row.label))
     || !(row.exception_revision === null || revision(row.exception_revision) && row.exception_revision <= row.revision)
     || (row.can_request_correction && day >= row.server_today)
-    || (row.configured ? typeof row.is_working !== "boolean" || !["weekday", "exception"].includes(row.source as string)
+    || (row.source === "import" ? !row.configured || typeof row.is_working !== "boolean" || day >= row.server_today
+      || row.policy_revision !== null || row.exception_revision !== null || row.correction_window_days !== null
+      || !revision(row.import_revision) || row.import_revision < 1 || row.import_revision > row.revision
+      : row.import_revision !== undefined && row.import_revision !== null)
+    || (row.configured ? row.source === "import" ? false : typeof row.is_working !== "boolean" || !["weekday", "exception"].includes(row.source as string)
       || !revision(row.policy_revision) || row.policy_revision > row.revision || !revision(row.correction_window_days) || row.correction_window_days > 365
       : row.is_working !== null || row.source !== "unconfigured" || row.policy_revision !== null || row.correction_window_days !== null)) throw invalid();
   return { day, server_today: row.server_today, revision: row.revision, configured: row.configured, is_working: row.is_working as boolean | null,
     source: row.source as AttendanceDayContext["source"], label: row.label as string | null, policy_revision: row.policy_revision as number | null,
     exception_revision: row.exception_revision as number | null, correction_window_days: row.correction_window_days as number | null,
-    can_request_correction: row.can_request_correction, can_mark_holiday: row.can_mark_holiday };
+    can_request_correction: row.can_request_correction, can_mark_holiday: row.can_mark_holiday,
+    ...(row.source === "import" ? { import_revision: row.import_revision as number } : {}) };
 }

@@ -38,6 +38,18 @@ describe("owner-bound server attendance calendar decisions", () => {
   ])("rejects malformed, mismatched or stale owner/context metadata: %j", async value => {
     await expect(loadAttendanceDayContext(client({ ...base, ...value }).db, "teacher-a", context, base.day)).rejects.toThrow("could not be verified");
   });
+  it("accepts explicit historical import provenance without inventing a weekly policy or correction window", async () => {
+    const day = "2026-11-06", imported = { ...base, day, source: "import", is_working: true, label: "Verified historical school day",
+      policy_revision: null, exception_revision: null, correction_window_days: null, import_revision: 2, can_request_correction: true };
+    expect(await loadAttendanceDayContext(client(imported).db, "teacher-a", context, day)).toMatchObject({ source: "import", import_revision: 2,
+      policy_revision: null, correction_window_days: null, can_request_correction: true });
+  });
+  it.each([{ import_revision: undefined }, { import_revision: 3 }, { policy_revision: 1 }, { correction_window_days: 0 },
+    { configured: false }, { day: "2026-11-07" }])("denies invalid imported-day provenance %j", async patch => {
+    const imported = { ...base, day: "2026-11-06", source: "import", policy_revision: null, exception_revision: null,
+      correction_window_days: null, import_revision: 2, ...patch };
+    await expect(loadAttendanceDayContext(client(imported).db, "teacher-a", context, imported.day)).rejects.toThrow("could not be verified");
+  });
   it("fails closed without an owner session or after server access denial", async () => {
     const { db, rpc } = client();
     vi.mocked(boundMfaSession).mockResolvedValueOnce(null as never);

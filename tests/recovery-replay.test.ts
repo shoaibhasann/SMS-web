@@ -55,13 +55,13 @@ describe("recovery source boundary", () => {
 
   it("keeps tenant bootstrap scripts archived but outside the replay plan", async () => {
     const actual = await readRecoveryManifest();
-    expect(actual.plan).toHaveLength(98);
-    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(28);
+    expect(actual.plan).toHaveLength(100);
+    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(30);
     expect(actual.plan.some((source) => source.path.endsWith("20261030_academic_teacher_self_management.sql"))).toBe(false);
     expect(actual.plan.some((source) => /20261030094244|20261030095353/.test(source.path))).toBe(false);
     const before = await readRecoverySources(actual, { applyPending: false });
     const after = await readRecoverySources(actual);
-    expect(after.length - before.length).toBe(28);
+    expect(after.length - before.length).toBe(30);
     expect(after.slice(0, before.length)).toEqual(before);
   });
 
@@ -90,7 +90,7 @@ describe("complete empty application replay", () => {
         count(*) filter(where c.relkind='v')::int as views
         from pg_class c join pg_namespace n on n.oid=c.relnamespace
         where n.nspname in ('public','app_private')`);
-      expect(counts.rows).toEqual([{ tables: 128, views: 5 }]);
+      expect(counts.rows).toEqual([{ tables: 129, views: 5 }]);
       expect((await db.query("select count(*)::int as schools from public.schools")).rows).toEqual([{ schools: 0 }]);
       expect((await db.query("select count(*)::int as users from auth.users")).rows).toEqual([{ users: 0 }]);
       expect((await db.query("select count(*)::int as profiles from public.profiles")).rows).toEqual([{ profiles: 0 }]);
@@ -130,6 +130,12 @@ describe("complete empty application replay", () => {
         has_function_privilege('anon',p.oid,'EXECUTE') as anonymous,
         has_function_privilege('service_role',p.oid,'EXECUTE') as server from pg_proc p
         where p.oid=to_regprocedure('public.get_family_attendance_summary(text,uuid,date)')`)).rows)
+        .toEqual([{ definer: false, provolatile: "v", browser: true, anonymous: false, server: false }]);
+      expect((await db.query(`select p.prosecdef as definer,p.provolatile,
+        has_function_privilege('authenticated',p.oid,'EXECUTE') as browser,
+        has_function_privilege('anon',p.oid,'EXECUTE') as anonymous,
+        has_function_privilege('service_role',p.oid,'EXECUTE') as server from pg_proc p
+        where p.oid=to_regprocedure('public.import_historical_attendance_calendar(uuid,uuid,jsonb,bigint,text,boolean,text,uuid)')`)).rows)
         .toEqual([{ definer: false, provolatile: "v", browser: true, anonymous: false, server: false }]);
       expect((await db.query(`select has_table_privilege('authenticated','app_private.school_attendance_policy_versions','INSERT') as policy,
         has_table_privilege('authenticated','public.school_holidays','INSERT,UPDATE,DELETE') as legacy_holiday,

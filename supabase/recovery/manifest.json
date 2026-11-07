@@ -855,6 +855,22 @@
       "version": "20261107120830",
       "name": "reject_unended_withdrawn_attendance_summary",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107123302_historical_attendance_calendar_import.sql",
+      "sha256": "756be8c5d17a20b66f9a80a18bd51552ebf85428f51c1c3d19b6528aff553edd",
+      "kind": "pending",
+      "version": "20261107123302",
+      "name": "historical_attendance_calendar_import",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107124633_serialize_attendance_corrections_with_calendar_imports.sql",
+      "sha256": "e53f8322da0197ba5754db90fccb7681649403bae93ccfd2f014162f011a6a1e",
+      "kind": "pending",
+      "version": "20261107124633",
+      "name": "serialize_attendance_corrections_with_calendar_imports",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -893,5 +909,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "9334383c85816def0f6065f51db7697460c4250892eaaf4b4f0371916b918dbd"
+  "order_sha256": "da99e9766ab62f5f2ddcc4d4a3506eb0fdd221b6ad498fb79844d3a543c041e8"
 }

@@ -1,5 +1,10 @@
 # Implementation phases
 
+## Historical calendar CSV import — 7 November 2026
+
+Admin/Principal can fill strictly past, previously unconfigured school-calendar dates through bounded CSV → checked server preview → acknowledged atomic import. Existing calendar decisions and pupil marks are preserved; schoolwide reporting impact is explicit, with required MFA and stale-preview/retry protection. [Engineering evidence](HISTORICAL-CALENDAR-QA.md) · [Founder checklist](../../public/qa/historical-calendar-checklist.md). Validation/release status is recorded in the focused evidence; founder acceptance remains pending.
+
+
 Current web backlog: [remaining code, demo screens and activation gates](WEB-REMAINING.md), updated 7 November 2026.
 
 ## Official family attendance percentages — main/Production verified, 7 November 2026
