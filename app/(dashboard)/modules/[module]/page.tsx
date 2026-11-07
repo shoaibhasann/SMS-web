@@ -26,6 +26,7 @@ import { GuardianContactSettings } from "@/components/family/guardian-contact-se
 import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
 import { StudentRosterWorkspace } from "@/components/admin/student-roster-workspace";
+import { ParentDirectoryWorkspace } from "@/components/admin/parent-directory-workspace";
 import { AdminDemoWorkspace } from "@/components/admin/admin-demo-workspace";
 import type { AdminDemoModule } from "@/lib/admin/admin-demo-service";
 import { TeacherAttendanceRegister } from "@/components/academic/teacher-attendance-register";
@@ -292,12 +293,16 @@ function ModuleContent() {
     );
   }
 
-  if (moduleName === "students" && (access.role === "admin" || access.role === "principal")) {
+  if ((moduleName === "students" || moduleName === "admissions") && (access.role === "admin" || access.role === "principal")) {
     return (
       <AppShell key={access.userId} userId={access.userId} role={access.role}>
-        <StudentRosterWorkspace key={access.userId} userId={access.userId} />
+        <StudentRosterWorkspace key={`${access.userId}:${moduleName}`} userId={access.userId} view={moduleName === "admissions" ? "admissions" : "students"} />
       </AppShell>
     );
+  }
+
+  if (moduleName === "parents" && (access.role === "admin" || access.role === "principal")) {
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><ParentDirectoryWorkspace key={access.userId} userId={access.userId} /></AppShell>;
   }
 
   if (moduleName === "teachers" && (access.role === "admin" || access.role === "principal")) {
@@ -313,7 +318,7 @@ function ModuleContent() {
   }
 
   if (access.role === "admin" && [
-    "parents", "admissions", "events", "notifications",
+    "events", "notifications",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
     "reports",
   ].includes(moduleName)) {

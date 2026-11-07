@@ -60,6 +60,12 @@ vi.mock("@/components/admin/audit-history-workspace", () => ({
 vi.mock("@/components/admin/school-settings-workspace", () => ({
   SchoolSettingsWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real school settings">{userId}</section>,
 }));
+vi.mock("@/components/admin/parent-directory-workspace", () => ({
+  ParentDirectoryWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real parent directory">{userId}</section>,
+}));
+vi.mock("@/components/admin/student-roster-workspace", () => ({
+  StudentRosterWorkspace: ({ userId, view }: { userId: string; view: string }) => <section aria-label="Real student enrollment">{userId} {view}</section>,
+}));
 vi.mock("@/components/family/student-leave-workspace", () => ({
   StudentLeaveWorkspace: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Student leave workspace">{role} {userId}</section>,
 }));
@@ -102,6 +108,26 @@ beforeEach(() => {
   readProfile.mockResolvedValue({ data: { is_active: true, school_id: "school" }, error: null });
   onAuthStateChange.mockReset().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
+});
+
+describe("real office routes", () => {
+  it.each(["school_admin", "principal", "super_admin"])("opens Parents and Admissions for %s without a demo fallback", async (role) => {
+    currentModule = "parents"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    const page = render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Real parent directory" })).toHaveTextContent("actor");
+    page.unmount(); currentModule = "admissions"; render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Real student enrollment" })).toHaveTextContent("actor admissions");
+    expect(screen.queryByText("This module is ready for its dedicated management screen.")).not.toBeInTheDocument();
+  });
+  it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("denies %s the office directory and admissions before mounting", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null }); currentModule = "parents";
+    const page = render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    expect(screen.queryByRole("region", { name: "Real parent directory" })).not.toBeInTheDocument();
+    page.unmount(); currentModule = "admissions"; render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    expect(screen.queryByRole("region", { name: "Real student enrollment" })).not.toBeInTheDocument();
+  });
 });
 
 describe("real school settings route", () => {

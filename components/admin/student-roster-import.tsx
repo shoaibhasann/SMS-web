@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AttendanceContext } from "@/lib/attendance/types";
-import { importRosterStudents, type RosterAdmission } from "@/lib/students/roster";
+import { importRosterStudents, RosterWriteError, type RosterAdmission } from "@/lib/students/roster";
 import { maxRosterCsvBytes, maxRosterImportStudents, parseRosterCsv, rosterCsvTemplate } from "@/lib/students/roster-csv";
 
 type Preview = {
@@ -14,25 +14,47 @@ type Preview = {
 
 type ImportNotice = { message: string; error?: boolean };
 
-export function StudentRosterImport({ client, context, disabled, onBusyChange, onImported }: {
+type Props = {
   client: SupabaseClient;
+  ownerUserId: string;
   context: AttendanceContext;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
   onImported: () => void;
-}) {
+};
+
+export function StudentRosterImport(props: Props) {
+  const { ownerUserId, context } = props;
+  return <RosterImport key={`${ownerUserId}:${context.schoolId}:${context.academicYearId}:${context.classId}:${context.sectionId}`} {...props} />;
+}
+
+function RosterImport({ client, ownerUserId, context, disabled, onBusyChange, onImported }: Props) {
   const [preview, setPreview] = useState<Preview>();
   const [reading, setReading] = useState(false);
   const [importing, setImporting] = useState(false);
   const [imported, setImported] = useState(false);
   const [notice, setNotice] = useState<ImportNotice>();
+  const [uncertain, setUncertain] = useState(false);
+  const [sessionChanged, setSessionChanged] = useState(false);
   const readVersion = useRef(0);
   const submitInFlight = useRef(false);
+  const mounted = useRef(true), changed = useRef(false), operation = useRef<AbortController | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (event !== "INITIAL_SESSION" && session?.user.id !== ownerUserId) {
+        changed.current = true; readVersion.current += 1; operation.current?.abort();
+        setSessionChanged(true); setPreview(undefined); setNotice(undefined); onBusyChange(false);
+      }
+    });
+    return () => { mounted.current = false; readVersion.current += 1; operation.current?.abort(); subscription.unsubscribe(); onBusyChange(false); };
+  }, [client, ownerUserId, onBusyChange]);
+  const currentRead = (version: number) => mounted.current && !changed.current && version === readVersion.current;
 
   async function selectFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
     event.currentTarget.value = "";
-    if (!file) return;
+    if (!file || changed.current || uncertain || submitInFlight.current) return;
 
     const version = ++readVersion.current;
     setPreview(undefined);
@@ -50,36 +72,43 @@ export function StudentRosterImport({ client, context, disabled, onBusyChange, o
         throw new Error("Save the file as a UTF-8 CSV and try again.");
       }
       const students = parseRosterCsv(csv);
-      if (version === readVersion.current) {
+      if (currentRead(version)) {
         setPreview({ fileName: file.name, requestId: crypto.randomUUID(), students });
       }
     } catch (error: unknown) {
-      if (version === readVersion.current) {
+      if (currentRead(version)) {
         setNotice({ message: error instanceof Error ? error.message : "The CSV file could not be read.", error: true });
       }
     } finally {
-      if (version === readVersion.current) setReading(false);
+      if (currentRead(version)) setReading(false);
     }
   }
 
   async function submit() {
-    if (!preview || imported || disabled || submitInFlight.current) return;
+    if (!preview || imported || changed.current || disabled && !uncertain || submitInFlight.current) return;
 
     submitInFlight.current = true;
     onBusyChange(true);
     setImporting(true);
     setNotice(undefined);
+    const controller = new AbortController(); operation.current = controller;
+    let keepBusy = false;
     try {
-      const count = await importRosterStudents(client, context, preview.requestId, preview.students);
+      const count = await importRosterStudents(client, context, preview.requestId, preview.students, { userId: ownerUserId, signal: controller.signal });
+      if (controller.signal.aborted || !mounted.current || changed.current) return;
+      setUncertain(false);
       setImported(true);
       setNotice({ message: `${count} student${count === 1 ? "" : "s"} imported and enrolled.` });
       onImported();
     } catch (error: unknown) {
+      if (controller.signal.aborted || !mounted.current || changed.current) return;
+      keepBusy = !(error instanceof RosterWriteError) || error.code === "unconfirmed";
+      setUncertain(keepBusy);
       setNotice({ message: error instanceof Error ? error.message : "The import could not be confirmed.", error: true });
     } finally {
       submitInFlight.current = false;
-      setImporting(false);
-      onBusyChange(false);
+      if (operation.current === controller) operation.current = null;
+      if (mounted.current && !changed.current) { setImporting(false); if (!keepBusy) onBusyChange(false); }
     }
   }
 
@@ -87,6 +116,7 @@ export function StudentRosterImport({ client, context, disabled, onBusyChange, o
     <details className="card group p-4">
       <summary className="cursor-pointer text-lg font-bold">Import students from CSV</summary>
       <div className="mt-4 space-y-4">
+        {sessionChanged && <p role="alert" className="text-sm">Your account changed. Reopen this page before importing students.</p>}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <p className="max-w-xl text-sm muted">
             Upload up to {maxRosterImportStudents} students for the selected class and section.
@@ -99,7 +129,7 @@ export function StudentRosterImport({ client, context, disabled, onBusyChange, o
 
         <label className={`inline-flex min-h-11 items-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-within:ring-2 focus-within:ring-blue-500 ${disabled || importing ? "opacity-60" : "cursor-pointer"}`}>
           <span>Choose student CSV file</span>
-          <input type="file" accept=".csv,text/csv" disabled={disabled || importing}
+          <input type="file" accept=".csv,text/csv" disabled={disabled || importing || uncertain || sessionChanged}
             aria-label="Student CSV file" className="sr-only" onChange={(event) => void selectFile(event)} />
         </label>
 
@@ -128,10 +158,10 @@ export function StudentRosterImport({ client, context, disabled, onBusyChange, o
                 </tbody>
               </table>
             </div>
-            <button type="button" disabled={disabled || reading || importing || imported}
+            <button type="button" disabled={disabled && !uncertain || reading || importing || imported || sessionChanged}
               onClick={() => void submit()}
               className="min-h-11 rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
-              {importing ? "Importing students…" : imported ? "Imported" : `Import ${preview.students.length} student${preview.students.length === 1 ? "" : "s"}`}
+              {importing ? "Importing students…" : imported ? "Imported" : uncertain ? "Retry same import" : `Import ${preview.students.length} student${preview.students.length === 1 ? "" : "s"}`}
             </button>
           </div>
         )}

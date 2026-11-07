@@ -7,7 +7,7 @@ import { StudentRosterImport } from "@/components/admin/student-roster-import";
 import { StudentWithdrawalDialog, StudentWithdrawalHistory } from "@/components/admin/student-roster-withdrawals";
 import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName, type AttendanceContext, type AttendanceStudent } from "@/lib/attendance/types";
-import { admitRosterStudent } from "@/lib/students/roster";
+import { admitRosterStudent, RosterWriteError } from "@/lib/students/roster";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 
@@ -25,7 +25,11 @@ function readError(error: unknown) {
   return { error: error instanceof Error ? error.message : "The roster could not be loaded. Try again." };
 }
 
-export function StudentRosterWorkspace({ userId }: { userId: string }) {
+export function StudentRosterWorkspace({ userId, view = "students" }: { userId: string; view?: "students" | "admissions" }) {
+  return <RosterWorkspace key={`${userId}:${view}`} userId={userId} view={view} />;
+}
+
+function RosterWorkspace({ userId, view }: { userId: string; view: "students" | "admissions" }) {
   const [client] = useState(createClient);
   const [access, setAccess] = useState<Load<Access>>();
   const [selectedSchool, setSelectedSchool] = useState("");
@@ -60,8 +64,8 @@ export function StudentRosterWorkspace({ userId }: { userId: string }) {
     <div className="space-y-6">
       <header>
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">People</p>
-        <h1 className="mt-1 text-3xl font-black">Students</h1>
-        <p className="mt-2 text-sm muted">Admit students and manage their class, section and academic year.</p>
+        <h1 className="mt-1 text-3xl font-black">{view === "admissions" ? "Admissions" : "Students"}</h1>
+        <p className="mt-2 text-sm muted">{view === "admissions" ? "Admit a student or import a reviewed CSV into the current academic year, then verify the saved class register." : "Admit students and manage their class, section and academic year."}</p>
       </header>
       {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload this page to check access again.</p>
         : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
@@ -76,16 +80,18 @@ export function StudentRosterWorkspace({ userId }: { userId: string }) {
               </select>
             </label>
             {schoolId
-              ? <SchoolRoster key={schoolId} client={client} schoolId={schoolId} busy={busy} onBusyChange={setBusy} />
+              ? <SchoolRoster key={schoolId} client={client} userId={userId} schoolId={schoolId} view={view} busy={busy} onBusyChange={setBusy} />
               : <p className="text-sm muted">Select a school to open its roster.</p>}
           </>}
     </div>
   );
 }
 
-function SchoolRoster({ client, schoolId, busy, onBusyChange }: {
+function SchoolRoster({ client, userId, schoolId, view, busy, onBusyChange }: {
   client: Client;
+  userId: string;
   schoolId: string;
+  view: "students" | "admissions";
   busy: boolean;
   onBusyChange: (busy: boolean) => void;
 }) {
@@ -137,15 +143,17 @@ function SchoolRoster({ client, schoolId, busy, onBusyChange }: {
         </label>
       </div>
       {classId && sectionId
-        ? <SectionRoster key={`${year.id}:${sectionId}`} client={client} schoolId={schoolId} academicYearId={year.id}
-            classId={classId} sectionId={sectionId} setup={setup.data} busy={busy} onBusyChange={onBusyChange} />
+        ? <SectionRoster key={`${year.id}:${sectionId}`} client={client} userId={userId} schoolId={schoolId} academicYearId={year.id}
+            classId={classId} sectionId={sectionId} view={view} setup={setup.data} busy={busy} onBusyChange={onBusyChange} />
         : <p className="text-sm muted">Choose an active class and section to continue.</p>}
     </>
   );
 }
 
-function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, setup, busy, onBusyChange }: AttendanceContext & {
+function SectionRoster({ client, userId, schoolId, academicYearId, classId, sectionId, view, setup, busy, onBusyChange }: AttendanceContext & {
   client: Client;
+  userId: string;
+  view: "students" | "admissions";
   setup: Setup;
   busy: boolean;
   onBusyChange: (busy: boolean) => void;
@@ -159,12 +167,16 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
   const [withdrawalStudent, setWithdrawalStudent] = useState<AttendanceStudent>();
   const [rosterNotice, setRosterNotice] = useState("");
   const [placementStudent, setPlacementStudent] = useState<RosterStudent>();
+  const [mustReconcile, setMustReconcile] = useState(false);
   const saveInFlight = useRef(false);
+  const operation = useRef<AbortController | null>(null);
+
+  useEffect(() => () => { operation.current?.abort(); }, []);
 
   useEffect(() => {
     let active = true;
     loadEnrolledStudents(client, { schoolId, academicYearId, classId, sectionId }, { activeStudentsOnly: true, enrollmentRollOnly: true }).then(
-      (data) => { if (active) setRoster({ data }); },
+      (data) => { if (active) { setRoster({ data }); setMustReconcile(false); } },
       (error: unknown) => { if (active) setRoster(readError(error)); },
     );
     return () => { active = false; };
@@ -177,23 +189,27 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
 
   async function admitStudent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saveInFlight.current || !roster?.data) return;
+    if (busy || saveInFlight.current || mustReconcile || !roster?.data) return;
 
+    const controller = new AbortController(); operation.current = controller;
     saveInFlight.current = true;
     onBusyChange(true);
     setStatus(undefined);
     try {
-      await admitRosterStudent(client, { schoolId, academicYearId, classId, sectionId }, { admissionNumber, firstName, lastName });
+      await admitRosterStudent(client, { schoolId, academicYearId, classId, sectionId }, { admissionNumber, firstName, lastName }, { userId, signal: controller.signal });
+      if (controller.signal.aborted) return;
       setAdmissionNumber("");
       setFirstName("");
       setLastName("");
       setStatus({ message: "Student admitted and enrolled." });
       reloadRoster();
     } catch (error: unknown) {
+      if (controller.signal.aborted) return;
+      setMustReconcile(!(error instanceof RosterWriteError) || error.code === "unconfirmed");
       setStatus({ message: readError(error).error, error: true });
     } finally {
-      saveInFlight.current = false;
-      onBusyChange(false);
+      if (operation.current === controller) operation.current = null;
+      if (!controller.signal.aborted) { saveInFlight.current = false; onBusyChange(false); }
     }
   }
 
@@ -201,7 +217,7 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
     <>
       <form className="card space-y-4 p-4" onSubmit={(event) => void admitStudent(event)}>
         <h2 className="text-lg font-bold">Admit a student</h2>
-        <fieldset className="grid gap-4 md:grid-cols-3" disabled={busy || !roster?.data}>
+        <fieldset className="grid gap-4 md:grid-cols-3" disabled={busy || mustReconcile || !roster?.data}>
           <label className={label}>
             <span>Admission number</span>
             <input className="field" value={admissionNumber} maxLength={64} required
@@ -219,17 +235,18 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
           </label>
         </fieldset>
         <button type="submit" className={`${button} bg-blue-600 text-white`}
-          disabled={busy || !roster?.data || !admissionNumber.trim() || !firstName.trim()}>
+          disabled={busy || mustReconcile || !roster?.data || !admissionNumber.trim() || !firstName.trim()}>
           {busy ? "Saving…" : "Admit student"}
         </button>
         {status && <p role={status.error ? "alert" : "status"}
           className={status.error ? "text-sm text-red-700 dark:text-red-400" : "text-sm"}>
           {status.message}
         </p>}
+        {mustReconcile && <p className="text-sm leading-6 muted">Reload the roster before another admission. The previous request may already have saved; keep the same admission number while checking.</p>}
       </form>
 
-      <StudentRosterImport client={client} context={{ schoolId, academicYearId, classId, sectionId }}
-        disabled={busy || !roster?.data} onBusyChange={onBusyChange} onImported={reloadRoster} />
+      <StudentRosterImport client={client} ownerUserId={userId} context={{ schoolId, academicYearId, classId, sectionId }}
+        disabled={busy || mustReconcile || !roster?.data} onBusyChange={onBusyChange} onImported={reloadRoster} />
 
       <section className="card space-y-4 p-4" aria-label="Current class roster">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -247,23 +264,23 @@ function SectionRoster({ client, schoolId, academicYearId, classId, sectionId, s
                   <p className="font-semibold">{studentName(student)}</p>
                   <p className="muted">{student.admission_no}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                {view === "students" && <div className="flex flex-wrap gap-2">
                   <button type="button" disabled={busy} aria-label={`Change placement for ${studentName(student)}`}
                     onClick={() => { setRosterNotice(""); setPlacementStudent(student); }}
                     className={button}>Change placement</button>
                   <button type="button" disabled={busy} aria-label={`Withdraw ${studentName(student)}`}
                     onClick={() => { setRosterNotice(""); setWithdrawalStudent(student); }}
                     className={`${button} text-red-700 dark:text-red-400`}>Withdraw</button>
-                </div>
+                </div>}
               </li>)}
             </ul>}
         <Link href="/modules/guardian-invitations" className="inline-block text-sm font-semibold text-blue-600 dark:text-blue-400">
           Open guardian invitations
         </Link>
       </section>
-      <StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }} revision={refresh} />
-      <StudentPlacementHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
-        years={setup.years.filter((year) => year.start_date <= setup.year.start_date)} revision={refresh} />
+      {view === "students" && <><StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }} revision={refresh} />
+        <StudentPlacementHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
+          years={setup.years.filter((year) => year.start_date <= setup.year.start_date)} revision={refresh} /></>}
       {placementStudent && (
         <StudentPlacementDialog client={client} source={{ schoolId, academicYearId, classId, sectionId }}
           currentYear={setup.year} years={setup.years} classes={setup.classes} sections={setup.sections} student={placementStudent}

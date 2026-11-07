@@ -9,6 +9,9 @@ import { TeacherModuleView } from "../components/teacher/teacher-views";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
+  getSession: vi.fn(),
+  onAuthStateChange: vi.fn(),
+  unsubscribe: vi.fn(),
   from: vi.fn(),
   rpc: vi.fn(),
   teacherId: vi.fn(),
@@ -18,7 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { getUser: mocks.getUser }, from: mocks.from, rpc: mocks.rpc }),
+  createClient: () => ({ auth: { getUser: mocks.getUser, getSession: mocks.getSession, onAuthStateChange: mocks.onAuthStateChange }, from: mocks.from, rpc: mocks.rpc }),
 }));
 vi.mock("@/lib/academic", async (importOriginal) => ({
   ...await importOriginal<typeof import("../lib/academic")>(),
@@ -98,7 +101,10 @@ beforeEach(() => {
   queries = [];
   assessments = [assessment("exam-a", "First test"), assessment("exam-b", "Second test")];
   read = defaultRead;
-  mocks.getUser.mockResolvedValue({ data: { user: { id: "auth-teacher", email: "teacher@example.test" } }, error: null });
+  const profileUser = { id: "auth-teacher", email: "teacher@example.test", is_anonymous: false };
+  mocks.getUser.mockResolvedValue({ data: { user: profileUser }, error: null });
+  mocks.getSession.mockResolvedValue({ data: { session: { user: profileUser, access_token: "teacher-profile-jwt" } }, error: null });
+  mocks.onAuthStateChange.mockReturnValue({ data: { subscription: { unsubscribe: mocks.unsubscribe } } });
   mocks.teacherId.mockResolvedValue("teacher-a");
   mocks.assignments.mockResolvedValue(assignments);
   mocks.logs.mockResolvedValue([]);
@@ -124,6 +130,8 @@ beforeEach(() => {
       in(column: string, value: unknown) { query.filters[column] = value; return this; },
       order() { return this; },
       limit() { return this; },
+      setHeader() { return this; },
+      abortSignal() { return this; },
       single: execute,
       maybeSingle: execute,
       then(resolve: (result: Result) => unknown, reject?: (error: unknown) => unknown) { return execute().then(resolve, reject); },

@@ -9,6 +9,7 @@ import {
   type TeachingAssignment,
 } from "@/lib/academic";
 import { createClient } from "@/lib/supabase/client";
+import { boundMfaSession, StaffMfaError } from "@/lib/auth/staff-mfa";
 import { readCompletePages } from "@/lib/complete-pages";
 import {
   loadAssessments, loadAssessmentRoster, loadAssessmentMarks, loadAssessmentStudents,
@@ -1071,6 +1072,7 @@ type TeacherProfileRecord = {
 };
 
 function ProfileView() {
+  const [client] = useState(createClient);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [profile, setProfile] = useState<TeacherProfileRecord | null>(null);
@@ -1079,39 +1081,60 @@ function ProfileView() {
   const [savingPhone, setSavingPhone] = useState(false);
   const [message, setMessage] = useState("");
   const [assignments, setAssignments] = useState<TeachingAssignment[]>([]);
+  const [sessionChanged, setSessionChanged] = useState(false);
+  const owner = useRef<string | null>(null), lifetime = useRef<AbortController | null>(null), saving = useRef(false);
+  const invalidate = useCallback(() => {
+    lifetime.current?.abort(); owner.current = null;
+    setSessionChanged(true); setLoading(false); setProfile(null); setPhone(""); setEmail(""); setAssignments([]); setMessage("");
+    setError("Your account changed. Reload this page before editing your profile.");
+  }, []);
 
   useEffect(() => {
-    let active = true;
+    const controller = new AbortController(); lifetime.current = controller;
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      const nextOwner = session?.user.id;
+      if (event === "SIGNED_OUT" || owner.current && nextOwner !== owner.current) invalidate();
+      else if (!owner.current && nextOwner) owner.current = nextOwner;
+    });
     const load = async () => {
       try {
-        const supabase = createClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
-        if (authError) throw authError;
-        if (!user) throw new Error("Please sign in to view your profile.");
+        const session = await boundMfaSession(client, owner.current ?? undefined, controller.signal);
+        if (!session) throw new StaffMfaError("Please sign in to view your profile.", "access");
+        if (controller.signal.aborted) return;
+        if (owner.current && owner.current !== session.user.id) { invalidate(); return; }
+        owner.current = session.user.id;
         const ownAssignments = await getCurrentTeacherAssignments({ currentYearOnly: true });
-        const { data, error: profileError } = await supabase
+        if (controller.signal.aborted) return;
+        const { data, error: profileError } = await client
           .from("teachers")
           .select("full_name,employee_id,designation,department,joining_date,qualification,registered_mobile")
-          .eq("profile_id", user.id)
+          .eq("profile_id", session.user.id)
+          .setHeader("Authorization", `Bearer ${session.access_token}`)
+          .abortSignal(controller.signal)
           .maybeSingle();
         if (profileError) throw profileError;
-        if (active) {
+        const current = await boundMfaSession(client, session.user.id, controller.signal);
+        if (!current) throw new StaffMfaError("Your sign-in ended. Reload this page.", "access");
+        if (!controller.signal.aborted) {
           setProfile(data as TeacherProfileRecord | null);
           setPhone(data?.registered_mobile ?? "");
-          setEmail(user.email ?? "");
+          setEmail(session.user.email ?? "");
           setAssignments(ownAssignments);
         }
       } catch (loadError) {
-        if (active) setError(errorText(loadError, "Your profile could not be loaded."));
+        if (!controller.signal.aborted) {
+          if (loadError instanceof StaffMfaError && loadError.code === "access") invalidate();
+          else setError(errorText(loadError, "Your profile could not be loaded."));
+        }
       } finally {
-        if (active) setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     };
     void load();
     return () => {
-      active = false;
+      controller.abort(); subscription.unsubscribe();
     };
-  }, []);
+  }, [client, invalidate]);
 
   const details: [string, string | null][] = [
     ["Name", profile?.full_name ?? null],
@@ -1126,21 +1149,35 @@ function ProfileView() {
 
   const savePhone = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const expectedOwner = owner.current, controller = lifetime.current, draft = phone.trim() || null;
+    if (saving.current || !expectedOwner || !controller || controller.signal.aborted) return;
+    saving.current = true;
     setSavingPhone(true);
     setError("");
     setMessage("");
     try {
-      const { error: saveError } = await createClient().rpc("update_my_teacher_phone", {
-        p_registered_mobile: phone.trim() || null,
-      });
+      const session = await boundMfaSession(client, expectedOwner, controller.signal);
+      if (!session) throw new StaffMfaError("Your sign-in ended. Reload this page.", "access");
+      const { error: saveError } = await client.rpc("update_my_teacher_phone", { p_registered_mobile: draft })
+        .setHeader("Authorization", `Bearer ${session.access_token}`).abortSignal(controller.signal);
       if (saveError) throw saveError;
-      setProfile((current) => current ? { ...current, registered_mobile: phone.trim() || null } : current);
-      setMessage("Phone number updated.");
+      const current = await boundMfaSession(client, expectedOwner, controller.signal);
+      if (!current) throw new StaffMfaError("Your sign-in ended. Reload this page.", "access");
+      if (!controller.signal.aborted) {
+        setProfile((record) => record ? { ...record, registered_mobile: draft } : record);
+        setMessage("School contact number updated. Your sign-in mobile has not changed.");
+      }
     } catch (saveError) {
-      logSupabaseError("Teacher phone update failed", saveError);
-      setError(userFacingError(saveError, "Phone number could not be updated. Please try again."));
+      if (!controller.signal.aborted) {
+        if (saveError instanceof StaffMfaError && saveError.code === "access") invalidate();
+        else {
+          logSupabaseError("Teacher phone update failed", saveError);
+          setError(userFacingError(saveError, "Phone number could not be confirmed. Reload your profile before retrying."));
+        }
+      }
     } finally {
-      setSavingPhone(false);
+      saving.current = false;
+      if (!controller.signal.aborted) setSavingPhone(false);
     }
   };
 
@@ -1152,7 +1189,7 @@ function ProfileView() {
       </header>
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
       {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">{message}</div>}
-      <section className="card p-5 sm:p-6">
+      {!sessionChanged && <section className="card p-5 sm:p-6">
         {loading ? <LoadingState variant="form" className="text-sm muted">Loading your profile...</LoadingState> : !profile ? (
           <p className="text-sm muted">No teacher profile is linked to this login.</p>
         ) : (
@@ -1178,11 +1215,11 @@ function ProfileView() {
                 </ul>
               ) : <p className="mt-2 text-sm muted">No records found.</p>}
             </div>
-            <form onSubmit={savePhone} className="mt-5 flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-end">
-              <label className="block flex-1 text-xs font-semibold"><span className="mb-2 block">Update phone number</span><input value={phone} onChange={(event) => setPhone(event.target.value)} maxLength={40} className="field" /></label>
+            <form onSubmit={savePhone} aria-label="Update teacher school contact" className="mt-5 flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-end">
+              <label className="block flex-1 text-xs font-semibold"><span className="mb-2 block">Update phone number</span><input value={phone} disabled={savingPhone} onChange={(event) => setPhone(event.target.value)} maxLength={40} className="field" /></label>
               <button disabled={savingPhone} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">{savingPhone ? "Saving..." : "Save Phone"}</button>
             </form>
-            <p className="mt-3 text-xs muted">Only your own registered phone can be updated. Other profile fields require school administration.</p>
+            <p className="mt-3 text-xs muted">This updates your school contact only. Verified sign-in details are managed in account settings. Other profile fields require school administration.</p>
             <div className="mt-6 space-y-3 border-t border-[var(--border)] pt-5">
               <div className="flex items-center gap-2"><KeyRound size={18} aria-hidden="true" className="text-blue-600" /><h2 className="font-bold">Account &amp; Security</h2></div>
               <p className="text-sm muted">Review your verified account details and change your password in account settings.</p>
@@ -1190,7 +1227,7 @@ function ProfileView() {
             </div>
           </>
         )}
-      </section>
+      </section>}
     </section>
   );
 }
