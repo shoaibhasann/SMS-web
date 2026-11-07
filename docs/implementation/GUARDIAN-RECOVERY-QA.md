@@ -2,9 +2,9 @@
 
 7 November 2026 · Implementation and measured engineering evidence · Founder acceptance pending
 
-Stable app: [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Founder checklist source: [GR-01–GR-24](../../public/qa/guardian-recovery-checklist.md). Its stable public path after release is `/qa/guardian-recovery-checklist.md`.
+Stable app: [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Deployed founder checklist: [GR-01–GR-24](https://kids-corner-erp-frontend.vercel.app/qa/guardian-recovery-checklist.md), with its [source checklist](../../public/qa/guardian-recovery-checklist.md) retained for review.
 
-**Release status:** implementation, hosted migration/source comparison, real hosted SDK recovery/preservation, local database checks and the full web regression/lint/types/optimized build are verified. This release's actual-browser and Production deployment/readback remain pending below. Earlier staff-MFA release evidence does not establish this recovery release's runtime status. SMS and FCM sending remain OFF.
+**Release status:** runtime `7f503316e63c06c7dc6eebccba4d604fbfc1d624` is pushed to `main` and Vercel Production Ready at the stable SMS alias. Hosted SDK recovery/preservation, the full local regression/lint/types/build, public page/checklist and actual Production read-only Guardian/Admin browser flows are verified below. Browser approval/claim/contact writes, real inbox/carrier delivery, native physical-device behavior and founder acceptance remain separate manual cases. SMS and FCM sending remain OFF.
 
 ## Two recovery paths
 
@@ -67,11 +67,27 @@ The core real-SDK workflow passes **113 assertions** through original Guardian A
 
 A later harness assertion incorrectly expected an absence alert deleted by an explicit child-link revoke to recreate automatically. The existing foreign-key cascade intentionally deletes that alert; this was a test assumption, not recovery losing history. The **one newly created QA alert** was restored from its exact private fixture snapshot, and the finishing stage passes **26/26 checks**. No shared original alert/history was recreated or overwritten to satisfy the test.
 
-Separate native SQL truth checks pass **13 checks after B**, **12 final security values** and **nine exact fixture invariants**. Final state has two Accepted recovery cases, two timestamp-bounded previous-recipient aliases, no open recovery cases/jobs, both synthetic devices revoked and enabled preferences OFF. Nine real verified TOTP factors belong to the owned QA identities. All **18 owned recovery/finishing native sessions** are closed, with **zero remaining** in the native session catalog.
+Separate native SQL truth checks pass **13 checks after B**, **12 final security values** and **nine exact fixture invariants**. Final SDK state has two Accepted recovery cases, two timestamp-bounded previous-recipient aliases, no open recovery cases/jobs, both synthetic devices revoked and enabled preferences OFF. Nine real verified TOTP factors belong to the owned QA identities. All **18 owned recovery/finishing native sessions** are closed, with **zero remaining** in the native session catalog at that SDK cleanup checkpoint. The later two Production browser sessions are independently observed logging out below.
 
 The original prechange row comparison preserves the exact multiset of **2,625 original rows across 115 application tables, zero missing**; those original tables now contain 2,708 rows. New private-case/fixture additions are distinguished from preserved originals. This is a current preservation comparison, **not a backup restoration rehearsal** and not proof of managed Auth, Storage, attachment-byte or provider disaster recovery.
 
 Earlier **50 preflight**, **12 contact no-send** and **four SSR-client** checks are separate checkpoints, not added to a fabricated single end-to-end total. Provider sending and actual inbox/carrier/device delivery remain unverified. The separate native repository's `main` is `b6bfed0`, with 217 tests and Android Expo export passing; that is source/build evidence, not observed native visual or physical-device acceptance.
+
+## Verified Production release and read-only browser flow
+
+Web runtime `7f503316e63c06c7dc6eebccba4d604fbfc1d624` is on Git `main`. GitHub's Vercel deployment status is Success, with Production deployment `dpl_62G5QpHTWqXm1onuN7aSi4Dujmpm` Ready, a 47-second build and 25-second post-build stage. The stable alias is `kids-corner-erp-frontend.vercel.app`. The 2,470-test regression/lint/types/build evidence is from local runs; **no separate GitHub CI test run is claimed**.
+
+The public `/guardian-recover` returns 200 with its expected heading. The deployed public checklist returns 200 and exactly matches local bytes, SHA-256 `edb15255a1bdf8288da05f9868404e50642d535ebca8a1621cbf4e1370dbdb28`. Local actual-browser no-token entry was also observed. These public entry checks do not imply a new approval or claim was completed in the Production UI.
+
+Actual Production Guardian C browser QA uses password plus a real current TOTP. It loads the same two linked children, ₹1,000 in fees with ₹250 paid/₹750 balance, and two inherited notifications with zero unread. Both children's attendance histories show 6 November Present and 7 November Absent. Selecting child two, waiting for Ready and then hard-refreshing preserves that selection and the correct history. Guardian contact settings shows the verified replacement email, no verified mobile and a clear SMS-OFF state. The session logs out through the UI.
+
+Actual Production Admin browser QA also signs in with password plus real TOTP. The Account recovery tab loads five of five cases: two Accepted, one Rejected, one Expired and one Cancelled. Exact admission lookup shows the recovered Guardian with two linked children and the independent peer Guardian with its two links. The Admin session logs out through the UI.
+
+These are **read-only school-data browser checks**. No browser approval, school-access mutation, password reset or actual email/mobile change was performed. Mutation/race/idempotency coverage remains the actual hosted SDK/SQL workflow and local UI tests above. The credentialed UI handoff, full founder checklist and real provider inbox/carrier delivery remain manual. Private screenshots and authentication proof stay outside Git/public QA artifacts. The mobile repository's `main` remains verified at `b6bfed0`; native visual acceptance was not observed.
+
+Post-browser read-only SQL confirms **zero owned native Auth sessions**, all **2,625 original row fingerprints/115 tables preserved, zero missing/current 2,708**, and the entire post-SDK QA parent/child state unchanged: seven links, eight attendance rows, two fees, the ₹250 receipt, six alerts and their read timestamps. C remains the stable Guardian owner with two links, no open push jobs and revoked old devices. The deployment-scoped Vercel error query for the observed last 15-minute window returns zero rows successfully; this is a bounded release check, not a monitoring-drain or long-term health claim.
+
+Production `POST /auth/recovery/mfa` and `POST /auth/contact/email` probes with valid-shaped dummy input and no Auth cookies both return **403 JSON with `Cache-Control: no-store`**. No Auth mutation or send occurs. This documentation-only follow-up records the tested `7f50331` runtime; no later application runtime or deployment ID is inferred.
 
 ## Release verification status
 
@@ -83,9 +99,10 @@ Earlier **50 preflight**, **12 contact no-send** and **four SSR-client** checks 
 | Managed-service backup/restore boundary | Not performed in this phase; the preservation comparison does not prove Auth/Storage/provider disaster recovery. This remains an operational launch gate. |
 | Hosted migration version, exact SQL/source/ACL comparison | Verified version `20261107064340`, exact source/SQL hashes above, 34 routines/ACLs, four private RLS tables and seven valid indexes; MFA hook preserved. |
 | Hosted synthetic recovery, MFA/contact, preserved history and denial checks | Verified stages: 113 core SDK assertions, 26/26 finishing checks, separate 13/12/9 SQL truth/security/fixture checks; 18/18 owned sessions closed and zero remaining. One new-QA cascade alert was restored after correcting a harness assumption, as explained above. |
-| Local actual-browser recovery/contact flow | Pending actual UI observations; helper mocks do not establish browser delivery. |
-| Git main + Vercel Production runtime/deployment/alias | Pending release; existing stable app link alone is not evidence of the new runtime. |
-| Deployed recovery page/checklist and authenticated refresh/readback | Pending exact deployed checks. |
+| Actual browser boundary | Local no-token recovery entry observed. Production recovered-Guardian/Admin password+real-TOTP → current data/settings/history → refresh → logout passes read-only; browser recovery/contact mutations remain manual. |
+| Git main + Vercel Production runtime/deployment/alias | Verified runtime `7f50331`, GitHub Vercel Success, Ready deployment `dpl_62G5QpHTWqXm1onuN7aSi4Dujmpm` and stable SMS alias. |
+| Deployed recovery page/checklist and authenticated refresh/readback | Public entry/checklist 200, exact checklist SHA-256 above, two-child Guardian history/selection/settings/read state and Admin recovery-list/admission readback verified. |
+| Post-browser preservation, cleanup and API boundary | Zero owned native sessions, original and post-SDK fixture rows unchanged; both unauthenticated recovery-MFA/contact-email POSTs return403/no-store; bounded Vercel error scan has zero rows. |
 | Founder/manual inbox, carrier and physical mobile acceptance | Pending; all public checklist boxes remain unchecked. |
 
 ## Operational acceptance still required
