@@ -14,3 +14,5 @@ Use https://kids-corner-erp-frontend.vercel.app/login and the private Office QA 
 - [ ] OR-10: Log out both Office accounts. Founder/school sign-off is still needed on actual calendar/enrollment records and document wording. A downloaded local PDF remains with its holder after access changes.
 
 The fixture's pupil, historical move and marks are explicitly synthetic read-report data; this does not claim native APIs accepted backdated roster changes. Report values reflect current verified records and may change after legitimate corrections. Aggregate counts are pupil-days, not unique school days.
+
+Developer verification, 7 November 2026: runtime `aafd217` is main/Production Ready. Actual Admin/Principal MFA, scoped reports, refresh and four PDF downloads pass on the stable URL. Whole web 3,299 tests, lint/build/types pass. All 3,244 original application rows are unchanged; 10 reviewed synthetic fixture rows were added. Founder acceptance above remains unchecked. Native managed/concurrent school load and signed certificates are not certified by these checks.
