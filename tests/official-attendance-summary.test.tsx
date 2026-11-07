@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OfficialAttendanceSummary } from "@/components/family/official-attendance-summary";
 import { FamilyAttendanceSummaryError, type FamilyAttendanceSummary } from "@/lib/attendance/family-summary";
 import { attendanceSummaryFixture as fixture, summaryOwner as uid, summaryStudent as student, summaryId as id, summaryPeriod, emptySummaryPeriod, attendanceReportContextFixture as contextFixture, previousAttendanceSummaryFixture as previousFixture, previousSummaryYear } from "./attendance-summary-fixture";
-const { load, context, report } = vi.hoisted(() => ({ load: vi.fn(), context: vi.fn(), report: vi.fn() }));
+const { load, context, report, downloadPdf } = vi.hoisted(() => ({ load: vi.fn(), context: vi.fn(), report: vi.fn(), downloadPdf: vi.fn() }));
 vi.mock("@/lib/attendance/family-summary", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/attendance/family-summary")>(), loadFamilyAttendanceSummary: load, loadFamilyAttendanceReportContext: context, loadFamilyAttendanceReport: report }));
+vi.mock("@/lib/attendance/report-export", () => ({ downloadFamilyAttendanceReportPdf: downloadPdf }));
 let authChanged: (event: string, session: Session | null) => void;
 const unsubscribe = vi.fn();
 const client = { auth: { onAuthStateChange: (callback: typeof authChanged) => { authChanged = callback; return { data: { subscription: { unsubscribe } } }; } } } as unknown as SupabaseClient;
@@ -14,7 +15,7 @@ function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(complete => { resolve = complete; }); return { promise, resolve };
 }
-beforeEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); load.mockReset().mockResolvedValue(fixture()); context.mockReset().mockResolvedValue(contextFixture()); report.mockReset().mockResolvedValue(previousFixture()); unsubscribe.mockClear(); });
+beforeEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); load.mockReset().mockResolvedValue(fixture()); context.mockReset().mockResolvedValue(contextFixture()); report.mockReset().mockResolvedValue(previousFixture()); downloadPdf.mockReset().mockResolvedValue(undefined); unsubscribe.mockClear(); });
 describe("official family attendance panel", () => {
   it("loads independently and renders authoritative month/session rates with formula and day counts", async () => {
     render(<OfficialAttendanceSummary {...props} />);
@@ -201,5 +202,77 @@ describe("official family attendance panel", () => {
     render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); fireEvent.focus(window);
     await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
     expect(load.mock.calls.every(call => call[2].id === student.id)).toBe(true);
+  });
+  it("downloads the displayed current or archive scope using explicit verified year and month", async () => {
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); await screen.findByText(/PDF download started/);
+    expect(downloadPdf).toHaveBeenLastCalledWith(client, uid, student, "parent", id(4), "2026-11-01", expect.any(AbortSignal), fixture());
+    fireEvent.change(screen.getByRole("combobox", { name: "Academic year" }), { target: { value: previousSummaryYear.id } }); await screen.findByText(/Through year end/);
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); await screen.findByText(/PDF download started/);
+    expect(downloadPdf).toHaveBeenLastCalledWith(client, uid, student, "parent", previousSummaryYear.id, "2026-03-01", expect.any(AbortSignal), previousFixture());
+  });
+  it("disables export until a supported selected-year report is ready", async () => {
+    load.mockReturnValueOnce(new Promise(() => {})); const { unmount } = render(<OfficialAttendanceSummary {...props} />);
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeDisabled(); unmount();
+    load.mockResolvedValueOnce(fixture({ session_state: "missing", year: null, month_summary: null, year_summary: null }));
+    context.mockResolvedValue(contextFixture({ current_session_state: "missing", current_year_id: null, years: [previousSummaryYear] }));
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByText(/no current academic session/);
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeDisabled(); expect(downloadPdf).not.toHaveBeenCalled();
+  });
+  it("allows an incomplete report PDF without publishing a fabricated percentage", async () => {
+    load.mockResolvedValue(fixture({ month_summary: summaryPeriod({ state: "attendance_incomplete", percentage: null }) }));
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByText("Awaiting attendance");
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled(); fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    await screen.findByText(/PDF download started/); expect(downloadPdf).toHaveBeenCalledOnce();
+  });
+  it("prevents duplicate exports and discards a pending PDF when the reporting month changes", async () => {
+    const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    expect(screen.getByRole("button", { name: "Preparing PDF…" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Preparing PDF…" })); expect(downloadPdf).toHaveBeenCalledOnce();
+    const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
+    load.mockResolvedValueOnce(fixture({ month: "2026-10-01", month_summary: summaryPeriod({ from: "2026-10-01", to: "2026-10-07" }) }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Reporting month" }), { target: { value: "2026-10-01" } }); expect(signal.aborted).toBe(true);
+    await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
+  });
+  it.each(["year", "refresh", "focus", "signout"])("cancels a delayed export after %s changes its verified context", async change => {
+    const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
+    if (change === "year") fireEvent.change(screen.getByRole("combobox", { name: "Academic year" }), { target: { value: previousSummaryYear.id } });
+    else if (change === "refresh") fireEvent.click(screen.getByRole("button", { name: "Refresh official attendance" }));
+    else if (change === "focus") fireEvent.focus(window);
+    else act(() => authChanged("SIGNED_OUT", null));
+    expect(signal.aborted).toBe(true); await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
+  });
+  it("cancels the old child's delayed export when another child is selected", async () => {
+    const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
+    const { rerender } = render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
+    rerender(<OfficialAttendanceSummary {...props} student={{ ...student, id: id(8) }} />); expect(signal.aborted).toBe(true);
+    await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
+  });
+  it("cancels a pending export during parent identity reload and re-enables it only after a fresh report", async () => {
+    const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
+    const { rerender } = render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
+    rerender(<OfficialAttendanceSummary {...props} loading />); expect(signal.aborted).toBe(true); expect(screen.getByRole("button", { name: "Download PDF" })).toBeDisabled();
+    await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
+    rerender(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
+  });
+  it("clears stale rates and year choices if export detects revoked attendance access", async () => {
+    downloadPdf.mockRejectedValueOnce(new FamilyAttendanceSummaryError("Child access revoked.", "access"));
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); expect(await screen.findByRole("alert")).toHaveTextContent("Child access revoked.");
+    expect(screen.queryByText("70%")).not.toBeInTheDocument(); expect(screen.queryByRole("combobox", { name: "Academic year" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeDisabled();
+  });
+  it("shows an export error with a retry while preserving a separately valid report", async () => {
+    downloadPdf.mockRejectedValueOnce(new Error("PDF fonts could not be loaded. Retry."));
+    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); expect(await screen.findByRole("alert")).toHaveTextContent("PDF fonts could not be loaded");
+    expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled(); fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
+    await screen.findByText(/PDF download started/); expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

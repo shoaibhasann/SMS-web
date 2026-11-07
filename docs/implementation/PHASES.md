@@ -1,5 +1,9 @@
 # Implementation phases
 
+## Official attendance PDF export - 7 November 2026
+
+Student and Parent web reports export the selected supported academic year/month with verified identity, monthly/session counts, explicit incomplete states, formula and cutoff. Fresh authorization and source comparisons surround local generation; no schema, attendance, link or provider writes are introduced. [Current validation/release evidence](ATTENDANCE-PDF-QA.md) · [Founder PDF checklist](../../public/qa/attendance-pdf-checklist.md). Whole web **3,198 tests / 190 files**, lint/build/types, 51 actual SDK assertions and six actual local browser PDF downloads pass. Full data-preservation proof retains all 3,244 prior application rows. Main/Production status is recorded in the focused evidence; founder acceptance stays separate.
+
 ## Previous academic-year official attendance — main/Production verified, 7 November 2026
 
 Student/Parent web dashboards and Attendance add scoped year/month selection, with previous-year enrollment, historical section mapping, approved calendar weighting and fail-closed incomplete states. Current/mobile API compatibility is retained through one calculator; selected-year preferences are account/role/school/pupil scoped. [Focused evidence](PREVIOUS-YEAR-ATTENDANCE-QA.md) · [Founder checklist](../../public/qa/previous-year-attendance-checklist.md). Whole web **3,149 tests / 188 files**, lint/build/types and the 223-assertion native SDK suite pass. Runtime `7eb7a02` is main/Production Ready; actual Student/Parent year selection, hard refresh, sibling isolation and missing-record withholding pass on the stable URL. Final preservation and the later documentation-only rollout are recorded in the focused evidence; founder acceptance remains open.

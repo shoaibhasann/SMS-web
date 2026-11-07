@@ -34,6 +34,10 @@ Actual stable-URL Production Student verifies Current 100% → Archive 58.33%, h
 
 Final read-only proof at **19:34:55 IST** retains all **3,244 pre-Production rows / 129 tables**, including all **3,180 original rows**, with no missing or changed full-row hashes. All 137 native identity/contact/metadata references, 27 factor descriptors, 443 historical-session descriptors and 65 routine references remain exact; owned sessions are zero. Main has 14 marks and Missing 13; both child links remain valid, fresh absence/gate alerts are zero and both gate preferences remain OFF/version zero. Prior 46 gate events and seven devices are retained, with zero active devices. Raw authenticated student/enrollment INSERT grants remain false. Private `final-proof.json` and companion snapshots contain the comparison; no Auth or application writes occur in this final proof. This evidence/checklist follow-up is documentation-only; the tested runtime source remains `7eb7a02`.
 
+## Subsequent PDF phase
+
+Selected-year/month web PDF export is implemented and verified separately; see [current PDF evidence](ATTENDANCE-PDF-QA.md). The earlier no-PDF boundary below describes this year-selector checkpoint.
+
 ## Remaining acceptance
 
 Founder/school acceptance of the actual calendar/enrollment policy and this manual checklist remains open. No PDF export, class/school aggregate report, formula editor, native app year selector, provider activation or physical-device acceptance is included. No original data is restored over concurrent changes.

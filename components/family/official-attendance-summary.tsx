@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarCheck, RefreshCw } from "lucide-react";
+import { CalendarCheck, Download, RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LoadingState } from "@/components/ui/skeleton";
 import { loadFamilyAttendanceSummary, loadFamilyAttendanceReportContext, loadFamilyAttendanceReport, restoreFamilyReportYear, rememberFamilyReportYear, FamilyAttendanceSummaryError, type AttendanceSummaryPeriod, type FamilyAttendanceSummary, type FamilyAttendanceSummaryRole, type FamilyAttendanceReportContext, type FamilyAttendanceReportYear } from "@/lib/attendance/family-summary";
+import { downloadFamilyAttendanceReportPdf } from "@/lib/attendance/report-export";
 
 type Props = { client: SupabaseClient; userId: string; student: { id: string; school_id: string } | null;
   role: FamilyAttendanceSummaryRole; loading?: boolean; showHistoryLink?: boolean };
@@ -52,31 +53,33 @@ function PeriodCard({ title, period }: { title: string; period: AttendanceSummar
   </article>;
 }
 export function OfficialAttendanceSummary({ client, userId, student, role, loading = false, showHistoryLink = true }: Props) {
-  return <OwnOfficialAttendanceSummary key={`${userId}:${role}:${student?.id ?? "none"}:${student?.school_id ?? "none"}`} client={client} userId={userId} student={student} role={role} loading={loading} showHistoryLink={showHistoryLink} />;
+  return <OwnOfficialAttendanceSummary key={`${userId}:${role}:${student?.id ?? "none"}:${student?.school_id ?? "none"}:${loading ? "loading" : "ready"}`} client={client} userId={userId} student={student} role={role} loading={loading} showHistoryLink={showHistoryLink} />;
 }
 function OwnOfficialAttendanceSummary({ client, userId, student, role, loading, showHistoryLink }: Props) {
   const [yearId, setYearId] = useState<string | null>(() => student ? restoreFamilyReportYear(userId, role, student) : null), [month, setMonth] = useState<string | null>(null), [revision, setRevision] = useState(0), [sessionChanged, setSessionChanged] = useState(false);
   const [loaded, setLoaded] = useState<{ key: string; data?: FamilyAttendanceSummary; error?: string }>();
   const [catalog, setCatalog] = useState<FamilyAttendanceReportContext>();
-  const read = useRef<AbortController | null>(null);
+  const [pdf, setPdf] = useState<{ key: string; busy?: boolean; error?: string; saved?: boolean }>();
+  const read = useRef<AbortController | null>(null), pdfRead = useRef<AbortController | null>(null);
   const id = useId(), studentId = student?.id, schoolId = student?.school_id, key = `${yearId ?? "current"}:${month ?? "server"}:${revision}`;
   const current = loaded?.key === key ? loaded : undefined, summary = current?.data;
   const selectedYear = catalog?.years.find(year => year.id === (yearId ?? catalog.current_year_id));
   const months = reportingMonths(selectedYear, catalog?.server_today), archived = selectedYear?.is_current === false;
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      if (session?.user.id !== userId) { read.current?.abort(); setSessionChanged(true); setLoaded(undefined); setCatalog(undefined); }
+      if (session?.user.id !== userId) { read.current?.abort(); pdfRead.current?.abort(); setSessionChanged(true); setLoaded(undefined); setCatalog(undefined); setPdf(undefined); }
     });
-    return () => { read.current?.abort(); subscription.unsubscribe(); };
+    return () => { read.current?.abort(); pdfRead.current?.abort(); subscription.unsubscribe(); };
   }, [client, userId]);
+  useEffect(() => () => { pdfRead.current?.abort(); pdfRead.current = null; }, [key]);
   useEffect(() => {
     if (!studentId || sessionChanged) return;
-    const refresh = () => { if (document.visibilityState === "visible") setRevision(value => value + 1); };
+    const refresh = () => { if (document.visibilityState === "visible") { pdfRead.current?.abort(); setRevision(value => value + 1); } };
     window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", refresh);
     return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
   }, [studentId, sessionChanged]);
   useEffect(() => {
-    if (!studentId || !schoolId || sessionChanged) return;
+    if (!studentId || !schoolId || sessionChanged || loading) return;
     const controller = new AbortController(); read.current = controller;
     const target = { id: studentId, school_id: schoolId };
     const report = yearId === null ? loadFamilyAttendanceSummary(client, userId, target, role, month, controller.signal)
@@ -104,8 +107,23 @@ function OwnOfficialAttendanceSummary({ client, userId, student, role, loading, 
       }
     });
     return () => { controller.abort(); if (read.current === controller) read.current = null; };
-  }, [client, userId, studentId, schoolId, role, yearId, month, key, sessionChanged]);
-  function selectYear(value: string) { read.current?.abort(); if (student) rememberFamilyReportYear(userId, role, student, value || null); setYearId(value || null); setMonth(null); }
+  }, [client, userId, studentId, schoolId, role, yearId, month, key, sessionChanged, loading]);
+  function selectYear(value: string) { read.current?.abort(); pdfRead.current?.abort(); if (student) rememberFamilyReportYear(userId, role, student, value || null); setYearId(value || null); setMonth(null); }
+  async function exportPdf() {
+    if (!student || !summary?.year || !summary.month_summary || !summary.year_summary || summary.session_state !== "active" || sessionChanged || pdfRead.current && !pdfRead.current.signal.aborted) return;
+    const controller = new AbortController(); pdfRead.current = controller; setPdf({ key, busy: true });
+    try {
+      await downloadFamilyAttendanceReportPdf(client, userId, student, role, summary.year.id, summary.month, controller.signal, summary);
+      if (!controller.signal.aborted) setPdf({ key, saved: true });
+    } catch (error: unknown) {
+      if (!controller.signal.aborted) {
+        if (error instanceof FamilyAttendanceSummaryError && error.code === "access") {
+          read.current?.abort(); setCatalog(undefined); setLoaded({ key, error: error.message }); setPdf(undefined);
+        } else setPdf({ key, error: error instanceof Error ? error.message : "The PDF could not be downloaded. Refresh attendance and try again." });
+      }
+    } finally { if (pdfRead.current === controller) pdfRead.current = null; }
+  }
+  const currentPdf = pdf?.key === key ? pdf : undefined;
   const href = role === "parent" ? "/modules/attendance?view=guardian" : "/modules/attendance";
   const asOf = summary?.year ? summary.year.end_date < summary.server_today ? summary.year.end_date : summary.server_today : undefined;
   return <section className="dashboard-panel min-w-0 space-y-4 p-4 sm:p-5" aria-labelledby={`${id}-title`}>
@@ -115,11 +133,14 @@ function OwnOfficialAttendanceSummary({ client, userId, student, role, loading, 
         {catalog && <label className="block min-w-0 max-w-full"><span className="sr-only">Academic year</span><select aria-label="Academic year" className="field w-auto max-w-full text-sm sm:max-w-72" value={yearId ?? ""} disabled={sessionChanged} onChange={event => selectYear(event.target.value)}>
           {yearId !== null && !selectedYear && <option value={yearId} disabled>Selected year unavailable</option>}<option value="">Current session{catalog.current_session_state !== "active" ? ` · ${catalog.current_session_state}` : ""}</option>{catalog.years.map(year => <option value={year.id} key={year.id}>{year.name} · {year.is_current ? "Current" : "Previous year"}</option>)}
         </select></label>}
-        {catalog && <label className="block min-w-0 max-w-full"><span className="sr-only">Reporting month</span><select aria-label="Reporting month" className="field w-auto max-w-full text-sm sm:min-w-40" value={month ?? summary?.month ?? ""} onChange={event => { read.current?.abort(); setMonth(event.target.value); }} disabled={sessionChanged || !summary || months.length < 2}>
+        {catalog && <label className="block min-w-0 max-w-full"><span className="sr-only">Reporting month</span><select aria-label="Reporting month" className="field w-auto max-w-full text-sm sm:min-w-40" value={month ?? summary?.month ?? ""} onChange={event => { read.current?.abort(); pdfRead.current?.abort(); setMonth(event.target.value); }} disabled={sessionChanged || !summary || months.length < 2}>
           {!summary && <option value="">Choose reporting month</option>}{summary && !months.includes(summary.month) && <option value={summary.month} disabled>No elapsed reporting months</option>}{months.map(value => <option value={value} key={value}>{monthLabel(value)}</option>)}
         </select></label>}
-        <button type="button" className={button} disabled={!student || sessionChanged || !current} onClick={() => setRevision(value => value + 1)} aria-label="Refresh official attendance"><RefreshCw size={15} aria-hidden="true" />Refresh</button></div>
+        <button type="button" className={button} disabled={!student || sessionChanged || !current} onClick={() => { pdfRead.current?.abort(); setRevision(value => value + 1); }} aria-label="Refresh official attendance"><RefreshCw size={15} aria-hidden="true" />Refresh</button>
+        <button type="button" className={button} disabled={loading || sessionChanged || !student || !selectedYear || summary?.session_state !== "active" || !summary?.year || !summary.month_summary || !summary.year_summary || currentPdf?.busy} aria-busy={currentPdf?.busy || undefined} onClick={exportPdf}><Download size={15} aria-hidden="true" />{currentPdf?.busy ? "Preparing PDF…" : "Download PDF"}</button></div>
     </header>
+    {!sessionChanged && currentPdf?.error && <p role="alert" className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm leading-6 text-red-700 dark:text-red-300">{currentPdf.error}</p>}
+    {!sessionChanged && currentPdf?.saved && <p role="status" className="text-xs leading-5 muted">PDF download started for the selected academic year and month.</p>}
     {sessionChanged ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reopen attendance to check your records.</p>
       : loading || student && !current ? <LoadingState variant="cards">Loading official attendance…</LoadingState>
         : !student ? <p className="text-sm muted">A verified student profile is needed to view official attendance.</p>
