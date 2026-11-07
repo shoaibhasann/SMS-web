@@ -34,7 +34,15 @@ The migration refuses an unknown existing hook instead of replacing it. Read-onl
 - Preservation: every original fingerprint for 2,565 rows across 112 application tables is still present, using the original column lists. Additional records belong only to the isolated QA school/users. Its temporary global SuperAdmin membership was removed after coverage; a final native catalog check reports zero remaining sessions for all 12 owned QA accounts and zero global SuperAdmin memberships. Only the new QA school's policy is enabled.
 - Local actual browser: password sign-in reaches `/mfa` before dashboard data; wrong code shows retry feedback; an isolated valid-code retry reaches the correct Admin dashboard, reload retains access, School Settings shows required revision 1 with 8/8 staff enrolled after Teacher claim, and Account settings disables removal of the required last authenticator. The UI logs out to Login. No factor enrollment/removal or policy weakening was performed through browser automation.
 
-Production release evidence is recorded below when completed. Existing founder/shared accounts are not enrolled or modified. Founder checklist cases stay unticked.
+Production release evidence follows below. Existing founder/shared accounts are not enrolled or modified. Founder checklist cases stay unticked.
+
+## Verified Production release — 7 November
+
+Web runtime `969c70053eaa14c9f03bc6c104db2cf16c187d17` is pushed to `main` and Vercel Production Ready at the stable SMS URL, deployment `dpl_DajGHovq5N8YPk9nz6QR6SL7YH7n` (36-second build). GitHub/Vercel reports Success and the stable alias resolves to that deployment. `/login` and `/mfa` return 200. The public checklist matches all 4,375 local bytes, SHA-256 `3dae511e48b66b75f4e8dd73aa8a89bf7c0ae532ea8cf9b2baeee043bb7521d1`.
+
+Actual Production browser QA signs in with the dedicated MFA Admin, receives the code challenge before dashboard access, verifies a current code and loads that isolated school's real dashboard. Hard reload preserves verified access and finishes loading records. School Settings shows required policy revision 1, eight active/enrolled staff and zero enrollment gaps. At 500px, document width and scroll width both equal 500px; a private screenshot records the policy with no QR/key/code. The account logs out through the shared menu to Login. A final native catalog read reports zero sessions for all 12 owned QA identities, zero global SuperAdmin memberships and exactly one enabled policy belonging to the new isolated QA school.
+
+Separate native source `679951f4e0e7ad872dca268660849fb636187037` is pushed to its own repository's `main`. This is source plus validated Android bundle export, not a signed distributed app or physical-device acceptance. Founder/manual cases remain unticked.
 
 ## Recovery and rollout
 
