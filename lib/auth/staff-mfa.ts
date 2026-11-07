@@ -70,7 +70,7 @@ export function safeMfaNext(next: string | null): string {
   const value = safeAuthRedirect(next).split("#", 1)[0];
   const pathname = value.split(/[?#]/, 1)[0];
   return pathname === "/dashboard" || pathname === "/account/settings" || pathname === "/activate"
-    || pathname === "/guardian-invite" || pathname === "/teacher-invite" || /^\/modules\/[a-z0-9-]+$/.test(pathname)
+    || pathname === "/guardian-invite" || pathname === "/teacher-invite" || pathname === "/guardian-recover" || /^\/modules\/[a-z0-9-]+$/.test(pathname)
     ? value : "/dashboard";
 }
 export const mfaPath = (next: string) => `/mfa?next=${encodeURIComponent(safeMfaNext(next))}`;

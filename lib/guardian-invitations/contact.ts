@@ -1,6 +1,6 @@
 import { createClient as createSupabaseClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import { guardianEmailContinuation } from "@/lib/auth/redirect";
 import { normalizeIndianMobile, phoneAuthError, prepareGuardianPhoneRequest, readGuardianPhoneStatus } from "@/lib/auth/phone";
+import { listAuthenticators, readStaffMfaStatus, StaffMfaError, verifyAuthenticator, type AuthenticatorFactor } from "@/lib/auth/staff-mfa";
 
 export type GuardianContactProviders = { email: boolean; sms: boolean; captchaSiteKey?: string | null };
 
@@ -50,7 +50,7 @@ export function createGuardianVerificationClient() {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
-        storageKey: "guardian-contact-verification",
+        storageKey: `guardian-contact-${crypto.randomUUID()}`,
       },
     },
   );
@@ -84,7 +84,7 @@ function verificationError(error: ContactError | null, method: "email" | "sms", 
       : "The SMS code could not be requested. Check the mobile number or try again later.");
 }
 
-export async function requestGuardianEmailChange(client: SupabaseClient, userId: string, email: string, origin: string) {
+export async function requestGuardianEmailChange(client: SupabaseClient, userId: string, email: string, _origin: string, signal?: AbortSignal) {
   const current = await readGuardianAuthUser(client, userId);
   const nextEmail = email.trim().toLowerCase();
   if (!current.email_confirmed_at || !current.email) throw new Error("A verified sign-in email is required. Contact the school office.");
@@ -92,13 +92,88 @@ export async function requestGuardianEmailChange(client: SupabaseClient, userId:
     throw new Error("Enter a different, valid email address.");
   }
 
-  const callback = new URL("/auth/callback", origin);
-  callback.searchParams.set("next", guardianEmailContinuation);
-  const { data, error } = await client.auth.updateUser({ email: nextEmail }, { emailRedirectTo: callback.href });
-  if (error || data.user?.id !== userId || data.user.new_email?.toLowerCase() !== nextEmail) {
-    throw verificationError(error, "email");
+  const response = await fetch("/auth/contact/email", { method: "POST", cache: "no-store", signal,
+    headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, email: nextEmail }) });
+  if (!response.ok) throw new Error(response.status === 429 ? "Too many verification requests. Wait before trying again."
+    : response.status === 409 ? "This email cannot be used for your account. Check the address or contact the school office."
+    : response.status === 403 ? "Verify your account and authenticator before changing your email."
+      : "Email confirmation could not be confirmed. Refresh contact details before trying again.");
+  const updated = await readGuardianAuthUser(client, userId);
+  if (signal?.aborted || updated.new_email?.toLowerCase() !== nextEmail) throw new Error("Refresh contact details to check whether email confirmation is pending.");
+  return updated;
+}
+
+export type GuardianMobileProof = {
+  client: SupabaseClient; userId: string; phone: string; previousPhone: string;
+  factors: AuthenticatorFactor[]; needsMfa: boolean;
+};
+function cancelled(signal?: AbortSignal) { if (signal?.aborted) throw new DOMException("Contact verification cancelled.", "AbortError"); }
+async function primaryOwner(client: SupabaseClient, userId: string, signal?: AbortSignal) {
+  cancelled(signal);
+  // This is a UI ownership fence; the separately verified native proof session authorizes the mutation.
+  const current = await client.auth.getSession();
+  cancelled(signal);
+  if (current.error || current.data.session?.user.id !== userId) throw new Error("Your account changed. Reopen contact settings before continuing.");
+}
+export async function closeGuardianMobileChange(proof: Pick<GuardianMobileProof, "client">) { await closeTemporarySession(proof.client); }
+
+export async function beginGuardianMobileChange(client: SupabaseClient, verificationClient: SupabaseClient, userId: string, phone: string,
+  proof: { password?: string; currentCode?: string }, signal?: AbortSignal): Promise<GuardianMobileProof> {
+  const current = await readGuardianAuthUser(client, userId);
+  cancelled(signal);
+  const nextPhone = normalizeIndianMobile(phone), previousPhone = current.phone_confirmed_at ? guardianPhone(current.phone) : "";
+  if (!nextPhone || nextPhone === previousPhone) throw new Error("Enter a different Indian mobile number.");
+  try {
+    if (current.email_confirmed_at && current.email) {
+      if (!proof.password) throw new Error("Enter your current password.");
+      const result = await verificationClient.auth.signInWithPassword({ email: current.email, password: proof.password });
+      if (result.error?.status === 429) throw verificationError(result.error, "sms");
+      if (result.error || !result.data.session || result.data.user?.id !== userId) throw new Error("The current password could not be verified.");
+    } else {
+      if (!previousPhone || !/^\d{6}$/.test(proof.currentCode?.trim() ?? "")) throw new Error("Enter the six-digit code sent to your current mobile.");
+      const result = await verificationClient.auth.verifyOtp({ phone: previousPhone, token: proof.currentCode!.trim(), type: "sms" });
+      if (result.error || !result.data.session || result.data.user?.id !== userId || !result.data.user.phone_confirmed_at
+        || guardianPhone(result.data.user.phone) !== previousPhone) throw new Error(phoneAuthError(result.error, true));
+    }
+    await primaryOwner(client, userId, signal);
+    const fresh = await readGuardianAuthUser(verificationClient, userId);
+    if ((fresh.phone_confirmed_at ? guardianPhone(fresh.phone) : "") !== previousPhone) throw new Error("Your current mobile changed. Refresh contact details before continuing.");
+    const security = await readStaffMfaStatus(verificationClient, userId, signal);
+    if (!security || !security.allowed && security.action !== "challenge") throw new Error("Your account security changed. Sign in and verify it again.");
+    const factors = security.action === "challenge" ? await listAuthenticators(verificationClient) : [];
+    cancelled(signal);
+    if (security.action === "challenge" && !factors.length) throw new Error("Your authenticator could not be loaded. Sign in again.");
+    return { client: verificationClient, userId, phone: nextPhone, previousPhone, factors, needsMfa: security.action === "challenge" };
+  } catch (error) { await closeTemporarySession(verificationClient); throw error; }
+}
+
+export async function completeGuardianMobileChange(client: SupabaseClient, proof: GuardianMobileProof, captchaToken?: string,
+  mfa?: { factorId: string; code: string }, signal?: AbortSignal): Promise<User> {
+  await primaryOwner(client, proof.userId, signal);
+  const security = await readStaffMfaStatus(proof.client, proof.userId, signal);
+  if (!security) throw new Error("Your verification session ended. Start again.");
+  if (!security.allowed) {
+    if (security.action !== "challenge" || !mfa || !proof.factors.some((factor) => factor.id === mfa.factorId)) {
+      throw new StaffMfaError("Verify the authenticator for this password or current-mobile session before continuing.", "verification");
+    }
+    await verifyAuthenticator(proof.client, mfa.factorId, mfa.code);
+    const checked = await readStaffMfaStatus(proof.client, proof.userId, signal);
+    if (!checked?.allowed) throw new Error("Your account security could not be verified. Start again.");
   }
-  return data.user;
+  await primaryOwner(client, proof.userId, signal);
+  const fresh = await readGuardianAuthUser(proof.client, proof.userId);
+  if ((fresh.phone_confirmed_at ? guardianPhone(fresh.phone) : "") !== proof.previousPhone) throw new Error("Your current mobile changed. Refresh contact details before continuing.");
+  const authorization = await proof.client.rpc("authorize_my_guardian_phone_change", { p_phone: proof.phone });
+  cancelled(signal);
+  if (authorization.error?.code === "22023") throw new Error("Enter a different mobile number with its country code.");
+  if (authorization.error || authorization.data !== true) throw new Error("The mobile change could not be authorized. Start a fresh verification.");
+  if (captchaToken !== undefined) await prepareGuardianPhoneRequest(proof.phone, captchaToken);
+  await primaryOwner(client, proof.userId, signal);
+  const result = await proof.client.auth.updateUser({ phone: proof.phone });
+  cancelled(signal);
+  if (result.error?.code === "insufficient_aal") throw new StaffMfaError("Your authenticator verification changed. Start a fresh mobile verification.", "access");
+  if (result.error || result.data.user?.id !== proof.userId || guardianPhone(result.data.user.new_phone) !== proof.phone) throw verificationError(result.error, "sms");
+  return result.data.user;
 }
 
 export async function requestGuardianMobileChange(
@@ -107,26 +182,9 @@ export async function requestGuardianMobileChange(
 ) {
   const current = await readGuardianAuthUser(client, userId);
   if (!current.email_confirmed_at || !current.email) throw new Error("A verified sign-in email is required. Contact the school office.");
-  const nextPhone = guardianPhone(phone);
-  if (!phone.trim().startsWith("+") || !nextPhone || nextPhone === guardianPhone(current.phone)) throw new Error("Enter a different mobile number with its country code.");
-  if (!password) throw new Error("Enter your current password.");
-
   try {
-    const { data, error } = await verificationClient.auth.signInWithPassword({ email: current.email, password });
-    if (error?.status === 429) throw verificationError(error, "sms");
-    if (error || !data.session || data.user?.id !== userId) throw new Error("The current password could not be verified.");
-    await readGuardianAuthUser(client, userId);
-    const authorization = await verificationClient.rpc("authorize_my_guardian_phone_change", { p_phone: nextPhone });
-    if (authorization.error?.code === "22023") throw new Error("Enter a different mobile number with its country code.");
-    if (authorization.error || authorization.data !== true) {
-      throw new Error("The mobile change could not be authorized. Reenter your password or contact the school office.");
-    }
-    if (captchaToken !== undefined) await prepareGuardianPhoneRequest(nextPhone, captchaToken);
-    const result = await verificationClient.auth.updateUser({ phone: nextPhone });
-    if (result.error || result.data.user?.id !== userId || guardianPhone(result.data.user.new_phone) !== nextPhone) {
-      throw verificationError(result.error, "sms");
-    }
-    return result.data.user;
+    const proof = await beginGuardianMobileChange(client, verificationClient, userId, phone, { password });
+    return await completeGuardianMobileChange(client, proof, captchaToken);
   } finally {
     await closeTemporarySession(verificationClient);
   }
@@ -157,21 +215,8 @@ export async function requestGuardianMobileChangeWithOtp(
   if (!nextPhone || nextPhone === previousPhone) throw new Error("Enter a different Indian mobile number.");
   if (!/^\d{6}$/.test(code.trim())) throw new Error("Enter the six-digit code sent to your current mobile.");
   try {
-    const verified = await verificationClient.auth.verifyOtp({ phone: previousPhone, token: code.trim(), type: "sms" });
-    if (verified.error || !verified.data.session || verified.data.user?.id !== userId || !verified.data.user.phone_confirmed_at
-      || normalizeIndianMobile(verified.data.user.phone ?? "") !== previousPhone) throw new Error(phoneAuthError(verified.error, true));
-    const latest = await readGuardianAuthUser(client, userId);
-    if (!latest.phone_confirmed_at || normalizeIndianMobile(latest.phone ?? "") !== previousPhone) {
-      throw new Error("Your current mobile changed. Refresh contact details before continuing.");
-    }
-    const authorization = await verificationClient.rpc("authorize_my_guardian_phone_change", { p_phone: nextPhone });
-    if (authorization.error || authorization.data !== true) throw new Error("The mobile change could not be authorized. Request a fresh current-mobile code.");
-    await prepareGuardianPhoneRequest(nextPhone, captchaToken);
-    const result = await verificationClient.auth.updateUser({ phone: nextPhone });
-    if (result.error || result.data.user?.id !== userId || normalizeIndianMobile(result.data.user.new_phone ?? "") !== nextPhone) {
-      throw verificationError(result.error, "sms");
-    }
-    return result.data.user;
+    const proof = await beginGuardianMobileChange(client, verificationClient, userId, nextPhone, { currentCode: code });
+    return await completeGuardianMobileChange(client, proof, captchaToken);
   } finally { await closeTemporarySession(verificationClient); }
 }
 

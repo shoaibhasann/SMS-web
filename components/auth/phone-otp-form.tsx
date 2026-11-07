@@ -9,7 +9,7 @@ import { LoadingState } from "@/components/ui/skeleton";
 import { PhoneSecurityCheck } from "./phone-security-check";
 
 export function GuardianPhoneOtpForm({ purpose, onVerified, disabled = false, onBusyChange }: {
-  purpose: "login" | "invitation"; onVerified: (user: User) => void; disabled?: boolean; onBusyChange?: (busy: boolean) => void;
+  purpose: "login" | "invitation" | "recovery"; onVerified: (user: User) => void; disabled?: boolean; onBusyChange?: (busy: boolean) => void;
 }) {
   const [client] = useState(createClient);
   const [status, setStatus] = useState<GuardianPhoneStatus>();
@@ -62,7 +62,7 @@ export function GuardianPhoneOtpForm({ purpose, onVerified, disabled = false, on
       setRetryAt(Date.now() + 60_000);
       await prepareGuardianPhoneRequest(number, token);
       if (!active.current) return;
-      const response = await client.auth.signInWithOtp({ phone: number, options: { shouldCreateUser: purpose === "invitation" } });
+      const response = await client.auth.signInWithOtp({ phone: number, options: { shouldCreateUser: purpose !== "login" } });
       if (response.error) throw new Error(phoneAuthError(response.error));
       if (active.current) { setTarget(number); setCode(""); setNotice("If this number is eligible, a code will arrive by SMS. Enter it below."); }
     });
@@ -92,7 +92,8 @@ export function GuardianPhoneOtpForm({ purpose, onVerified, disabled = false, on
   </div>;
 
   return <div className="mt-5 space-y-4">
-    <p className="text-sm leading-6 muted">{purpose === "invitation" ? "Use the mobile number your school invited. Already have an email account? Verify your mobile from that account first to keep your child links."
+    <p className="text-sm leading-6 muted">{purpose === "recovery" ? "Use the new mobile number independently approved by your school. The SMS code verifies this contact; recovery still needs your explicit acceptance."
+      : purpose === "invitation" ? "Use the mobile number your school invited. Already have an email account? Verify your mobile from that account first to keep your child links."
       : "Use the mobile verified on your guardian account. Staff and students should use email sign-in."}</p>
     {!target ? <form onSubmit={send} className="space-y-4" aria-label="Request guardian SMS code">
       <label className="login-label" htmlFor="guardian-mobile">Mobile number</label>

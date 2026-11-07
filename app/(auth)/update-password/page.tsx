@@ -2,10 +2,18 @@ import Link from "next/link";
 import { ShieldCheck } from "lucide-react";
 import { createRecoveryClient, verifiedRecoverySession } from "@/lib/auth/recovery";
 import { UpdatePasswordForm } from "./update-password-form";
+import { listAuthenticators, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 export default async function UpdatePasswordPage() {
   const recovery = await createRecoveryClient()
-    .then(({ supabase }) => verifiedRecoverySession(supabase))
+    .then(async ({ supabase }) => {
+      const current = await verifiedRecoverySession(supabase);
+      if (!current) return null;
+      const security = await readStaffMfaStatus(supabase, current.userId);
+      if (!security) return null;
+      const factors = security.action === "challenge" ? await listAuthenticators(supabase) : [];
+      return { ...current, needsMfa: !security.allowed, factors };
+    })
     .catch(() => null);
 
   return (
@@ -15,8 +23,8 @@ export default async function UpdatePasswordPage() {
         <h1 className="mt-5 text-2xl font-black">{recovery ? "Set a new password" : "Open a password reset link"}</h1>
         {recovery ? (
           <>
-            <p className="mt-2 text-sm muted">Choose a strong password for your SMS account.</p>
-            <UpdatePasswordForm sessionId={recovery.sessionId} />
+            <p className="mt-2 break-words text-sm muted">Recovering {recovery.accountLabel}. Password recovery keeps your existing child links and authenticator.</p>
+            <UpdatePasswordForm key={`${recovery.sessionId}:${recovery.needsMfa}:${recovery.factors.map(factor => factor.id).join(",")}`} sessionId={recovery.sessionId} mfaRequired={recovery.needsMfa} factors={recovery.factors} />
           </>
         ) : (
           <div className="mt-3 space-y-4">

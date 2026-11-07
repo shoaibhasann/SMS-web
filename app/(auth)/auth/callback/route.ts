@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardianContactPath, guardianEmailContinuation, safeAuthRedirect } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/server";
+import { finishGuardianEmailChange } from "@/lib/auth/contact-change";
 import {
   allowedRecoveryOrigin, createRecoveryClient, recoveryDestination, recoveryFailureDestination, verifiedRecoverySession,
 } from "@/lib/auth/recovery";
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const next = safeAuthRedirect(url.searchParams.get("next"));
   if (new URL(next, url.origin).pathname === recoveryDestination) return recover(url, code);
-  const invitationContinuation = next === "/guardian-invite" || next === "/teacher-invite";
+  const invitationContinuation = next === "/guardian-invite" || next === "/teacher-invite" || next === "/guardian-recover";
   const guardianContactContinuation = next === guardianEmailContinuation;
   const contactUrl = (status: "email-pending" | "email-returned" | "email-link-error") => {
     const destination = new URL(guardianContactPath, url.origin);
@@ -57,12 +58,10 @@ export async function GET(request: Request) {
     return response;
   }
 
+  if (guardianContactContinuation) return respond(contactUrl(await finishGuardianEmailChange(url, code)));
+
   if (url.searchParams.has("error")) return respond(failureUrl);
   if (!code?.trim()) {
-    if (guardianContactContinuation) {
-      const partialConfirmation = url.searchParams.get("message")?.startsWith("Confirmation link accepted");
-      return respond(partialConfirmation ? contactUrl("email-pending") : failureUrl);
-    }
     return NextResponse.redirect(invitationContinuation
       ? failureUrl
       : new URL("/login?error=auth_callback_missing_code", url.origin));
@@ -70,10 +69,7 @@ export async function GET(request: Request) {
 
   try {
     const supabase = await createClient();
-    const flowId = guardianContactContinuation ? url.searchParams.get("sb_flow_id") : null;
-    const { data, error } = flowId === null
-      ? await supabase.auth.exchangeCodeForSession(code)
-      : await supabase.auth.exchangeCodeForSession(code, { flowId });
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (error || !data.session) return respond(failureUrl);
   } catch {
     return respond(failureUrl);

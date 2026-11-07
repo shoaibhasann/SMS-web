@@ -7,13 +7,15 @@ import { guardianAttendancePath, rememberFamilyChild } from "@/lib/attendance/fa
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 import { mfaPath } from "@/lib/auth/staff-mfa";
+import { acceptGuardianRecovery, GuardianRecoveryError, loadGuardianRecoveryClaim, type GuardianRecoveryClaim } from "@/lib/guardian-invitations/recovery";
+import { GuardianPhoneOtpForm } from "./phone-otp-form";
 
 const primaryButton = "w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50";
 const textButton = "text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
 const unavailable = "This invitation is expired, revoked, already used, or no longer available. Ask your school for a new link if you still need access.";
 
 type Account = { id: string; email?: string };
-type InvitationKind = "guardian" | "teacher";
+type InvitationKind = "guardian" | "teacher" | "recovery";
 
 const invitationDetails = {
   guardian: {
@@ -31,6 +33,10 @@ const invitationDetails = {
     access: "open your teaching workspace",
     account: "Create a teacher account",
     dashboard: "dashboard",
+  },
+  recovery: {
+    title: "Guardian account recovery", route: "/guardian-recover", rpc: "accept_guardian_account_recovery",
+    access: "restore your existing child links and school history", account: "Create the replacement account", dashboard: "attendance",
   },
 } as const;
 
@@ -86,6 +92,9 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const actionInFlight = useRef(false);
+  const [claim, setClaim] = useState<GuardianRecoveryClaim>();
+  const [method, setMethod] = useState<"email" | "phone">("email");
+  const recoveryOperation = useRef<AbortController | null>(null), recoveryRequestId = useRef<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -96,6 +105,21 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
     });
     return () => { active = false; };
   }, [client]);
+
+  useEffect(() => {
+    if (kind !== "recovery" || !account) return;
+    const controller = new AbortController();
+    void loadGuardianRecoveryClaim(client, account.id, token, controller.signal).then(value => {
+      if (!controller.signal.aborted) setClaim(value);
+    }, failure => { if (!controller.signal.aborted) setError(failure instanceof Error ? failure.message : unavailable); });
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (event !== "INITIAL_SESSION" && session?.user.id !== account.id) {
+        controller.abort(); recoveryOperation.current?.abort(); setClaim(undefined); setAccount(null); setPassword("");
+        setError("Your sign-in changed. Reopen this recovery link with the intended account.");
+      }
+    });
+    return () => { controller.abort(); recoveryOperation.current?.abort(); subscription.unsubscribe(); };
+  }, [account, client, kind, token]);
 
   async function runAction(action: () => Promise<void>, failureMessage: string) {
     if (actionInFlight.current) return;
@@ -154,6 +178,17 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
         setError("Your sign-in changed. Check the account before accepting the invitation.");
         return;
       }
+      if (kind === "recovery") {
+        const controller = new AbortController(); recoveryOperation.current = controller;
+        recoveryRequestId.current ??= crypto.randomUUID();
+        try {
+          await acceptGuardianRecovery(client, account.id, token, recoveryRequestId.current, controller.signal);
+          if (!controller.signal.aborted) { setDestinationPath(guardianAttendancePath); router.replace(guardianAttendancePath); router.refresh(); }
+        } catch (failure) {
+          if (!controller.signal.aborted) setError(failure instanceof GuardianRecoveryError ? failure.message : "Recovery could not be confirmed. Retry with this account before starting another request.");
+        } finally { if (recoveryOperation.current === controller) recoveryOperation.current = null; }
+        return;
+      }
       const { data, error: inviteError } = await client.rpc(details.rpc, { p_token: token });
       if (inviteError?.code === "42501") {
         setError(kind === "teacher"
@@ -209,14 +244,20 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
       {account ? (
         <div className="space-y-4">
           <p className="break-words text-sm muted">Signed in as <strong>{account.email ?? "your account"}</strong>.</p>
-          <p className="text-sm muted">Accept the invitation to link your school account and {details.access}.</p>
+          <p className="text-sm muted">{kind === "recovery" ? "Accept the school's independently approved recovery to restore your existing access. The former login will lose school access." : `Accept the invitation to link your school account and ${details.access}.`}</p>
+          {kind === "recovery" && <>
+            {claim && <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm leading-6">{claim.school_name} · {claim.linked_children} linked children{claim.requires_mfa ? " · A verified authenticator is required before recovery." : "."}</p>}
+            <p className="text-xs leading-6 muted">Use the new verified contact approved by your school. This does not merge existing school accounts. <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">Set up or verify account security</Link> if needed, then return to this link.</p>
+          </>}
           {kind === "teacher" && <p className="text-xs leading-6 muted">If your school requires an authenticator, <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">set up account security</Link> before accepting. You will return to this invitation.</p>}
-          <button type="button" className={primaryButton} onClick={acceptInvite} disabled={pending}>Accept invitation</button>
+          <button type="button" className={primaryButton} onClick={acceptInvite} disabled={pending || kind === "recovery" && !claim}>{kind === "recovery" ? "Accept account recovery" : "Accept invitation"}</button>
           <button type="button" className={textButton} onClick={switchAccount} disabled={pending}>Use a different account</button>
           {pending && <p role="status" className="text-sm muted">Please wait…</p>}
         </div>
       ) : (
-        <form className="space-y-4" onSubmit={authenticate}>
+        <>
+        {kind === "recovery" && <div className="flex flex-wrap gap-2" role="group" aria-label="Replacement sign-in method"><button type="button" className={textButton} disabled={pending} aria-pressed={method === "email"} onClick={() => setMethod("email")}>Email and password</button><button type="button" className={textButton} disabled={pending} aria-pressed={method === "phone"} onClick={() => setMethod("phone")}>Mobile OTP</button></div>}
+        {kind === "recovery" && method === "phone" ? <GuardianPhoneOtpForm purpose="recovery" disabled={pending} onVerified={user => { setAccount(user); setError(""); }} /> : <form className="space-y-4" onSubmit={authenticate}>
           <p className="text-sm muted">Use the email address your school invited. New accounts need email confirmation before accepting.</p>
           <label className="block space-y-1 text-sm font-semibold">
             <span>Email address</span>
@@ -241,7 +282,8 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
             }}>{mode === "signin" ? details.account : "I already have an account"}</button>
             {mode === "signin" && <Link href="/forgot-password" className={textButton}>Forgot password?</Link>}
           </div>
-        </form>
+        </form>}
+        </>
       )}
     </>
   );

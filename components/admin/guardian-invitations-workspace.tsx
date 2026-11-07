@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   loadAdminAttendanceSetup,
   loadEnrolledStudents,
@@ -18,6 +19,7 @@ import {
 } from "@/lib/guardian-invitations/admin";
 import { GuardianAccessWorkspace } from "./guardian-access-workspace";
 import { GuardianInvitationImport } from "./guardian-invitation-import";
+import { GuardianRecoveryWorkspace } from "./guardian-recovery-workspace";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 import { normalizeIndianMobile } from "@/lib/auth/phone";
@@ -52,6 +54,8 @@ function ReadFailure({ error, onRetry }: { error: string; onRetry: () => void })
 }
 
 export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
+  const params = useSearchParams();
+  const [view, setView] = useState<"invites" | "recovery">(() => params?.get("recovery") === "1" ? "recovery" : "invites");
   const [client] = useState(createClient);
   const [access, setAccess] = useState<Load<Access>>();
   const [attempt, setAttempt] = useState(0);
@@ -99,6 +103,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
           setAttempt((value) => value + 1);
         }} />
         : <>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Guardian workflows">{([["invites", "Invitations and child access"], ["recovery", "Account recovery"]] as const).map(([key, title]) => <button key={key} type="button" aria-pressed={view === key} disabled={busy} className={`${button} ${view === key ? "bg-[var(--surface-2)] text-[var(--primary)]" : ""}`} onClick={() => setView(key)}>{title}</button>)}</div>
           <section className="card p-4">
             <label className={label}>School
               <select className="field" value={schoolId} disabled={busy || schools.length === 1}
@@ -109,11 +114,13 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
             </label>
           </section>
           {schoolId ? <>
+            {view === "recovery" ? <GuardianRecoveryWorkspace client={client} userId={userId} schoolId={schoolId} busy={busy} onBusyChange={setBusy} /> : <>
             {canManageLinkedAccess && <GuardianAccessWorkspace key={`guardian-access:${schoolId}`} client={client}
               schoolId={schoolId} busy={busy} onBusyChange={setBusy}
               onInvitationsChanged={() => setAccessRevision((revision) => revision + 1)} />}
             <SchoolInvitations key={schoolId} client={client} schoolId={schoolId} busy={busy}
               onBusyChange={setBusy} accessRevision={accessRevision} />
+            </>}
           </> : <p className="text-sm muted">Select a school to find an enrolled student.</p>}
         </>}
     </div>

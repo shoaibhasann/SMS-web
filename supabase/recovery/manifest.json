@@ -799,6 +799,14 @@
       "kind": "pending",
       "version": "20261107052717",
       "name": "staff_mfa_business_conflict_http_status"
+    },
+    {
+      "path": "supabase/migrations/20261107064340_governed_guardian_account_recovery.sql",
+      "sha256": "337eea21336e945c6098cdad23f9cc9e0687bbe7398abc754ab523b7c62b4ea8",
+      "kind": "pending",
+      "version": "20261107064340",
+      "name": "governed_guardian_account_recovery",
+      "provenance": "Reviewed governed school-access recovery with preserved parent/child and bounded notification history."
     }
   ],
   "excluded": [
@@ -837,5 +845,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "38d7701003f207fe00838fb093f5c12ece44b45a7ad03fd32e1dd195bfc58327"
+  "order_sha256": "814c866a27af53a277bcd7b61ce679d1617fdb93f7064527a953649d8d853447"
 }

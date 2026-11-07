@@ -3,18 +3,20 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
-import { guardianEmailContinuation } from "@/lib/auth/redirect";
 import { createClient } from "@/lib/supabase/client";
 import { requestGuardianCurrentMobileCode, requestGuardianMobileChangeWithOtp } from "@/lib/guardian-invitations/contact";
+import { StaffMfaError } from "@/lib/auth/staff-mfa";
 
-const { getUser, updateUser, rpc, onAuthStateChange, signInWithPassword, signInWithOtp, verifyOtp, updateVerifiedUser, signOut, makeVerifier, authorizeChange } = vi.hoisted(() => ({
+const { getUser, getSession, updateUser, rpc, onAuthStateChange, signInWithPassword, signInWithOtp, verifyOtp, updateVerifiedUser, signOut, makeVerifier, authorizeChange, mfaStatus, factors, verifyMfa } = vi.hoisted(() => ({
   getUser: vi.fn(), updateUser: vi.fn(), rpc: vi.fn(), onAuthStateChange: vi.fn(),
   signInWithPassword: vi.fn(), signInWithOtp: vi.fn(), verifyOtp: vi.fn(), updateVerifiedUser: vi.fn(), signOut: vi.fn(), makeVerifier: vi.fn(), authorizeChange: vi.fn(),
+  getSession: vi.fn(), mfaStatus: vi.fn(), factors: vi.fn(), verifyMfa: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({ auth: { getUser, updateUser, onAuthStateChange }, rpc }),
+  createClient: () => ({ auth: { getUser, getSession, updateUser, onAuthStateChange }, rpc }),
 }));
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: mfaStatus, listAuthenticators: factors, verifyAuthenticator: verifyMfa }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: makeVerifier }));
 vi.mock("@/components/auth/phone-security-check", () => ({
   PhoneSecurityCheck: ({ onToken }: { onToken: (token: string) => void }) =>
@@ -39,17 +41,22 @@ beforeEach(() => {
   phoneAutoconfirm = false;
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://demo.supabase.test");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable");
-  vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => String(url) === "/auth/phone/status"
+  vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => String(url) === "/auth/contact/email"
+    ? (current = { ...current, new_email: JSON.parse(String(init?.body)).email }, { ok: true, json: async () => ({ ok: true }) })
+    : String(url) === "/auth/phone/status"
     ? { ok: true, json: async () => ({ enabled: phoneProvider, captchaSiteKey: phoneProvider ? "public-key" : null }) }
     : String(url) === "/auth/phone/permit" ? { ok: true }
       : { ok: true, json: async () => ({ external: { email: true, phone: phoneProvider }, mailer_autoconfirm: false, phone_autoconfirm: phoneAutoconfirm }) }));
   getUser.mockImplementation(async () => ({ data: { user: current }, error: null }));
+  getSession.mockImplementation(async () => ({ data: { session: { user: current } }, error: null }));
+  mfaStatus.mockImplementation(async (_client, userId) => ({ user_id: userId, allowed: true, required: false, action: "none", current_aal: "aal1", verified_totp_count: 0 }));
+  factors.mockResolvedValue([]); verifyMfa.mockResolvedValue(undefined);
   onAuthStateChange.mockImplementation((listener) => {
     authListener = listener;
     return { data: { subscription: { unsubscribe: vi.fn() } } };
   });
   makeVerifier.mockImplementation(() => ({
-    auth: { signInWithPassword, signInWithOtp, verifyOtp, updateUser: updateVerifiedUser, signOut }, rpc: authorizeChange,
+    auth: { getUser, getSession, signInWithPassword, signInWithOtp, verifyOtp, updateUser: updateVerifiedUser, signOut }, rpc: authorizeChange,
   }));
   authorizeChange.mockResolvedValue({ data: true, error: null });
   updateUser.mockImplementation(async ({ email }) => {
@@ -102,9 +109,8 @@ describe("guardian contact settings", () => {
     expect(await screen.findByText("Confirmation pending for next@example.test.")).toBeInTheDocument();
     expect(screen.getByText("Verified email · guardian@example.test")).toBeInTheDocument();
 
-    const callback = new URL("/auth/callback", window.location.origin);
-    callback.searchParams.set("next", guardianEmailContinuation);
-    expect(updateUser).toHaveBeenCalledExactlyOnceWith({ email: newEmail }, { emailRedirectTo: callback.href });
+    expect(fetch).toHaveBeenCalledWith("/auth/contact/email", expect.objectContaining({ method: "POST", body: JSON.stringify({ userId: "guardian", email: newEmail }) }));
+    expect(updateUser).not.toHaveBeenCalled();
     current = { ...guardian, email: newEmail };
     await user.click(screen.getByRole("button", { name: "Refresh contact details" }));
     expect(await screen.findByText("Verified email · next@example.test")).toBeInTheDocument();
@@ -246,5 +252,48 @@ describe("guardian contact settings", () => {
     expect(updateVerifiedUser).not.toHaveBeenCalled();
     expect(rpc).not.toHaveBeenCalled();
     expect(current.phone).toBe(guardian.phone);
+  });
+  it("verifies the fresh password session's authenticator before sending, keeps wrong-code retries and closes only that temporary session", async () => {
+    phoneProvider = true;
+    let verified = false;
+    mfaStatus.mockImplementation(async (_client, userId) => ({ user_id: userId, required: true, allowed: verified,
+      action: verified ? "none" : "challenge", current_aal: verified ? "aal2" : "aal1", verified_totp_count: 2 }));
+    factors.mockResolvedValue([{ id: "phone", friendly_name: "My phone" }, { id: "backup", friendly_name: "Backup" }]);
+    verifyMfa.mockImplementation(async (_client, _factor, code) => {
+      if (code !== "654321") throw new StaffMfaError("That code was not accepted.", "verification");
+      verified = true;
+    });
+    const user = userEvent.setup(); render(<GuardianContactSettings userId="guardian" callbackStatus={null} />);
+    await user.type(await screen.findByRole("textbox", { name: "New mobile number" }), newPhone);
+    await user.type(screen.getByLabelText("Current password"), "fixture-password");
+    await user.click(screen.getByRole("button", { name: "Complete security check" }));
+    await user.click(screen.getByRole("button", { name: "Send SMS code" }));
+    const step = within(await screen.findByRole("form", { name: "Verify mobile-change authenticator" }));
+    expect(authorizeChange).not.toHaveBeenCalled(); expect(updateVerifiedUser).not.toHaveBeenCalled(); expect(signOut).not.toHaveBeenCalled();
+    await user.selectOptions(step.getByLabelText("Authenticator"), "backup");
+    await user.type(step.getByLabelText("Authenticator code"), "000000");
+    await user.click(screen.getByRole("button", { name: "Complete security check" }));
+    await user.click(step.getByRole("button", { name: "Verify and send new-number code" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("not accepted"); expect(signOut).not.toHaveBeenCalled(); expect(signInWithPassword).toHaveBeenCalledOnce();
+    await user.type(step.getByLabelText("Authenticator code"), "654321");
+    await user.click(screen.getByRole("button", { name: "Complete security check" }));
+    await user.click(step.getByRole("button", { name: "Verify and send new-number code" }));
+    expect(await screen.findByText(`SMS verification pending for ${newPhone}.`)).toBeVisible();
+    const temporary = makeVerifier.mock.results[0].value;
+    expect(verifyMfa).toHaveBeenLastCalledWith(temporary, "backup", "654321");
+    expect(authorizeChange).toHaveBeenCalledBefore(updateVerifiedUser); expect(signOut).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+  });
+  it("discards a temporary MFA proof on account change without authorizing a later send", async () => {
+    phoneProvider = true; mfaStatus.mockResolvedValue({ user_id: "guardian", allowed: false, required: true, action: "challenge", verified_totp_count: 1 });
+    factors.mockResolvedValue([{ id: "phone", friendly_name: "My phone" }]);
+    const user = userEvent.setup(); render(<GuardianContactSettings userId="guardian" callbackStatus={null} />);
+    await user.type(await screen.findByRole("textbox", { name: "New mobile number" }), newPhone);
+    await user.type(screen.getByLabelText("Current password"), "fixture-password");
+    await user.click(screen.getByRole("button", { name: "Complete security check" })); await user.click(screen.getByRole("button", { name: "Send SMS code" }));
+    await screen.findByRole("form", { name: "Verify mobile-change authenticator" });
+    act(() => authListener("SIGNED_IN", { user: { ...guardian, id: "next-account" } }));
+    expect(screen.getByRole("alert")).toHaveTextContent("account changed");
+    await vi.waitFor(() => expect(signOut).toHaveBeenCalledWith({ scope: "local" }));
+    expect(authorizeChange).not.toHaveBeenCalled(); expect(updateVerifiedUser).not.toHaveBeenCalled();
   });
 });

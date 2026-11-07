@@ -2,6 +2,12 @@
 
 Current web backlog: [remaining code, demo screens and activation gates](WEB-REMAINING.md), updated 7 November 2026.
 
+## Independently reviewed Guardian recovery and MFA-aware contacts — 7 November 2026
+
+The new Account recovery workspace reuses the stable Guardian and child relationships while transferring school access to a different verified, otherwise unassigned native login. Requesting and reviewing require two distinct current School Admin/Principal identities with native TOTP/AAL2, even when the school policy is optional. A changed reviewed contact/role/factor/child snapshot blocks acceptance; an old enrolled Guardian requires replacement TOTP/AAL2. Explicit claim and exact retry preserve the same parent/pupil/history rows. The retired native Auth identity remains, but its school profile/role and pending invitations lose access. Timestamp-fenced inbox aliases preserve eligible old IDs/read state, while old push devices/jobs/preferences are revoked or disabled rather than transferred.
+
+The same-account contact follow-up adds staged temporary-session MFA for fresh mobile proof and isolated per-flow PKCE email callbacks. Password-reset recovery now verifies an owned authenticator in its separate native recovery session before password completion. No factor reset, account merge, paid SMS or FCM activation is introduced. Hosted migration `20261107064340` matches 34 routines/ACLs and preserved MFA hook. Whole web **2,470 tests /165 files**, lint/types/build, local database 968 tests, final guards61 and manifest31/31 pass. Actual hosted A→B/concurrent-claim/B→C recovery passes 113 core assertions and final26/26, plus separate truth/security/fixture checks; all 18 owned sessions close and all 2,625 original rows/115 tables remain exact. One new-QA alert was restored after a harness assumption about existing child-link cascade behavior; no original history was rewritten. These preservation checks do not prove managed-service restoration. Actual-browser and main/Production verification remain **pending**. Existing advisor warnings and disabled leaked-password protection remain separate backlog. [Exact evidence and release slots](GUARDIAN-RECOVERY-QA.md) · [Founder checklist source](../../public/qa/guardian-recovery-checklist.md). All founder cases remain unchecked.
+
 ## Governed school details and connected setup — 7 November 2026
 
 `/modules/settings` replaces its local demo with real school-profile editing for School Admin/true global Super Admin and read-only Principal access. The source-ID school scope, active verified native session and current role are checked in the database; direct school/configuration mutations are removed from client table and column privileges. Expected revisions, actor-bound exact retry receipts and private allowlisted change history protect saves. No-op saves add no change event. School code, timezone, activation, academic sessions, opaque configuration and authorization settings remain outside this form. The latest ten safe field-change events are shown inside Settings; this does not add universal Audit Logs capture.
@@ -500,6 +506,8 @@ Both migrations are applied to hosted demo Supabase. Browser QA verified duplica
 
 
 ## Guardian recovery and verified contact changes
+
+This earlier email/password/contact checkpoint is superseded by the [7 November governed recovery and MFA-aware contact slice](GUARDIAN-RECOVERY-QA.md); its old Preview is historical. Use the new evidence page for current release status and the stable Production URL after verified deployment.
 
 Password reset requests return a generic response. The callback exchanges the PKCE code in an isolated recovery session, verifies the provider's recent recovery authentication method and binds the reset to that session. Successful reset ends the recovery session. The guardian signs in again with the new password.
 

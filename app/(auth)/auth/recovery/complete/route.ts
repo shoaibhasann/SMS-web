@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createRecoveryClient, sameOriginRecoveryPost, verifiedRecoverySession } from "@/lib/auth/recovery";
+import { readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     if (!recovery || recovery.sessionId !== body?.sessionId) {
       return NextResponse.json({ error: "invalid_recovery" }, { status: 403, headers });
     }
+    const security = await readStaffMfaStatus(supabase, recovery.userId);
+    if (!security) return NextResponse.json({ error: "invalid_recovery" }, { status: 403, headers });
+    if (!security.allowed) return NextResponse.json({ error: "mfa_required" }, { status: 409, headers });
 
     const { error } = await supabase.auth.updateUser({ password });
     if (error) {

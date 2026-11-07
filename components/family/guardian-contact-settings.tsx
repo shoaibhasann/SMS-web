@@ -5,10 +5,11 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import {
   confirmGuardianMobileChange, createGuardianVerificationClient, guardianPhone, readGuardianAuthUser,
-  readGuardianContactProviders, requestGuardianEmailChange, requestGuardianMobileChange, requestGuardianCurrentMobileCode,
-  requestGuardianMobileChangeWithOtp, syncVerifiedGuardianMobile,
-  type GuardianContactProviders,
+  readGuardianContactProviders, requestGuardianEmailChange, requestGuardianCurrentMobileCode,
+  beginGuardianMobileChange, completeGuardianMobileChange, closeGuardianMobileChange, syncVerifiedGuardianMobile,
+  type GuardianContactProviders, type GuardianMobileProof,
 } from "@/lib/guardian-invitations/contact";
+import { StaffMfaError } from "@/lib/auth/staff-mfa";
 import { LoadingState } from "@/components/ui/skeleton";
 import { PhoneSecurityCheck } from "@/components/auth/phone-security-check";
 
@@ -19,6 +20,9 @@ const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text
 const primaryButton = `${button} bg-blue-700 text-white`;
 
 export function GuardianContactSettings({ userId, callbackStatus }: { userId: string; callbackStatus: string | null }) {
+  return <OwnGuardianContactSettings key={userId} userId={userId} callbackStatus={callbackStatus} />;
+}
+function OwnGuardianContactSettings({ userId, callbackStatus }: { userId: string; callbackStatus: string | null }) {
   const [client] = useState(createClient);
   const [account, setAccount] = useState<User>();
   const [provider, setProvider] = useState<ProviderState>();
@@ -34,6 +38,11 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
   const [currentCodeTarget, setCurrentCodeTarget] = useState("");
   const [retryAt, setRetryAt] = useState(0);
   const [retrySeconds, setRetrySeconds] = useState(0);
+  const [mobileProof, setMobileProof] = useState<GuardianMobileProof>();
+  const [factorId, setFactorId] = useState("");
+  const [authenticatorCode, setAuthenticatorCode] = useState("");
+  const proofRef = useRef<GuardianMobileProof | undefined>(undefined);
+  const operation = useRef<AbortController | null>(null);
   const active = useRef(false);
   const pending = useRef(false);
 
@@ -42,11 +51,17 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       if (session?.user.id !== userId) {
         active.current = false;
+        operation.current?.abort();
+        if (proofRef.current) void closeGuardianMobileChange(proofRef.current);
+        proofRef.current = undefined; setMobileProof(undefined); setAuthenticatorCode("");
         setSessionChanged(true);
       }
     });
     return () => {
       active.current = false;
+      operation.current?.abort();
+      if (proofRef.current) void closeGuardianMobileChange(proofRef.current);
+      proofRef.current = undefined;
       subscription.unsubscribe();
     };
   }, [client, userId]);
@@ -88,18 +103,20 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
     return () => window.clearInterval(timer);
   }, [retryAt]);
 
-  async function run(action: () => Promise<Notice>) {
+  async function run(action: (signal: AbortSignal) => Promise<Notice>) {
     if (!active.current || pending.current) return;
     pending.current = true;
+    const controller = new AbortController(); operation.current = controller;
     setBusy(true);
     setNotice(undefined);
     try {
-      const result = await action();
+      const result = await action(controller.signal);
       if (active.current) setNotice(result);
     } catch (error: unknown) {
       if (active.current) setNotice({ text: error instanceof Error ? error.message : "The request could not be completed.", error: true });
     } finally {
       pending.current = false;
+      if (operation.current === controller) operation.current = null;
       if (active.current) setBusy(false);
     }
   }
@@ -120,9 +137,9 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
   async function requestEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!emailEnabled) return;
-    await run(async () => {
+    await run(async (signal) => {
       if (!(await readGuardianContactProviders()).email) throw new Error("Email verification is unavailable for this school.");
-      const user = await requestGuardianEmailChange(client, userId, email, window.location.origin);
+      const user = await requestGuardianEmailChange(client, userId, email, window.location.origin, signal);
       if (active.current) {
         setAccount(user);
         setEmail("");
@@ -140,18 +157,57 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
     const securityToken = captcha;
     setCaptcha(""); setChallengeVersion((value) => value + 1);
     event.currentTarget.reset();
-    await run(async () => {
+    await run(async (signal) => {
       if (!(await readGuardianContactProviders()).sms) throw new Error("SMS verification is unavailable for this school.");
       if (useCurrentMobile && (!verifiedMobile || currentCodeTarget !== verifiedMobile)) throw new Error("Request a code for your current mobile before changing it.");
-      const user = useCurrentMobile
-        ? await requestGuardianMobileChangeWithOtp(client, createGuardianVerificationClient(), userId, mobile, String(currentCode ?? ""), securityToken)
-        : await requestGuardianMobileChange(client, createGuardianVerificationClient(), userId, mobile, String(password ?? ""), securityToken);
+      const proof = await beginGuardianMobileChange(client, createGuardianVerificationClient(), userId, mobile,
+        useCurrentMobile ? { currentCode: String(currentCode ?? "") } : { password: String(password ?? "") }, signal);
+      if (signal.aborted) { await closeGuardianMobileChange(proof); return { text: "" }; }
+      proofRef.current = proof;
+      if (proof.needsMfa) {
+        setMobileProof(proof); setFactorId(proof.factors[0]?.id ?? ""); setAuthenticatorCode("");
+        return { text: "Password or current-mobile verified. Verify your authenticator before requesting the new-number code." };
+      }
+      let user: User;
+      try { user = await completeGuardianMobileChange(client, proof, securityToken, undefined, signal); }
+      finally { await closeGuardianMobileChange(proof); proofRef.current = undefined; }
       if (active.current) {
         setAccount(user);
         setMobile("");
         setCurrentCodeTarget("");
       }
       return { text: "SMS verification code requested. Enter the code sent to the pending number." };
+    });
+  }
+
+  async function verifyMobileProof(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!mobileProof || !captcha || pending.current) return;
+    const proof = mobileProof, token = captcha, code = authenticatorCode;
+    setCaptcha(""); setChallengeVersion((value) => value + 1); setAuthenticatorCode("");
+    await run(async (signal) => {
+      try {
+        if (!(await readGuardianContactProviders()).sms) throw new Error("SMS verification is unavailable for this school.");
+        const user = await completeGuardianMobileChange(client, proof, token, { factorId, code }, signal);
+        if (!signal.aborted) { setAccount(user); setMobile(""); setCurrentCodeTarget(""); }
+        await closeGuardianMobileChange(proof); proofRef.current = undefined; setMobileProof(undefined);
+        return { text: "SMS verification code requested. Enter the code sent to the pending number." };
+      } catch (error) {
+        if (!(error instanceof StaffMfaError) || !["verification", "rate_limited"].includes(error.code)) {
+          await closeGuardianMobileChange(proof); proofRef.current = undefined;
+          if (!signal.aborted) setMobileProof(undefined);
+        }
+        throw error;
+      }
+    });
+  }
+  async function cancelMobileProof() {
+    const proof = proofRef.current;
+    if (!proof || pending.current) return;
+    await run(async () => {
+      await closeGuardianMobileChange(proof); proofRef.current = undefined;
+      setMobileProof(undefined); setAuthenticatorCode(""); setCaptcha(""); setChallengeVersion((value) => value + 1);
+      return { text: "Mobile verification cancelled. Your verified number was not changed." };
     });
   }
 
@@ -208,7 +264,7 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
           {callbackStatus === "email-pending" && pendingEmail &&
             <p role="status" className="card p-4 text-sm">Email confirmation is still pending. Check both inboxes to finish the change.</p>}
           {callbackStatus === "email-returned" &&
-            <p role="status" className="card p-4 text-sm">Check the verified email below. Any pending change still needs confirmation.</p>}
+            <p role="status" className="card p-4 text-sm">A confirmation link was processed. Check the verified address below; sign in to the original account if you switched accounts.</p>}
           {callbackStatus === "email-link-error" &&
             <p role="alert" className="card p-4 text-sm">The confirmation link did not return to this session. Refresh your contact details or sign in with the email that completed confirmation.</p>}
           {provider === "unavailable" &&
@@ -259,13 +315,20 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
                     <button type="submit" className={primaryButton} disabled={busy}>Verify mobile number</button>
                   </form>
                 )}
-                {useCurrentMobile && <div className="space-y-2 text-sm">
+                {mobileProof && <form aria-label="Verify mobile-change authenticator" onSubmit={(event) => void verifyMobileProof(event)} className="space-y-3 rounded-xl border border-[var(--border)] p-4">
+                  <p className="text-sm font-semibold">Verify your authenticator</p>
+                  <p className="break-all text-sm muted">New number · {mobileProof.phone}. This temporary verification expires after a few minutes; your school links stay on this account.</p>
+                  {mobileProof.factors.length > 1 && <label className={label}><span>Authenticator</span><select className="field" value={factorId} disabled={busy} onChange={(event) => { setFactorId(event.target.value); setAuthenticatorCode(""); }}>{mobileProof.factors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendly_name || "Authenticator app"}</option>)}</select></label>}
+                  <label className={label}><span>Authenticator code</span><input className="field" inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" maxLength={6} value={authenticatorCode} disabled={busy} onChange={(event) => setAuthenticatorCode(event.target.value.replace(/\D/g, ""))} /></label>
+                  <div className="flex flex-wrap gap-2"><button type="submit" className={primaryButton} disabled={busy || !captcha || authenticatorCode.length !== 6}>Verify and send new-number code</button><button type="button" className={button} disabled={busy} onClick={() => void cancelMobileProof()}>Cancel mobile verification</button></div>
+                </form>}
+                {!mobileProof && useCurrentMobile && <div className="space-y-2 text-sm">
                   <p className="muted">Verify your current mobile first, then confirm the new number. If you lost your current number, ask the school office to verify your identity.</p>
                   <button type="button" className={button} disabled={busy || !captcha || retrySeconds > 0} onClick={() => void requestCurrentCode()}>
                     {retrySeconds > 0 ? `Current-mobile code available in ${retrySeconds}s` : "Send code to current mobile"}</button>
                   {currentCodeTarget && <p role="status" className="muted">Current-mobile code requested for {currentCodeTarget}.</p>}
                 </div>}
-                <form onSubmit={(event) => void requestMobile(event)} className="space-y-3">
+                {!mobileProof && <form onSubmit={(event) => void requestMobile(event)} className="space-y-3">
                   <p className="text-sm muted">{useCurrentMobile ? "Enter the code from your current number to authorize the change." : "Confirm your password and enter the code sent to the new number. Include the country code."}</p>
                   <label className={label}><span>New mobile number</span>
                     <input type="tel" autoComplete="tel" placeholder="+91" className="field" required maxLength={25}
@@ -277,7 +340,7 @@ export function GuardianContactSettings({ userId, callbackStatus }: { userId: st
                     <input name="currentPassword" type="password" autoComplete="current-password" className="field" required disabled={busy} />
                   </label>}
                   <button type="submit" className={primaryButton} disabled={busy || !mobile.trim() || !captcha || (useCurrentMobile && !currentCodeTarget)}>Send SMS code</button>
-                </form>
+                </form>}
                 {captchaSiteKey && <PhoneSecurityCheck key={challengeVersion} siteKey={captchaSiteKey} onToken={setCaptcha} />}
               </div>
             ) : provider && provider !== "unavailable" &&

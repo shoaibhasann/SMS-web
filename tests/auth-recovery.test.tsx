@@ -1,10 +1,11 @@
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecoveryClient, createOrdinaryClient, auth, clearSession } = vi.hoisted(() => ({
+const { createRecoveryClient, createOrdinaryClient, auth, clearSession, mfaStatus, factors } = vi.hoisted(() => ({
   createRecoveryClient: vi.fn(),
   createOrdinaryClient: vi.fn(),
   clearSession: vi.fn(),
+  mfaStatus: vi.fn(), factors: vi.fn(),
   auth: {
     resetPasswordForEmail: vi.fn(),
     exchangeCodeForSession: vi.fn(),
@@ -12,6 +13,7 @@ const { createRecoveryClient, createOrdinaryClient, auth, clearSession } = vi.ho
     getUser: vi.fn(),
     updateUser: vi.fn(),
     signOut: vi.fn(),
+    mfa: { challengeAndVerify: vi.fn() },
   },
 }));
 
@@ -20,11 +22,13 @@ vi.mock("@/lib/auth/recovery", async (importOriginal) => ({
   createRecoveryClient,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createOrdinaryClient }));
+vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: mfaStatus, listAuthenticators: factors }));
 
 import { GET } from "../app/(auth)/auth/callback/route";
 import { POST as requestRecovery } from "../app/(auth)/auth/recovery/request/route";
 import { POST as completeRecovery } from "../app/(auth)/auth/recovery/complete/route";
 import UpdatePasswordPage from "../app/(auth)/update-password/page";
+import { POST as verifyRecoveryMfa } from "../app/(auth)/auth/recovery/mfa/route";
 
 const origin = "https://school.example";
 const userId = "e0299e29-f65f-418b-82d5-963c37ebf097";
@@ -61,6 +65,9 @@ beforeEach(() => {
   auth.getUser.mockResolvedValue({ data: { user: { id: userId, is_anonymous: false } }, error: null });
   auth.updateUser.mockResolvedValue({ error: null });
   auth.signOut.mockResolvedValue({ error: null });
+  mfaStatus.mockResolvedValue({ allowed: true, current_aal: "aal1", action: "none" });
+  factors.mockResolvedValue([{ id: "00000000-0000-4000-8000-000000000001", friendly_name: "Recovery phone" }]);
+  auth.mfa.challengeAndVerify.mockResolvedValue({ error: null });
   setClaims();
 });
 
@@ -128,6 +135,15 @@ describe("recovery callback and form", () => {
 describe("completing a password reset", () => {
   const password = "example-strong-123!";
 
+  it("does not change a password when recovery proves only the first factor of an MFA account", async () => {
+    mfaStatus.mockResolvedValue({ allowed: false, action: "challenge", current_aal: "aal1" });
+    const response = await completeRecovery(post("complete", { password, sessionId }));
+    expect(response.status).toBe(409); expect(await response.json()).toEqual({ error: "mfa_required" });
+    expect(auth.updateUser).not.toHaveBeenCalled(); expect(clearSession).not.toHaveBeenCalled();
+    const html = renderToString(await UpdatePasswordPage());
+    expect(html).toContain("Six-digit authenticator code"); expect(html).not.toContain('autocomplete="new-password"');
+  });
+
   it("updates only the verified form session, then closes that recovery session", async () => {
     const response = await completeRecovery(post("complete", { password, sessionId }));
     expect(response.status).toBe(200);
@@ -159,5 +175,46 @@ describe("completing a password reset", () => {
     auth.signOut.mockRejectedValueOnce(new Error("temporary provider error"));
     expect((await completeRecovery(post("complete", { password, sessionId }))).status).toBe(200);
     expect(clearSession).toHaveBeenCalledOnce();
+  });
+});
+
+describe("isolated recovery authenticator verification", () => {
+  const factorId = "00000000-0000-4000-8000-000000000001";
+  const input = { sessionId, factorId, code: "123456" };
+  beforeEach(() => mfaStatus.mockResolvedValue({ allowed: false, action: "challenge", current_aal: "aal1" }));
+  it("verifies only a recent recovery session and requires fresh native-backed AAL2 afterward", async () => {
+    mfaStatus.mockResolvedValueOnce({ allowed: false, action: "challenge", current_aal: "aal1" }).mockResolvedValue({ allowed: true, action: "none", current_aal: "aal2" });
+    const response = await verifyRecoveryMfa(post("mfa", input));
+    expect(response.status).toBe(200); expect(await response.json()).toEqual({ ok: true });
+    expect(auth.mfa.challengeAndVerify).toHaveBeenCalledExactlyOnceWith({ factorId, code: "123456" });
+    expect(mfaStatus).toHaveBeenCalledTimes(2); expect(createOrdinaryClient).not.toHaveBeenCalled();
+    expect(auth.updateUser).not.toHaveBeenCalled(); expect(auth.signOut).not.toHaveBeenCalled();
+  });
+  it("rejects a different recovery tab, CSRF, malformed code and foreign factor before verification", async () => {
+    expect((await verifyRecoveryMfa(post("mfa", input, "https://attacker.example"))).status).toBe(403);
+    expect((await verifyRecoveryMfa(post("mfa", { ...input, code: "12" }))).status).toBe(400);
+    expect((await verifyRecoveryMfa(post("mfa", { ...input, sessionId: "00000000-0000-4000-8000-000000000002" }))).status).toBe(403);
+    expect((await verifyRecoveryMfa(post("mfa", { ...input, factorId: "00000000-0000-4000-8000-000000000003" }))).status).toBe(403);
+    expect(auth.mfa.challengeAndVerify).not.toHaveBeenCalled(); expect(clearSession).not.toHaveBeenCalled();
+  });
+  it.each(["password", "otp", "oauth"])("does not accept %s as password-recovery authority", async method => {
+    setClaims(method); expect((await verifyRecoveryMfa(post("mfa", input))).status).toBe(403);
+    expect(auth.mfa.challengeAndVerify).not.toHaveBeenCalled();
+  });
+  it("keeps wrong/expired codes retryable and never upgrades based only on the provider's success response", async () => {
+    auth.mfa.challengeAndVerify.mockResolvedValueOnce({ error: { code: "mfa_verification_failed", status: 422 } });
+    const wrong = await verifyRecoveryMfa(post("mfa", input)); expect(wrong.status).toBe(422); expect(await wrong.json()).toEqual({ error: "invalid_code" });
+    auth.mfa.challengeAndVerify.mockResolvedValueOnce({ error: { code: "mfa_challenge_expired", status: 422 } });
+    expect((await verifyRecoveryMfa(post("mfa", input))).status).toBe(422);
+    expect((await verifyRecoveryMfa(post("mfa", input))).status).toBe(403);
+    expect(clearSession).not.toHaveBeenCalled(); expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+  it("denies a session that changes during verification without clearing the new recovery or primary account", async () => {
+    auth.mfa.challengeAndVerify.mockImplementationOnce(async () => {
+      auth.getClaims.mockResolvedValue({ data: { claims: { sub: userId, session_id: "00000000-0000-4000-8000-000000000004", role: "authenticated", amr: [{ method: "recovery", timestamp: issuedAt() }] } }, error: null });
+      return { error: null };
+    });
+    expect((await verifyRecoveryMfa(post("mfa", input))).status).toBe(403);
+    expect(clearSession).not.toHaveBeenCalled(); expect(createOrdinaryClient).not.toHaveBeenCalled();
   });
 });

@@ -20,7 +20,7 @@ function MfaContent() {
   const [attempt, setAttempt] = useState(0);
   function destination() {
     const fragment = window.location.hash;
-    return ["/guardian-invite", "/teacher-invite"].includes(next) && /^#token=[a-f0-9]{64}$/.test(fragment) ? `${next}${fragment}` : next;
+    return ["/guardian-invite", "/teacher-invite", "/guardian-recover"].includes(next) && /^#token=[a-f0-9]{64}$/.test(fragment) ? `${next}${fragment}` : next;
   }
   useEffect(() => {
     const controller = new AbortController();
@@ -29,7 +29,7 @@ function MfaContent() {
       if (!result) { router.replace("/login"); return; }
       if (result.allowed && !requestedSetup) {
         const fragment = window.location.hash;
-        router.replace(["/guardian-invite", "/teacher-invite"].includes(next) && /^#token=[a-f0-9]{64}$/.test(fragment) ? `${next}${fragment}` : next);
+        router.replace(["/guardian-invite", "/teacher-invite", "/guardian-recover"].includes(next) && /^#token=[a-f0-9]{64}$/.test(fragment) ? `${next}${fragment}` : next);
         router.refresh(); return;
       }
       setStatus(result); setError("");

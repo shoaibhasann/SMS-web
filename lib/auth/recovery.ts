@@ -77,5 +77,5 @@ export async function verifiedRecoverySession(supabase: SupabaseClient, token?: 
 
   const user = await supabase.auth.getUser(token);
   if (user.error || user.data.user?.id !== claims.sub || user.data.user.is_anonymous) return null;
-  return { sessionId: claims.session_id, userId: claims.sub };
+  return { sessionId: claims.session_id, userId: claims.sub, accountLabel: user.data.user.email ?? user.data.user.phone ?? "your SMS account" };
 }
