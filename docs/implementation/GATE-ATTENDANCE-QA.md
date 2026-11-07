@@ -1,0 +1,89 @@
+# Student gate attendance — engineering QA
+
+7 November 2026 · Hosted synthetic gate/family workflow verified · Main web release pending
+
+The agreed pilot uses one student gate IN/OUT device. An eligible IN creates the pupil's existing daily class-register mark as Present/Late under the configured school rule. Repeated delivery must be idempotent. OUT records departure evidence and leaves the day's attendance intact. No classroom or staff device capture is included. No physical device has been selected, connected or tested.
+
+This record separates synthetic connector input, canonical attendance, web readback and real hardware/provider acceptance. An accepted QA event is not a verified physical arrival, a biometric identity check or notification delivery. The existing office release remains the last verified Production checkpoint until this phase's release evidence is recorded below.
+
+## Scope and existing rules to preserve
+
+- Reuse the canonical daily attendance register and its student/date uniqueness, revision handling, family reads and governed historical corrections. Do not add a second official register or grant a device a staff login/service-role credential.
+- Resolve a pupil and school through a current, school-scoped device identity mapping. A request cannot select another school, pupil, session or section by supplying their IDs.
+- Preserve manual marks, reviewed corrections, approved leave, holiday rules and historical enrollment/placement. Missing, ambiguous, conflicting or stale input must fail closed or remain a review outcome rather than rewrite history.
+- Do not infer absence from a missing scan, alternate IN/OUT automatically, or infer Half Day from OUT. A gate observation does not establish period-by-period classroom presence.
+- Leave approval currently changes its private request, not attendance. The gate path must check the authoritative approved leave itself. Existing absence alerts are tied to an Absent mark; a status transition can delete their alert row. This phase must not silently overwrite that mark and erase its retained read state.
+- The current submission monitor counts canonical marks against the active roster. Its Complete/Partial status describes register coverage, not a separate teacher submission or a physical attendance attestation.
+
+Source context: `20261104163647_govern_attendance_corrections.sql`, `20261104203041_guardian_absence_alerts.sql`, `20261105110918_school_attendance_cutoff_monitor.sql` and `20261106065206_governed_student_leave_requests.sql`.
+
+## Connector and policy contract
+
+The managed Supabase Edge endpoint is `POST https://bjecfuixgqgyohttrdfr.supabase.co/functions/v1/gate-attendance-events`. It is not a Next.js API route and does not require copying a service key into Vercel. A device uses its dedicated `Bearer <device UUID>.<secret>` credential; the random secret is 32 bytes encoded as 43 base64url characters. Store it only in the trusted connector/operator secret store. The device does not receive the Edge service credential. Database setup stores only its hash.
+
+The request body has exactly `eventId`, `subjectId`, `direction` (`IN` or `OUT`) and `occurredAt` (RFC3339 with an explicit offset). The backend derives the school and pupil through the device's current mapping; no body school/pupil/class/section fields are supported. Current native AAL2 School Admin/Principal office users provision/read/revoke through `create_gate_device`, `map_gate_student`, `revoke_gate_device`, `revoke_gate_student_mapping`, `get_gate_setup` and `list_gate_events`. This backend phase adds no device-configuration screen or vendor-specific adapter. Only one active gate device is permitted per school. A subject remains reserved to its original mapping even after revocation; replacing an identity requires a new subject, not rebinding its old value to another pupil.
+
+The first policy is deliberately bounded to the current date in `Asia/Kolkata`, explicit per-device weekdays and an `HH:MM` late cutoff. At the cutoff the mark is Present; a later eligible IN is Late. Older dates and events before a mapping's validity are retained as `held_review`; a future day or time over two minutes ahead is also held. This is not full school calendar/holiday, overnight-session or historical offline conversion. An existing Holiday/manual mark is protected; automatic holiday-calendar calculation remains separate.
+
+An eligible first IN creates a previously unmarked canonical day. Later IN keeps its first arrival; an earlier same-day IN may improve a device-owned Late mark to Present only while the attendance ID/revision, school, device and placement still match recorded provenance. A manual update breaks that eligibility. Approved leave, pending/approved correction, same-day placement change and an existing conflicting mark are held instead of overwritten. OUT adds event evidence without changing the daily mark. A held event is a retained decision, not an editable review UI or automatic replay after policy/mapping changes. Historical corrections continue through the established governed flow.
+
+The device stream is serialized with revocation and the 600-new-events/minute limit; student/day locking protects competing gate events. Exact event-ID/payload retry returns its retained receipt; changed content under that ID conflicts. A receipt is the original event-outcome snapshot: a later accepted earlier-IN can improve canonical attendance, while replay of the old event still returns its original receipt. Read the current register to determine today's authoritative status. Existing overlapping leave rows are share-locked during ingestion; pending/approved corrections are checked for existence, without a correction-row lock. This is not a blanket serializable claim about every future concurrent workflow or a replacement for normal exception review.
+
+## Verified deployment and source boundary
+
+Hosted migration `20261107082956_govern_gate_attendance_ingestion.sql` is applied. Its exact SQL SHA-256 is `bfa2a73c3b9fb6387376010406deea1288906f7c818bc24920ce6ef31763103f` and MD5 is `322597e5bc4caec1e46308ae5747ec9e`. All 15 routines match local/hosted definitions, configuration, owners and ACLs; the LF-normalized/C-collation digest is `5ac379affbee35d06e2f6b0cc1281179`. Four new private RLS tables allow zero raw CRUD privileges to anon, authenticated or service-role API accounts. Ingestion is a checked service-only routine behind the Edge function; native user JWTs are not device credentials.
+
+Managed Edge function `gate-attendance-events` version 1 is Active. Its deployed downloaded source matches SHA-256 `6097ab54891ba937e67f93a3902fbde90f8f899213708e5409f1840a3060963e`. Platform JWT verification is disabled intentionally because this endpoint verifies its dedicated machine credential; it is not an unauthenticated attendance-write API. Actual live GET returns 405, credential-free POST returns 401 and a Student JWT as Bearer returns 401. The actual synthetic device→register/family workflow plus preparation passes 235 hosted assertions, detailed below.
+
+The recovery manifest now has 94 sources/24 patches/123 tables/five views. Security advisor INFO entries increase from 50 to 54 for the four private RLS/no-policy deny-all tables. Existing warnings remain five platform-owned internal constructors, five intentional public authenticated SECURITY DEFINER wrappers and disabled leaked-password protection; zero anonymous SECURITY DEFINER grants are present. No advisor-clean or provider-setting activation claim is made.
+
+## Evidence ledger
+
+| Gate | Status / measured evidence |
+|---|---|
+| Final endpoint, device credentials and provisioning contract | Managed Edge v1 Active/source exact; GET405, missing credential401 and Student-JWT401 observed. Actual dedicated-device HTTP workflow passes; no device-management UI. |
+| Database migration/source parity and restricted execution | Exact applied migration and 15-routine/configuration/owner/ACL parity pass; four private RLS tables deny all raw API CRUD. |
+| Synthetic connector → canonical Present/Late → exact retry | Actual managed Edge HTTP plus native family SDK workflow passes; synthetic input, not physical hardware. |
+| OUT, changed-payload replay, conflicting/manual/leave/history outcomes | Exact retry, changed-payload conflict, duplicate/concurrent IDs, earlier-IN improvement, OUT and manual/leave/history/placement holds pass. |
+| Wrong school/identity, revoked credentials, clock and concurrency negatives | Wrong school/Student credential negatives, clock holds and device/mapping revoke races pass. Three synthetic devices are revoked; 22 retained events have zero duplicate keys/after-revoke events and six provenance days. |
+| Existing student/Guardian register refresh and access scope | Native family reads pass. Actual existing stable Production frontend Guardian password login → six linked children → Present hard refresh/reselect one row → Late hard refresh/reselect one row → earlier-IN Present → approved-leave zero rows → logout passes. Unread remains three, without inbox writes. Positive Student UI is not claimed. |
+| Baseline row/history/alert/read-state preservation | Final post-browser SQL confirms all 2,765 originals present, 2,764 byte-exact and only the known unrelated invitation revocation delta. Gate fixtures add 32 rows; external replacement invitation/attendance add two, current 2,799. All 1,319 old attendance/145 finance/44 child links/27 absence alerts/ten family notifications remain exact. Zero owned sessions remain. |
+| Local tests, types, lint and optimized build | Final whole suite passes 2,684 tests/173 files (14:01:54 IST start, 95.62s). Whole lint, optimized build, sequential TypeScript and Deno pass. Earlier 63 HTTP boundary/49 gate database/141 related tests, and aligned 99 focused/31 replay-overlap checks are separate checkpoints, not additional unique totals. |
+| Main commit, Ready Production deployment and public checklist parity | Pending release evidence. |
+| Production endpoint/readback and post-release preservation | Pending observed release QA. |
+| Physical unit, vendor adapter, phone delivery and founder acceptance | Not tested; separate operational gates. |
+
+Do not convert a planned case into Pass without its actual result. A successful build or SQL fixture is not browser, hardware or carrier evidence. Private fixtures, credentials, request signatures and detailed evidence remain outside Git.
+
+The first whole run passed 2,682/2,684: its two failures were stale recovery inventory expectations. Those fixtures now expect 94 sources/123 tables and include ingress ACL checks. The final whole rerun passes 2,684/2,684 across 173 files; no production guard was relaxed to satisfy the old fixtures.
+
+## Actual hosted synthetic workflow and preservation boundary
+
+The managed Edge/device credential → database → native family read workflow passes 171 checks covering real 200 Present/Late outcomes, earlier IN, exact and changed-payload retries, concurrent same/different IDs, OUT, manual/leave/history/clock/placement holds, revocation races and wrong-school/Student negatives. The separate preparation passes 64 checks: **235 successful hosted assertions**, not 235 device events. Preparation closes seven native sessions and the workflow closes five, with zero owned SDK sessions remaining before browser QA. All three synthetic device credentials are revoked. There are 22 retained gate events, zero duplicate keys/after-revoke events and six gate-owned provenance days. No physical scan, paid send or new arrival/late alert occurs.
+
+Actual Guardian password login on the **existing stable Production frontend** shows two retained children plus four intentionally linked synthetic pupils. The Present child shows one 7 November mark after hard refresh and reselect; the retained Late child stays Late once after hard refresh and reselect. The earlier-IN child reads Present once and the approved-leave child has zero canonical attendance rows. Unread count stays three; the run performs no inbox read-state writes and ends with observed logout/login screen. This is the current released UI reading the newly deployed backend's synthetic outcomes, **not** a browser test after a new web deployment. Positive Student UI is not claimed; Student cross-pupil denial is native SDK/RLS evidence. The new main web release remains pending.
+
+The before/after baseline contains 2,765 application rows in 119 pre-existing tables. **2,764 originals remain byte-exact.** One invitation outside both owned gate schools changed only its revocation timestamp at 08:20:20 UTC; a replacement was created 24 ms later. A current-day Present mark was also appended to that same external demo school at 08:22:51 UTC. Both actions belong to a separate founder-demo Admin outside the owned gate actors. The changed invitation and two new rows are preserved as concurrent external work; no SQL restoration is performed. All nine triggers on touched tables and seven directly invoked routines contain no invitation reference; the gate ingress writes attendance/private gate records, not invitations. Do not report all 2,765 originals unchanged.
+
+Gate fixtures intentionally add 32 rows to those 119 tables: nine students, nine enrollments, four peer-child links, one approved leave request, one existing-family-notification event, one placement audit and seven attendance rows (six machine-created plus one manual conflict fixture). The two external additions produce current 2,799 rows. All **1,319 original attendance rows** and original finance/child-link/inbox read state remain byte-exact. The four new sibling links and fixture leave notification are additions, not rewrites of old records. Private gate-table additions are reported separately above. This comparison is not managed Auth/Storage disaster-recovery proof.
+
+Collection checks retain all 44 original child links plus four new links; all 27 original absence alerts/read timestamps; and all ten original family notifications plus one new leave-decision notification. Existing push devices (five), preferences (four), jobs (six) and batches (one) remain byte-exact. SMS permits/reservations and notification logs remain empty; no provider send is initiated.
+
+Final read-only SQL after the actual Production Guardian browser run/logout confirms the same 2,799 rows/119 original tables, all original rows still present, 2,764 byte-exact originals and only the known invitation's revocation-timestamp difference. All 1,319 attendance, 145 financial, 44 child-link, 27 absence-alert/read-state and ten family-notification baseline rows remain exact. There are zero owned native sessions; all three gate devices stay revoked, with 22 retained events, six provenance days and zero duplicate keys/after-revoke events. This closes post-browser preservation; the upcoming main web deployment and its release verification remain pending.
+
+## Required synthetic backend cases
+
+1. Provision only isolated test-school/device identities through the implemented trusted operator path. Do not expose server credentials in a browser, mobile app, device payload or public checklist.
+2. A mapped eligible IN creates exactly one canonical mark in the correct current daily register. Test the configured Present/Late boundary; refresh the existing family views against that same mark.
+3. Replay identical input, overlap concurrent delivery and retry after a discarded response. The same event/outcome returns without another canonical mark or duplicated retained event/notification side effect; reusing an event ID with changed content is rejected. Test a provenance-matching earlier IN and a manual-revision conflict separately.
+4. OUT after IN and OUT without IN leave existing canonical marks intact. Unknown directions, missing required fields, excessive payloads and unsupported identifiers are rejected or held according to the actual contract.
+5. Existing manual/Absent/On Leave/Holiday/Half Day/reviewed marks, approved leave and configured non-working weekdays preserve their authoritative history. Capture the explicit conflict outcome; do not claim full holiday-calendar calculation or automatic reconciliation.
+6. Old/offline, future, midnight, wrong-timezone and unreasonable-clock inputs obey the implemented window. No backdated punch can use today's placement after a transfer/promotion or bypass the historical correction path.
+7. Wrong school, unknown/replaced/ambiguous identity, withdrawn pupil, inactive school, stale enrollment and revoked device/mapping cannot create a mark. Anonymous/family/teacher credentials cannot operate a machine-management capability.
+8. Verify before/after fingerprints for existing attendance, corrections, leave requests, child links, fee/payment history, inbox/read timestamps and push jobs. Close owned QA sessions and record any intentional synthetic additions separately.
+
+## Founder and physical-device handoff
+
+Use [the focused founder checklist](../../public/qa/gate-attendance-checklist.md) and [the device pilot decisions](../product/ATTENDANCE-DEVICE-PILOT.md). Founder boxes remain unchecked. Device purchase/model/protocol/SDK, clock/offline behavior, identification policy, peak arrival throughput and manual exception ownership require real documentation and a controlled unit.
+
+Existing in-app absence/result/leave events and the native push backend remain separate capabilities. This phase does not imply new arrival/exit/late alerts or actual phone display. Paid SMS and real FCM dispatch stay OFF until the provider, schedule, budget and real-device checks are explicitly activated and accepted. Reuse the existing eligible-send path rather than add another gateway.

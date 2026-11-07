@@ -815,6 +815,14 @@
       "version": "20261107072011",
       "name": "harden_legacy_function_access",
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261107082956_govern_gate_attendance_ingestion.sql",
+      "sha256": "bfa2a73c3b9fb6387376010406deea1288906f7c818bc24920ce6ef31763103f",
+      "kind": "pending",
+      "version": "20261107082956",
+      "name": "govern_gate_attendance_ingestion",
+      "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     }
   ],
   "excluded": [
@@ -853,5 +861,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "53f96f860143bb847a6b62d0102e1847dd33bff85c6d940a3edf86422768e36b"
+  "order_sha256": "6bb42ebc2bcc048074ece3398b202ed58bd95bb6418150cfe4ca4cfbe554d5cb"
 }
