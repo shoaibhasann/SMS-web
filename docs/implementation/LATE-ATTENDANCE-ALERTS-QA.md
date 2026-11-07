@@ -1,6 +1,6 @@
 # School-controlled Guardian Late attendance alerts
 
-7 November 2026. Release verification is in progress; founder acceptance is separate.
+7 November 2026. Main Production is verified; founder acceptance is separate.
 
 ## Delivered scope
 
@@ -36,6 +36,12 @@ Post-DDL security advisories add only two intentional private deny-all [RLS/no-p
 
 Post-local/pre-Production proof at **22:28:34 IST** retains all **3,263 original full-row hashes** and native 138/28/443 references, with owned sessions zero. Current 131-table total is **3,296 rows**. Exactly the reserved fresh Browser mark changes Present→Late at the same ID with an incremented revision; the four earlier fresh Late rows/read states remain exact. Two policy decisions and one Browser Late receipt are the only added rows. There are three fresh canonical marks, five retained Late rows, five fresh child links and five OFF/version0 gate preference epochs. Policy is OFF4; all nine existing gate devices remain revoked and all 50 receipts stay unchanged. Old routine references/new16 exact catalog parity still pass. Private `preproduction-proof.json` and companion snapshots retain this checkpoint.
 
-Pending: main Production rollout, actual stable-URL readback and final proof. No pending release step is claimed as passed.
+Runtime `f023324240a71301d92172828efa78c8ee5ba8af` is pushed to Git `main`, with GitHub Vercel Success and Production deployment `dpl_GXhuk9HXsjC4WkkC2mw146x2KNUj` Ready. The canonical `https://kids-corner-erp-frontend.vercel.app` alias resolves to that deployment. Login and the public checklist return HTTP200 without Vercel login; checklist bytes match source.
+
+Actual stable-URL Admin and Principal independently complete native password/TOTP, open the deployed Late card, hard-refresh OFF4/history4 and log out. Principal School details remains read-only while the distinct Late policy form is available. Guardian completes native password/TOTP, hard-refreshes the three retained Read Late alerts/zero unread, verifies Unread empty then All restored, opens the exact fresh Browser child and hard-refreshes its 7 November Late history with the unconfigured-calendar official percentage still withheld. Guardian logs out. No Production application writes occur. Zero Production-origin browser errors are observed during the bounded run; this is not continuous monitoring. `production-school-late-policy.png` and `production-guardian-late-inbox.png` retain actual UI evidence privately.
+
+Final read-only proof at **22:35:14 IST**, with the explicit delivery/read invariants at **22:35:40 IST**, retains **all **3,296** pre-Production full-row hashes** and all **3,263** originals across 131 tables. Native 138/28/443 references remain exact, owned sessions are zero, old 72/30/56 routine sets remain unchanged and all 16 new catalog/ACL definitions match local replay. SQL ledger MD5 remains `caf859683f0bfae168f32b786047b706`. OFF4/history4, three fresh canonical marks, five Late rows, five fresh links/OFF0 preference epochs and gate 50/nine/all revoked are unchanged. Guardian C has three Read Late alerts/zero unread; the peer retains its eight original unread records plus one fresh unread Late, with no old read-state changes. Existing six push jobs remain exact, with zero new school or Late jobs. Private `final-proof.json`, `final-invariants.json` and companion snapshots record this comparison without Auth/application writes.
+
+The subsequent evidence/checklist rollout is documentation-only. The tested runtime source remains `f023324`; final documentation deployment readiness and source/checklist parity are checked separately. Founder acceptance remains unchecked.
 
 Founder checks stay unchecked in [the manual checklist](../../public/qa/late-attendance-alerts-checklist.md). Private account details, tokens, original row fingerprints and screenshots remain outside Git.
