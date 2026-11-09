@@ -95,8 +95,17 @@
 .login-divider{display:flex;align-items:center;gap:13px;margin:23px 0;color:var(--muted);font-size:11px;line-height:1.5;white-space:nowrap}
 .login-divider span{height:1px;flex:1;background:var(--border)}
 .login-access-note{max-width:290px;margin:24px auto 0;color:var(--muted);font-size:12px;line-height:1.7;text-align:center}
-.login-error{margin:0;border:1px solid #f3b5b5;border-radius:10px;padding:11px 13px;background:#fff1f2;color:#a51d36;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
-.dark .login-error{border-color:#8f3d51;background:#341b2b;color:#ffc0cb}
+.login-error{
+  border-inline-start:2px solid color-mix(in srgb,currentColor 50%,transparent);
+  border-radius:8px;
+  padding:8px 11px;
+  background:color-mix(in srgb,currentColor 7%,var(--surface));
+  color:#a1243d;
+  font-size:13px;
+  line-height:1.5;
+  overflow-wrap:anywhere;
+}
+.dark .login-error{color:#f4a9b8}
 .login-page :is(button,a,input):focus-visible{outline:3px solid var(--primary);outline-offset:4px}
 .login-page button:disabled,.login-input:disabled{cursor:wait;opacity:.6}
 @media(min-width:640px){
