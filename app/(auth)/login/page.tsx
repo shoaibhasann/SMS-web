@@ -8,7 +8,7 @@ import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck } from
 import { createClient } from "@/lib/supabase/client";
 import { AdminEmailOtpForm } from "@/components/auth/admin-email-otp-form";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
-import { mfaPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { dashboardStepUpPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 const methods = [["email", "Email & password"], ["mobile", "Guardian mobile"], ["admin-code", "Admin email code"]] as const;
 const emailCodeEnabled = process.env.NEXT_PUBLIC_ADMIN_EMAIL_OTP_ENABLED === "true";
@@ -104,7 +104,7 @@ export default function LoginPage() {
     const status = await readStaffMfaStatus(supabase, resumeUserId, controller.signal).catch(() => null);
     resumeAttempt.current = null;
     if (!controller.signal.aborted && status?.action === "challenge" && status.current_aal === "aal1") {
-      router.replace(mfaPath("/dashboard"));
+      router.replace(dashboardStepUpPath);
       return;
     }
     if (!controller.signal.aborted) setResumeUserId(undefined);

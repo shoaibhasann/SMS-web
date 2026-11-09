@@ -82,7 +82,7 @@ it("continues an existing MFA challenge only after the owner explicitly clicks a
   expect(router.replace).not.toHaveBeenCalled();
 
   fireEvent.click(resume);
-  await waitFor(() => expect(router.replace).toHaveBeenCalledExactlyOnceWith("/mfa?next=%2Fdashboard"));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledExactlyOnceWith("/mfa?next=%2Fdashboard&stepup=1"));
   expect(readStatus).toHaveBeenCalledTimes(2);
   expect(readStatus.mock.lastCall?.slice(0, 2)).toEqual([client, owner.id]);
   expect(auth.signInWithPassword).not.toHaveBeenCalled();

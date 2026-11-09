@@ -84,6 +84,7 @@ export function safeMfaNext(next: string | null): string {
     ? value : "/dashboard";
 }
 export const mfaPath = (next: string) => `/mfa?next=${encodeURIComponent(safeMfaNext(next))}`;
+export const dashboardStepUpPath = `${mfaPath("/dashboard")}&stepup=1`;
 
 function providerError(error: { code?: string; status?: number } | null, fallback = "Authenticator verification could not be confirmed. Retry verification before continuing.") {
   if (!error) return;

@@ -20,6 +20,7 @@ function MfaContent() {
   const params = useSearchParams();
   const next = safeMfaNext(params.get("next"));
   const requestedSetup = params.get("setup") === "1";
+  const overviewContinuation = params.get("next") === "/dashboard" && params.get("stepup") !== "1";
   const [status, setStatus] = useState<StaffMfaStatus>();
   const [error, setError] = useState("");
   const [attempt, setAttempt] = useState(0);
@@ -28,14 +29,14 @@ function MfaContent() {
     void readStaffMfaStatus(client, undefined, controller.signal).then((result) => {
       if (controller.signal.aborted) return;
       if (!result || result.action === "sign_in") { router.replace("/login"); return; }
-      if (result.allowed && !requestedSetup) {
+      if (!requestedSetup && (result.allowed || (overviewContinuation && result.dashboard_allowed))) {
         router.replace(destination(next));
         router.refresh(); return;
       }
       setStatus(result); setError("");
     }, () => { if (!controller.signal.aborted) setError("Account security could not be checked. Retry or sign in again."); });
     return () => controller.abort();
-  }, [attempt, client, next, requestedSetup, router]);
+  }, [attempt, client, next, overviewContinuation, requestedSetup, router]);
   function verified(result: StaffMfaStatus) {
     if (!result.allowed) { setStatus(result); return false; }
     router.replace(destination(next));

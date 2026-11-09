@@ -5,7 +5,7 @@ import { DashboardGreeting, DashboardMetric } from "@/components/dashboard/dashb
 import { AppShell } from "@/components/layout/app-shell";
 import { resolveUiRole, toUiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
-import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+import { dashboardStepUpPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 
 const overviewMetrics = [
   ["students", "Total students"],
@@ -32,7 +32,7 @@ export default async function DashboardPage() {
               <div className="space-y-4">
                 <DashboardGreeting eyebrow="School administration" title="School Admin Dashboard"
                   description="Your school overview. Verify your authenticator to open records and manage the school."
-                  href={mfaPath("/dashboard")} action="Unlock full workspace" />
+                  href={dashboardStepUpPath} action="Unlock full workspace" />
                 <section aria-label="School overview" className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {overviewMetrics.map(([key, label]) => <DashboardMetric key={key} label={label} value={data[key]} />)}
                 </section>
@@ -40,6 +40,7 @@ export default async function DashboardPage() {
             </AppShell>
           );
         }
+        redirect(dashboardStepUpPath);
       }
       redirect(mfaPath("/dashboard"));
     }

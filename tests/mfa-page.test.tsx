@@ -19,6 +19,32 @@ beforeEach(() => {
   window.history.replaceState(null, "", `/mfa?${params}#token=${"a".repeat(64)}`);
 });
 describe("standalone MFA continuation", () => {
+  const overviewStatus: StaffMfaStatus = {
+    user_id: "owner", profile_school_id: "school", roles: [{ role: "school_admin", school_id: "school" }],
+    required: true, allowed: false, action: "challenge", current_aal: "aal1", verified_totp_count: 1,
+    staff: true, policy_required: true, dashboard_allowed: true,
+  };
+
+  it("returns a dashboard-eligible login from the old OTP continuation without showing a challenge", async () => {
+    params = new URLSearchParams("next=%2Fdashboard");
+    mocks.status.mockResolvedValue(overviewStatus);
+    render(<MfaPage />);
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/dashboard"));
+    expect(mocks.authenticator).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "next=%2Fdashboard&stepup=1",
+    "next=%2Fmodules%2Fstudents",
+  ])("still challenges the same account before full workspace access (%s)", async (query) => {
+    params = new URLSearchParams(query);
+    mocks.status.mockResolvedValue(overviewStatus);
+    render(<MfaPage />);
+
+    expect(await screen.findByRole("region", { name: "Own authenticator" })).toHaveTextContent("Challenge");
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
   it("lets an already verified account continue with its invitation fragment while retaining optional backup setup", async () => {
     render(<MfaPage />);
     fireEvent.click(await screen.findByRole("button", { name: "Continue to workspace" }));
