@@ -2,7 +2,7 @@
 
 7 November 2026 · Founder acceptance pending
 
-Use the released [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Sign in with the privately supplied Student or Guardian QA account and open Dashboard. Use isolated school fixtures for boundary tests; do not modify original founder records.
+Use the released [SMS Production](https://sms-web-shoaibhasann.vercel.app/login). Sign in with the privately supplied Student or Guardian QA account and open Dashboard. Use isolated school fixtures for boundary tests; do not modify original founder records.
 
 Approved formula: `(Present + Late + 0.5 × Half Day) / enrolled working days × 100`. Leave and Absent earn zero. School holidays and weekly closed days are excluded. Missing marks are not Absent and block a complete percentage.
 

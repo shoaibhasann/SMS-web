@@ -1,6 +1,6 @@
 # Manual metadata export
 
-1. Open the existing **Kids Corner School ERP** Supabase project (`bjecfuixgqgyohttrdfr`).
+1. Open the SMS Supabase project (`bjecfuixgqgyohttrdfr`).
 2. Open **SQL Editor → New query**.
 3. Paste the entire `export-schema-metadata.sql` file and run it.
 4. Export/download the complete result as JSON. One row and one `schema_export` column are expected. A JSON export wrapping the column in an array is also fine.

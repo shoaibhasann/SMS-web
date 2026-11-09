@@ -16,7 +16,7 @@ export function Dashboard({ role }: { role: DashboardRole }) {
   return (
     <div className="space-y-6">
       <header className="gradient rounded-[28px] p-6 text-white sm:p-8">
-        <p className="text-xs font-bold uppercase tracking-widest text-white/70">Kids Corner School ERP</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-white/70">SMS</p>
         <h1 className="mt-2 text-3xl font-black">{headings[role]}</h1>
       </header>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

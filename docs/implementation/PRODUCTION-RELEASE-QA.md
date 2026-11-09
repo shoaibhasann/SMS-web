@@ -8,7 +8,7 @@ Ye **verified Production frontend + complete 12-migration chain (requested nine 
 
 | Release / tester | Record |
 |---|---|
-| Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
+| Stable Production login URL | [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) |
 | Earlier verified runtime branch / code | `main` · `2dfb1e26eb1af64ef6d1bacbcc741a3e53e85b84` |
 | Earlier verified runtime Production deployment | `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` · Ready; later documentation-only releases preserve the same runtime |
 | Hosted migration rollout verification | 12 applied; [exact source/history hashes](../../supabase/recovery/hosted-rollout-2026-11-06.json) |

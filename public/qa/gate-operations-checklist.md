@@ -1,6 +1,6 @@
 # Gate operations - founder checklist
 
-Use https://kids-corner-erp-frontend.vercel.app/login with a private QA School Admin/Principal account and its authenticator. Open **Attendance > Gate operations**. These boxes are founder acceptance; leave them unchecked until you test them. Use disposable school records for writes.
+Use https://sms-web-shoaibhasann.vercel.app/login with a private QA School Admin/Principal account and its authenticator. Open **Attendance > Gate operations**. These boxes are founder acceptance; leave them unchecked until you test them. Use disposable school records for writes.
 
 - [ ] GO-01: Open Gate operations. Check the verified school, active device, retained device history, student identifier mappings and event receipts. Refresh: all confirmed records remain. The daily register remains available separately.
 - [ ] GO-02: As an actual School Admin/Principal with native MFA, configure a disposable device with its name, IST late cutoff and explicitly selected fallback weekdays. One school permits one active gateway. Its configured school calendar overrides fallback weekdays. A second active gateway must be rejected.

@@ -1,4 +1,4 @@
-# Kids Corner: codebase audit and route to a paid school product
+# SMS-web codebase audit and route to a paid school product
 
 Audited 2 November 2026. Target confirmed by Shoaib: Delhi NCR private schools with 300–1,500 students. No interested school, customer interviews, agreed budget or paid pilot currently exists.
 
@@ -25,7 +25,7 @@ The strongest existing product seed is teacher classwork/homework publishing wit
 
 ## Audit scope and confidence
 
-The actual app is nested at `/Users/shoaib/kids-corner-erp-frontend/kids-corner-erp-frontend`. Neither the outer workspace nor inner application contains a `.git` directory. There is no commit, branch, remote or change history to audit. Source hashes are recorded in [source-manifest.json](source-manifest.json).
+The supplied web app was nested inside an outer workspace. At the time of this audit, neither directory contained a `.git` directory. There is no commit, branch, remote or change history to audit. Source hashes are recorded in [source-manifest.json](source-manifest.json).
 
 Inspected all 43 files under `app`, `components`, `lib`, `types` and `supabase/migrations`: 11,055 lines, plus package/lock/configuration files, proxy and README. Dependencies, generated `.next` output and TypeScript build metadata were not treated as authored source. Only two incremental database migrations are supplied.
 

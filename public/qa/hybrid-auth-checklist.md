@@ -1,6 +1,6 @@
 # Founder checklist — hybrid guardian sign-in
 
-App: https://kids-corner-erp-frontend.vercel.app/login
+App: https://sms-web-shoaibhasann.vercel.app/login
 
 **Mobile OTP is implemented but not activated.** Existing email/password and Google access remain available. Real SMS requires approved MSG91 delivery, Turnstile, Supabase phone/hook configuration and a funded sending allowance. No real OTP-delivery pass is claimed yet.
 

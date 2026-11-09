@@ -2,7 +2,7 @@
 
 **Founder acceptance pending.** Every box below stays unchecked until you test it.
 
-[Open SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Use privately supplied disposable School Admin, Principal and Guardian QA accounts. Record the release, date, child, expected result and actual result. Keep credentials and authenticator codes out of this file.
+[Open SMS Production](https://sms-web-shoaibhasann.vercel.app/login). Use privately supplied disposable School Admin, Principal and Guardian QA accounts. Record the release, date, child, expected result and actual result. Keep credentials and authenticator codes out of this file.
 
 Open **School settings → Late attendance alerts**. This is one school policy for Guardian **in-app** alerts. The checkbox is **“Send Guardian in-app Late attendance alerts”**; the reason field is **“Late policy change reason”**.
 
@@ -30,6 +30,6 @@ Open **School settings → Late attendance alerts**. This is one school policy f
 - [ ] **LATE-14 — Existing app compatibility:** The currently installed older mobile app continues loading its existing V2 notifications. Late alerts are a web V3 inbox feature in this phase; absence/results/leave and optional gate updates must keep working in older clients.
 - [ ] **LATE-15 — UI and scope:** Check keyboard use, narrow phone width, Light/Dark, skeletons, long reasons and clear errors. Attendance/fee history and unrelated links remain intact. This policy must not enable phone push, SMS or email. No native V3 adoption or physical-device delivery is accepted by this checklist. Log out QA accounts.
 
-Developer evidence is separate from founder acceptance: [docs/implementation/LATE-ATTENDANCE-ALERTS-QA.md](https://github.com/shoaibhasann/school-management-system/blob/main/docs/implementation/LATE-ATTENDANCE-ALERTS-QA.md).
+Developer evidence is separate from founder acceptance: [docs/implementation/LATE-ATTENDANCE-ALERTS-QA.md](https://github.com/shoaibhasann/SMS-web/blob/main/docs/implementation/LATE-ATTENDANCE-ALERTS-QA.md).
 
 Developer verification on 7 November: runtime `f023324` is main/Production Ready. Whole web 3,522 tests, native 124+6 checks, local three-role flow and deployed Admin/Principal/Guardian refresh checks pass. This does not tick founder acceptance or phone/hardware delivery boxes.

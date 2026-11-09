@@ -31,7 +31,7 @@ The local SQL/Edge file hashes match those records. Hosted source was checked ag
 | Item | Recorded evidence |
 | --- | --- |
 | Runtime source pushed to `main` | `0e3fc33e7bb23595345b74a835e62783963c6334` |
-| Stable Production | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) |
+| Stable Production | [SMS login](https://sms-web-shoaibhasann.vercel.app/login) |
 | Deployment | `dpl_6pSrK4dchx34j7WHJGCMuJ5VJVcg` · Production · Ready |
 | Build and GitHub status | 18-second Vercel build; GitHub Vercel status Success |
 | Public readback | `/login` 200; released checklist bytes matched source |
@@ -78,6 +78,6 @@ Private evidence retains the exact probe contexts and timestamps without publish
 
 The checked `main` revision, Ready deployment, stable-alias readback and two observed browser download/logout paths are recorded above.
 
-The [founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/private-file-checklist.md) remains entirely unticked until manually observed on that release.
+The [founder checklist](https://sms-web-shoaibhasann.vercel.app/qa/private-file-checklist.md) remains entirely unticked until manually observed on that release.
 
 Engineering release readback is complete for the recorded scope. Founder acceptance and the unverified scope of unknown historical signed-cache responses remain explicit. This milestone does not certify complete commercial ERP readiness, native original downloads, provider delivery or managed-service disaster recovery.

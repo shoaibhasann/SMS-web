@@ -1,6 +1,6 @@
 # SMS — founder release checklist
 
-Current founder run: [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login) · [Production checklist](PRODUCTION-RELEASE-QA.md). Historical Preview release records below are superseded for new testing.
+Current founder run: [stable SMS Production](https://sms-web-shoaibhasann.vercel.app/login) · [Production checklist](PRODUCTION-RELEASE-QA.md). Historical Preview release records below are superseded for new testing.
 
 5–6 November 2026 release · Independent founder testing · Founder results pending
 

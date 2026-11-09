@@ -2,7 +2,7 @@
 
 7 November 2026 · Founder acceptance pending · Backend QA and physical-device acceptance are separate
 
-Use the stable [SMS Production login](https://kids-corner-erp-frontend.vercel.app/login). Confirm that the gate backend release is deployed before running these cases. Ask the engineering operator to prepare the isolated synthetic test fixture and provide private school accounts. This checklist contains no device secrets or login credentials.
+Use the stable [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). Confirm that the gate backend release is deployed before running these cases. Ask the engineering operator to prepare the isolated synthetic test fixture and provide private school accounts. This checklist contains no device secrets or login credentials.
 
 No physical attendance device has been selected or tested. An accepted synthetic event proves only the implemented backend outcome; it does not prove a real pupil arrived, biometric identity, a hardware adapter or notification delivery. There is no implied device-management screen. The existing Attendance pages remain the canonical register/history UI.
 

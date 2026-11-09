@@ -2,7 +2,7 @@
 
 6 November 2026 · Android development build · Acceptance pending
 
-Use the supplied private Guardian/Student demo accounts in the separate native app. Teacher grading and Principal leave review happen at https://kids-corner-erp-frontend.vercel.app. Never paste passwords/tokens in this file. QA task marker: `SMS-MOBILE-PHASE2-QA-20261106-7a203afc`. The current QA homework is already graded8/10 and10November leave approved; use a NEW isolated task/date for a repeat write, preserving existing evidence.
+Use the supplied private Guardian/Student demo accounts in the separate native app. Teacher grading and Principal leave review happen at https://sms-web-shoaibhasann.vercel.app. Never paste passwords/tokens in this file. QA task marker: `SMS-MOBILE-PHASE2-QA-20261106-7a203afc`. The current QA homework is already graded8/10 and10November leave approved; use a NEW isolated task/date for a repeat write, preserving existing evidence.
 
 Mobile206 automated tests and web1997 tests pass, with hosted SDK workflow evidence; those do not tick native touch/visual/founder cases. The debug app needs Metro; this URL is a checklist, not an installable release. Real FCM/paid sends remain OFF.
 

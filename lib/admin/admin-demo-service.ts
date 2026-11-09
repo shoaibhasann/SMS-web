@@ -129,7 +129,7 @@ const demoSeed: AdminDemoStorage = {
     { id: "leave-demo-2", employee: "Arjun Rao", leaveType: "Sick Leave", from: "2026-10-27", to: "2026-10-27", days: 1, reason: "Medical appointment", status: "Approved" },
   ],
   profile: [
-    { id: "admin-profile-demo", name: "School Administrator", email: "admin@kidscorner.example", mobile: "011 4567 8900", designation: "School Administrator", address: "Kids Corner School, New Delhi", school: "Kids Corner School", status: "Active" },
+    { id: "admin-profile-demo", name: "School Administrator", email: "admin@sms-demo.example", mobile: "011 4567 8900", designation: "School Administrator", address: "SMS Demo School, New Delhi", school: "SMS Demo School", status: "Active" },
   ],
   documents: [
     { id: "document-demo-1", name: "School Registration Certificate", category: "Registration", uploadedOn: "2026-04-01", fileName: "school-registration.pdf", status: "Available" },
@@ -140,7 +140,7 @@ const demoSeed: AdminDemoStorage = {
     { id: "report-demo-2", name: "Monthly Fee Collection", type: "Fee", period: "October 2026", generatedOn: "2026-11-01", status: "Ready" },
   ],
   settings: [
-    { id: "settings-demo", schoolName: "Kids Corner School", phone: "011 4567 8900", email: "office@kidscorner.example", address: "New Delhi, India", currentYear: "2026–27", passingMarks: 35, lateFee: 50, dueDay: 10, workingDays: "Monday–Saturday", attendanceRule: "Daily register", notificationPreference: "Email and in-app" },
+    { id: "settings-demo", schoolName: "SMS Demo School", phone: "011 4567 8900", email: "office@sms-demo.example", address: "New Delhi, India", currentYear: "2026–27", passingMarks: 35, lateFee: 50, dueDay: 10, workingDays: "Monday–Saturday", attendanceRule: "Daily register", notificationPreference: "Email and in-app" },
   ],
 };
 

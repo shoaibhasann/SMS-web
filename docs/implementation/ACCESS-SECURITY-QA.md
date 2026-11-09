@@ -1,6 +1,6 @@
 # Access security and student activation · 6 November 2026
 
-**Production is Ready:** [stable SMS login](https://kids-corner-erp-frontend.vercel.app/login), code `2dfb1e26`, deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`. The requested nine migrations plus two hosted-QA fixes (**11 total**) are applied and their source/history hashes verified in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Four-role Production read-only QA passed at 17:06 IST: 142 school reads, zero school writes/runtime errors and 4/4 local Auth-session cleanups. Individual manual founder cases remain unticked. Use [the current Production checklist](PRODUCTION-RELEASE-QA.md), not an earlier Preview record.
+**Production is Ready:** [stable SMS login](https://sms-web-shoaibhasann.vercel.app/login), code `2dfb1e26`, deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`. The requested nine migrations plus two hosted-QA fixes (**11 total**) are applied and their source/history hashes verified in [the rollout ledger](../../supabase/recovery/hosted-rollout-2026-11-06.json). Four-role Production read-only QA passed at 17:06 IST: 142 school reads, zero school writes/runtime errors and 4/4 local Auth-session cleanups. Individual manual founder cases remain unticked. Use [the current Production checklist](PRODUCTION-RELEASE-QA.md), not an earlier Preview record.
 
 ## Audit traceability
 

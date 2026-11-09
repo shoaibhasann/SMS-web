@@ -1,6 +1,8 @@
-# SMS — School Management System
+# SMS-web — School Management System
 
 Next.js / React / TypeScript frontend backed by Supabase Auth and PostgreSQL. Workflows are implemented and verified in slices against the founder-approved product scope.
+
+Open [SMS-web Production](https://sms-web-shoaibhasann.vercel.app/login). The previous hostname remains available for older app builds. Email authentication callbacks and password recovery need the hosted Supabase [Site URL and redirect allowlist](https://supabase.com/docs/guides/auth/redirect-urls) configured for the production host.
 
 See the [founder release checklist](docs/implementation/FOUNDER-RELEASE-QA.md), [implementation phases](docs/implementation/PHASES.md) and [detailed manual QA checklist](docs/implementation/POST-DEPLOY-QA.md).
 
@@ -8,7 +10,7 @@ The [product requirements](docs/product/PRD.md) capture the current product scop
 
 ## Local setup
 
-Use Node 22.13+ in the 22.x line, Node 24, or Node 26+. The tested environment is Node 22.22.2. Run commands from this inner application folder.
+Use Node 22.13+ in the 22.x line, Node 24, or Node 26+. The tested environment is Node 22.22.2. Run commands from the `SMS-web` repository root. The separate [SMS-mobile repository](https://github.com/shoaibhasann/SMS-mobile) contains the native app.
 
 ```sh
 npm ci

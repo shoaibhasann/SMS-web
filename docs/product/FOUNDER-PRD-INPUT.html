@@ -362,7 +362,7 @@
         downloadUrl = URL.createObjectURL(new Blob([refreshAnswers()], { type: "text/markdown;charset=utf-8" }));
         const link = document.createElement("a");
         link.href = downloadUrl;
-        link.download = "kids-corner-founder-answers.md";
+        link.download = "sms-founder-answers.md";
         document.body.append(link);
         link.click();
         link.remove();

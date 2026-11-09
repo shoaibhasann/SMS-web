@@ -4,7 +4,7 @@
 
 6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Test [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), using [the current release checklist](PRODUCTION-RELEASE-QA.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature's migration is `20261106072003_govern_school_timetable.sql`, after the active-role guard. Founder/manual acceptance remains pending; credentials/share secrets stay private.
+Test [stable SMS Production](https://sms-web-shoaibhasann.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), using [the current release checklist](PRODUCTION-RELEASE-QA.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature's migration is `20261106072003_govern_school_timetable.sql`, after the active-role guard. Founder/manual acceptance remains pending; credentials/share secrets stay private.
 
 ## Flow and boundaries
 
@@ -14,7 +14,7 @@ Times are school wall-clock times in IST, in whole minutes, within one day. Over
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
+| Stable Production URL and deployed `main` code | [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser/device | |
 | QA school/session/class/sections | |
 | Result | Pending |

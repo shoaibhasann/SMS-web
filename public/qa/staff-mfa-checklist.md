@@ -1,6 +1,6 @@
 # Staff authenticator MFA — founder checklist
 
-Use [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Record the date, deployed revision, role, device, expected result and actual result. These boxes are founder acceptance, not automated-test results.
+Use [SMS Production](https://sms-web-shoaibhasann.vercel.app/login). Record the date, deployed revision, role, device, expected result and actual result. These boxes are founder acceptance, not automated-test results.
 
 Use dedicated MFA QA accounts supplied privately. Do not enroll a shared founder/demo login: adding its first verified authenticator signs out its other sessions. Never put passwords, QR images, setup keys or live codes in a screenshot, issue or WhatsApp group.
 

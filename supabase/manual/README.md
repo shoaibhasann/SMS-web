@@ -2,7 +2,7 @@
 
 This patch closes two routes: ordinary users writing their own administrative roles, and a school admin granting roles in another school through `assign_school_role`. **It does not fix the other global staff, teacher-assignment, activation, finance or storage policies.** Existing role rows are not deleted, rewritten or automatically reviewed for earlier unauthorized grants.
 
-1. Open the existing **Kids Corner School ERP** project (`bjecfuixgqgyohttrdfr`) in Supabase → **SQL Editor → New query**.
+1. Open the SMS project (`bjecfuixgqgyohttrdfr`) in Supabase → **SQL Editor → New query**.
 2. Open [the role-permission migration](../migrations/20261102163032_harden_school_role_assignment.sql), paste the **entire file**, including `BEGIN` and `COMMIT`, and run it once as the trusted database/table owner. No API key, service-role secret or database password needs to be sent to chat.
 3. If any statement fails, do not run selected fragments or add grants to get past it. Run `ROLLBACK;` if the editor session remains in a failed transaction, then provide the exact error. The patch rejects unexpected table/policy/trigger shapes or unsafe definer ownership.
 4. Run the entire [SELECT-only verification](verify-role-permissions.sql) in a new query. Every `passes` value should be `true`. Share those check names/results; they contain no role-membership or pupil rows.

@@ -1,6 +1,6 @@
 # Founder QA — native push backend
 
-6 November 2026 · [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · Backend now, native app next phase
+6 November 2026 · [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · Backend now, native app next phase
 
 **Current scope:** prepare mobile notification preferences and manage registered app devices. Guardian app alerts cover absence/results/leave; Student app alerts cover results/leave. Student settings must not advertise absence delivery. The native app and real phone delivery are not included in this backend slice. Sending and the recurring dispatcher remain OFF until setup is verified. No SMS/email/push success should be inferred from a preference save.
 
@@ -17,7 +17,7 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 - [ ] **NP-05 · Devices and privacy.** A fresh account without registrations shows No mobile devices linked. The prepared Guardian/Student QA accounts retain two/one revoked synthetic device rows respectively; these are not installed phones. There is no web Register device/Test push control. Prepared device rows show only label, Android/iOS, registration time and revocation status; no native identifiers or secrets are exposed. Mark the revoke part Blocked if no disposable fixture exists.
 - [ ] **NP-06 · Revoke safely.** For an engineering-prepared disposable device, Revoke opens an explicit confirmation. Cancel returns keyboard focus and leaves the device unchanged. Confirm persists after reload. Native automatic registration must not reactivate it; re-enrollment needs a fresh Firebase installation/FID, installation UUID and proof. Other devices, child links and school records remain intact. Unsaved preference choices are retained. Do not revoke shared founder devices without recording the baseline.
 - [ ] **NP-07 · Session and layout.** Sign out/switch account during a delayed read or save; old settings/devices must disappear and late responses must not restore them. Check phone/laptop width, keyboard focus, long device labels, Light/Dark, skeletons and retry messages.
-- [ ] **NP-08 · Honest availability.** Open [push backend status](https://kids-corner-erp-frontend.vercel.app/api/push/status): expect `configured: false` and `nativeAppRequired: true` while delivery is OFF. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
+- [ ] **NP-08 · Honest availability.** Open [push backend status](https://sms-web-shoaibhasann.vercel.app/api/push/status): expect `configured: false` and `nativeAppRequired: true` while delivery is OFF. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
 
 ## Check later — blocked until the native app and delivery setup exist
 
@@ -30,7 +30,7 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 
 | Release / tester | Entry |
 |---|---|
-| Stable URL | https://kids-corner-erp-frontend.vercel.app/login |
+| Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Verified feature source / deployment | Pending release verification |
 | Native app/build/device | Not available in this backend slice |
 | Delivery/provider/schedule activation | OFF / not verified |

@@ -2,7 +2,7 @@
 
 6 November 2026 · Notifications v2 · Founder acceptance pending
 
-Use the single [SMS Production login](https://kids-corner-erp-frontend.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
+Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
 ## Included behavior
 
@@ -69,7 +69,7 @@ This slice provides **in-app notifications only**. It does not send SMS, OTP, pu
 
 | Release field | Recorded value |
 |---|---|
-| Stable URL | https://kids-corner-erp-frontend.vercel.app/login |
+| Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Verified feature commit / deployment ID | `dbf12d6` / `dpl_4cucpHfpWhvSsSPLzprqzCEzShSk` · Ready; same stable alias |
 | Full checks and browser/native evidence | 1,867 tests/142 files; lint/types/optimized build; native SDK flow + two-role local/Production readback above |
 | Shared QA read-state restoration/parity | Original absence IDs/read_at unchanged; deliberate new-event read states retained for demo |

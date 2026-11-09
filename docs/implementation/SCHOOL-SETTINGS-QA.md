@@ -50,7 +50,7 @@ Actual **local browser** QA signs in as Admin, changes the QA affiliation with a
 | Item | Recorded evidence |
 | --- | --- |
 | Runtime pushed to `main` | `527c9ae24733b50bcbc954141d0256c6f3ec312b` |
-| Stable Production | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) |
+| Stable Production | [SMS login](https://sms-web-shoaibhasann.vercel.app/login) |
 | Deployment | `dpl_J9KLrZdyhQxKdHG5Bsms3wGx55Pw` · Production · Ready |
 | GitHub/Vercel and build | Success · 19-second Vercel build · stable alias confirmed |
 
@@ -60,6 +60,6 @@ This adds two actual deployed-browser role paths to the earlier three-role local
 
 ## Manual acceptance and remaining gates
 
-Use the [founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/school-settings-checklist.md). Founder cases remain unchecked until observed on the recorded release. Private QA credentials and invitation capabilities stay outside Git/public files.
+Use the [founder checklist](https://sms-web-shoaibhasann.vercel.app/qa/school-settings-checklist.md). Founder cases remain unchecked until observed on the recorded release. Private QA credentials and invitation capabilities stay outside Git/public files.
 
 Staff MFA, school-assisted lost-number recovery, permission administration, platform provisioning/subscriptions, approved calendar/correction/rate/grading rules, provider/device delivery and managed-service recovery remain separate work. Existing private-file legacy-cache findings are tracked independently in [private file delivery](PRIVATE-FILE-DELIVERY-QA.md); this feature does not change Storage keys or claim instant global cached-link revocation.

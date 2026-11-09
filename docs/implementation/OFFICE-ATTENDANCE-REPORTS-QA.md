@@ -1,6 +1,6 @@
 # Official class and school attendance reports
 
-7 November 2026. [Founder checklist](../../public/qa/office-attendance-reports-checklist.md) · [Stable Production](https://kids-corner-erp-frontend.vercel.app/login).
+7 November 2026. [Founder checklist](../../public/qa/office-attendance-reports-checklist.md) · [Stable Production](https://sms-web-shoaibhasann.vercel.app/login).
 
 ## Product boundary
 
@@ -38,7 +38,7 @@ All four actual local browser PDFs pass Poppler one-page A4, school/scope/year/m
 
 Post-local/pre-Production read-only proof at **20:52:06 IST** retains all **3,254 post-seed/pre-browser full-row hashes / 129 tables**, including every one of the 3,244 original rows. Native 138 identity/contact/metadata references, 28 factor descriptors and 443 historical-session descriptors match post-DDL, with old 137/27/443 references retained. All 72 routine references/ledger/source hashes remain exact. Owned sessions are zero; marks stay 30 (27 original + three reviewed new marks), links two, fresh alerts zero, prior gate events 46/devices seven with active devices zero. No new application/Auth writes occur in this preservation check.
 
-Runtime `aafd217` is pushed to `main`, GitHub Vercel status Success and Production deployment `dpl_ppGKw9JGDmuH15GrNMLgVrRS25i8` Ready. The stable `https://kids-corner-erp-frontend.vercel.app` alias resolves to this release; anonymous Login/checklist return HTTP 200 and the public checklist bytes match source.
+Runtime `aafd217` is pushed to `main`, GitHub Vercel status Success and Production deployment `dpl_ppGKw9JGDmuH15GrNMLgVrRS25i8` Ready. The stable `https://sms-web-shoaibhasann.vercel.app` alias resolves to this release; anonymous Login/checklist return HTTP 200 and the public checklist bytes match source.
 
 Actual stable-URL Admin password-to-native-TOTP login verifies Whole school 90%, downloads its actual PDF, selects Earlier Class 75%, hard-refreshes with the same class restored and downloads the actual class PDF. Admin logs out to Login. Principal independently starts at current Whole school 90%, selects archived March 2026 / Grade 6 / Section A at 83.33% and downloads that PDF; Section B stays withheld with six working/two earned/one unmarked pupil-days and exports the same explicit incomplete state. A hard refresh restores that exact archived year/month/class/section and withheld state. Principal logs out to Login. Both Production sessions are closed.
 

@@ -2,7 +2,7 @@
 
 7 November 2026 · Engineering evidence · Founder acceptance pending
 
-Stable app: [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Founder checklist: [OW-01–OW-18 source](../../public/qa/office-workflows-checklist.md); the [deployed public checklist](https://kids-corner-erp-frontend.vercel.app/qa/office-workflows-checklist.md) is verified at the stable app. No credentials or private fixture contacts belong in these artifacts.
+Stable app: [SMS Production](https://sms-web-shoaibhasann.vercel.app/login). Founder checklist: [OW-01–OW-18 source](../../public/qa/office-workflows-checklist.md); the [deployed public checklist](https://sms-web-shoaibhasann.vercel.app/qa/office-workflows-checklist.md) is verified at the stable app. No credentials or private fixture contacts belong in these artifacts.
 
 **Release status:** office runtime **`f5373bf`** is on main and Vercel Production Ready. The actual Principal browser admission → hard refresh → Parent directory → logout flow, exact deployed checklist, final post-Production SQL preservation/cleanup, local Admin/Teacher flows and hosted SDK boundaries are verified. Whole web **2,572 tests/171 files**, lint, sequential TypeScript and optimized build pass. Founder, provider and physical-device acceptance remain separate. SMS and FCM sending remain OFF.
 
@@ -51,7 +51,7 @@ The local Teacher also signs in with real TOTP and opens its existing Profile wo
 
 ## Verified main/Production release
 
-Tested application runtime `f5373bf06a8e0be878cda58d71f89e38f922a8d4` is on Git `main`. GitHub's Vercel deployment status is Success; Production deployment `dpl_AEBmPaLFTvSRiqKjV5CCyqHZoPWV` is Ready with a 20-second build and 17-second post-build stage. The stable alias is `kids-corner-erp-frontend.vercel.app`. The public office checklist returns 200 and matches source bytes exactly, SHA-256 `c6668076da1459f3dfe79ed95220ec64b0cc1f4f08345a70d5f6f3ce93ae2d0a`. All 18 founder boxes remain unchecked.
+Tested application runtime `f5373bf06a8e0be878cda58d71f89e38f922a8d4` is on Git `main`. GitHub's Vercel deployment status is Success; Production deployment `dpl_AEBmPaLFTvSRiqKjV5CCyqHZoPWV` is Ready with a 20-second build and 17-second post-build stage. The stable alias is `sms-web-shoaibhasann.vercel.app`. The public office checklist returns 200 and matches source bytes exactly, SHA-256 `c6668076da1459f3dfe79ed95220ec64b0cc1f4f08345a70d5f6f3ce93ae2d0a`. All 18 founder boxes remain unchecked.
 
 The actual **Production Principal** signs in with password plus a real current TOTP, opens Admissions and saves one new synthetic pupil into section B. A hard refresh and re-selection of B show that same single saved pupil. This is a real browser admission mutation, not a read-only demonstration or an Auth credential change. Parents loads four school guardian names/statuses and six links, including the recovered Guardian's two siblings; hard refresh preserves the correct readback. The Admin-only Manage guardian access action is absent for Principal. Logout returns to Login.
 

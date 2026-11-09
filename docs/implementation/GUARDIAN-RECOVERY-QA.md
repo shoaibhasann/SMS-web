@@ -2,7 +2,9 @@
 
 7 November 2026 · Implementation and measured engineering evidence · Founder acceptance pending
 
-Stable app: [SMS Production](https://kids-corner-erp-frontend.vercel.app/login). Deployed founder checklist: [GR-01–GR-24](https://kids-corner-erp-frontend.vercel.app/qa/guardian-recovery-checklist.md), with its [source checklist](../../public/qa/guardian-recovery-checklist.md) retained for review.
+Hosted email recovery and contact callbacks require the [Supabase URL configuration](https://supabase.com/dashboard/project/bjecfuixgqgyohttrdfr/auth/url-configuration) to allow the SMS-web production callback.
+
+Stable app: [SMS Production](https://sms-web-shoaibhasann.vercel.app/login). Deployed founder checklist: [GR-01–GR-24](https://sms-web-shoaibhasann.vercel.app/qa/guardian-recovery-checklist.md), with its [source checklist](../../public/qa/guardian-recovery-checklist.md) retained for review.
 
 **Release status:** runtime `7f503316e63c06c7dc6eebccba4d604fbfc1d624` is pushed to `main` and Vercel Production Ready at the stable SMS alias. Hosted SDK recovery/preservation, the full local regression/lint/types/build, public page/checklist and actual Production read-only Guardian/Admin browser flows are verified below. Browser approval/claim/contact writes, real inbox/carrier delivery, native physical-device behavior and founder acceptance remain separate manual cases. SMS and FCM sending remain OFF.
 
@@ -75,7 +77,7 @@ Earlier **50 preflight**, **12 contact no-send** and **four SSR-client** checks 
 
 ## Verified Production release and read-only browser flow
 
-Web runtime `7f503316e63c06c7dc6eebccba4d604fbfc1d624` is on Git `main`. GitHub's Vercel deployment status is Success, with Production deployment `dpl_62G5QpHTWqXm1onuN7aSi4Dujmpm` Ready, a 47-second build and 25-second post-build stage. The stable alias is `kids-corner-erp-frontend.vercel.app`. The 2,470-test regression/lint/types/build evidence is from local runs; **no separate GitHub CI test run is claimed**.
+Web runtime `7f503316e63c06c7dc6eebccba4d604fbfc1d624` is on Git `main`. GitHub's Vercel deployment status is Success, with Production deployment `dpl_62G5QpHTWqXm1onuN7aSi4Dujmpm` Ready, a 47-second build and 25-second post-build stage. The stable alias is `sms-web-shoaibhasann.vercel.app`. The 2,470-test regression/lint/types/build evidence is from local runs; **no separate GitHub CI test run is claimed**.
 
 The public `/guardian-recover` returns 200 with its expected heading. The deployed public checklist returns 200 and exactly matches local bytes, SHA-256 `edb15255a1bdf8288da05f9868404e50642d535ebca8a1621cbf4e1370dbdb28`. Local actual-browser no-token entry was also observed. These public entry checks do not imply a new approval or claim was completed in the Production UI.
 

@@ -1,6 +1,6 @@
 # Student and Guardian Notifications — founder QA
 
-6 November 2026 · [SMS Production login](https://kids-corner-erp-frontend.vercel.app/login) · Notifications v2 released on main · Founder acceptance pending
+6 November 2026 · [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login) · Notifications v2 released on main · Founder acceptance pending
 
 Use the existing privately supplied Student, Guardian and Admin/Principal QA accounts. Test synthetic records only. Do not include credentials, tokens, private review reasons or other children's details in screenshots. Engineering test results do not tick these founder boxes. Record the deployed revision before testing.
 
@@ -34,7 +34,7 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 
 | Release / tester | Entry |
 |---|---|
-| Stable URL | https://kids-corner-erp-frontend.vercel.app/login |
+| Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Verified feature source | `dbf12d6` (documentation updates may follow on the same main release) |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |

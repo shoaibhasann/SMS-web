@@ -1,6 +1,6 @@
 # Previous academic-year attendance — founder checklist
 
-Use https://kids-corner-erp-frontend.vercel.app/login and the private historical-year QA accounts. Test **Dashboard → Official attendance** and **Attendance → Official attendance**. Founder acceptance is independent of engineering QA; leave these boxes unchecked until you run them. API and access/setup cases YR-06–08 need developer or School Admin assistance.
+Use https://sms-web-shoaibhasann.vercel.app/login and the private historical-year QA accounts. Test **Dashboard → Official attendance** and **Attendance → Official attendance**. Founder acceptance is independent of engineering QA; leave these boxes unchecked until you run them. API and access/setup cases YR-06–08 need developer or School Admin assistance.
 
 The approved formula remains Present/Late = 1, Half Day = 0.5, Leave/Absent = 0. School-closed days are excluded. Missing or inconsistent records withhold a percentage. Previous-year reports use that year's enrollment, historical section placement and school calendar; later approved corrections can update a report.
 

@@ -1,6 +1,6 @@
 # Official attendance PDF - founder checklist
 
-Use https://kids-corner-erp-frontend.vercel.app/login and the private historical-year Student/Guardian QA accounts. Check **Dashboard > Official attendance** and **Attendance > Official attendance**. Leave boxes unchecked until you run them. PDF-07 needs developer or School Admin assistance. If you change scope or refocus the app during preparation, let the report finish refreshing and click Download PDF again.
+Use https://sms-web-shoaibhasann.vercel.app/login and the private historical-year Student/Guardian QA accounts. Check **Dashboard > Official attendance** and **Attendance > Official attendance**. Leave boxes unchecked until you run them. PDF-07 needs developer or School Admin assistance. If you change scope or refocus the app during preparation, let the report finish refreshing and click Download PDF again.
 
 - [ ] PDF-01: Student starts on Current session. Download PDF and open the actual file: correct school, student/admission number, current academic year, selected reporting month, generated IST time and cutoff. The prepared current-year rate is **100%**.
 - [ ] PDF-02: Select **2025-26**, March 2026, then Download PDF. Monthly and academic-session sections both show **58.33%**, 6 working days, 1 closed day excluded, 3.5 earned days and 0 unmarked days. Cutoff is **31 March 2026**. Present/Late = 1, Half Day = 0.5, Leave/Absent = 0.

@@ -1,6 +1,6 @@
 # School audit history and account menu — founder QA
 
-6 November 2026 · `main` → [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) · Founder acceptance pending
+6 November 2026 · `main` → [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) · Founder acceptance pending
 
 Use the existing private Admin, Principal, Teacher, Student and Guardian QA logins. Test only synthetic records. Keep passwords, recovery links and tokens out of screenshots and reports. Complete these checks on the deployed revision; engineering evidence does not tick founder boxes.
 

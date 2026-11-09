@@ -1,6 +1,6 @@
 # Official class/school attendance - founder checklist
 
-Use https://kids-corner-erp-frontend.vercel.app/login and the private Office QA Admin/Principal accounts with their authenticator. Open **Reports & Analytics**, or **Attendance > Official class and school reports**. Leave boxes unchecked until you test them. OR-07/08 need developer or School Admin assistance. If you change scope/refocus during PDF preparation, let the fresh report settle before downloading again.
+Use https://sms-web-shoaibhasann.vercel.app/login and the private Office QA Admin/Principal accounts with their authenticator. Open **Reports & Analytics**, or **Attendance > Official class and school reports**. Leave boxes unchecked until you test them. OR-07/08 need developer or School Admin assistance. If you change scope/refocus during PDF preparation, let the fresh report settle before downloading again.
 
 - [ ] OR-01: With the prepared QA school, select current 2026-27 / November / Whole school. Both official summaries show **90%**, with **13.5 earned / 15 working pupil-days**. The unequal enrollment periods must not be averaged as individual percentages.
 - [ ] OR-02: Select the new **QA Earlier Class** / All sections. Its November rate is **75%** (1.5/2). Select **QA Current Grade 7**: **92.31%** (12/13). This proves earlier pupil-days follow the historical class before the dated move. School working/earned totals equal the two class totals combined.

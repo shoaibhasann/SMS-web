@@ -8,7 +8,7 @@ Ye **verified Production frontend + complete 12-migration chain (requested nine 
 
 | Release / tester | Record |
 |---|---|
-| Stable Production login URL | [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) |
+| Stable Production login URL | [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) |
 | Release branch | `main` |
 | Earlier runtime code (base checkpoint) | `2dfb1e26` |
 | Hosted migration rollout verification | 12 applied; engineering source/history hashes verified |

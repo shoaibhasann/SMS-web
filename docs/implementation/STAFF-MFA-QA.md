@@ -2,7 +2,7 @@
 
 7 November 2026 · Engineering evidence is separate from founder acceptance
 
-Founder checklist: [MFA-01–MFA-15](https://kids-corner-erp-frontend.vercel.app/qa/staff-mfa-checklist.md). Stable app: [SMS Production](https://kids-corner-erp-frontend.vercel.app/login).
+Founder checklist: [MFA-01–MFA-15](https://sms-web-shoaibhasann.vercel.app/qa/staff-mfa-checklist.md). Stable app: [SMS Production](https://sms-web-shoaibhasann.vercel.app/login).
 
 ## Implemented scope
 

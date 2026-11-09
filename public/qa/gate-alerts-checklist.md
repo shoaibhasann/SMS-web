@@ -2,7 +2,7 @@
 
 7 November 2026 · Founder acceptance pending
 
-[Open SMS](https://kids-corner-erp-frontend.vercel.app/login). Use the privately supplied isolated Guardian QA account. Open Notifications → Gate alerts. Keep credentials and device secrets out of this file. Record release/date/child, expected and actual result, and a screenshot without private information.
+[Open SMS](https://sms-web-shoaibhasann.vercel.app/login). Use the privately supplied isolated Guardian QA account. Open Notifications → Gate alerts. Keep credentials and device secrets out of this file. Record release/date/child, expected and actual result, and a screenshot without private information.
 
 These are school-inbox choices. Both gate options start OFF for each Guardian/child. Absent alerts remain independent: saving an Absent register mark still alerts eligible linked Guardians. A missing scan does not itself create an Absent mark. Phone push and paid SMS are not enabled by these switches.
 

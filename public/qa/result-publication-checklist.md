@@ -4,7 +4,7 @@
 
 6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Use [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](/qa/production-founder-checklist.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature began with `20261106092647_reviewed_assessment_results.sql`; the two later patches correct stale-mark HTTP conflicts and bound the teacher candidate query. Founder/manual acceptance remains pending. Missing RPCs on a mismatched environment must fail visibly. Credentials/share secrets stay private. Use the SMS brand guidance in [the Production founder checklist](/qa/production-founder-checklist.md) for visual acceptance.
+Use [stable SMS Production](https://sms-web-shoaibhasann.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](/qa/production-founder-checklist.md). The complete **eleven-patch chain** is applied and source/history verified: nine requested migrations plus two hosted-QA fixes, from `20261105184935_freeze_legacy_client_mutations.sql` through `20261106110537_bound_assessment_publication_candidates.sql`. This feature began with `20261106092647_reviewed_assessment_results.sql`; the two later patches correct stale-mark HTTP conflicts and bound the teacher candidate query. Founder/manual acceptance remains pending. Missing RPCs on a mismatched environment must fail visibly. Credentials/share secrets stay private. Use the SMS brand guidance in [the Production founder checklist](/qa/production-founder-checklist.md) for visual acceptance.
 
 ## Flow and boundaries
 
@@ -14,7 +14,7 @@ An independent Admin/Principal chooses its school, opens the snapshot and suppli
 
 | Record | Founder entry |
 |---|---|
-| Stable Production URL / deployed code / migration check | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · all 11 patches source/history verified |
+| Stable Production URL / deployed code / migration check | [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · `2dfb1e26` · all 11 patches source/history verified |
 | School, assessment and separate reviewer | |
 | Student / guardian accounts and test date | |
 

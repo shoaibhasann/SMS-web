@@ -2,7 +2,7 @@
 
 7 November 2026 · Founder acceptance pending
 
-Use the stable [SMS website](https://kids-corner-erp-frontend.vercel.app/login) and the isolated onboarding school accounts in the private QA handoff. Keep passwords and invitation tokens out of screenshots and this document. Record the deployed revision and actual result before checking a case.
+Use the stable [SMS website](https://sms-web-shoaibhasann.vercel.app/login) and the isolated onboarding school accounts in the private QA handoff. Keep passwords and invitation tokens out of screenshots and this document. Record the deployed revision and actual result before checking a case.
 
 Engineering has verified hosted role/session, save/retry/conflict and isolated-school setup-to-attendance SDK paths. Runtime `527c9ae` is Production Ready: actual Admin save/page reload preserves the QA value at revision 4, Principal reads the same value with no edit controls, and both Production browser sessions log out. Teacher denial was observed locally and in SDK/database coverage. These checks do not tick the founder cases below or certify complete school onboarding.
 

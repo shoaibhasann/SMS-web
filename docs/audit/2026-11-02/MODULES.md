@@ -1,6 +1,6 @@
-# Kids Corner frontend module audit
+# SMS-web frontend module audit
 
-Audit scope: source inspection of every frontend route and all `lib/`, `components/` files in `/Users/shoaib/kids-corner-erp-frontend/kids-corner-erp-frontend`, 2026-11-02. Read-only: no application files changed. Findings below are reproducible from source; authenticated browser/database behavior was not tested by this subagent. Supabase base schema, existing policies, and deployed migration state are not available here.
+Audit scope: source inspection of every frontend route and all `lib/`, `components/` files in the supplied web checkout, 2026-11-02. Read-only: no application files changed. Findings below are reproducible from source; authenticated browser/database behavior was not tested by this subagent. Supabase base schema, existing policies, and deployed migration state are not available here.
 
 ## Verdict
 

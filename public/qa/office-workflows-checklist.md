@@ -1,6 +1,6 @@
 # Parents and admissions — founder checklist
 
-Use [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) after the release owner confirms this office revision is Ready. Record the revision/date, role, school, device, expected/actual result and a redacted issue reference. These boxes are founder acceptance and remain separate from engineering tests.
+Use [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) after the release owner confirms this office revision is Ready. Record the revision/date, role, school, device, expected/actual result and a redacted issue reference. These boxes are founder acceptance and remain separate from engineering tests.
 
 Use privately supplied dedicated QA accounts: School Admin, Principal, a second Admin session, Teacher, Guardian/Student, Finance/Reception and another school's administrator. Use synthetic admission numbers and pupils. Keep passwords, tokens, QR/setup secrets, live codes, mobile numbers and private pupil records out of screenshots/public issues. Do not modify a shared founder/demo account or real-school data to exercise a negative case.
 

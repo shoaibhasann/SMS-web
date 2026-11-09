@@ -1,6 +1,6 @@
 # Official family attendance PDF export
 
-7 November 2026. [Founder checklist](../../public/qa/attendance-pdf-checklist.md) · [Stable Production login](https://kids-corner-erp-frontend.vercel.app/login).
+7 November 2026. [Founder checklist](../../public/qa/attendance-pdf-checklist.md) · [Stable Production login](https://sms-web-shoaibhasann.vercel.app/login).
 
 ## Product boundary
 

@@ -4,7 +4,7 @@
 
 6 November 2026 · Production Ready · Founder/manual acceptance pending
 
-Use [stable SMS Production](https://kids-corner-erp-frontend.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](PRODUCTION-RELEASE-QA.md). Founder/manual acceptance remains pending. Passwords/share secrets stay private; use synthetic students and dates within their current academic year.
+Use [stable SMS Production](https://sms-web-shoaibhasann.vercel.app/login), deployed code `2dfb1e26` (`dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`), and [the current release checklist](PRODUCTION-RELEASE-QA.md). Founder/manual acceptance remains pending. Passwords/share secrets stay private; use synthetic students and dates within their current academic year.
 
 ## Release prerequisite
 
@@ -14,7 +14,7 @@ Use a same-school Guardian, its linked Student, and an independent Admin/Princip
 
 | Field | Founder entry |
 |---|---|
-| Stable Production URL and deployed `main` code | [SMS login](https://kids-corner-erp-frontend.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
+| Stable Production URL and deployed `main` code | [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · `2dfb1e26` · `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J` |
 | Tester, date, browser and device | |
 | Overall result | Pending |
 

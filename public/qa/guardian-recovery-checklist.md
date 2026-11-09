@@ -1,6 +1,6 @@
 # Guardian recovery and contact changes — founder checklist
 
-Use [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) after the release owner confirms the new runtime is deployed. Record deployed revision/date, role, device, expected/actual result and a redacted issue reference. These unchecked boxes are founder acceptance, separate from engineering tests.
+Use [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) after the release owner confirms the new runtime is deployed. Record deployed revision/date, role, device, expected/actual result and a redacted issue reference. These unchecked boxes are founder acceptance, separate from engineering tests.
 
 Ask for dedicated QA accounts privately: two different School Admin/Principal reviewers, a Guardian with two children and existing history, an unassigned replacement account, a peer Guardian and a wrong-school/Teacher account. Do not recover a shared founder/demo account. Never share passwords, claim/confirmation links, QR/setup keys, live codes or pupil contacts in screenshots or public issues. Use test inboxes/numbers you control; do not enter Aadhaar or documents in a reason.
 

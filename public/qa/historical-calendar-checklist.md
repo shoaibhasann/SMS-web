@@ -1,6 +1,6 @@
 # Historical school calendar import — founder checklist
 
-Use https://kids-corner-erp-frontend.vercel.app/login with privately supplied synthetic QA accounts. Open **Settings → School attendance calendar → Import historical days**. Only the school's actual Admin/Principal can import, after authenticator verification. School settings outside the calendar keep their existing permissions.
+Use https://sms-web-shoaibhasann.vercel.app/login with privately supplied synthetic QA accounts. Open **Settings → School attendance calendar → Import historical days**. Only the school's actual Admin/Principal can import, after authenticator verification. School settings outside the calendar keep their existing permissions.
 
 Founder acceptance is independent of engineering QA. Leave each box unchecked until you run it.
 

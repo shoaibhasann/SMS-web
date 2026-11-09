@@ -2,7 +2,7 @@
 
 6 November 2026 · 12-patch hosted rollout and application-row restore verified; native Supabase/Auth/Storage recovery acceptance pending.
 
-The original phase added an executable recovery plan and an offline synthetic restore drill. Its historical checks remain below; the later 99-table / 2,401-row private application snapshot and embedded restore are verified separately here. Production code `2dfb1e26` is Ready at [the stable login](https://kids-corner-erp-frontend.vercel.app/login), deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`. This does not certify native Auth/Storage/provider recovery. There is no separate founder-facing recovery screen. [Commands, source provenance and full recovery boundaries](../../supabase/recovery/README.md).
+The original phase added an executable recovery plan and an offline synthetic restore drill. Its historical checks remain below; the later 99-table / 2,401-row private application snapshot and embedded restore are verified separately here. Production code `2dfb1e26` is Ready at [the stable login](https://sms-web-shoaibhasann.vercel.app/login), deployment `dpl_Hn7b55aj4ThnjDC1tykBJAGxHP1J`. This does not certify native Auth/Storage/provider recovery. There is no separate founder-facing recovery screen. [Commands, source provenance and full recovery boundaries](../../supabase/recovery/README.md).
 
 ## What can be reproduced
 

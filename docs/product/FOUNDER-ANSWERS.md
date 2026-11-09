@@ -1,4 +1,4 @@
-# Kids Corner ERP founder input
+# SMS founder input
 
 ## 1. Who is the first school, and who can approve a pilot?
 
@@ -21,7 +21,7 @@ We want to measure the time spent on daily attendance, delayed submissions, corr
 ## 3. What is the one workflow the pilot must deliver?
 
 Outcome and deferral
-Our objective is to launch Kids Corner ERP as a complete, commercially sellable School Management ERP rather than a limited attendance-only product.
+Our objective is to launch SMS as a complete, commercially sellable School Management ERP rather than a limited attendance-only product.
 
 The software should be ready to demonstrate and sell to schools, covering the complete student lifecycle and daily school operations.
 
@@ -39,7 +39,7 @@ The goal is to be able to pitch the product, close a school subscription and beg
 
 ## 4. Who uses the pilot, and what may each role change?
 
-Kids Corner ERP will support a comprehensive role-based access control system.
+SMS will support a comprehensive role-based access control system.
 
 The system will include the following roles:
 
@@ -64,7 +64,7 @@ Guardians must never be able to access unrelated students' information.
 
 ## 5. How will we get the roster into the system and keep it current?
 
-Kids Corner ERP must provide a complete Student and Staff Data Import and Management System.
+SMS must provide a complete Student and Staff Data Import and Management System.
 
 Schools should be able to import existing records using Excel or CSV templates instead of entering every record manually.
 
@@ -92,7 +92,7 @@ The system must also support safe data updates without accidentally overwriting 
 
 ## 6. How should a guardian get or lose access to a child?
 
-Kids Corner ERP must provide a secure Guardian Verification and Child Linking System.
+SMS must provide a secure Guardian Verification and Child Linking System.
 
 The School Admin will verify the guardian's relationship using the school's admission records before granting access.
 
@@ -118,7 +118,7 @@ Strict school-level and student-level data isolation must ensure that guardians 
 
 ## 7. What are the school’s attendance rules?
 
-Kids Corner ERP must provide a comprehensive and configurable Attendance Management System.
+SMS must provide a comprehensive and configurable Attendance Management System.
 
 The system should support both daily attendance and period-wise attendance, allowing each school to configure its preferred attendance method.
 
@@ -148,7 +148,7 @@ Attendance records must remain protected from unauthorised modification and must
 
 ## 8. What do families need to see or receive?
 
-Kids Corner ERP must provide a comprehensive Parent and Guardian Portal with access to their linked children's school information.
+SMS must provide a comprehensive Parent and Guardian Portal with access to their linked children's school information.
 
 Parents should be able to view:
 
@@ -198,7 +198,7 @@ The School Admin will manage notification settings, while authorised teachers ca
 ## 9. What should come immediately after the pilot?
 
 Workflow and owner
-Our priority is to complete the entire Kids Corner ERP before approaching schools for commercial sales.
+Our priority is to complete the entire SMS before approaching schools for commercial sales.
 
 We do not want to launch or pitch the product as a limited attendance-only or pilot-only solution.
 
@@ -239,7 +239,7 @@ No major advertised feature should be presented as complete until it has passed 
 
 Our sign-off criteria will be based on complete commercial product readiness, not merely completion of a limited school pilot.
 
-Before commercial pitching and sales, Kids Corner ERP must meet the following requirements:
+Before commercial pitching and sales, SMS must meet the following requirements:
 
 1. All advertised core ERP modules must be fully implemented and operational.
 2. All user roles and permissions must pass end-to-end testing.
@@ -256,7 +256,7 @@ The Founder/Product Owner will provide final internal product sign-off after rev
 
 The development and QA teams will be responsible for implementation, testing and technical verification. The founder will handle commercial pitching, pricing decisions and sales strategy. Initial school onboarding and staff training will be supported by the implementation team.
 
-We aim to sell Kids Corner ERP through school-wise subscription packages based on student strength, selected modules and support requirements. Final pricing will be decided before commercial launch.
+We aim to sell SMS through school-wise subscription packages based on student strength, selected modules and support requirements. Final pricing will be decided before commercial launch.
 
 The product must be ready for immediate demonstration, subscription activation and school onboarding after a successful sales discussion.
 

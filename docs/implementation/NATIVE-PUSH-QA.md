@@ -2,7 +2,7 @@
 
 6 November 2026 · Backend now, native app next phase · Hosted backend and main Production verified
 
-App: [SMS Production login](https://kids-corner-erp-frontend.vercel.app/login) · [Founder checklist](https://kids-corner-erp-frontend.vercel.app/qa/native-push-checklist.md)
+App: [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login) · [Founder checklist](https://sms-web-shoaibhasann.vercel.app/qa/native-push-checklist.md)
 
 ## Scope and boundaries
 
@@ -89,4 +89,4 @@ Before the revoke-hardening follow-up, a separate private4table/9row/1routine sn
 
 Whole-project verification:1,971tests/147files, lint, TypeScript and optimized Next build pass. Production-dependency audit reports no vulnerabilities. Security advisors add4expected INFO findings for inaccessible private RLS-deny-all tables; pre-existing warnings are unchanged. Native Auth/Storage/provider disaster recovery remains outside the affected-application-row backup boundary.
 
-Production smoke checks use the actual hosted Supabase data with no browser request mocking. A tab already open across deployment required a hard refresh to leave its previous client build. The renamed GitHub repository (`school-management-system`, unchanged repository ID) is reconnected to the same Vercel project and local origin; the runtime release was triggered from its exact committed Git source. Existing theme/palette files remain unchanged.
+Production smoke checks use the actual hosted Supabase data with no browser request mocking. A tab already open across deployment required a hard refresh to leave its previous client build. The GitHub rename retained the repository ID. The same Vercel project was reconnected and the local origin was updated. The runtime release was triggered from its exact committed Git source. Existing theme/palette files remain unchanged.

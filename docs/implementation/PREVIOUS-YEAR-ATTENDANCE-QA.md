@@ -1,6 +1,6 @@
 # Previous academic-year official attendance reports
 
-7 November 2026. [Founder checklist](../../public/qa/previous-year-attendance-checklist.md) · [Stable Production login](https://kids-corner-erp-frontend.vercel.app/login).
+7 November 2026. [Founder checklist](../../public/qa/previous-year-attendance-checklist.md) · [Stable Production login](https://sms-web-shoaibhasann.vercel.app/login).
 
 ## Product boundary
 

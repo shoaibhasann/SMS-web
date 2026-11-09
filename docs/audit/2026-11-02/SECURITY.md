@@ -1,6 +1,6 @@
-# Kids Corner: security and data audit
+# SMS-web security and data audit
 
-Scope: local source audit of `/Users/shoaib/kids-corner-erp-frontend/kids-corner-erp-frontend`, 2026-11-02. No `.env.local` values were read, no production requests or mutations, no application code changes. SQL findings describe supplied migrations, not verified production policies. There is no base schema, Supabase config, activation RPC definition, complete RLS export, or generated Database type in this source package.
+Scope: local source audit of the supplied web checkout, 2026-11-02. No `.env.local` values were read, no production requests or mutations, no application code changes. SQL findings describe supplied migrations, not verified production policies. There is no base schema, Supabase config, activation RPC definition, complete RLS export, or generated Database type in this source package.
 
 ## Findings
 

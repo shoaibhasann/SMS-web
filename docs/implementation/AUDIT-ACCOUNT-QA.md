@@ -1,6 +1,6 @@
 # School audit history and account menu — founder QA
 
-6 November 2026 · `main` → [SMS Production](https://kids-corner-erp-frontend.vercel.app/login) · Founder acceptance pending
+6 November 2026 · `main` → [SMS Production](https://sms-web-shoaibhasann.vercel.app/login) · Founder acceptance pending
 
 Use the existing private Admin, Principal, Teacher, Student and Guardian QA logins. Test only synthetic records. Keep passwords, recovery links and tokens out of screenshots and reports. Complete these checks on the deployed revision; engineering evidence does not tick founder boxes.
 
@@ -47,7 +47,7 @@ Final theme follow-up: the provider remains mounted across login/workspace trans
 
 ## Verified Production release — 6 November, 18:29 IST
 
-Runtime `2f2c61515c21eb5ecc06ac2f6c6ed400102f2fbd`, deployment `dpl_8LoEwuTEs8hXjeWMi9rerMpBXJCS`, is Ready from Git `main` at https://kids-corner-erp-frontend.vercel.app. Later documentation-only commits retain the same verified runtime and SQL bytes.
+Runtime `2f2c61515c21eb5ecc06ac2f6c6ed400102f2fbd`, deployment `dpl_8LoEwuTEs8hXjeWMi9rerMpBXJCS`, is Ready from Git `main` at https://sms-web-shoaibhasann.vercel.app. Later documentation-only commits retain the same verified runtime and SQL bytes.
 
 Seven-role audit readback passes 136 observed school reads, zero writes/runtime exceptions and 7/7 locally closed Auth sessions. Twenty-six real events page exactly; eight wrong-role/school/anonymous requests return42501. All13 fresh source fingerprints remain identical within that run, including the shared demo’s current attendance and financial history. No old attendance values were restored over concurrent edits. The public focused checklist returns anonymous200, exact Markdown bytes and no Vercel gate.
 

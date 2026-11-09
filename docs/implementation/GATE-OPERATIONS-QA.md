@@ -1,6 +1,6 @@
 # Office gate operations
 
-7 November 2026. [Founder checklist](../../public/qa/gate-operations-checklist.md) · [Stable Production](https://kids-corner-erp-frontend.vercel.app/login).
+7 November 2026. [Founder checklist](../../public/qa/gate-operations-checklist.md) · [Stable Production](https://sms-web-shoaibhasann.vercel.app/login).
 
 ## Product boundary
 
@@ -26,7 +26,7 @@ Actual local browser Admin password-to-native-TOTP opens Attendance > Gate opera
 
 Post-local/pre-Production proof at **21:36:02 IST** preserves all **3,254 original full-row hashes / 129 tables**, current **3,263 rows**. Exact reconstruction of the two reserved fresh rows verifies only the reviewed mapping/device revocations, their reasons/actors/timestamps, and no other field changes. Native 138 identity/contact/metadata, 28 factor and 443 historical-session references remain exact; owned sessions are zero. All 72 prior attendance references remain unchanged and all 30 gate/dependency references match post-DDL. Marks 30, links two, fresh alerts zero, gate events 50/devices nine/active zero stay correct. Three bounded post-browser checks confirm the old device credential returns HTTP 401/no-store without creating a receipt. No native sign-in or data mutation occurs in this final read-only check. Private `pre-production-proof.json` and companion snapshots retain evidence.
 
-Runtime `0ba6ce8` is pushed to `main`, GitHub Vercel status Success and Production deployment `dpl_Koy5EtZzDn7ovPwnqxdx5EJsKrCz` Ready. The stable `https://kids-corner-erp-frontend.vercel.app` alias resolves to this release; Login and the public founder checklist return HTTP 200, with checklist bytes matching source.
+Runtime `0ba6ce8` is pushed to `main`, GitHub Vercel status Success and Production deployment `dpl_Koy5EtZzDn7ovPwnqxdx5EJsKrCz` Ready. The stable `https://sms-web-shoaibhasann.vercel.app` alias resolves to this release; Login and the public founder checklist return HTTP 200, with checklist bytes matching source.
 
 Actual stable-URL Admin and Principal independently complete password-to-native-TOTP login, open Attendance > Gate operations and hard-refresh/reopen its reader. Both verify two retained revoked gateways, three retired mappings, four immutable held receipts and no active gateway. Empty device setup has no chosen fallback weekdays and no old credential panel. Production browser verification makes no application writes. Each role logs out to Login. The live device/receipt screenshot is retained as `production-gate-receipts.png`; whole-page and phone evidence are private QA artifacts, not public pupil exports. Zero Production-origin browser errors and one bounded deployment runtime error query with no entries are observed; this is not continuous monitoring or managed concurrent-load certification.
 
