@@ -102,7 +102,7 @@ function OwnNativePushSettings({ userId, roles }: Props) {
   return <section className="card overflow-hidden" aria-labelledby={`${id}-heading`} aria-busy={!sessionChanged && !result}>
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] p-5 sm:p-6">
       <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><BellRing size={19} aria-hidden="true" /><h2 id={`${id}-heading`} ref={heading} tabIndex={-1} className="font-semibold">Mobile push notifications</h2></div>
-        <p className="mt-2 text-sm leading-6 muted">Prepare your mobile app preferences and manage your own registered phones. The native app is coming in a later phase.</p></div>
+        <p className="mt-2 text-sm leading-6 muted">Choose which school updates your registered phones can receive.</p></div>
       <button type="button" className={button} disabled={!!busy || sessionChanged} onClick={refresh} aria-label="Refresh push settings"><RefreshCw size={16} aria-hidden="true" />Refresh</button>
     </header>
     {sessionChanged ? <p role="alert" className="p-5 text-sm muted">Your sign-in changed. Reopen settings to manage mobile notifications.</p>
@@ -119,9 +119,9 @@ function OwnNativePushSettings({ userId, roles }: Props) {
               <form aria-label="Mobile push preferences" className="space-y-4" onSubmit={(event) => void save(event)}>
                 <fieldset disabled={!!busy} className="space-y-4"><legend className="sr-only">Mobile push preferences</legend>
                   <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-[var(--border)] p-4"><input type="checkbox" className="mt-1 size-4 accent-[var(--primary)]" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
-                    <span><span className="block text-sm font-semibold">Allow mobile push notifications</span><span className="mt-1 block text-xs leading-5 muted">App notifications require your phone’s permission and a registered app device. Your in-app notifications keep their own read state.</span></span></label>
+                    <span><span className="block text-sm font-semibold">Allow mobile push notifications</span><span className="mt-1 block text-xs leading-5 muted">App notifications require your phone’s permission and a registered app device. When enabled, mobile push includes new and updated exam schedules.</span></span></label>
                   <div className={`grid gap-3 ${role === "student" ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>{(Object.keys(eventLabels) as (keyof typeof eventLabels)[]).filter((kind) => role === "parent" || kind !== "absence").map((kind) => <label key={kind} className="flex min-h-11 items-center gap-3 rounded-xl border border-[var(--border)] px-3 py-3 text-sm"><input type="checkbox" className="size-4 shrink-0 accent-[var(--primary)]" checked={draft[kind]} onChange={(event) => setDraft({ ...draft, [kind]: event.target.checked })} />{eventLabels[kind]}</label>)}</div>
-                  {role === "student" && <p className="text-xs leading-6 muted">Student app alerts currently cover published results and leave decisions.</p>}
+                  {role === "student" && <p className="text-xs leading-6 muted">Student app alerts cover exam schedules, published results and leave decisions.</p>}
                   <div className="flex flex-wrap items-center gap-3"><button type="submit" className={primary} disabled={!dirty}>{busy === "save" ? "Saving preferences…" : "Save push preferences"}</button><span className="text-xs muted">{dirty ? "Unsaved changes" : "Saved preferences"}</span></div>
                 </fieldset>
               </form>

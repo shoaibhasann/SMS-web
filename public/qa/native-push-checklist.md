@@ -1,10 +1,10 @@
 # Founder QA — native push backend
 
-6 November 2026 · [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · Backend now, native app next phase
+9 November 2026 · [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · Android exam schedules
 
-**Current scope:** prepare mobile notification preferences and manage registered app devices. Guardian app alerts cover absence/results/leave; Student app alerts cover results/leave. Student settings must not advertise absence delivery. The native app and real phone delivery are not included in this backend slice. Sending and the recurring dispatcher remain OFF until setup is verified. No SMS/email/push success should be inferred from a preference save.
+**Current scope:** Android can register opted-in Student and Guardian devices. New or materially updated exam schedules queue a generic push under the account’s mobile push switch. The notification tap opens authenticated **Updates**, then **View exam schedule** opens the current exact record. Guardian absence, published result and leave settings remain independent; Students do not receive absence alerts.
 
-Engineering verified runtime `a710c3e` on the stable main/Production URL. Guardian save/reload/restore and Student own-device isolation pass; founder acceptance below remains pending. Delivery is OFF.
+**Production delivery is OFF.** The Android client and queue are verified separately from sending. The Firebase HTTP v1 sender and protected recurring dispatcher must be configured before testing actual delivery.
 
 Use the existing privately supplied Student and Guardian QA accounts. Do not include credentials, installation IDs/proofs, FIDs or provider keys in screenshots or this document. Engineering results do not tick these boxes. Confirm the current main deployment before testing.
 
@@ -19,20 +19,26 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 - [ ] **NP-07 · Session and layout.** Sign out/switch account during a delayed read or save; old settings/devices must disappear and late responses must not restore them. Check phone/laptop width, keyboard focus, long device labels, Light/Dark, skeletons and retry messages.
 - [ ] **NP-08 · Honest availability.** Open [push backend status](https://sms-web-shoaibhasann.vercel.app/api/push/status): expect `configured: false` and `nativeAppRequired: true` while delivery is OFF. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
 
-## Check later — blocked until the native app and delivery setup exist
+## Android device and delivery
 
 - [ ] **NP-09 · Real registration.** Install the actual app, sign in, accept the phone's notification permission and register the current Firebase installation. Denied permission does not show a fake successful subscription. FID/session rotation updates the own registration safely. Record Android/iOS device and app build.
-- [ ] **NP-10 · Actual event flow.** Create a fresh permitted absence/result/leave event after opt-in. Verify job creation, provider acceptance, actual phone display and authenticated inbox opening separately. The correct currently permitted child's record opens after app access checks. Old history is not backfilled by registering/enabling the device.
+- [ ] **NP-10 · Actual event flow.** Create a fresh permitted absence, result, leave or exam event after opt-in. Verify job creation, provider acceptance, actual phone display and authenticated inbox opening separately. The correct currently permitted child's record opens after app access checks. Old history is not backfilled by registering/enabling the device.
 - [ ] **NP-11 · Shared phone and revocation.** Logout, account/role switch, reinstall/reset and revoked child access cannot reuse another owner's device registration or reveal their records. Revoke a disposable installation while queued; it receives no subsequent permitted send. Already displayed generic alerts cannot be recalled.
 - [ ] **NP-12 · Privacy and retry.** Lock-screen content contains no child name, marks, leave reason or private record reference. Offline phones, provider rate limits/errors, expiry, long Retry-After and lost acknowledgements follow the bounded retry rules. A duplicated scheduler request does not create duplicate source jobs. Occasional repeated generic display after an unknown send acknowledgement is not an exactly-once guarantee.
 - [ ] **NP-13 · Delivery versus read.** Provider Accepted is recorded as provider acceptance only. Phone display/open and in-app Mark as read are separate observations. A push send never silently marks the inbox item read.
 - [ ] **NP-14 · Running schedule.** The operator verifies the real protected recurring dispatcher and its cadence/history, including a new event while nobody has the website open. One manual dispatch pass is not proof of an active schedule.
 
+## Exam schedule push
+
+- [ ] **NP-15 · Schedule and tap.** On an updated Android build, use a disposable Student or linked Guardian account, allow notifications and register the phone. After the operator verifies sending, background the app. Save a synthetic exam in the linked class/section. Confirm one queued job, FCM acceptance, and the neutral notification in the Android tray separately. Tap it → **Updates** → **View exam schedule**. Verify date and instructions and confirm the update is still unread.
+- [ ] **NP-16 · Save and reschedule.** Repeat the same schedule save: no new job. Change the date or instructions: one new eligible job per opted-in device; the superseded revision must not send. Refresh **Updates** and the exact schedule. Confirm only the new revision is shown and explicitly marking it read persists.
+- [ ] **NP-17 · Suppression.** Keep a disposable Guardian’s job pending. Revoke the only qualifying child link, disconnect the device, or complete the exam before dispatch. No new push should send for that account/device. A different section must not receive the exam; a Guardian with two qualifying siblings must get only one job per device. No lock-screen alert may show a pupil, exam title, marks or private IDs.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Verified feature source / deployment | Pending release verification |
-| Native app/build/device | Not available in this backend slice |
+| Native app/build/device | Android development build available; install the updated app bundle |
 | Delivery/provider/schedule activation | OFF / not verified |
 | Tester, IST time, browser/device | |
 | Overall result | Pending |

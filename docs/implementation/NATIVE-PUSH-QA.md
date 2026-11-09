@@ -4,6 +4,14 @@
 
 App: [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login) · [Founder checklist](https://sms-web-shoaibhasann.vercel.app/qa/native-push-checklist.md)
 
+## 9 November update — Android exam schedules
+
+The existing native queue now handles a newly scheduled or materially updated exam. It rechecks current enrollment and Guardian links, account opt-in, device/session, and the current revision before sending. A no-op save creates no job; expired, completed and superseded schedules are suppressed. The lock-screen payload stays generic. Android **Updates** opens the authenticated current exam and keeps read state separate.
+
+Hosted migration `20261109161017` matches the committed SQL. Rollback-only hosted QA passed two scoped family jobs, no-op save, reschedule, link revocation, completion and cleanup. All 3,663 web tests, lint and production build passed. Mobile checks include 253 tests, Expo lint, TypeScript and Android bundle export. On the Android 36 emulator with an isolated Student, login, OS permission, live Firebase installation registration, scoped job creation and exact exam details passed. After rescheduling, the device showed the new date and instructions and the old job was ineligible.
+
+**Real delivery is blocked.** Production has no Firebase HTTP v1 sender or protected recurring dispatcher. No FCM send or Android tray delivery was claimed. Set up the sender from the Firebase project owner's account per [Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api), keep credentials server-only, and run [NP-15–17](../../public/qa/native-push-checklist.md#exam-schedule-push) before enabling automatic sends. Devices on an older app build must update to see exam alerts.
+
 ## Scope and boundaries
 
 This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.

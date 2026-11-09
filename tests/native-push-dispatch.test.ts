@@ -33,6 +33,11 @@ describe("protected native push dispatch",()=>{
   expect(mocks.rpc.mock.calls.map(([name])=>name)).toEqual(["claim_family_push_jobs","prepare_family_push_job","finish_family_push_job"]);
   expect(mocks.rpc.mock.calls[0][1]).toMatchObject({p_limit:20,p_batch_id:expect.stringMatching(/^[0-9a-f-]{36}$/)});expect(mocks.send).toHaveBeenCalledWith(config,"private-access",{device_fid:fid,platform:"android",expires_at:expect.any(String)});
  });
+ it("sends a current exam schedule through the neutral provider route",async()=>{
+  mocks.rpc.mockImplementation((name:string)=>response(name==="claim_family_push_jobs"?[{id:id(1),lease_id:id(11)}]:name==="prepare_family_push_job"?{...prepared(),kind:"exam_schedule"}:true));
+  const res=await POST(request());expect(res.status).toBe(200);expect(await res.json()).toMatchObject({accepted:1});
+  expect(mocks.send).toHaveBeenCalledWith(config,"private-access",{device_fid:fid,platform:"android",expires_at:expect.any(String)});
+ });
  it("does not send a job suppressed after revocation/preferences/session change",async()=>{mocks.rpc.mockImplementation((name:string)=>response(name==="claim_family_push_jobs"?[{id:id(1),lease_id:id(11)}]:null));const res=await POST(request());expect((await res.json()).suppressed).toBe(1);expect(mocks.send).not.toHaveBeenCalled();});
  it.each([{job_id:id(9)},{lease_id:id(9)},{device_fid:"not-fid"},{recipient_role:"admin"},{kind:"fee"},{platform:"web"},{expires_at:"not-date"},{event_id:"bad"}])("fails closed for malformed prepared jobs %j",async patch=>{mocks.rpc.mockImplementation((name:string)=>response(name==="claim_family_push_jobs"?[{id:id(1),lease_id:id(11)}]:{...prepared(),...patch}));const res=await POST(request());expect(res.status).toBe(503);expect((await res.json()).unconfirmed).toBe(1);expect(mocks.send).not.toHaveBeenCalled();});
  it("rejects duplicate or oversized claims before sending",async()=>{const job={id:id(1),lease_id:id(11)};for(const jobs of [[job,job],Array.from({length:21},(_,n)=>({id:id(n+1),lease_id:id(n+11)}))]){mocks.rpc.mockReturnValue(response(jobs));expect((await POST(request())).status).toBe(503);expect(mocks.send).not.toHaveBeenCalled();}});

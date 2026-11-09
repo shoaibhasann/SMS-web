@@ -943,6 +943,14 @@
       "version": "20261109153905",
       "name": "family_exam_schedule_notifications",
       "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261109161017_native_exam_schedule_push.sql",
+      "sha256": "7765f7123be427cf06312532dc742d5193d350bbb1806c150e1391fc62341598",
+      "kind": "pending",
+      "version": "20261109161017",
+      "name": "native_exam_schedule_push",
+      "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
     }
   ],
   "excluded": [
@@ -981,5 +989,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "cebbd96f156a980d89931abdd79259248ce37e546cb5a577ec62dd4458205387"
+  "order_sha256": "2d819c897d914f7796ffd36e516976a7f6c61cbc2f6958218efd8a142f9c45f0"
 }

@@ -56,6 +56,14 @@ async function publication(){
 async function absence(){
   await db.query("insert into public.attendance(id,school_id,academic_year_id,section_id,student_id,attendance_date,status) values($1,$2,$3,$4,$5,'2026-11-04','absent')",[randomUUID(),id.schoolA,id.yearA,id.sectionA,id.pupilA]);
 }
+async function scheduleExam(daysAhead = 1, section: string | null = id.sectionA, actorId = id.teacherA) {
+  await db.query(`update public.academic_years set start_date=least(start_date,current_date-2),
+    end_date=greatest(end_date,current_date+3) where id=$1`, [id.yearA]);
+  return value<string>(actorId, `insert into public.teacher_assessments
+    (school_id,academic_year_id,class_id,section_id,subject_id,teacher_id,name,assessment_date,maximum_marks,description,status)
+    values($1,$2,$3,$4,$5,$6,'Private exam title',(statement_timestamp() at time zone 'Asia/Kolkata')::date+$7::int,50,'Private instructions','scheduled')
+    returning id as value`, [id.schoolA,id.yearA,id.classA,section,id.subjectA,id.teacherRecordA,daysAhead]);
+}
 async function ready(){await preferences();const device=await register();await leave();return device;}
 const job=async(jobId:string)=>(await db.query<Record<string,unknown>>("select * from app_private.family_push_jobs where id=$1",[jobId])).rows[0];
 
@@ -133,6 +141,74 @@ describe("native family push under the recovered application schema",()=>{
     await publication();expect(await countJobs()).toBe(1);
     await register(randomUUID(),fid(9));expect(await countJobs()).toBe(1);
   });
+  it("queues each opted-in exam device once per revision, including Guardian siblings and a Student", async () => {
+    await scheduleExam();
+    await preferences(id.guardianA,"parent",true,false,false,false);
+    const guardian = await register();
+    const otherDevice = await register(randomUUID(),fid(2));
+    await preferences(id.studentUserA,"student");
+    const student = await register(randomUUID(),fid(3),id.studentUserA,"student");
+    await preferences(id.studentUserB,"student");
+    await register(randomUUID(),fid(4),id.studentUserB,"student");
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')",[id.unlinkedPupilA,id.parentA]);
+    const peerSection = randomUUID();
+    await db.query("insert into public.sections(id,school_id,class_id,name) values($1,$2,$3,'Other section')",[peerSection,id.schoolA,id.classA]);
+    await scheduleExam(1,peerSection,id.adminA);
+    await scheduleExam(-1);
+    expect(await countJobs()).toBe(0);
+
+    const assessment = await scheduleExam(0,null,id.adminA);
+    await actor(id.adminA,"update public.teacher_assessments set name=name,maximum_marks=60 where id=$1",[assessment]);
+    const jobs = await db.query<{device_id:string;kind:string;event_id:string;before_midnight:boolean}>(`
+      select job.device_id,job.kind,job.event_id,
+        job.expires_at=(assessment.assessment_date+1)::timestamp at time zone 'Asia/Kolkata' as before_midnight
+      from app_private.family_push_jobs job join app_private.family_exam_schedule_events event on event.id=job.event_id
+      join public.teacher_assessments assessment on assessment.id=event.assessment_id where assessment.id=$1`, [assessment]);
+    expect(jobs.rows.map(row=>row.device_id).sort()).toEqual([guardian.device_id,otherDevice.device_id,student.device_id].sort());
+    expect(jobs.rows.every(row=>row.kind==="exam_schedule" && row.event_id!==assessment && row.before_midnight)).toBe(true);
+    const claimed = await claim();
+    expect(claimed).toHaveLength(3);
+    for (const lease of claimed) {
+      const prepared = await prepare(lease);
+      expect(prepared).toMatchObject({kind:"exam_schedule",event_id:jobs.rows[0].event_id});
+      expect(prepared).not.toHaveProperty("assessment_id");
+      expect(JSON.stringify(prepared)).not.toContain("Private exam");
+      expect(await finish(lease,"accepted","FCM_ACCEPTED","projects/qa/messages/exam")).toBe(true);
+    }
+  });
+
+  it("suppresses stale exam revisions and only cancels the Guardian when the last eligible link is lost", async () => {
+    await preferences(); await register();
+    const assessment = await scheduleExam();
+    const initial = (await claim())[0];
+    await actor(id.teacherA,"update public.teacher_assessments set description='Updated instructions' where id=$1",[assessment]);
+    expect(await prepare(initial)).toBeNull();
+    const revised = (await claim())[0];
+    expect(revised.id).not.toBe(initial.id);
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')",[id.unlinkedPupilA,id.parentA]);
+    await db.query("delete from public.student_parents where student_id=$1 and parent_id=$2",[id.pupilA,id.parentA]);
+    expect(await prepare(revised)).toMatchObject({kind:"exam_schedule"});
+    expect(await finish(revised)).toBe(true);
+
+    await actor(id.teacherA,"update public.teacher_assessments set description='Second revision' where id=$1",[assessment]);
+    const unlinked = (await claim())[0];
+    await db.query("delete from public.student_parents where student_id=$1 and parent_id=$2",[id.unlinkedPupilA,id.parentA]);
+    expect(await prepare(unlinked)).toBeNull();
+    expect((await job(unlinked.id)).result_code).toBe("no_longer_eligible");
+  });
+
+  it("cancels exam push after completion or a switch off before the worker sends", async () => {
+    await preferences(); await register();
+    const assessment = await scheduleExam();
+    await actor(id.teacherA,"update public.teacher_assessments set status='completed' where id=$1",[assessment]);
+    expect(await claim()).toEqual([]);
+    await scheduleExam();
+    const leased = (await claim())[0];
+    await preferences(id.guardianA,"parent",false,true,true,true,1);
+    expect(await prepare(leased)).toBeNull();
+    expect((await job(leased.id)).result_code).toBe("preferences_changed");
+  });
+
   it("fences batch/lease retries and rejects forged service context without exposing FIDs",async()=>{
     await ready();const batch=randomUUID(),first=await claim(batch);expect(first).toHaveLength(1);expect(await claim(batch)).toEqual(first);expect(await claim()).toEqual([]);
     expect(Object.keys(first[0]).sort()).toEqual(["id","lease_id"]);

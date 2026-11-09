@@ -37,7 +37,7 @@ describe("native app push settings",()=>{
  it("shows opt-out defaults and honest empty devices without browser/native registration controls",async()=>{
   store();render(<NativePushSettings userId="guardian-a" roles={["parent"]}/>);
   expect(await screen.findByText(/No mobile devices linked/)).toBeInTheDocument();expect(allow()).not.toBeChecked();
-  expect(screen.getByText(/native app is coming in a later phase/)).toBeInTheDocument();
+  expect(screen.getByText(/mobile push includes new and updated exam schedules/)).toBeInTheDocument();
   expect(screen.getByRole("button",{name:"Save push preferences"})).toBeDisabled();
   expect(mocks.rpc.mock.calls.every(([name])=>name==="get_my_family_push_settings")).toBe(true);
   expect(screen.queryByRole("button",{name:/enable notifications|register|test push/i})).not.toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("native app push settings",()=>{
   store();const user=userEvent.setup();render(<NativePushSettings userId="mixed-a" roles={["parent","student"]}/>);
   expect(await screen.findByRole("checkbox",{name:"Absent attendance"})).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("Notification account view"),"student");
-  expect(await screen.findByText("Student app alerts currently cover published results and leave decisions.")).toBeInTheDocument();
+  expect(await screen.findByText("Student app alerts cover exam schedules, published results and leave decisions.")).toBeInTheDocument();
   expect(screen.queryByRole("checkbox",{name:"Absent attendance"})).not.toBeInTheDocument();
   expect(screen.getByRole("checkbox",{name:"Published results"})).toBeInTheDocument();expect(screen.getByRole("checkbox",{name:"Leave decisions"})).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("Notification account view"),"parent");expect(await screen.findByRole("checkbox",{name:"Absent attendance"})).toBeInTheDocument();
