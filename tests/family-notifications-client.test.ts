@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyAnnouncement, loadFamilyFeeDue, loadFamilyFeePayment, loadFamilyHomework, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
+import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyAnnouncement, loadFamilyExamSchedule, loadFamilyExamSchedules, loadFamilyFeeDue, loadFamilyFeePayment, loadFamilyHomework, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
 import { getFamilyNotificationResult } from "@/lib/result-publication";
 import { getFamilyNotificationLeave } from "@/lib/student-leave";
 import { familyResult, resultMetadata, resultUuid } from "./result-publication-fixture";
@@ -40,7 +40,7 @@ describe("family notification trust boundary", () => {
     const before = {created_at:stamp,kind:"absence" as const,id:id(9)}, saved = client(inbox());
     const signal = new AbortController().signal;
     expect((await loadFamilyNotificationInbox(saved.client,{userId:uid,role:"parent",unreadOnly:true,cursor:before,limit:5},signal)).unread_count).toBe(5);
-    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v7",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
+    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v8",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
     expect(saved.abortSignal).toHaveBeenCalledWith(signal);
   });
   it("retains exact cursor precision and strips unknown payload fields", async () => {
@@ -122,7 +122,7 @@ describe("family notification trust boundary", () => {
     const saved = client(stamp);
     bound.mockResolvedValueOnce({ access_token: "captured-token" }).mockRejectedValueOnce(new Error("Account changed"));
     await expect(markFamilyNotificationRead(saved.client, "parent", "gate_arrival", id(1), uid)).rejects.toThrow("Account changed");
-    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v7", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
+    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v8", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
     expect(saved.setHeader).toHaveBeenCalledWith("Authorization", "Bearer captured-token");
     await expect(markFamilyNotificationRead(saved.client, "student", "gate_exit", id(1), uid)).rejects.toThrow();
   });
@@ -134,6 +134,28 @@ describe("family notification trust boundary", () => {
   });
 });
 describe("bounded notification target readers", () => {
+  it("opens the current exam by assessment ID, independently of the notification revision ID", async () => {
+    const exam = { id: id(3), name: "Mathematics term exam", assessment_date: "2026-11-20", subject_name: "Mathematics",
+      class_name: "Grade 6", section_name: null, description: "Bring a pencil" };
+    const event = row({ kind: "exam_schedule", status: "rescheduled", student_id: null, student_name: null, source_id: exam.id });
+    expect(notificationHref(event, "parent")).toBe(`/modules/exams?view=guardian&assessment=${exam.id}`);
+    expect(notificationHref(event, "student")).toBe(`/modules/exams?assessment=${exam.id}`);
+    expect(() => notificationHref({ ...event, student_id: id(2) }, "parent")).toThrow();
+    const signal = new AbortController().signal;
+    const options = { id: exam.id, userId: uid, role: "parent" as const };
+    const detail = client({ ...exam, marks: [10], teacher_id: id(4) });
+    expect(await loadFamilyExamSchedule(detail.client, options, signal)).toEqual(exam);
+    expect(detail.rpc).toHaveBeenCalledWith("get_family_exam_schedule", { p_role: "parent", p_assessment_id: exam.id });
+    expect(detail.setHeader).toHaveBeenCalledWith("Authorization", "Bearer owner-token");
+    await expect(loadFamilyExamSchedule(client({ ...exam, id: id(4) }).client, options, signal)).rejects.toThrow();
+    expect(await loadFamilyExamSchedule(client(null).client, options, signal)).toBeNull();
+
+    const list = client({ rows: [exam], total_count: 31 });
+    expect(await loadFamilyExamSchedules(list.client, { ...options, offset: 30 }, signal)).toEqual({ rows: [exam], total_count: 31 });
+    expect(list.rpc).toHaveBeenCalledWith("list_family_exam_schedules", { p_role: "parent", p_offset: 30 });
+    await expect(loadFamilyExamSchedules(client({ rows: [exam, exam], total_count: 2 }).client, { ...options, offset: 0 }, signal)).rejects.toThrow();
+  });
+
   it("opens the exact payment receipt and checks the recorded and reversed amounts", async () => {
     const event = row({ kind: "fee_payment", status: "paid", source_id: id(1), title: "Fee payment recorded" });
     expect(notificationHref(event, "student")).toBe(`/modules/invoices?child=${id(2)}&payment=${id(1)}`);

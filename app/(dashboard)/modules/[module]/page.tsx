@@ -24,6 +24,7 @@ import { OfficialAttendanceReports } from "@/components/admin/official-attendanc
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
+import { FamilyExamSchedule } from "@/components/family/family-exam-schedule";
 import { FamilyFeeDueDetail, FamilyFeePaymentDetail } from "@/components/family/family-fee-notification-detail";
 import { FamilyHomeworkDetail } from "@/components/family/family-homework-detail";
 import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
@@ -62,14 +63,16 @@ function ModuleContent() {
   const exactFee = moduleName === "invoices" && searchParams.has("fee");
   const exactPayment = moduleName === "invoices" && searchParams.has("payment");
   const exactInvoice = exactFee || exactPayment;
-  const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName))
+  const exactExam = moduleName === "exams" && searchParams.has("assessment");
+  const studentExamView = moduleName === "exams" && (exactExam || searchParams.get("view") === "student");
+  const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "exams", "results", "result-report", "published-results"].includes(moduleName))
     && searchParams.get("view") === "guardian";
-  const scopedRole = guardianView ? "parent" : exactHomework || exactInvoice ? "student" : null;
+  const scopedRole = guardianView ? "parent" : exactHomework || exactInvoice || studentExamView ? "student" : null;
   const initialChildId = searchParams.get("child") ?? undefined;
   const initialAssessmentId = searchParams.get("assessment") ?? undefined;
   const initialRequestId = searchParams.get("request") ?? undefined;
   const accessKey = guardianView ? `${moduleName}?view=guardian`
-    : exactHomework ? `${moduleName}?activity` : exactInvoice ? `${moduleName}?family` : moduleName;
+    : exactHomework ? `${moduleName}?activity` : exactInvoice || studentExamView ? `${moduleName}?family` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
     role: UiRole | null;
@@ -107,7 +110,8 @@ function ModuleContent() {
             ? "This view requires a linked guardian account."
             : exactHomework ? "This homework link requires a student account."
               : exactPayment ? "This payment link requires a student account."
-                : exactFee ? "This fee link requires a student account." : "No recognized role is assigned to this login.",
+                : exactFee ? "This fee link requires a student account."
+                  : studentExamView ? "This exam view requires a student account." : "No recognized role is assigned to this login.",
         });
       } catch (error) {
         if (isCurrent() && error instanceof StaffMfaRequiredError) {
@@ -147,7 +151,7 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, exactFee, exactHomework, exactPayment, guardianView, moduleName, router, scopedRole, searchParams]);
+  }, [accessKey, exactFee, exactHomework, exactPayment, guardianView, moduleName, router, scopedRole, searchParams, studentExamView]);
 
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
@@ -237,6 +241,16 @@ function ModuleContent() {
 
   if (moduleName === "academics" && (access.role === "admin" || access.role === "principal")) {
     return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminAcademicSetupWorkspace key={access.userId} userId={access.userId} /></AppShell>;
+  }
+
+  if (moduleName === "exams" && (access.role === "student" || access.role === "parent")) {
+    const assessments = searchParams.getAll("assessment");
+    const assessmentId = exactExam ? assessments.length === 1 ? assessments[0] : "" : undefined;
+    return (
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
+        <FamilyExamSchedule assessmentId={assessmentId} userId={access.userId} role={access.role} />
+      </AppShell>
+    );
   }
 
   if (access.role === "admin" && moduleName === "exams") {

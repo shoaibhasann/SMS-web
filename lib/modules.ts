@@ -125,7 +125,11 @@ export function canAccessModule(role: UiRole, moduleKey: string) {
 export function getVisibleModules(role: UiRole) {
   const family = role === "parent" || role === "student";
   return modules.filter((module) => roleModuleKeys[role].includes(module.key) && !(family && module.key === "published-results"))
-    .map((module) => family && module.key === "results" ? { ...module, label: "Published results" } : module);
+    .map((module) => {
+      if (family && module.key === "results") return { ...module, label: "Published results" };
+      if (family && module.key === "exams") return { ...module, label: "Exam schedule" };
+      return module;
+    });
 }
 
 export function getAdminNavigationModules() {

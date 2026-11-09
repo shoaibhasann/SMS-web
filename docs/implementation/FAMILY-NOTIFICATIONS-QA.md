@@ -4,6 +4,16 @@
 
 Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
+## 9 November update for exam schedules
+
+The v8 web inbox adds **Exam scheduled** and **Exam schedule updated** for the Student and their eligible linked Guardians. **Exam schedule** also lists existing upcoming assessments for the current academic year; the migration does not backfill alerts. An exact link opens only the live scheduled assessment. The page shows the date, subject, class, section and instructions. Marks stay in the separate result workflow.
+
+A no-op save or marks-only edit preserves each recipient's read state. A change to visible schedule details creates a new unread revision; marking the old alert cannot mark the new one. A class-wide exam can match multiple siblings but appears once in a Guardian's inbox. Completed, elapsed and out-of-scope assessments are hidden, and removing the only qualifying child link removes access.
+
+Local recovery and UI tests cover Teacher/Admin writes, both family roles, role and school isolation, siblings, rescheduling, completion, exact links, existing schedules, paging and independent reads. All 3,659 tests, lint and the production build passed.
+
+Hosted migration `20261109153905` matches the repository SQL. Rollback-only hosted QA passed Teacher save, both family roles, wrong-section denial, separate reads, no-op save, reschedule, completion and v7 parity. All eight existing assessments and 55 marks were unchanged; no QA events, receipts or sessions remained. Anonymous HTTP requests to all six new RPCs returned permission denied. Use [FN-28 to FN-30](../../public/qa/family-notifications-checklist.md#exam-schedule-alerts) for browser acceptance. Native push delivery for exam schedules is pending.
+
 ## 9 November update for fee payment confirmations
 
 The v7 web inbox adds one confirmation per newly recorded receipt for the Student and currently linked Guardians. Each recipient and role has a separate read state. An approved reversal changes the original item's status and shows the original receipt and effective recorded amount.

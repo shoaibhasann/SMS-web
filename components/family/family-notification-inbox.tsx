@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BellRing, LogIn, LogOut, Megaphone, NotebookPen, Receipt, RefreshCw } from "lucide-react";
+import { BellRing, CalendarDays, LogIn, LogOut, Megaphone, NotebookPen, Receipt, RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
@@ -137,19 +137,22 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
               const gate = notification.kind === "gate_arrival" || notification.kind === "gate_exit";
               const due = notification.kind === "fee_due";
               const payment = notification.kind === "fee_payment";
+              const exam = notification.kind === "exam_schedule";
               const date = gate && notification.occurred_at ? `${gateTime.format(new Date(notification.occurred_at))} IST` : eventDate(notification.event_date);
               const type = notification.kind === "gate_arrival" ? "Arrival" : notification.kind === "gate_exit" ? "Exit"
                 : notification.kind === "late" ? "Late attendance" : notification.kind === "absence" ? "Attendance"
                   : notification.kind === "result_published" ? "Result" : notification.kind === "announcement" ? "Announcement"
                     : notification.kind === "homework_assigned" ? "Homework"
                       : due ? notification.status === "overdue" ? "Fee overdue" : "Fee due"
-                        : payment ? "Fee payment" : "Leave";
+                        : payment ? "Fee payment"
+                          : exam ? notification.status === "rescheduled" ? "Exam schedule updated" : "Exam scheduled" : "Leave";
               return <li key={`${notification.kind}:${notification.id}`} className="flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2 text-xs"><span className="inline-flex items-center gap-1 font-semibold muted">
                     {gate && (notification.kind === "gate_arrival" ? <LogIn size={13} aria-hidden="true" /> : <LogOut size={13} aria-hidden="true" />)}
                     {notification.kind === "announcement" && <Megaphone size={13} aria-hidden="true" />}
                     {notification.kind === "homework_assigned" && <NotebookPen size={13} aria-hidden="true" />}
+                    {exam && <CalendarDays size={13} aria-hidden="true" />}
                     {(due || payment) && <Receipt size={13} aria-hidden="true" />}{type}</span>
                     {notification.delayed && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 muted">Delayed update</span>}
                     {!notification.read_at && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-[var(--primary)]">Unread</span>}
@@ -158,7 +161,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
                   <Link href={notificationHref(notification, role)} className="block min-h-11 rounded-md py-1 text-sm leading-6 hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]">
                     <strong className="block break-words">{notification.title}</strong>{notification.student_name && <>{" "}<span className="break-words muted">{notification.student_name}</span></>}
                   </Link>
-                  <time className="block text-xs muted" dateTime={notification.occurred_at ?? notification.event_date}>{due ? `Due ${date}` : date}</time>
+                  <time className="block text-xs muted" dateTime={notification.occurred_at ?? notification.event_date}>{due ? `Due ${date}` : exam ? `Exam date · ${date}` : date}</time>
                 </div>
                 {!summary && notification.read_at === null && <button type="button" className={control} disabled={!!pendingMark}
                   aria-label={`Mark as read: ${[notification.student_name, notification.title, date].filter(Boolean).join(", ")}`}

@@ -6,7 +6,7 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 
 **Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
-Notifications includes published results, reviewed leave decisions, school announcements, assigned homework and fee activity. Due reminders show the current outstanding amount. Payment confirmations open the recorded receipt.
+Notifications includes published results, reviewed leave decisions, school announcements, assigned homework and fee activity. Due reminders show the current outstanding amount. Payment confirmations open the recorded receipt. Upcoming exams and schedule updates open the current exam details.
 
 ## New events and exact records
 
@@ -56,6 +56,12 @@ Notifications includes published results, reviewed leave decisions, school annou
 - [ ] **FN-26 · Reverse a payment entry.** Mark the confirmation read as Guardian and check it remains unread as Student. Approve a payment reversal in the office workflow. Refresh and verify that the same item reads **Payment entry reversed**, retains its receipt and read state, and shows a zero effective recorded amount.
 - [ ] **FN-27 · Receipt access.** Try the exact link from an unrelated account and replace the pupil ID in the URL. Both attempts show an unavailable state. After revoking a disposable Guardian link, verify the original link also becomes unavailable for that Guardian.
 
+## Exam schedule alerts
+
+- [ ] **FN-28 · Schedule and open.** Use an assigned Teacher or office QA account to save a future exam as Scheduled for a synthetic class and section. Each eligible Student and Guardian sees one **Exam scheduled** notification. The link opens the exact exam with its subject, class, date and instructions. Verify the same details in **Exam schedule** after a refresh. A Guardian with two matching children sees the exam once. Existing upcoming exams can appear in the list without generating a retroactive alert.
+- [ ] **FN-29 · Read and reschedule.** Mark the exam notification read as Guardian and confirm the Student still sees it unread. Save the same schedule again: its read state stays the same. Change the exam date or instructions and save: each recipient sees one **Exam schedule updated** item marked unread. The original exam link shows the latest details.
+- [ ] **FN-30 · Audience and availability.** Open the copied link as a pupil in another section or another school. It is unavailable. For a class-wide exam, verify an eligible sibling in a different section can see it. Revoke a disposable Guardian's only qualifying link, or complete the QA exam. Refresh and check that the affected inbox item and exact link are unavailable. Results still open only through the separate results workflow.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
@@ -64,6 +70,7 @@ Notifications includes published results, reviewed leave decisions, school annou
 | Homework release revision | |
 | Fee due release revision | |
 | Fee payment release revision | |
+| Exam schedule release revision | |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |
 

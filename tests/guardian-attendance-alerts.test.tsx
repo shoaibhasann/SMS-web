@@ -26,6 +26,19 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
+  it("opens a changed exam by assessment ID and marks the current alert by its revision ID", async () => {
+    const exam: FamilyNotification = { ...first, kind: "exam_schedule", status: "rescheduled", student_id: null,
+      student_name: null, title: "Mathematics term exam" };
+    load.mockResolvedValueOnce(inbox([exam])).mockResolvedValue(inbox([{ ...exam, read_at: readAt }]));
+    render(<FamilyNotificationInbox userId={uid} role="parent" />);
+    expect(await screen.findByRole("link", { name: exam.title })).toHaveAttribute(
+      "href", `/modules/exams?view=guardian&assessment=${exam.source_id}`);
+    expect(screen.getByText("Exam schedule updated")).toBeInTheDocument();
+    expect(screen.getByText("Exam date · 6 Nov 2026")).toHaveAttribute("datetime", exam.event_date);
+    await userEvent.click(screen.getByRole("button", { name: /Mark as read: Mathematics term exam/ }));
+    expect(mark.mock.calls[0].slice(1, 5)).toEqual(["parent", "exam_schedule", exam.id, uid]);
+    expect(await screen.findByText("0 unread")).toBeInTheDocument();
+  });
   it("shows a reversed payment with the same exact receipt link", async () => {
     const payment: FamilyNotification = { ...first, kind: "fee_payment", status: "reversed", source_id: first.id, title: "Payment entry reversed" };
     load.mockResolvedValue(inbox([payment]));

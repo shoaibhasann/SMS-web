@@ -32,6 +32,7 @@ const activeLink = "bg-[var(--primary)] font-semibold text-white shadow-[0_4px_1
 const idleLink = "font-medium muted hover:bg-[var(--surface-2)] hover:text-[var(--text)]";
 
 function moduleHref(role: UiRole, key: string) {
+  if (key === "exams" && (role === "student" || role === "parent")) return `/modules/exams?view=${role === "parent" ? "guardian" : "student"}`;
   if (role === "parent" && key === "attendance") return guardianAttendancePath;
   if (role === "parent" && key === "notifications") return guardianNotificationsPath;
   if (role === "parent" && (key === "advance-credit" || key === "invoices" || key === "student-leave" || key === "timetable" || key === "results" || key === "published-results" || key === "profile")) return `/modules/${key}?view=guardian`;
