@@ -79,10 +79,15 @@ describe("isolated authenticator operations", () => {
     await expect(verifyAuthenticator(isolated() as unknown as SupabaseClient, "factor", "12345")).rejects.toThrow(/six-digit/);
     expect(mocks.enroll).not.toHaveBeenCalled(); expect(mocks.verify).not.toHaveBeenCalled();
   });
-  it.each(["mfa_verification_failed", "mfa_challenge_expired", "over_request_rate_limit", "insufficient_aal"])("bounds provider feedback for %s", async (code) => {
+  it.each([
+    ["mfa_verification_failed", "Incorrect code. Try the latest six-digit code."],
+    ["mfa_challenge_expired", "Code expired. Use the latest six-digit code."],
+    ["over_request_rate_limit", "Too many attempts. Wait before trying again."],
+    ["insufficient_aal", "Your security session changed. Sign in and verify your authenticator again."],
+  ])("bounds provider feedback for %s", async (code, message) => {
     mocks.verify.mockResolvedValueOnce({ data: null, error: { code, message: "PRIVATE INTERNAL PROVIDER DETAILS" } });
     const call = verifyAuthenticator(isolated() as unknown as SupabaseClient, "factor", "123456");
-    await expect(call).rejects.toThrow(); await expect(call).rejects.not.toThrow(/PRIVATE INTERNAL/);
+    await expect(call).rejects.toThrow(message); await expect(call).rejects.not.toThrow(/PRIVATE INTERNAL/);
   });
   it("removes only the explicitly supplied factor", async () => {
     await removeAuthenticator(isolated() as unknown as SupabaseClient, "flow-owned-pending-factor");

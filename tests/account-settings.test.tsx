@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountSettings } from "../components/account/account-settings";
 import { PasswordChangeError } from "../lib/account/password";
@@ -83,15 +83,24 @@ describe("own account settings", () => {
     expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
   });
 
-  it("acknowledges a confirmed change and clears password fields without signing out the shared browser session", async () => {
+  it("confirms the change inline, clears the fields and keeps the settings mounted", async () => {
     render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);
-    await screen.findByText(owner.email); fill(); fireEvent.click(screen.getByRole("button", { name: "Change password" }));
+    await screen.findByText(owner.email);
+    const form = screen.getByRole("form", { name: "Change your password" });
+    const authenticator = screen.getByRole("region", { name: "Own authenticator settings" });
+    fill(); fireEvent.click(screen.getByRole("button", { name: "Change password" }));
     expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
     expect(signOut).not.toHaveBeenCalled();
-    expect(screen.getByRole("status")).toHaveTextContent("Use your new password next time you sign in");
-    expect(screen.getByRole("link", { name: "Return to dashboard" })).toHaveAttribute("href", "/dashboard");
-    expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "Change your password" })).toBe(form);
+    expect(within(form).getByRole("status")).toHaveTextContent("Use your new password next time you sign in");
+    expect(screen.getByRole("region", { name: "Own authenticator settings" })).toBe(authenticator);
+    expect(screen.getByText(owner.email)).toBeInTheDocument();
+    for (const label of ["Current password", "New password", "Confirm new password"]) expect(screen.getByLabelText(label)).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Change password" })).toBeDisabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Current password"), { target: { value: newPassword } });
+    expect(within(form).queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Change password" })).toBeEnabled();
   });
 
   it("does not report a confirmed password change as failed when temporary cleanup fails", async () => {
@@ -100,6 +109,8 @@ describe("own account settings", () => {
     await screen.findByText(owner.email); fill(); fireEvent.click(screen.getByRole("button", { name: "Change password" }));
     await screen.findByRole("heading", { name: "Password changed" });
     expect(await screen.findByText(/temporary session cleanup could not be confirmed/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Current password")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Change password" })).toBeDisabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(signOut).not.toHaveBeenCalled();
   });
@@ -117,7 +128,7 @@ describe("own account settings", () => {
     await act(async () => { cleanup.resolve({ changed: true, temporarySessionClosed: false }); });
     expect(screen.getByRole("heading", { name: "Password changed" })).toBeInTheDocument();
     expect(screen.getByText(/temporary session cleanup could not be confirmed/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Return to dashboard" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("heading", { name: "Account details" })).toBeInTheDocument();
     expect(signOut).not.toHaveBeenCalled();
   });
 

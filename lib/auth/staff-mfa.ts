@@ -78,8 +78,11 @@ export const mfaPath = (next: string) => `/mfa?next=${encodeURIComponent(safeMfa
 function providerError(error: { code?: string; status?: number } | null, fallback = "Authenticator verification could not be confirmed. Retry verification before continuing.") {
   if (!error) return;
   if (error.status === 429 || /rate_limit/.test(error.code ?? "")) throw new StaffMfaError("Too many attempts. Wait before trying again.", "rate_limited");
-  if (["mfa_verification_failed", "mfa_challenge_expired", "validation_failed"].includes(error.code ?? "")) {
-    throw new StaffMfaError("That code was not accepted. Use the latest six-digit code and try again.", "verification");
+  if (error.code === "mfa_challenge_expired") {
+    throw new StaffMfaError("Code expired. Use the latest six-digit code.", "verification");
+  }
+  if (["mfa_verification_failed", "validation_failed"].includes(error.code ?? "")) {
+    throw new StaffMfaError("Incorrect code. Try the latest six-digit code.", "verification");
   }
   if (["insufficient_aal", "mfa_factor_not_found", "session_not_found", "refresh_token_not_found"].includes(error.code ?? "")) {
     throw new StaffMfaError("Your security session changed. Sign in and verify your authenticator again.", "access");

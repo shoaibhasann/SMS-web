@@ -8,12 +8,22 @@ describe("neutral accessible loading UI", () => {
     const { container } = render(<WorkspaceSkeleton />);
     expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
     expect(screen.getByText("Loading your workspace…")).toBeInTheDocument();
-    expect(container.querySelector('[data-skeleton="dashboard"]')).toBeInTheDocument();
+    const sidebar = container.querySelector('[data-skeleton="sidebar"]');
+    expect(sidebar).toHaveAttribute("aria-hidden", "true");
+    expect(sidebar).toHaveClass("hidden", "lg:flex");
+    expect(screen.getByRole("main").querySelector('[data-skeleton="dashboard"]')).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText(/admin|teacher|student|₹|42|63%/i)).not.toBeInTheDocument();
     expect(container.querySelectorAll('[aria-hidden="true"]').length).toBeGreaterThan(0);
+  });
+
+  it("keeps the sign-in fallback free of workspace navigation shapes", () => {
+    const { container } = render(<WorkspaceSkeleton label="Opening sign in…" variant="form" />);
+    expect(screen.getByRole("status")).toHaveTextContent("Opening sign in…");
+    expect(container.querySelector('[data-skeleton="form"]')).toBeInTheDocument();
+    expect(container.querySelector('[data-skeleton="sidebar"]')).not.toBeInTheDocument();
   });
 
   it.each(["list", "table", "form", "cards", "dashboard"] as const)("uses non-interactive %s shapes while retaining its real progress announcement", (variant) => {

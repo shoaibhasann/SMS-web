@@ -15,7 +15,8 @@ import { AccountAuthenticator } from "@/components/account/account-authenticator
 type Details = { name: string; email: string | null; verified: boolean; phone: string | null; providers: string[]; oauthOnly: boolean };
 type Result = { details: Details } | { error: string };
 const emptyPassword = { currentPassword: "", newPassword: "", confirmation: "" };
-const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] disabled:opacity-50";
+const buttonBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition disabled:opacity-50";
+const button = `${buttonBase} hover:bg-[var(--surface-2)]`;
 const label = "block min-w-0 space-y-2 text-sm font-semibold";
 
 type AccountProps = { userId: string; role: UiRole; hasGuardianRole: boolean; hasStudentRole?: boolean };
@@ -50,7 +51,7 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
   }, [client, userId]);
 
   useEffect(() => {
-    if (sessionChanged || completed) return;
+    if (sessionChanged) return;
     let active = true;
     async function load() {
       try {
@@ -77,7 +78,13 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
     }
     void load();
     return () => { active = false; };
-  }, [client, userId, version, sessionChanged, completed]);
+  }, [client, userId, version, sessionChanged]);
+
+  function editPassword(field: keyof PasswordChange, value: string) {
+    if (completed?.temporarySessionClosed === false) return;
+    setCompleted(undefined);
+    setPassword((current) => ({ ...current, [field]: value }));
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -107,13 +114,6 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
       <p className="mt-2 text-sm leading-6 muted">Review your sign-in details and manage your own password.</p></header>
     {sessionChanged ? <section className="card space-y-3 p-5"><p role="alert" className="text-sm">Your account changed or signed out. Reopen settings after signing in.</p>
       <Link href="/login" className={button}>Return to sign in</Link></section>
-      : completed ? <section className="card space-y-4 p-5 sm:p-6">
-        <CheckCircle2 className="text-emerald-700 dark:text-emerald-300" aria-hidden="true" />
-        <h2 className="text-lg font-semibold">Password changed</h2>
-        <p role="status" className="text-sm">Use your new password next time you sign in. You may need to sign in again in other tabs.</p>
-        {!completed.temporarySessionClosed && <p className="text-sm muted">Your password changed, but temporary session cleanup could not be confirmed. Do not repeat the password change.</p>}
-        <Link href="/dashboard" className={`${button} bg-blue-700 text-white hover:bg-blue-800`}>Return to dashboard</Link>
-      </section>
       : !current ? <LoadingState variant="form">Loading account settings…</LoadingState>
       : "error" in current ? <section className="card space-y-3 p-5"><p role="alert" className="text-sm">{current.error}</p>
         <button type="button" className={button} onClick={() => setVersion((value) => value + 1)}><RefreshCw size={16} aria-hidden="true" /> Refresh account</button></section>
@@ -137,18 +137,26 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
             : !current.details.email || !current.details.verified ? <p className="text-sm leading-6 muted">A verified sign-in email is required to change a password. Contact your school to verify your account.</p>
             : <form aria-label="Change your password" onSubmit={save} className="space-y-4">
               <p className="text-sm leading-6 muted">Use at least 12 characters. If your password is too long, choose a shorter one. Use your new password the next time you sign in.</p>
-              <fieldset disabled={saving} className="min-w-0 space-y-4">
+              <fieldset disabled={saving || completed?.temporarySessionClosed === false} className="min-w-0 space-y-4">
                 <label className={label}><span>Current password</span><input required className="field" type="password" autoComplete="current-password" value={password.currentPassword}
-                  onChange={(event) => setPassword((value) => ({ ...value, currentPassword: event.target.value }))} /></label>
+                  onChange={(event) => editPassword("currentPassword", event.target.value)} /></label>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className={label}><span>New password</span><input required className="field" type="password" autoComplete="new-password" value={password.newPassword}
-                    onChange={(event) => setPassword((value) => ({ ...value, newPassword: event.target.value }))} /></label>
+                    onChange={(event) => editPassword("newPassword", event.target.value)} /></label>
                   <label className={label}><span>Confirm new password</span><input required className="field" type="password" autoComplete="new-password" value={password.confirmation}
-                    onChange={(event) => setPassword((value) => ({ ...value, confirmation: event.target.value }))} /></label>
+                    onChange={(event) => editPassword("confirmation", event.target.value)} /></label>
                 </div>
-                <button type="submit" className={`${button} bg-blue-700 text-white hover:bg-blue-800`}><LockKeyhole size={16} aria-hidden="true" />{saving ? "Changing password…" : "Change password"}</button>
+                <button type="submit" disabled={Boolean(completed)} className={`${buttonBase} account-primary`}><LockKeyhole size={16} aria-hidden="true" />{saving ? "Changing password…" : "Change password"}</button>
               </fieldset>
               {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
+              {completed && <div role="status" className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-800 dark:text-emerald-200">
+                <CheckCircle2 size={19} className="shrink-0" aria-hidden="true" />
+                <div className="space-y-1">
+                  <h3 className="font-semibold">Password changed</h3>
+                  <p>Use your new password next time you sign in. You may need to sign in again in other tabs.</p>
+                  {!completed.temporarySessionClosed && <p>Your password changed, but temporary session cleanup could not be confirmed. Do not repeat the password change.</p>}
+                </div>
+              </div>}
             </form>}
           {current.details.email && <Link href="/forgot-password" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 hover:underline dark:text-blue-300">Forgot your password?</Link>}
         </section>

@@ -38,16 +38,20 @@ it("signs in with a trimmed email and the original password, then opens the dash
 });
 
 it.each([
-  { failure: "rejected credentials", throws: false, message: "Invalid login credentials" },
-  { failure: "a network exception", throws: true, message: "We couldn’t connect. Check your connection and try again." },
-])("shows $failure and unlocks both sign-in options", async ({ throws, message }) => {
-  if (throws) auth.signInWithPassword.mockRejectedValueOnce(new Error("Network unavailable"));
-  else auth.signInWithPassword.mockResolvedValueOnce({ error: { message } });
+  { failure: "rejected credentials", error: { code: "invalid_credentials", message: "PRIVATE PROVIDER DETAILS" }, message: "Incorrect email or password. Please try again." },
+  { failure: "legacy credential rejection", error: { message: "Invalid login credentials" }, message: "Incorrect email or password. Please try again." },
+  { failure: "an unrelated provider error", error: { status: 503, message: "PRIVATE PROVIDER DETAILS" }, message: "Sign-in couldn’t be completed. Try again or contact your school." },
+  { failure: "rate limiting", error: { status: 429, message: "PRIVATE PROVIDER DETAILS" }, message: "Too many sign-in attempts. Wait a moment and try again." },
+  { failure: "a network exception", error: null, message: "We couldn’t connect. Check your connection and try again." },
+])("shows safe feedback for $failure and unlocks both sign-in options", async ({ error, message }) => {
+  if (error) auth.signInWithPassword.mockResolvedValueOnce({ error });
+  else auth.signInWithPassword.mockRejectedValueOnce(new Error("PRIVATE PROVIDER DETAILS"));
   render(<LoginPage />);
   enterCredentials();
   submitPassword();
 
   expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(screen.queryByText("PRIVATE PROVIDER DETAILS")).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled();
   expect(screen.getByLabelText("Email address")).toBeEnabled();
@@ -77,19 +81,22 @@ it.each(["password", "Google"])("blocks both providers and repeated submissions 
   expect(provider === "password" ? auth.signInWithOAuth : auth.signInWithPassword).not.toHaveBeenCalled();
 
   await act(async () => { finish({ error: { message: "Please retry" } }); });
-  expect(await screen.findByRole("alert")).toHaveTextContent("Please retry");
+  expect(await screen.findByRole("alert")).toHaveTextContent(provider === "password"
+    ? "Sign-in couldn’t be completed. Try again or contact your school."
+    : "Google sign-in couldn’t open. Please try again.");
 });
 
 it.each([
-  { failure: "a provider error", throws: false, message: "Google provider unavailable" },
-  { failure: "a thrown exception", throws: true, message: "Google sign-in couldn’t open. Please try again." },
-])("uses the local OAuth callback and unlocks Google sign-in after $failure", async ({ throws, message }) => {
+  { failure: "a provider error", throws: false },
+  { failure: "a thrown exception", throws: true },
+])("uses the local OAuth callback and unlocks Google sign-in after $failure", async ({ throws }) => {
   if (throws) auth.signInWithOAuth.mockRejectedValueOnce(new Error("OAuth request failed"));
-  else auth.signInWithOAuth.mockResolvedValueOnce({ error: { message } });
+  else auth.signInWithOAuth.mockResolvedValueOnce({ error: { message: "PRIVATE PROVIDER DETAILS" } });
   render(<LoginPage />);
   fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
 
-  expect(await screen.findByRole("alert")).toHaveTextContent(message);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Google sign-in couldn’t open. Please try again.");
+  expect(screen.queryByText("PRIVATE PROVIDER DETAILS")).not.toBeInTheDocument();
   expect(auth.signInWithOAuth).toHaveBeenCalledExactlyOnceWith({
     provider: "google", options: { redirectTo: `${window.location.origin}/auth/callback` },
   });

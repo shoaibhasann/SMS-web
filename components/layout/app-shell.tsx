@@ -121,7 +121,11 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
       try {
         const access = await readActiveSchoolAccess(supabase);
         if (!active || generation !== version) return;
-        if (!access) { router.replace("/login"); return; }
+        if (!access) {
+          setSecurity("error");
+          router.replace("/login");
+          return;
+        }
         if ((accountOwner.current && access.userId !== accountOwner.current) || !access.roles.some((row) => toUiRole(row.role) === role)) {
           setAccountChanged(true); return;
         }
@@ -180,10 +184,11 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent) {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
+      const dialog = searchDialog.current;
+      if (!dialog || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k") return;
       event.preventDefault();
       if (menuDialog.current?.open) menuDialog.current.close();
-      if (!searchDialog.current?.open) searchDialog.current?.showModal();
+      if (!dialog.open) dialog.showModal();
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
@@ -247,19 +252,20 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
   if (security === "checking" && !verifiedOnce) return <WorkspaceSkeleton />;
   if (security === "error") return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><section className="card max-w-lg space-y-4 p-6"><h1 className="text-xl font-bold">Account security unavailable</h1><p role="alert" className="text-sm muted">Your current access could not be verified. Reopen the workspace before continuing.</p><a href="/dashboard" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]">Reopen workspace</a></section></main>;
 
+  const checking = security === "checking";
   return (
-    <div className="min-h-screen bg-[var(--bg)]" inert={security === "checking"} aria-busy={security === "checking"}>
-      {security === "checking" && <span role="status" className="fixed inset-x-0 top-0 z-50 h-1 animate-pulse bg-[var(--primary)]"><span className="sr-only">Verifying current account access…</span></span>}
-      <a href="#workspace-main" className={`sr-only z-50 rounded-xl bg-[var(--surface)] p-3 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3 ${focus}`}>Skip to workspace</a>
-      <aside aria-label="Desktop sidebar" className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
+    <div className="min-h-screen bg-[var(--bg)]">
+      {checking && <WorkspaceSkeleton label="Verifying current account access…" />}
+      {!checking && <a href="#workspace-main" className={`sr-only z-50 rounded-xl bg-[var(--surface)] p-3 font-semibold focus:not-sr-only focus:fixed focus:left-3 focus:top-3 ${focus}`}>Skip to workspace</a>}
+      {!checking && <aside aria-label="Desktop sidebar" className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
         <div className="flex h-[72px] shrink-0 items-center border-b border-[var(--border)] px-6"><Brand /></div>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-5">
           <Navigation role={role} modules={visibleModules} currentKey={currentKey} />
         </div>
-      </aside>
+      </aside>}
 
-      <div className="min-w-0 lg:pl-[240px]">
-        <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] backdrop-blur-xl">
+      <div className="min-w-0 lg:pl-[240px]" hidden={checking} inert={checking}>
+        {!checking && <header className="sticky top-0 z-20 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--surface)_96%,transparent)] backdrop-blur-xl">
           <div className="mx-auto flex min-h-16 w-full max-w-[1600px] items-center gap-3 px-4 sm:px-6 lg:min-h-[72px] lg:gap-5 lg:px-8">
             <button type="button" aria-label="Open workspace menu" aria-haspopup="dialog" aria-controls="workspace-menu"
               className={`inline-flex ${iconButton} lg:hidden`} onClick={() => menuDialog.current?.showModal()}>
@@ -281,14 +287,14 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
               : notificationKey && <Link href={moduleHref(role, notificationKey)} aria-label={notificationKey === "notifications" ? "Open notifications" : "Notices and circulars"} className={`${notificationKey === "notifications" ? "inline-flex" : "hidden sm:inline-flex"} ${iconButton}`}><Icons.Bell aria-hidden="true" size={19} strokeWidth={1.75} /></Link>}
             <AccountMenu key={`${path}:${identity.email}`} identity={profileIdentity} name={displayName} email={identity.email} onLogout={handleLogout} signingOut={signingOut} />
           </div>
-        </header>
+        </header>}
         <main id="workspace-main" tabIndex={-1} className="mx-auto min-w-0 max-w-[1600px] px-4 pb-28 pt-6 outline-none sm:px-6 sm:pb-28 lg:px-8 lg:pb-8 lg:pt-7">
           {logoutError && <p role="alert" className="mb-4 rounded-xl border border-red-500/30 bg-[var(--surface)] p-3 text-sm text-red-700 dark:text-red-300">{logoutError}</p>}
           {children}
         </main>
       </div>
 
-      <nav aria-label="Mobile shortcuts" className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex gap-1 rounded-2xl p-1.5 shadow-[0_8px_32px_#12233c16] lg:hidden">
+      {!checking && <nav aria-label="Mobile shortcuts" className="glass fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 flex gap-1 rounded-2xl p-1.5 shadow-[0_8px_32px_#12233c16] lg:hidden">
         <Link href="/dashboard" aria-current={currentKey === "dashboard" ? "page" : undefined}
           className={`flex min-h-12 min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 text-[11px] font-semibold ${currentKey === "dashboard" ? activeLink : idleLink} ${focus}`}>
           <Icons.Home aria-hidden="true" size={18} />Home
@@ -312,9 +318,9 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
           onClick={() => menuDialog.current?.showModal()}>
           <Icons.Ellipsis aria-hidden="true" size={18} />More
         </button>
-      </nav>
+      </nav>}
 
-      <dialog ref={menuDialog} id="workspace-menu" aria-labelledby="workspace-menu-title"
+      {!checking && <dialog ref={menuDialog} id="workspace-menu" aria-labelledby="workspace-menu-title"
         className="fixed inset-y-0 left-0 right-auto m-0 h-dvh max-h-none w-[min(100vw,360px)] max-w-none border-r border-[var(--border)] bg-[var(--surface)] p-0 text-[var(--text)] shadow-2xl backdrop:bg-slate-950/55"
         onClick={(event) => { if (event.target === event.currentTarget) menuDialog.current?.close(); }}>
         <div className="flex h-full flex-col">
@@ -326,9 +332,9 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
             <Navigation role={role} modules={visibleModules} currentKey={currentKey} onNavigate={() => menuDialog.current?.close()} />
           </div>
         </div>
-      </dialog>
+      </dialog>}
 
-      <dialog ref={searchDialog} id="workspace-search" aria-labelledby="workspace-search-title" onClose={() => setQuery("")}
+      {!checking && <dialog ref={searchDialog} id="workspace-search" aria-labelledby="workspace-search-title" onClose={() => setQuery("")}
         className="fixed inset-x-0 top-[min(12vh,6rem)] bottom-auto mx-auto my-0 max-h-[75dvh] w-[calc(100%-2rem)] max-w-xl overflow-hidden rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-0 text-[var(--text)] shadow-2xl backdrop:bg-slate-950/55"
         onClick={(event) => { if (event.target === event.currentTarget) searchDialog.current?.close(); }}>
         <div className="flex max-h-[75dvh] flex-col">
@@ -354,7 +360,7 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
             )) : <p role="status" className="p-4 text-sm muted">No pages match your search.</p>}
           </div>
         </div>
-      </dialog>
+      </dialog>}
     </div>
   );
 }

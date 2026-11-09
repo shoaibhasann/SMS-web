@@ -42,6 +42,60 @@ beforeEach(() => {
 });
 
 describe("AppShell session lifecycle", () => {
+  it("shows the neutral sidebar and workspace during the first authority check", async () => {
+    const pending = deferred<{ userId: string; profileSchoolId: string; roles: { role: string; school_id: string }[] }>();
+    getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });
+    shellAccess.mockReturnValueOnce(pending.promise);
+    const { container } = render(<AppShell role="admin" userId="admin-a">Private school content</AppShell>);
+    expect(container.querySelector('[data-skeleton="sidebar"]')).toBeInTheDocument();
+    expect(screen.getByRole("main").querySelector('[data-skeleton="dashboard"]')).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByText("admin-a@example.test")).not.toBeInTheDocument();
+    expect(screen.queryByText("Private school content")).not.toBeInTheDocument();
+
+    await act(async () => pending.resolve({ userId: "admin-a", profileSchoolId: "school", roles: [{ role: "school_admin", school_id: "school" }] }));
+    expect(screen.getByRole("navigation", { name: "Workspace pages" })).toBeVisible();
+    expect(screen.getByText("Private school content")).toBeVisible();
+  });
+
+  it("replaces protected shell controls during a recheck and preserves verified in-progress input", async () => {
+    const access = { userId: "admin-a", profileSchoolId: "school", roles: [{ role: "school_admin", school_id: "school" }] };
+    getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });
+    shellAccess.mockResolvedValueOnce(access);
+    const { container } = render(<AppShell role="admin" userId="admin-a">
+      <label>Attendance note <input /></label>
+    </AppShell>);
+    const input = await screen.findByRole("textbox", { name: "Attendance note" });
+    fireEvent.change(input, { target: { value: "Unsaved note" } });
+
+    const pending = deferred<typeof access>();
+    shellAccess.mockReturnValueOnce(pending.promise);
+    fireEvent.focus(window);
+    expect(screen.getByRole("status")).toHaveTextContent("Verifying current account access…");
+    expect(container.querySelector('[data-skeleton="sidebar"]')).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Account options" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(fireEvent.keyDown(window, { key: "k", ctrlKey: true })).toBe(true);
+    expect(input).not.toBeVisible();
+
+    await act(async () => pending.resolve(access));
+    expect(screen.getByRole("textbox", { name: "Attendance note" })).toBe(input);
+    expect(input).toHaveValue("Unsaved note");
+    expect(container.querySelector('[data-skeleton="sidebar"]')).not.toBeInTheDocument();
+  });
+
+  it("removes the protected content when a recheck finds no session before redirecting", async () => {
+    render(<AppShell role="teacher">Protected teacher workspace</AppShell>);
+    await screen.findByText("Protected teacher workspace");
+    shellAccess.mockResolvedValueOnce(null);
+
+    fireEvent.focus(window);
+    await screen.findByRole("heading", { name: "Account security unavailable" });
+    expect(replace).toHaveBeenCalledWith("/login");
+    expect(screen.queryByText("Protected teacher workspace")).not.toBeInTheDocument();
+  });
+
   it("hides protected content and redirects when a focused session now requires MFA", async () => {
     render(<AppShell role="teacher">Protected teacher workspace</AppShell>);
     await screen.findByRole("button", { name: "Find a page" });

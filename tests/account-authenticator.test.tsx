@@ -76,6 +76,37 @@ describe("own authenticator UI", () => {
     await screen.findByLabelText("Six-digit code"); expect(screen.queryByLabelText("Device name")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
   });
+  it("unlocks after an incorrect code, then holds Verify busy through authorized navigation without flashing success", async () => {
+    const challenge: StaffMfaStatus = { ...status, required: true, allowed: false, action: "challenge", verified_totp_count: 1 };
+    const authorized: StaffMfaStatus = { ...challenge, allowed: true, action: "none", current_aal: "aal2" };
+    const refresh = deferred<StaffMfaStatus>();
+    const navigate = vi.fn().mockReturnValue(true);
+    mocks.status.mockResolvedValue(challenge); mocks.list.mockResolvedValue([factor]);
+    mocks.verify.mockRejectedValueOnce(new StaffMfaError("Incorrect code. Try the latest six-digit code.", "verification"));
+    mocks.refresh.mockReturnValueOnce(refresh.promise);
+    render(<AccountAuthenticator userId="owner" challengeOnly onVerified={navigate} />);
+    const input = await screen.findByLabelText("Six-digit code");
+    const form = screen.getByRole("form", { name: "Verify authenticator" });
+
+    fireEvent.change(input, { target: { value: "123456" } }); fireEvent.submit(form);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect code. Try the latest six-digit code.");
+    expect(screen.getByRole("button", { name: "Verify authenticator" })).toBeEnabled();
+    expect(navigate).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: "654321" } }); fireEvent.submit(form);
+    await waitFor(() => expect(mocks.refresh).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Verifying…" })).toBeDisabled();
+    expect(navigate).not.toHaveBeenCalled();
+    await act(async () => refresh.resolve(authorized));
+
+    expect(navigate).toHaveBeenCalledExactlyOnceWith(authorized);
+    expect(screen.getByRole("button", { name: "Verifying…" })).toBeDisabled();
+    expect(form).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByText(/Authenticator verified/)).not.toBeInTheDocument();
+    expect(mocks.list).toHaveBeenCalledOnce();
+    fireEvent.submit(form);
+    expect(mocks.verify).toHaveBeenCalledTimes(2);
+  });
   it("keeps the last school-required factor and allows a backup first", async () => {
     mocks.status.mockResolvedValue({ ...status, required: true, current_aal: "aal2", verified_totp_count: 1, policy_required: true }); mocks.list.mockResolvedValue([factor]);
     render(<AccountAuthenticator userId="owner" />);

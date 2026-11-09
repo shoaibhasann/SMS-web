@@ -35,6 +35,19 @@ describe("header account disclosure", () => {
     expect(button).toHaveAttribute("aria-expanded", "false");
   });
 
+  it("dismisses a hovered menu without taking focus from a field", async () => {
+    const user = userEvent.setup();
+    render(<><AccountMenu {...props} /><input aria-label="Search students" /></>);
+    const field = screen.getByRole("textbox", { name: "Search students" });
+    const button = screen.getByRole("button", { name: "Account options" });
+    await user.click(field);
+    await user.hover(button);
+    expect(screen.getByRole("link", { name: "Account settings" })).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(field).toHaveFocus();
+  });
+
   it("closes when keyboard focus leaves and disables pending logout", async () => {
     const user = userEvent.setup();
     render(<><AccountMenu {...props} signingOut /><button>Outside</button></>);

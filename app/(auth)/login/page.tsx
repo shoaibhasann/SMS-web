@@ -30,7 +30,13 @@ export default function LoginPage() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
-        setError(error.message);
+        if (error.code === "invalid_credentials" || (!error.code && error.message === "Invalid login credentials")) {
+          setError("Incorrect email or password. Please try again.");
+        } else if (error.status === 429) {
+          setError("Too many sign-in attempts. Wait a moment and try again.");
+        } else {
+          setError("Sign-in couldn’t be completed. Try again or contact your school.");
+        }
         setLoading(false);
         return;
       }
@@ -53,7 +59,7 @@ export default function LoginPage() {
         options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
       if (error) {
-        setError(error.message);
+        setError("Google sign-in couldn’t open. Please try again.");
         setGoogleLoading(false);
       }
     } catch {

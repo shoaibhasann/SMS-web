@@ -2,25 +2,26 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Check, KeyRound, Plus, RefreshCw, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
+import { Check, KeyRound, Loader2, Plus, RefreshCw, ShieldCheck, Smartphone, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LoadingState } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
 import { createBoundMfaClient, enrollAuthenticator, listAuthenticators, readStaffMfaStatus, refreshMfaSession,
   removeAuthenticator, StaffMfaError, verifyAuthenticator, type AuthenticatorFactor, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
 
-const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
-const primary = `${button} border-transparent bg-[var(--primary)] text-white hover:brightness-95 dark:text-[var(--bg)]`;
+const buttonBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+const button = `${buttonBase} hover:bg-[var(--surface-2)]`;
+const primary = `${buttonBase} account-primary`;
 type Setup = { id: string; secret: string; qr: string };
 type Snapshot = { status: StaffMfaStatus; factors: AuthenticatorFactor[] };
 
 /** Enrollment secrets live only in this keyed component, and are discarded on account change/unmount. */
 export function AccountAuthenticator({ userId, onVerified, challengeOnly = false }: {
-  userId: string; onVerified?: (status: StaffMfaStatus) => void; challengeOnly?: boolean;
+  userId: string; onVerified?: (status: StaffMfaStatus) => boolean | void; challengeOnly?: boolean;
 }) {
   return <OwnAuthenticator key={userId} userId={userId} onVerified={onVerified} challengeOnly={challengeOnly} />;
 }
-function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: string; onVerified?: (status: StaffMfaStatus) => void; challengeOnly: boolean }) {
+function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: string; onVerified?: (status: StaffMfaStatus) => boolean | void; challengeOnly: boolean }) {
   const [client] = useState(createClient);
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const [setup, setSetup] = useState<Setup>();
@@ -66,16 +67,17 @@ function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: strin
     return () => controller.abort();
   }, [changed, client, reload, userId]);
 
-  async function run(operation: (signal: AbortSignal) => Promise<void>) {
+  async function run(operation: (signal: AbortSignal) => Promise<boolean | void>) {
     if (request.current || changed || pending) return;
     const controller = new AbortController(); request.current = controller;
     setPending(true); setError(""); setNotice("");
-    try { await operation(controller.signal); }
+    let navigating = false;
+    try { navigating = (await operation(controller.signal)) === true; }
     catch (failure) {
       if (!controller.signal.aborted && mounted.current) setError(failure instanceof StaffMfaError ? failure.message : "This security change could not be confirmed. Reload its status before retrying.");
     } finally {
       if (request.current === controller) request.current = null;
-      if (!controller.signal.aborted && mounted.current) setPending(false);
+      if (!navigating && !controller.signal.aborted && mounted.current) setPending(false);
     }
   }
   async function begin(event: FormEvent<HTMLFormElement>) {
@@ -94,13 +96,15 @@ function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: strin
       await verifyAuthenticator(bound, setup?.id ?? factorId, code);
       if (signal.aborted) return;
       // The provider may have accepted a code even if refresh fails. Discard secrets and reload, never enroll again automatically.
-      setSetup(undefined); setCode(""); setShowSetup(false); setName("");
       const status = await refreshMfaSession(client, userId, signal);
       if (signal.aborted) return;
+      if (onVerified?.(status) === true) return true;
+      setSetup(undefined); setCode(""); setShowSetup(false); setName("");
       const factors = await listAuthenticators(await createBoundMfaClient(client, userId, signal));
       if (signal.aborted) return;
-      setSnapshot({ status, factors }); setNotice("Authenticator verified. Your account security is up to date.");
-      onVerified?.(status);
+      setSnapshot({ status, factors });
+      if (status.allowed) setNotice("Authenticator verified. Your account security is up to date.");
+      else setError("Verification couldn’t finish. Reload security status and try again.");
     });
   }
   async function cancelSetup() {
@@ -113,10 +117,11 @@ function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: strin
         if (verified.some((factor) => factor.id === setup.id)) {
           setSetup(undefined); setCode(""); setShowSetup(false); setName("");
           const status = await refreshMfaSession(client, userId, signal);
+          if (signal.aborted) return;
+          if (onVerified?.(status) === true) return true;
           const factors = await listAuthenticators(await createBoundMfaClient(client, userId, signal));
           if (signal.aborted) return;
           setSnapshot({ status, factors }); setNotice("This authenticator was already verified. Your verified device has been kept.");
-          onVerified?.(status);
           return;
         }
         // Cancel only the still-pending factor created by this exact form.
@@ -140,10 +145,11 @@ function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: strin
       setRemoving(undefined);
       const refreshed = await refreshMfaSession(client, userId, signal);
       if (signal.aborted) return;
+      if (onVerified?.(refreshed) === true) return true;
       const remaining = await listAuthenticators(await createBoundMfaClient(client, userId, signal));
       if (signal.aborted) return;
       setSnapshot({ status: refreshed, factors: remaining });
-      setNotice("Authenticator removed."); onVerified?.(refreshed);
+      setNotice("Authenticator removed.");
     });
   }
 
@@ -174,10 +180,10 @@ function OwnAuthenticator({ userId, onVerified, challengeOnly }: { userId: strin
                   <Image unoptimized src={qr} width={192} height={192} alt="Scan this private setup code with your authenticator app" /></div>}
                 <details className="text-sm"><summary className="min-h-10 cursor-pointer font-semibold">Enter a setup key instead</summary><code className="mt-2 block select-all break-all rounded-xl border border-[var(--border)] p-3 text-sm">{setup.secret}</code></details>
                 <p className="text-xs leading-5 muted">This key grants access to your account. Do not share it or include it in screenshots.</p></div>}
-              {(needsChallenge || setup) && <form aria-label="Verify authenticator" onSubmit={verify} className="space-y-4"><fieldset className="min-w-0 space-y-4" disabled={pending}>
+              {(needsChallenge || setup) && <form aria-label="Verify authenticator" aria-busy={pending} onSubmit={verify} className="space-y-4"><fieldset className="min-w-0 space-y-4" disabled={pending}>
                 {!setup && snapshot.factors.length > 1 && <label className="block space-y-2 text-sm font-semibold"><span>Authenticator</span><select className="field" value={factorId} onChange={(event) => setFactorId(event.target.value)}>{snapshot.factors.map((factor) => <option key={factor.id} value={factor.id}>{factor.friendly_name || "Authenticator app"}</option>)}</select></label>}
                 <label className="block max-w-xs space-y-2 text-sm font-semibold"><span>Six-digit code</span><input className="field !text-lg tracking-[0.3em]" required inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, ""))} placeholder="000000" /></label>
-                <div className="flex flex-wrap gap-2"><button type="submit" className={primary}><Check size={16} aria-hidden="true" />{pending ? "Verifying…" : "Verify authenticator"}</button>{setup && <button type="button" className={button} onClick={() => void cancelSetup()}>Cancel setup</button>}</div>
+                <div className="flex flex-wrap gap-2"><button type="submit" className={primary}>{pending ? <Loader2 size={16} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}{pending ? "Verifying…" : "Verify authenticator"}</button>{setup && <button type="button" className={button} onClick={() => void cancelSetup()}>Cancel setup</button>}</div>
               </fieldset></form>}
               {canEnroll && !setup && (showSetup || snapshot.status.action === "enroll") && <form aria-label="Set up authenticator" onSubmit={begin} className="space-y-4"><label className="block space-y-2 text-sm font-semibold"><span>Device name</span><input className="field" required minLength={2} maxLength={60} disabled={pending} value={name} onChange={(event) => setName(event.target.value)} placeholder="My phone" /></label><button type="submit" className={primary} disabled={pending}><KeyRound size={16} aria-hidden="true" />{pending ? "Preparing setup…" : "Generate setup code"}</button></form>}
               {canEnroll && !showSetup && !setup && snapshot.status.action !== "enroll" && !challengeOnly && <div className="space-y-3"><p className="text-sm leading-6 muted">Use an authenticator app on your phone. After setup, all future sign-ins will ask for a code. Keep a second verified device if you need a backup.</p><button type="button" className={button} onClick={() => setShowSetup(true)}><Plus size={16} aria-hidden="true" />{snapshot.factors.length ? "Add backup authenticator" : "Set up authenticator"}</button></div>}
