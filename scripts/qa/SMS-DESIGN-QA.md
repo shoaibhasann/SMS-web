@@ -1,5 +1,13 @@
 # Founder demo data seed
 
+## 9 November update — large roster in the same QA login
+
+The original large roster was in the separate MFA QA school. The Fee Credit QA Admin's existing school now has **2,044 students**: 44 original records plus 2,000 fictional students in 15 grade bands (Nursery to Class 12) and 60 new sections. The [insert-only seed](sms-fee-credit-roster-qa.sql) defaults to rollback. It does not create login accounts or add fees, attendance or teacher assignments for the new classes. The original student, role, academic-year and fee ledger fingerprints matched before and after.
+
+Use the same QA Fee Credit Admin login. Refresh **Dashboard** and check **Total Students: 2,044**. In **Students**, choose **QA Roster · Nursery → A** to see 34 enrolled pupils, then search `SMSFCQA26-0001`. Students in another school stay outside this account's scope.
+
+## Original 6 November demo seed
+
 6 November 2026 · Task tag `SMS-DESIGN-QA` · Reviewed hosted demo seed completed
 
 Target is only the existing founder demo school `7727a1bf-6330-4dbe-962e-b2bb50646c72` (`ERP-FEE-CREDIT-QA-a852f1dc`). The SQL asserts its current session, class/sections/subject, existing active admin and teacher, existing Student placement, and already verified Guardian-child edge before writing. Missing or changed scope aborts the entire transaction. A revoked child link is never recreated by this seed.
