@@ -26,6 +26,15 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
+  it("identifies the child's overdue fee and links to the exact demand", async () => {
+    const fee: FamilyNotification = { ...first, kind: "fee_due", status: "overdue", source_id: first.id, title: "Tuition" };
+    load.mockResolvedValue(inbox([fee]));
+    render(<FamilyNotificationInbox userId={uid} role="parent" />);
+    expect(await screen.findByRole("link", { name: "Tuition First pupil" })).toHaveAttribute(
+      "href", `/modules/invoices?child=${fee.student_id}&view=guardian&fee=${fee.id}`);
+    expect(screen.getByText("Fee overdue")).toBeInTheDocument();
+    expect(screen.getByText("Due 6 Nov 2026")).toHaveAttribute("datetime", fee.event_date);
+  });
   it.each([
     ["announcement", "Announcement", "Parent-teacher meeting", "/modules/notices?view=guardian&notice="],
     ["homework_assigned", "Homework", "Equivalent fractions", "/modules/homework?view=guardian&activity="],

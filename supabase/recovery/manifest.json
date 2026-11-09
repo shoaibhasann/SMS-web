@@ -919,6 +919,14 @@
       "version": "20261109144029",
       "name": "family_homework_notifications",
       "provenance": "Forward source; exact hosted ledger SQL verified 9 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261109144911_family_fee_due_notifications.sql",
+      "sha256": "7e5b8e8e1370f632a383fc873d4d860b652ad677cafc73d0713548750530a63b",
+      "kind": "pending",
+      "version": "20261109144911",
+      "name": "family_fee_due_notifications",
+      "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
     }
   ],
   "excluded": [
@@ -957,5 +965,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "5de59a5d31f09189c90808a3a2aa203d66006465f8a5f2ba721d5d764f3149af"
+  "order_sha256": "55aced199ca43209d4461a9b45b379b999513c56216f85469e95d7d81a78e484"
 }

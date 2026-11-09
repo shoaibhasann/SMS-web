@@ -24,6 +24,7 @@ import { OfficialAttendanceReports } from "@/components/admin/official-attendanc
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
+import { FamilyFeeDueDetail } from "@/components/family/family-fee-due-detail";
 import { FamilyHomeworkDetail } from "@/components/family/family-homework-detail";
 import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
@@ -58,13 +59,15 @@ function ModuleContent() {
   const router = useRouter();
   const moduleName = String(params?.module || "");
   const exactHomework = moduleName === "homework" && searchParams.has("activity");
+  const exactFee = moduleName === "invoices" && searchParams.has("fee");
   const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName))
     && searchParams.get("view") === "guardian";
-  const scopedRole = guardianView ? "parent" : exactHomework ? "student" : null;
+  const scopedRole = guardianView ? "parent" : exactHomework || exactFee ? "student" : null;
   const initialChildId = searchParams.get("child") ?? undefined;
   const initialAssessmentId = searchParams.get("assessment") ?? undefined;
   const initialRequestId = searchParams.get("request") ?? undefined;
-  const accessKey = guardianView ? `${moduleName}?view=guardian` : exactHomework ? `${moduleName}?activity` : moduleName;
+  const accessKey = guardianView ? `${moduleName}?view=guardian`
+    : exactHomework ? `${moduleName}?activity` : exactFee ? `${moduleName}?fee` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
     role: UiRole | null;
@@ -100,7 +103,8 @@ function ModuleContent() {
           userId: verified.userId,
           error: role ? null : guardianView
             ? "This view requires a linked guardian account."
-            : exactHomework ? "This homework link requires a student account." : "No recognized role is assigned to this login.",
+            : exactHomework ? "This homework link requires a student account."
+              : exactFee ? "This fee link requires a student account." : "No recognized role is assigned to this login.",
         });
       } catch (error) {
         if (isCurrent() && error instanceof StaffMfaRequiredError) {
@@ -140,7 +144,7 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, exactHomework, guardianView, moduleName, router, scopedRole, searchParams]);
+  }, [accessKey, exactFee, exactHomework, guardianView, moduleName, router, scopedRole, searchParams]);
 
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
@@ -264,6 +268,17 @@ function ModuleContent() {
     if (access.role === "parent" || access.role === "student") {
       return <AppShell key={access.userId} userId={access.userId} role={access.role}><FamilyAdvanceCredit key={`${access.role}:${access.userId}`} role={access.role} userId={access.userId} /></AppShell>;
     }
+  }
+
+  if (exactFee && (access.role === "student" || access.role === "parent")) {
+    const fees = searchParams.getAll("fee");
+    const children = searchParams.getAll("child");
+    return (
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
+        <FamilyFeeDueDetail feeId={fees.length === 1 ? fees[0] : ""} studentId={children.length === 1 ? children[0] : ""}
+          role={access.role} userId={access.userId} />
+      </AppShell>
+    );
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "invoices") {

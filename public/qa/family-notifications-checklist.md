@@ -6,7 +6,7 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 
 **Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
-**What to expect:** new published results, approved/rejected child leave decisions, eligible school announcements and newly assigned homework appear in Notifications. Existing Guardian absence alerts retain their saved read state. Announcements and homework do not backfill old records or send SMS, email or push in this release.
+Notifications includes published results, reviewed leave decisions, school announcements, assigned homework and eligible unpaid fees. Fee reminders appear on the due date in India time and show the current outstanding amount when opened.
 
 ## New events and exact records
 
@@ -44,12 +44,19 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 - [ ] **FN-20 · Open and read.** Open that exact item from Student and Guardian Notifications. Check the title, instructions and due date. Student can use the existing submission panel when eligible; Guardian cannot submit or see submission files. Mark the Guardian item read, refresh, and check that the Student and another Guardian keep their own unread status. Verify the bell count and All/Unread filter.
 - [ ] **FN-21 · Scope and stale links.** Copy the exact homework link to a QA account from a different section or school. The target is unavailable. After unpublishing the assignment or revoking a Guardian's only qualifying link, refresh the inbox and the copied link; both must stop showing it. Restore the link only if the fixture was created for that purpose.
 
+## Fee due reminders
+
+- [ ] **FN-22 · Due date and exact balance.** Compare one upcoming fee, one due today and one overdue fee for a synthetic pupil. The last two appear once each in Student and Guardian Notifications. Open the overdue item and compare its child, fee, due date and outstanding amount with the fee ledger.
+- [ ] **FN-23 · Payment and read state.** Mark an overdue item read as Guardian and confirm it stays unread for the Student. Record a partial payment for that fee and refresh to see the reduced balance. Settle it fully and refresh both the inbox and the original link. The reminder disappears and the old link shows an unavailable message. Reopening the same demand restores its saved read state for each account.
+- [ ] **FN-24 · Child access.** Swap the child or fee ID in an exact link, then open it from a different family's account. Confirm each link shows an unavailable state. For a disposable Guardian link, revoke access and refresh. The child's reminder disappears while reminders for any other linked children remain available.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Earlier result/leave release | `dbf12d6` |
 | Announcement release revision | |
 | Homework release revision | |
+| Fee due release revision | |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |
 

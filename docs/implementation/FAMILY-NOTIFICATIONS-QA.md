@@ -4,6 +4,12 @@
 
 Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
+## 9 November update for fee due reminders
+
+The v6 web inbox lists one item per eligible due or overdue fee demand, using the India calendar date. The exact detail shows the pupil, fee, due date and current outstanding balance from the same calculation as the fee ledger. Each recipient and role has its own read state. When a fee settles, the item disappears. If the same demand becomes outstanding again, its prior read state returns.
+
+Hosted migration `20261109144911` matches the repository SQL. Rollback-only QA verified family scope, partial payment, settlement and restored read state after rollback. The hosted ledger comparison covered 3,587 demands, 17 payments, adjustments, credit entries and reversals. The local suite also exercised payment reversal and advance allocation. All 3,626 repository tests, lint and the production build passed. [FN-22 to FN-24](../../public/qa/family-notifications-checklist.md#fee-due-reminders)
+
 ## 9 November update: homework assigned
 
 Publishing section homework adds one item per eligible account and role to the v5 web inbox. A Guardian with multiple children in the section sees it once. Drafts, older homework and previous placements do not create alerts. The exact link rechecks the current pupil or Guardian scope. Students can use the existing submission panel, and Guardians see read-only details.

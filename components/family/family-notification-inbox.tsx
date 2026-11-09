@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { BellRing, LogIn, LogOut, Megaphone, NotebookPen, RefreshCw } from "lucide-react";
+import { BellRing, LogIn, LogOut, Megaphone, NotebookPen, Receipt, RefreshCw } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
@@ -112,7 +112,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
       <div className="flex min-w-0 items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))] text-[var(--primary)]"><BellRing size={19} aria-hidden="true" /></span>
         <div><h2 id={headingId} ref={heading} tabIndex={-1} className="font-bold">{summary ? "School updates" : "Notifications"}</h2>
-          <p className="mt-1 text-sm muted">{role === "parent" ? "Announcements and updates for your linked children." : "Homework, announcements, published results and school decisions."}</p>
+          <p className="mt-1 text-sm muted">{role === "parent" ? "School updates and fee reminders for your linked children." : "Homework, school updates and fee reminders."}</p>
           {!sessionChanged && inbox && <p role="status" className="mt-1 text-sm font-semibold">{inbox.unread_count} unread</p>}
         </div>
       </div>
@@ -135,17 +135,20 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
           : notifications.length === 0 ? <p className="p-4 text-sm muted">{filter === "Unread" ? "No unread notifications." : "No notifications available."}</p>
             : <ul className="divide-y divide-[var(--border)]">{notifications.map((notification) => {
               const gate = notification.kind === "gate_arrival" || notification.kind === "gate_exit";
+              const fee = notification.kind === "fee_due";
               const date = gate && notification.occurred_at ? `${gateTime.format(new Date(notification.occurred_at))} IST` : eventDate(notification.event_date);
               const type = notification.kind === "gate_arrival" ? "Arrival" : notification.kind === "gate_exit" ? "Exit"
                 : notification.kind === "late" ? "Late attendance" : notification.kind === "absence" ? "Attendance"
                   : notification.kind === "result_published" ? "Result" : notification.kind === "announcement" ? "Announcement"
-                    : notification.kind === "homework_assigned" ? "Homework" : "Leave";
+                    : notification.kind === "homework_assigned" ? "Homework"
+                      : fee ? notification.status === "overdue" ? "Fee overdue" : "Fee due" : "Leave";
               return <li key={`${notification.kind}:${notification.id}`} className="flex flex-wrap items-start justify-between gap-3 p-4">
                 <div className="min-w-0 flex-1 space-y-1.5">
                   <div className="flex flex-wrap items-center gap-2 text-xs"><span className="inline-flex items-center gap-1 font-semibold muted">
                     {gate && (notification.kind === "gate_arrival" ? <LogIn size={13} aria-hidden="true" /> : <LogOut size={13} aria-hidden="true" />)}
                     {notification.kind === "announcement" && <Megaphone size={13} aria-hidden="true" />}
-                    {notification.kind === "homework_assigned" && <NotebookPen size={13} aria-hidden="true" />}{type}</span>
+                    {notification.kind === "homework_assigned" && <NotebookPen size={13} aria-hidden="true" />}
+                    {fee && <Receipt size={13} aria-hidden="true" />}{type}</span>
                     {notification.delayed && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 muted">Delayed update</span>}
                     {!notification.read_at && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-[var(--primary)]">Unread</span>}
                     {notification.read_at && !summary && <span className="muted">Read</span>}
@@ -153,7 +156,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
                   <Link href={notificationHref(notification, role)} className="block min-h-11 rounded-md py-1 text-sm leading-6 hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]">
                     <strong className="block break-words">{notification.title}</strong>{notification.student_name && <>{" "}<span className="break-words muted">{notification.student_name}</span></>}
                   </Link>
-                  <time className="block text-xs muted" dateTime={notification.occurred_at ?? notification.event_date}>{date}</time>
+                  <time className="block text-xs muted" dateTime={notification.occurred_at ?? notification.event_date}>{fee ? `Due ${date}` : date}</time>
                 </div>
                 {!summary && notification.read_at === null && <button type="button" className={control} disabled={!!pendingMark}
                   aria-label={`Mark as read: ${[notification.student_name, notification.title, date].filter(Boolean).join(", ")}`}
