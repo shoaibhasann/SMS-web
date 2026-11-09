@@ -9,7 +9,7 @@ import { recoveryIds as id, seedRecoveryData } from "../../scripts/database-reco
 let db: PGlite;
 const principal=randomUUID(),accountant=randomUUID(),reception=randomUUID(),globalAdmin=randomUUID();
 const staff=[id.adminA,id.teacherA,principal,accountant,reception];
-type Status={user_id:string;profile_school_id:string|null;roles:{role:string;school_id:string|null}[];required:boolean;allowed:boolean;action:string;current_aal:string;verified_totp_count:number;staff:boolean;policy_required:boolean};
+type Status={user_id:string;profile_school_id:string|null;roles:{role:string;school_id:string|null}[];required:boolean;allowed:boolean;action:string;current_aal:string;verified_totp_count:number;staff:boolean;policy_required:boolean;dashboard_allowed:boolean};
 type Policy={school_id:string;required:boolean;revision:number;can_manage:boolean;staff_count:number;enrolled_staff_count:number;enrollment_required_count:number;history:unknown[]};
 async function actor<T extends Record<string,unknown>=Record<string,unknown>>(user:string|null,sql:string,args:unknown[]=[],options:{aal?:unknown;session?:string|null;path?:string;http?:boolean;role?:"authenticated"|"anon"|"service_role"}={}){
   await db.exec("savepoint mfa_actor");
@@ -39,6 +39,8 @@ beforeAll(async()=>{
   db=await createRecoveryDatabase();await seedRecoveryData(db);
   const emailOtpMigration = new URL("../../supabase/migrations/20261109112234_admin_email_otp_eligibility.sql", import.meta.url);
   await db.exec(await readFile(emailOtpMigration, "utf8"));
+  const dashboardMigration = new URL("../../supabase/migrations/20261109133000_school_admin_single_factor_dashboard.sql", import.meta.url);
+  await db.exec(await readFile(dashboardMigration, "utf8"));
   for(const[user,role]of[[principal,"principal"],[accountant,"accountant"],[reception,"reception_staff"],[globalAdmin,"super_admin"]]){
     await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",[user,`${user}@mfa.invalid`]);
     await db.query("update public.profiles set school_id=$2 where id=$1",[user,role==="super_admin"?null:id.schoolA]);
@@ -106,6 +108,102 @@ describe("admin email OTP eligibility", () => {
   ])("preserves optional MFA for %s signing in with %s", async (user, method) => {
     await db.query("insert into auth.mfa_amr_claims values($1,$2,now())", [user, method]);
     expect(await status(user)).toMatchObject({ required: false, allowed: true, action: "none" });
+  });
+});
+
+describe("school admin single-factor dashboard pilot", () => {
+  const dashboardPath = "/rpc/get_my_school_admin_dashboard_summary";
+  const dashboard = (user = id.adminA, options: Parameters<typeof actor>[3] = {}) =>
+    value(user, "select public.get_my_school_admin_dashboard_summary() as value", [], { aal: "aal1", http: true, path: dashboardPath, ...options });
+  const register = (user = id.adminA, session = user, role: NonNullable<Parameters<typeof actor>[3]>["role"] = "service_role") =>
+    value<boolean>(user, "select public.allow_school_admin_email_otp_dashboard($1,$2) as value", [user, session], { role, aal: "aal1" });
+  const nativeMethod = (method: string, session = id.adminA) =>
+    db.query("insert into auth.mfa_amr_claims values($1,$2,now())", [session, method]);
+  const optIn = () => db.query(`insert into app_private.school_staff_mfa_policy(school_id,required,allow_admin_single_factor_dashboard)
+    values($1,true,true)`, [id.schoolA]);
+
+  it("defaults off, then grants only aggregate IST dashboard reads to the opted-in password session", async () => {
+    await enroll(id.adminA, { elevate: false });
+    await nativeMethod("password");
+    expect(await status(id.adminA, { aal: "aal1" })).toMatchObject({ allowed: false, dashboard_allowed: false });
+    await deny(dashboard());
+    await optIn();
+    const { rows: [{ date }] } = await db.query<{ date: string }>(`select timezone('Asia/Kolkata', statement_timestamp())::date::text as date`);
+    await db.query("update public.attendance set attendance_date=$1::date", [date]);
+
+    expect(await status(id.adminA, { aal: "aal1" })).toMatchObject({ required: true, policy_required: true, allowed: false, dashboard_allowed: true, action: "challenge" });
+    expect(await dashboard()).toEqual({ date, students: 2, teachers: 1, classes: 1, sections: 1, attendance_today: 2, absent_today: 1 });
+    expect(await register()).toBe(false);
+
+    for (const path of ["/students", "/rpc/get_office_finance_summary", `${dashboardPath}_extra`]) {
+      await deny(actor(id.adminA, "select id from public.students", [], { aal: "aal1", http: true, path }));
+    }
+    expect(await actor(id.adminA, "select id from public.students", [], { aal: "aal1", http: true, path: dashboardPath })).toEqual([]);
+    expect(await actor(id.adminA, "select id from storage.objects", [], { aal: "aal1", path: dashboardPath })).toEqual([]);
+    await deny(actor(id.adminA, "select public.assign_school_role($1,$2,'parent')", [id.claimantA, id.schoolA],
+      { aal: "aal1", http: true, path: "/rpc/assign_school_role" }));
+    await deny(save(false, 0, randomUUID(), "AAL1 cannot edit security", id.adminA, "aal1"));
+    await deny(actor(id.adminA, "update app_private.school_staff_mfa_policy set allow_admin_single_factor_dashboard=false"));
+    await enroll(id.adminA);
+    expect(await status(id.adminA, { aal: "aal2" })).toMatchObject({ allowed: true, dashboard_allowed: false });
+    expect(await actor(id.adminA, "select id from public.students", [], { aal: "aal2", http: true, path: "/students" })).toHaveLength(2);
+  });
+
+  it("requires a server-marked exact native email session and removes the grant with its session", async () => {
+    await enroll(id.adminA, { elevate: false });
+    await nativeMethod("otp");
+    await optIn();
+    await deny(register(id.adminA, id.adminA, "anon"));
+    await deny(register(id.adminA, id.adminA, "authenticated"));
+    await deny(dashboard());
+    expect(await register(id.adminB, id.adminA)).toBe(false);
+    expect(await register()).toBe(true);
+    expect(await register()).toBe(true);
+    expect(await status(id.adminA, { aal: "aal1" })).toMatchObject({ allowed: false, dashboard_allowed: true });
+    expect(await dashboard()).toMatchObject({ students: 2 });
+
+    const secondSession = randomUUID();
+    await db.query("insert into auth.sessions(id,user_id,aal) values($1,$2,'aal1')", [secondSession, id.adminA]);
+    await nativeMethod("otp", secondSession);
+    expect(await status(id.adminA, { aal: "aal1", session: secondSession })).toMatchObject({ dashboard_allowed: false });
+    await deny(dashboard(id.adminA, { session: secondSession }));
+
+    await db.query("insert into app_private.school_staff_mfa_policy(school_id,allow_admin_single_factor_dashboard) values($1,true)", [id.schoolB]);
+    await db.query("update public.user_roles set school_id=$2 where user_id=$1", [id.adminA, id.schoolB]);
+    await db.query("update public.profiles set school_id=$2 where id=$1", [id.adminA, id.schoolB]);
+    expect(await register()).toBe(false);
+    await deny(dashboard());
+    await db.query("update public.user_roles set school_id=$2 where user_id=$1", [id.adminA, id.schoolA]);
+    await db.query("update public.profiles set school_id=$2 where id=$1", [id.adminA, id.schoolA]);
+    expect(await dashboard()).toMatchObject({ students: 2 });
+    await db.query("update auth.sessions set not_after=now()-interval '1 second' where id=$1", [id.adminA]);
+    await deny(dashboard());
+    await db.query("delete from auth.mfa_amr_claims where session_id=$1", [id.adminA]);
+    await db.query("delete from auth.sessions where id=$1", [id.adminA]);
+    expect((await db.query("select session_id from app_private.school_admin_dashboard_email_sessions")).rows).toEqual([]);
+  });
+
+  it.each([id.adminB, id.teacherA, principal, id.guardianA, id.studentUserA, globalAdmin])("does not relax access for role or school outside the pilot (%s)", async (user) => {
+    await enroll(user, { elevate: false });
+    await nativeMethod("password", user);
+    await optIn();
+    expect(await status(user, { aal: "aal1" })).toMatchObject({ allowed: false, dashboard_allowed: false });
+    await deny(dashboard(user));
+  });
+
+  it.each([
+    ["mixed role", "insert into public.user_roles(user_id,school_id,role) values($1,$2,'parent')", id.schoolA],
+    ["multiple schools", "insert into public.user_roles(user_id,school_id,role) values($1,$2,'school_admin')", id.schoolB],
+    ["inactive profile", "update public.profiles set is_active=false where id=$1", null],
+    ["removed factor", "delete from auth.mfa_factors where user_id=$1", null],
+    ["ambiguous first method", "insert into auth.mfa_amr_claims values($1,'oauth',now())", null],
+  ])("rechecks %s before opening the dashboard", async (_label, change, school) => {
+    await enroll(id.adminA, { elevate: false });
+    await nativeMethod("password");
+    await optIn();
+    expect(await dashboard()).toMatchObject({ students: 2 });
+    await db.query(change, school ? [id.adminA, school] : [id.adminA]);
+    await deny(dashboard());
   });
 });
 

@@ -42,6 +42,23 @@ beforeEach(() => {
 });
 
 describe("AppShell session lifecycle", () => {
+  it("keeps the school overview visible only for the same authorized user and school", async () => {
+    getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });
+    const status: StaffMfaStatus = {
+      user_id: "admin-a", profile_school_id: "school", roles: [{ role: "school_admin", school_id: "school" }],
+      allowed: false, required: true, action: "challenge", current_aal: "aal1", verified_totp_count: 1,
+      staff: true, policy_required: true, dashboard_allowed: true,
+    };
+    shellAccess.mockRejectedValueOnce(new StaffMfaRequiredError(status));
+    render(<AppShell role="admin" userId="admin-a" overviewSchoolId="school">School counts</AppShell>);
+    expect(await screen.findByText("School counts")).toBeVisible();
+    expect(replace).not.toHaveBeenCalled();
+
+    shellAccess.mockRejectedValueOnce(new StaffMfaRequiredError({ ...status, profile_school_id: "another-school" }));
+    fireEvent.focus(window);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/mfa?next=%2Fdashboard"));
+    expect(screen.queryByText("School counts")).not.toBeInTheDocument();
+  });
   it("shows the neutral sidebar and workspace during the first authority check", async () => {
     const pending = deferred<{ userId: string; profileSchoolId: string; roles: { role: string; school_id: string }[] }>();
     getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });

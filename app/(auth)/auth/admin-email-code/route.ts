@@ -1,4 +1,4 @@
-import { createClient as createAuthClient } from "@supabase/supabase-js";
+import { createClient as createAuthClient, type SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
 import { allowedRecoveryOrigin } from "@/lib/auth/recovery";
 import { readStaffMfaStatus } from "@/lib/auth/staff-mfa";
@@ -9,6 +9,18 @@ const clientOptions = { auth: { persistSession: false, autoRefreshToken: false, 
 
 function reply(status: number) {
   return Response.json({ ok: status === 200 }, { status, headers });
+}
+
+async function recordVerifiedEmailSession(auth: SupabaseClient, service: SupabaseClient, userId: string, accessToken: string) {
+  try {
+    const { data, error } = await auth.auth.getClaims(accessToken);
+    const claims = data?.claims;
+    if (!error && claims?.sub === userId && claims.aal === "aal1" && claims.session_id) {
+      await service.rpc("allow_school_admin_email_otp_dashboard", { p_user_id: userId, p_session_id: claims.session_id });
+    }
+  } catch {
+    // The ordinary authenticator challenge remains available if the optional dashboard grant cannot be recorded.
+  }
 }
 
 export async function POST(request: Request) {
@@ -74,6 +86,7 @@ export async function POST(request: Request) {
       return reply(401);
     }
 
+    await recordVerifiedEmailSession(auth, service, userId, data.session.access_token);
     const session = await browser.auth.setSession({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,

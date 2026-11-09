@@ -5,7 +5,7 @@ import { POST } from "@/app/(auth)/auth/admin-email-code/route";
 
 const mocks = vi.hoisted(() => ({
   after: vi.fn(), createAuth: vi.fn(), createBrowser: vi.fn(), readSecurity: vi.fn(), rpc: vi.fn(),
-  sendCode: vi.fn(), verifyCode: vi.fn(), revokeIsolated: vi.fn(),
+  sendCode: vi.fn(), verifyCode: vi.fn(), getClaims: vi.fn(), revokeIsolated: vi.fn(),
   readBrowser: vi.fn(), clearBrowser: vi.fn(), installBrowser: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after: mocks.after }));
@@ -18,7 +18,8 @@ const email = "admin@school.example";
 const user = { id: "fixture-admin", email };
 const session = { user, access_token: "fixture-access-token", refresh_token: "fixture-refresh-token" };
 const tokens = { access_token: session.access_token, refresh_token: session.refresh_token };
-const auth = { auth: { signInWithOtp: mocks.sendCode, verifyOtp: mocks.verifyCode, signOut: mocks.revokeIsolated } };
+const sessionId = "c93edb67-bcd6-441f-ad20-d3e12dd997c5";
+const auth = { auth: { signInWithOtp: mocks.sendCode, verifyOtp: mocks.verifyCode, getClaims: mocks.getClaims, signOut: mocks.revokeIsolated } };
 const browser = { auth: { getSession: mocks.readBrowser, signOut: mocks.clearBrowser, setSession: mocks.installBrowser } };
 const challenge = { action: "challenge", current_aal: "aal1" };
 const requestCode = { action: "request", email: " ADMIN@School.Example " };
@@ -39,9 +40,10 @@ beforeEach(() => {
   vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "fixture-service-key");
   mocks.createAuth.mockImplementation((_url, key) => key === "fixture-service-key" ? { rpc: mocks.rpc } : auth);
   mocks.createBrowser.mockResolvedValue(browser);
-  mocks.rpc.mockResolvedValue({ data: user.id, error: null });
+  mocks.rpc.mockImplementation(async (name) => ({ data: name === "find_admin_email_otp_user" ? user.id : true, error: null }));
   mocks.sendCode.mockResolvedValue({ error: null });
   mocks.verifyCode.mockResolvedValue({ data: { user, session }, error: null });
+  mocks.getClaims.mockResolvedValue({ data: { claims: { sub: user.id, aal: "aal1", session_id: sessionId } }, error: null });
   mocks.readBrowser.mockResolvedValue({ data: { session: null }, error: null });
   mocks.clearBrowser.mockResolvedValue({ error: null });
   mocks.revokeIsolated.mockResolvedValue({ error: null });
@@ -88,6 +90,7 @@ describe("admin email code route", () => {
     expect(mocks.verifyCode).toHaveBeenCalledExactlyOnceWith({ email, token: verifyCode.code, type: "email" });
     expect(mocks.installBrowser).not.toHaveBeenCalled();
     expect(mocks.readSecurity).not.toHaveBeenCalled();
+    expect(mocks.getClaims).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -101,6 +104,7 @@ describe("admin email code route", () => {
     expect((await POST(request(verifyCode))).status).toBe(401);
     expect(mocks.installBrowser).not.toHaveBeenCalled();
     expect(mocks.revokeIsolated).toHaveBeenCalledExactlyOnceWith({ scope: "local" });
+    expect(mocks.getClaims).not.toHaveBeenCalled();
   });
 
   it("installs the isolated AAL1 session only after both admin eligibility and the MFA challenge are confirmed", async () => {
@@ -112,7 +116,24 @@ describe("admin email code route", () => {
     finishLookup({ data: user.id, error: null });
 
     expect((await pending).status).toBe(200);
+    expect(mocks.getClaims).toHaveBeenCalledExactlyOnceWith(session.access_token);
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "allow_school_admin_email_otp_dashboard", { p_user_id: user.id, p_session_id: sessionId });
+    expect(mocks.rpc.mock.invocationCallOrder[1]).toBeLessThan(mocks.installBrowser.mock.invocationCallOrder[0]);
     expect(mocks.installBrowser).toHaveBeenCalledExactlyOnceWith(tokens);
     expect(mocks.revokeIsolated).not.toHaveBeenCalled();
+  });
+
+  it("keeps the usual challenge when the pilot is off or its registration RPC is unavailable", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: user.id, error: null }).mockRejectedValueOnce(new Error("registration unavailable"));
+    expect((await POST(request({ ...verifyCode, session_id: "untrusted-client-session" }))).status).toBe(200);
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "allow_school_admin_email_otp_dashboard", { p_user_id: user.id, p_session_id: sessionId });
+    expect(mocks.installBrowser).toHaveBeenCalledExactlyOnceWith(tokens);
+  });
+
+  it("never registers a dashboard grant for claims from a different account", async () => {
+    mocks.getClaims.mockResolvedValue({ data: { claims: { sub: "other-user", aal: "aal1", session_id: sessionId } }, error: null });
+    expect((await POST(request(verifyCode))).status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("find_admin_email_otp_user", { p_email: email });
+    expect(mocks.installBrowser).toHaveBeenCalledExactlyOnceWith(tokens);
   });
 });

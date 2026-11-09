@@ -5,6 +5,7 @@ export type StaffMfaStatus = {
   user_id: string; profile_school_id: string | null; roles: { role: string; school_id: string | null }[];
   required: boolean; allowed: boolean; action: "none" | "enroll" | "challenge" | "sign_in";
   current_aal: "aal1" | "aal2"; verified_totp_count: number; staff: boolean; policy_required: boolean;
+  dashboard_allowed?: boolean;
 };
 export class StaffMfaError extends Error {
   constructor(message: string, readonly code: "access" | "verification" | "rate_limited" | "unconfirmed" = "unconfirmed") {
@@ -31,7 +32,16 @@ export function parseStaffMfaStatus(value: unknown, userId: string): StaffMfaSta
     || (row.action === "challenge" && Number(row.verified_totp_count) < 1) || (row.action === "enroll" && Number(row.verified_totp_count) > 0)) {
     throw new StaffMfaError("Your account security could not be verified. Sign in again or retry.");
   }
-  return value as StaffMfaStatus;
+  const status = value as StaffMfaStatus;
+  if ((row.dashboard_allowed !== undefined && typeof row.dashboard_allowed !== "boolean")
+    || (status.dashboard_allowed && (
+      !status.required || status.allowed || !status.staff || status.action !== "challenge"
+      || status.current_aal !== "aal1" || !status.profile_school_id || status.roles.length !== 1
+      || status.roles[0].role !== "school_admin" || status.roles[0].school_id !== status.profile_school_id
+    ))) {
+    throw new StaffMfaError("Your account security could not be verified. Sign in again or retry.");
+  }
+  return status;
 }
 
 function cancelled(signal?: AbortSignal) {
@@ -53,7 +63,7 @@ export async function boundMfaSession(client: SupabaseClient, userId?: string, s
   return session;
 }
 
-/** The only bootstrap RPC permitted before the database's MFA boundary. Never derive permission from cached factors. */
+/** Read the database's current MFA decision using the verified session. */
 export async function readStaffMfaStatus(client: SupabaseClient, userId?: string, signal?: AbortSignal): Promise<StaffMfaStatus | null> {
   const session = await boundMfaSession(client, userId, signal);
   if (!session) return null;

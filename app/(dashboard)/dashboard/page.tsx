@@ -1,9 +1,20 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { RoleDashboard } from "@/components/dashboard/role-dashboard";
+import { DashboardGreeting, DashboardMetric } from "@/components/dashboard/dashboard-primitives";
+import { AppShell } from "@/components/layout/app-shell";
 import { resolveUiRole, toUiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+
+const overviewMetrics = [
+  ["students", "Total students"],
+  ["teachers", "Total teachers"],
+  ["classes", "Classes"],
+  ["sections", "Sections"],
+  ["attendance_today", "Attendance recorded today"],
+  ["absent_today", "Absent today"],
+] as const;
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -11,7 +22,27 @@ export default async function DashboardPage() {
   try {
     access = await readActiveSchoolAccess(supabase);
   } catch (error) {
-    if (error instanceof StaffMfaRequiredError) redirect(mfaPath("/dashboard"));
+    if (error instanceof StaffMfaRequiredError) {
+      const { dashboard_allowed, user_id, profile_school_id } = error.status;
+      if (dashboard_allowed && profile_school_id) {
+        const { data, error: summaryError } = await supabase.rpc("get_my_school_admin_dashboard_summary");
+        if (!summaryError && data && overviewMetrics.every(([key]) => Number.isSafeInteger(data[key]) && data[key] >= 0)) {
+          return (
+            <AppShell key={user_id} role="admin" userId={user_id} overviewSchoolId={profile_school_id}>
+              <div className="space-y-4">
+                <DashboardGreeting eyebrow="School administration" title="School Admin Dashboard"
+                  description="Your school overview. Verify your authenticator to open records and manage the school."
+                  href={mfaPath("/dashboard")} action="Unlock full workspace" />
+                <section aria-label="School overview" className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {overviewMetrics.map(([key, label]) => <DashboardMetric key={key} label={label} value={data[key]} />)}
+                </section>
+              </div>
+            </AppShell>
+          );
+        }
+      }
+      redirect(mfaPath("/dashboard"));
+    }
     return (
       <main className="min-h-screen grid place-items-center bg-[var(--bg)] p-6">
         <div className="card max-w-xl p-8">

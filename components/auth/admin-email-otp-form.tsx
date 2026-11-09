@@ -98,7 +98,7 @@ export function AdminEmailOtpForm({ onBusyChange, onVerified }: {
           <button type="button" className="min-h-11 text-sm font-semibold text-[var(--login-link)]" disabled={!!pending}
             onClick={() => { setTarget(""); setCode(""); setError(""); }}>Change email</button>
         </>
-      ) : <p className="text-sm leading-6 muted">Use your school admin email. You’ll verify your authenticator after the email code.</p>}
+      ) : <p className="text-sm leading-6 muted">Use your school admin email to receive a sign-in code. Your school may require an authenticator.</p>}
 
       <form onSubmit={handleSubmit} aria-label={target ? "Verify admin email code" : "Request admin email code"}
         aria-busy={!!pending} className="space-y-4">

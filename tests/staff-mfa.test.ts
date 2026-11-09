@@ -26,6 +26,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("authoritative MFA bootstrap", () => {
+  it("accepts dashboard-only access for a sole active-school admin and preserves the authenticator challenge", () => {
+    const adminStatus = { ...status, roles: [{ role: "school_admin", school_id: "school" }], dashboard_allowed: true };
+    expect(parseStaffMfaStatus(adminStatus, "owner")).toMatchObject({ dashboard_allowed: true, allowed: false, action: "challenge" });
+    expect(() => parseStaffMfaStatus({ ...status, dashboard_allowed: true }, "owner")).toThrow();
+    expect(() => parseStaffMfaStatus({ ...adminStatus, profile_school_id: "another-school" }, "owner")).toThrow();
+    expect(() => parseStaffMfaStatus({ ...adminStatus, roles: [...adminStatus.roles, ...status.roles] }, "owner")).toThrow();
+  });
   it("accepts a family account without factors and a zero-role pre-enrollment identity", () => {
     expect(parseStaffMfaStatus({ ...status, required: false, allowed: true, action: "none", verified_totp_count: 0, roles: [], staff: false, policy_required: false }, "owner").allowed).toBe(true);
   });

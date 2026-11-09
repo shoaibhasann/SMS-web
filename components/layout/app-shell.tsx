@@ -76,7 +76,6 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
                   className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-[13px] transition-colors ${selected ? activeLink : idleLink} ${focus}`}>
                   <Icon aria-hidden="true" size={19} strokeWidth={1.75} className="shrink-0" />
                   <span className="min-w-0 flex-1 leading-5">{item.label}</span>
-                  {selected && <span aria-hidden="true" className="size-1.5 rounded-full bg-current" />}
                 </Link>
               );
             })}
@@ -95,7 +94,9 @@ function displayIdentity(user: { id?: string; email?: string; user_metadata?: un
   return { id: user?.id ?? "", email: user?.email ?? "", name: rawName.replace(/\s+/g, " ").trim().slice(0, 80) };
 }
 
-export function AppShell({ children, role, userId }: { children: ReactNode; role: UiRole; userId?: string }) {
+export function AppShell({ children, role, userId, overviewSchoolId }: {
+  children: ReactNode; role: UiRole; userId?: string; overviewSchoolId?: string;
+}) {
   const path = usePathname();
   const router = useRouter();
   const [supabase] = useState(createClient);
@@ -119,14 +120,23 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
       const version = ++generation;
       setSecurity("checking");
       try {
-        const access = await readActiveSchoolAccess(supabase);
+        const access = await readActiveSchoolAccess(supabase).catch((failure: unknown) => {
+          if (overviewSchoolId && path === "/dashboard" && role === "admin" && failure instanceof StaffMfaRequiredError
+            && failure.status.dashboard_allowed && failure.status.user_id === userId
+            && failure.status.profile_school_id === overviewSchoolId) {
+            return { userId: failure.status.user_id, profileSchoolId: overviewSchoolId, roles: failure.status.roles };
+          }
+          throw failure;
+        });
         if (!active || generation !== version) return;
         if (!access) {
           setSecurity("error");
           router.replace("/login");
           return;
         }
-        if ((accountOwner.current && access.userId !== accountOwner.current) || !access.roles.some((row) => toUiRole(row.role) === role)) {
+        if ((accountOwner.current && access.userId !== accountOwner.current)
+          || (overviewSchoolId && access.profileSchoolId !== overviewSchoolId)
+          || !access.roles.some((row) => toUiRole(row.role) === role)) {
           setAccountChanged(true); return;
         }
         const fingerprint = JSON.stringify([access.userId, access.profileSchoolId, [...access.roles].sort((a, b) => `${a.role}:${a.school_id}`.localeCompare(`${b.role}:${b.school_id}`))]);
@@ -154,7 +164,7 @@ export function AppShell({ children, role, userId }: { children: ReactNode; role
     window.addEventListener("focus", focus); document.addEventListener("visibilitychange", visible);
     void check();
     return () => { active = false; generation += 1; clearTimeout(timer); subscription.unsubscribe(); window.removeEventListener("focus", focus); document.removeEventListener("visibilitychange", visible); };
-  }, [path, role, router, supabase]);
+  }, [overviewSchoolId, path, role, router, supabase, userId]);
 
   useEffect(() => {
     let active = true;

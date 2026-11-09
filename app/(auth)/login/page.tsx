@@ -177,7 +177,7 @@ export default function LoginPage() {
             </div>
 
             {method === "admin-code" ? <AdminEmailOtpForm onBusyChange={setCodeBusy} onVerified={() => {
-              window.location.replace(mfaPath("/dashboard"));
+              window.location.replace("/dashboard");
             }} /> : method === "mobile" ? <GuardianPhoneOtpForm purpose="login" onBusyChange={setCodeBusy} onVerified={() => {
               router.replace("/dashboard"); router.refresh();
             }} /> : <>
