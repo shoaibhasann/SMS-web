@@ -4,6 +4,12 @@
 
 Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
+## 9 November update: homework assigned
+
+Publishing section homework adds one item per eligible account and role to the v5 web inbox. A Guardian with multiple children in the section sees it once. Drafts, older homework and previous placements do not create alerts. The exact link rechecks the current pupil or Guardian scope. Students can use the existing submission panel, and Guardians see read-only details.
+
+Hosted migration `20261109144029` matches the repository SQL. Rollback-only hosted QA passed exact Student and Guardian detail, draft and section exclusion, independent reads and v4 compatibility. All 15 academic logs and 32 activities were unchanged afterward. Local Teacher draft → publish, access denial and submission UI tests passed, as did all 3,609 repository tests, lint and the production build. [FN-19 to FN-21](../../public/qa/family-notifications-checklist.md#homework-assigned) cover browser acceptance. Native push is outside this release.
+
 ## 9 November update: school announcements
 
 New notices appear at publication in the v4 Student and Guardian web inbox for their current audience. Each recipient and role has independent read state. Opening a notification rechecks the exact notice, expiry and current access. The release adds no historical backfill or external delivery, and earlier inbox versions are unchanged.

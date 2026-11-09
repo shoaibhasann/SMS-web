@@ -24,6 +24,7 @@ import { OfficialAttendanceReports } from "@/components/admin/official-attendanc
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
+import { FamilyHomeworkDetail } from "@/components/family/family-homework-detail";
 import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
 import { StudentRosterWorkspace } from "@/components/admin/student-roster-workspace";
@@ -56,11 +57,14 @@ function ModuleContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = String(params?.module || "");
-  const guardianView = ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
+  const exactHomework = moduleName === "homework" && searchParams.has("activity");
+  const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName))
+    && searchParams.get("view") === "guardian";
+  const scopedRole = guardianView ? "parent" : exactHomework ? "student" : null;
   const initialChildId = searchParams.get("child") ?? undefined;
   const initialAssessmentId = searchParams.get("assessment") ?? undefined;
   const initialRequestId = searchParams.get("request") ?? undefined;
-  const accessKey = guardianView ? `${moduleName}?view=guardian` : moduleName;
+  const accessKey = guardianView ? `${moduleName}?view=guardian` : exactHomework ? `${moduleName}?activity` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
     role: UiRole | null;
@@ -87,8 +91,8 @@ function ModuleContent() {
         }
         currentUserId = verified.userId;
         const roles = verified.roles;
-        const role = guardianView
-          ? roles.some((row) => row.role === "parent" && row.school_id === verified.profileSchoolId) ? "parent" : null
+        const role = scopedRole
+          ? roles.some((row) => row.role === scopedRole && row.school_id === verified.profileSchoolId) ? scopedRole : null
           : resolveUiRole(roles);
         setAccess({
           key: accessKey,
@@ -96,7 +100,7 @@ function ModuleContent() {
           userId: verified.userId,
           error: role ? null : guardianView
             ? "This view requires a linked guardian account."
-            : "No recognized role is assigned to this login.",
+            : exactHomework ? "This homework link requires a student account." : "No recognized role is assigned to this login.",
         });
       } catch (error) {
         if (isCurrent() && error instanceof StaffMfaRequiredError) {
@@ -136,7 +140,7 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, guardianView, moduleName, router, searchParams]);
+  }, [accessKey, exactHomework, guardianView, moduleName, router, scopedRole, searchParams]);
 
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
@@ -203,6 +207,15 @@ function ModuleContent() {
           <p className="text-sm muted">Your attendance summary is available on the dashboard. The detailed read-only register is part of the next phase.</p>
           <a href="/dashboard" className="inline-block text-sm font-semibold text-blue-600">View dashboard</a>
         </section>
+      </AppShell>
+    );
+  }
+
+  if (exactHomework && (access.role === "student" || access.role === "parent")) {
+    const activities = searchParams.getAll("activity");
+    return (
+      <AppShell key={access.userId} userId={access.userId} role={access.role}>
+        <FamilyHomeworkDetail activityId={activities.length === 1 ? activities[0] : ""} userId={access.userId} role={access.role} />
       </AppShell>
     );
   }

@@ -26,18 +26,19 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
-  it("shows an announcement without a pupil name and marks the same notice read", async () => {
-    const announcement: FamilyNotification = {
-      ...first, kind: "announcement", status: "published", source_id: first.id,
-      student_id: null, student_name: null, title: "Parent-teacher meeting",
+  it.each([
+    ["announcement", "Announcement", "Parent-teacher meeting", "/modules/notices?view=guardian&notice="],
+    ["homework_assigned", "Homework", "Equivalent fractions", "/modules/homework?view=guardian&activity="],
+  ] as const)("shows %s without a pupil name and marks the exact item read", async (kind, label, title, href) => {
+    const item: FamilyNotification = {
+      ...first, kind, status: "published", source_id: first.id, student_id: null, student_name: null, title,
     };
-    load.mockResolvedValueOnce(inbox([announcement])).mockResolvedValue(inbox([{ ...announcement, read_at: readAt }]));
+    load.mockResolvedValueOnce(inbox([item])).mockResolvedValue(inbox([{ ...item, read_at: readAt }]));
     render(<FamilyNotificationInbox userId={uid} role="parent" />);
-    expect(await screen.findByRole("link", { name: announcement.title }))
-      .toHaveAttribute("href", `/modules/notices?view=guardian&notice=${announcement.id}`);
-    expect(screen.getByText("Announcement")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: /Mark as read: Parent-teacher meeting/ }));
-    expect(mark.mock.calls[0].slice(1, 5)).toEqual(["parent", "announcement", announcement.id, uid]);
+    expect(await screen.findByRole("link", { name: title })).toHaveAttribute("href", href + item.id);
+    expect(screen.getByText(label)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: new RegExp(`Mark as read: ${title}`) }));
+    expect(mark.mock.calls[0].slice(1, 5)).toEqual(["parent", kind, item.id, uid]);
     expect(await screen.findByText("0 unread")).toBeInTheDocument();
   });
   it("shows child gate preferences only on full Guardian Notifications", async () => {

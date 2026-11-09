@@ -6,7 +6,7 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 
 **Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
-**What to expect:** new published results, approved/rejected child leave decisions and eligible school announcements appear in Notifications. Existing Guardian absence alerts retain their saved read state. The announcement release applies to newly published notices; it does not backfill old notices or send SMS, email or push.
+**What to expect:** new published results, approved/rejected child leave decisions, eligible school announcements and newly assigned homework appear in Notifications. Existing Guardian absence alerts retain their saved read state. Announcements and homework do not backfill old records or send SMS, email or push in this release.
 
 ## New events and exact records
 
@@ -38,11 +38,18 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 - [ ] **FN-17 · Open and mark.** Open the announcement link and check it shows the exact notice. Mark it read in Notifications, switch to Unread, and refresh. Confirm the same account's badge updates and a different Guardian's read state is independent. Repeat with **Mark all as read** while older announcements are available.
 - [ ] **FN-18 · Change availability.** Schedule a future notice and confirm it appears only at publication. Unpublish a QA notice or revoke its only qualifying Guardian link. After refresh, its inbox entry and exact notice link become unavailable.
 
+## Homework assigned
+
+- [ ] **FN-19 · Draft, publish and retry.** As an assigned QA Teacher, save homework as Draft. Confirm it does not appear in either family inbox. Publish it, then edit its instructions and due date. Student and linked Guardians see one **Homework** item per assignment; the edit does not create a duplicate or reset its read state. A Guardian with two eligible siblings receives the item once.
+- [ ] **FN-20 · Open and read.** Open that exact item from Student and Guardian Notifications. Check the title, instructions and due date. Student can use the existing submission panel when eligible; Guardian cannot submit or see submission files. Mark the Guardian item read, refresh, and check that the Student and another Guardian keep their own unread status. Verify the bell count and All/Unread filter.
+- [ ] **FN-21 · Scope and stale links.** Copy the exact homework link to a QA account from a different section or school. The target is unavailable. After unpublishing the assignment or revoking a Guardian's only qualifying link, refresh the inbox and the copied link; both must stop showing it. Restore the link only if the fixture was created for that purpose.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
 | Earlier result/leave release | `dbf12d6` |
 | Announcement release revision | |
+| Homework release revision | |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |
 
