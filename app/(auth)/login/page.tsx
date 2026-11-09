@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
+import { mfaPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +20,34 @@ export default function LoginPage() {
   const [method, setMethod] = useState<"email" | "mobile">("email");
   const [mobileBusy, setMobileBusy] = useState(false);
   const [error, setError] = useState("");
-  const busy = loading || googleLoading || mobileBusy;
+  const [resumeUserId, setResumeUserId] = useState<string>();
+  const [resuming, setResuming] = useState(false);
+  const resumeAttempt = useRef<{ userId: string; controller: AbortController }>(null);
+  const busy = loading || googleLoading || mobileBusy || resuming;
+
+  useEffect(() => {
+    let check: AbortController | undefined;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const attempt = resumeAttempt.current;
+      if (attempt && attempt.userId !== session?.user.id) attempt.controller.abort();
+      check?.abort();
+      clearTimeout(timer);
+      setResumeUserId(undefined);
+      if (!session) return;
+      const controller = new AbortController();
+      check = controller;
+      // Auth lookups must run after the SDK finishes dispatching this event.
+      timer = setTimeout(() => {
+        void readStaffMfaStatus(supabase, session.user.id, controller.signal).then((status) => {
+          if (!controller.signal.aborted && status?.action === "challenge" && status.current_aal === "aal1") {
+            setResumeUserId(status.user_id);
+          }
+        }, () => { /* An unconfirmed session cannot offer resume. */ });
+      }, 0);
+    });
+    return () => { check?.abort(); resumeAttempt.current?.controller.abort(); clearTimeout(timer); subscription.unsubscribe(); };
+  }, [supabase]);
 
   async function signIn(event: FormEvent) {
     event.preventDefault();
@@ -28,7 +56,17 @@ export default function LoginPage() {
     setError("");
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const current = await supabase.auth.getSession();
+      // A rejected password leaves any older Supabase session intact.
+      if (current.error || current.data.session) {
+        const { error } = await supabase.auth.signOut({ scope: "local" });
+        if (error) {
+          setError("Couldn’t clear the previous sign-in. Please try again.");
+          setLoading(false);
+          return;
+        }
+      }
+      const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
         if (error.code === "invalid_credentials" || (!error.code && error.message === "Invalid login credentials")) {
           setError("Incorrect email or password. Please try again.");
@@ -40,12 +78,34 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
+      if (!data?.session || data.session.user.id !== data.user?.id) {
+        setError("Sign-in couldn’t be completed. Try again or contact your school.");
+        setLoading(false);
+        return;
+      }
       router.replace("/dashboard");
       router.refresh();
     } catch {
       setError("We couldn’t connect. Check your connection and try again.");
       setLoading(false);
     }
+  }
+
+  async function resumeAuthenticator() {
+    if (busy || !resumeUserId || resumeAttempt.current) return;
+    setError("");
+    setResuming(true);
+    const controller = new AbortController();
+    resumeAttempt.current = { userId: resumeUserId, controller };
+    const status = await readStaffMfaStatus(supabase, resumeUserId, controller.signal).catch(() => null);
+    resumeAttempt.current = null;
+    if (!controller.signal.aborted && status?.action === "challenge" && status.current_aal === "aal1") {
+      router.replace(mfaPath("/dashboard"));
+      return;
+    }
+    if (!controller.signal.aborted) setResumeUserId(undefined);
+    setResuming(false);
+    setError("That sign-in can’t be resumed. Sign in again to verify your account.");
   }
 
   async function signInWithGoogle() {
@@ -176,6 +236,14 @@ export default function LoginPage() {
                 {loading ? <><Loader2 className="animate-spin" size={18} aria-hidden="true" /> Signing in…</> : <>Sign in <ArrowRight size={18} aria-hidden="true" /></>}
               </button>
             </form>
+
+            {resumeUserId && <div className="mt-3 space-y-2">
+              <button type="button" onClick={resumeAuthenticator} disabled={busy} className="login-google">
+                {resuming ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <ShieldCheck size={18} aria-hidden="true" />}
+                {resuming ? "Checking sign-in…" : "Continue with authenticator"}
+              </button>
+              <p className="text-center text-xs leading-5 muted">Resume the sign-in you already started in this browser.</p>
+            </div>}
 
             <div className="login-divider"><span />or continue with<span /></div>
 

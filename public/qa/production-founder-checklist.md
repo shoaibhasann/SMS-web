@@ -40,6 +40,7 @@ Term report cards/ranks, stored result PDFs, publication withdrawal, automatic l
 - [ ] **SHELL-05 / SHELL-07 / MFA-01.** Check the label gap in Account settings, MFA and a dashboard form such as Timetable. Hover Generate setup code and Verify authenticator in Light and Dark and check that the text remains readable.
 - [ ] **SHELL-06.** Change the password on a disposable login. “Password changed” appears below the button, the password fields clear, and Account details and Authenticator security stay visible.
 - [ ] **MFA-02.** Try a wrong code and check for “Incorrect code. Try the latest six-digit code.” Submit a valid code and check that “Verifying…” leads directly to the authorized page.
+- [ ] **MFA-03 · Retry or resume.** Sign in as a QA Admin with an enrolled authenticator. On the code screen choose **Back to sign-in options**, then **Continue with authenticator**; a valid code opens the dashboard. Repeat from a fresh sign-in and go back again, this time entering a wrong password. The error stays on sign-in, the resume option disappears, and reopening `/dashboard` leads to sign-in. A new correct password starts a fresh authenticator check.
 
 | Case / role / device | Steps | Expected → actual | Screenshot / page URL / IST time |
 |---|---|---|---|

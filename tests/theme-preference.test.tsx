@@ -13,7 +13,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => navigation.path,
   useRouter: () => navigation.router,
 }));
-vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {} }) }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {
+  onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),
+} }) }));
 
 let systemDark = false;
 let mediaListeners: Set<(event: MediaQueryListEvent) => void>;

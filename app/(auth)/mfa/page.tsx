@@ -27,7 +27,7 @@ function MfaContent() {
     const controller = new AbortController();
     void readStaffMfaStatus(client, undefined, controller.signal).then((result) => {
       if (controller.signal.aborted) return;
-      if (!result) { router.replace("/login"); return; }
+      if (!result || result.action === "sign_in") { router.replace("/login"); return; }
       if (result.allowed && !requestedSetup) {
         router.replace(destination(next));
         router.refresh(); return;
@@ -54,7 +54,7 @@ function MfaContent() {
         </>
           : <LoadingState variant="form">Checking account security…</LoadingState>}
       <p className="text-center text-xs leading-5 muted">Lost your authenticator? Contact your school or platform operator for identity verification. Resetting your password will not remove your authenticator.</p>
-      <div className="text-center"><Link href="/login" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]">Return to sign in</Link></div>
+      <div className="text-center"><Link href="/login" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]">Back to sign-in options</Link></div>
     </div>
   </main>;
 }

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import MfaPage from "@/app/(auth)/mfa/page";
 import type { StaffMfaStatus } from "@/lib/auth/staff-mfa";
@@ -30,8 +30,19 @@ describe("standalone MFA continuation", () => {
     mocks.status.mockResolvedValue({ user_id: "owner", allowed: false, action: "challenge", current_aal: "aal1", verified_totp_count: 1 });
     render(<MfaPage />);
     await screen.findByRole("region", { name: "Own authenticator" });
+    expect(screen.getByRole("link", { name: "Back to sign-in options" })).toHaveAttribute("href", "/login");
     expect(screen.queryByRole("button", { name: "Continue to workspace" })).not.toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
+  });
+  it.each([null, {
+    user_id: "owner", allowed: false, action: "sign_in", current_aal: "aal1", verified_totp_count: 0,
+  }])("returns to login without mounting an authenticator when fresh sign-in is required (%j)", async (status) => {
+    mocks.status.mockResolvedValue(status);
+    render(<MfaPage />);
+
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/login"));
+    expect(mocks.authenticator).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Continue to workspace" })).not.toBeInTheDocument();
   });
   it.each([
     ["", "/dashboard"],
