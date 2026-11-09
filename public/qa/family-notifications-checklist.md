@@ -1,12 +1,12 @@
 # Student and Guardian Notifications — founder QA
 
-6 November 2026 · [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login) · Notifications v2 released on main · Founder acceptance pending
+9 November 2026 · [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login) · Founder acceptance pending
 
 Use the existing privately supplied Student, Guardian and Admin/Principal QA accounts. Test synthetic records only. Do not include credentials, tokens, private review reasons or other children's details in screenshots. Engineering test results do not tick these founder boxes. Record the deployed revision before testing.
 
 **Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
-**What to expect:** new published results and approved/rejected child leave decisions appear in Notifications. Existing Guardian absence alerts remain, with their saved read state. Old result/leave history is not converted into new alerts. This phase sends in-app alerts only; no SMS/email/push is sent.
+**What to expect:** new published results, approved/rejected child leave decisions and eligible school announcements appear in Notifications. Existing Guardian absence alerts retain their saved read state. The announcement release applies to newly published notices; it does not backfill old notices or send SMS, email or push.
 
 ## New events and exact records
 
@@ -32,10 +32,17 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 - [ ] **FN-14 · Phone and keyboard.** At 390 px and laptop widths, check Light/Dark, long titles/child names, summary → View all, All/Unread, buttons, target links and bell. No horizontal page overflow or overlapping controls. Tab focus remains visible. Older/Latest moves focus to the notification heading; marking retains useful focus without a page jump.
 - [ ] **FN-15 · Shared QA baseline.** Use the prepared disposable read-state fixtures where requested. If engineering tests used shared QA accounts, confirm their original notification Read/Unread timestamps were restored and independently checked afterward. Do not clear all shared history or delete source records to reset this checklist. Record any deliberate founder changes separately.
 
+## School announcements
+
+- [ ] **FN-16 · Publish to a class or section.** With a QA Admin or Principal, save a dummy notice as Draft. The family inbox stays empty for that notice. Publish it to the assigned QA section. Its Student and linked Guardians see one **Announcement** each in Notifications. A Guardian with two matching children sees it once. Check a different section, role, and school for isolation.
+- [ ] **FN-17 · Open and mark.** Open the announcement link and check it shows the exact notice. Mark it read in Notifications, switch to Unread, and refresh. Confirm the same account's badge updates and a different Guardian's read state is independent. Repeat with **Mark all as read** while older announcements are available.
+- [ ] **FN-18 · Change availability.** Schedule a future notice and confirm it appears only at publication. Unpublish a QA notice or revoke its only qualifying Guardian link. After refresh, its inbox entry and exact notice link become unavailable.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
-| Verified feature source | `dbf12d6` (documentation updates may follow on the same main release) |
+| Earlier result/leave release | `dbf12d6` |
+| Announcement release revision | |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |
 

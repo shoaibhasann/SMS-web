@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
+import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyAnnouncement, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
 import { getFamilyNotificationResult } from "@/lib/result-publication";
 import { getFamilyNotificationLeave } from "@/lib/student-leave";
 import { familyResult, resultMetadata, resultUuid } from "./result-publication-fixture";
@@ -40,7 +40,7 @@ describe("family notification trust boundary", () => {
     const before = {created_at:stamp,kind:"absence" as const,id:id(9)}, saved = client(inbox());
     const signal = new AbortController().signal;
     expect((await loadFamilyNotificationInbox(saved.client,{userId:uid,role:"parent",unreadOnly:true,cursor:before,limit:5},signal)).unread_count).toBe(5);
-    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v3",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
+    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v4",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
     expect(saved.abortSignal).toHaveBeenCalledWith(signal);
   });
   it("retains exact cursor precision and strips unknown payload fields", async () => {
@@ -83,12 +83,23 @@ describe("family notification trust boundary", () => {
     expect(leave.pathname).toBe("/modules/student-leave");expect(leave.searchParams.has("view")).toBe(false);expect(leave.searchParams.get("request")).toBe(id(3));
     expect(notificationHref(row(),"parent")).toContain("/modules/attendance?");
   });
+  it("requires announcements to identify one notice and no child", async () => {
+    const announcement = row({ kind: "announcement", status: "published", source_id: id(1), student_id: null, student_name: null });
+    for (const role of ["parent", "student"] as const) {
+      const api = client(inbox([announcement], role));
+      expect((await loadFamilyNotificationInbox(api.client, { userId: uid, role })).notifications).toEqual([announcement]);
+    }
+    expect(notificationHref(announcement, "parent")).toBe(`/modules/notices?view=guardian&notice=${announcement.id}`);
+    expect(notificationHref(announcement, "student")).toBe(`/modules/notices?notice=${announcement.id}`);
+    expect(() => notificationHref({ ...announcement, source_id: id(9) }, "parent")).toThrow();
+    expect(() => notificationHref({ ...announcement, student_id: id(2) }, "parent")).toThrow();
+  });
   it("broadcasts a scoped refresh hint without an untrusted count", () => {
     const listener=vi.fn(); window.addEventListener(familyNotificationsChangedEvent,listener);
     try { notifyFamilyNotificationsChanged("guardian-a","parent");expect(listener.mock.calls[0][0].detail).toEqual({userId:"guardian-a",role:"parent"}); }
     finally { window.removeEventListener(familyNotificationsChangedEvent,listener); }
   });
-  it("decodes actual arrival/exit times and delayed state through v3 without exposing them to Student", async () => {
+  it("decodes actual arrival/exit times and delayed state without exposing them to Student", async () => {
     const gate = row({ kind: "gate_arrival", status: "IN", occurred_at: "2026-11-06T08:15:00+05:30", delayed: true });
     const saved = client(inbox([gate]));
     const loaded = await loadFamilyNotificationInbox(saved.client, { userId: uid, role: "parent" });
@@ -104,14 +115,14 @@ describe("family notification trust boundary", () => {
     { kind: "gate_exit", status: "OUT", occurred_at: null },
     { kind: "gate_arrival", status: "IN", occurred_at: "2026-11-06T10:00:00" },
     { occurred_at: stamp }, { delayed: undefined },
-  ])("rejects mismatched gate or incomplete v3 DTO fields", async patch => {
+  ])("rejects mismatched gate or incomplete notification fields", async patch => {
     await expect(loadFamilyNotificationInbox(client(inbox([row(patch as Partial<FamilyNotification>)])).client, { userId: uid, role: "parent" })).rejects.toThrow("could not be verified");
   });
   it("pins read-state writes to their captured owner and rejects a late owner change", async () => {
     const saved = client(stamp);
     bound.mockResolvedValueOnce({ access_token: "captured-token" }).mockRejectedValueOnce(new Error("Account changed"));
     await expect(markFamilyNotificationRead(saved.client, "parent", "gate_arrival", id(1), uid)).rejects.toThrow("Account changed");
-    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v3", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
+    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v4", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
     expect(saved.setHeader).toHaveBeenCalledWith("Authorization", "Bearer captured-token");
     await expect(markFamilyNotificationRead(saved.client, "student", "gate_exit", id(1), uid)).rejects.toThrow();
   });
@@ -123,6 +134,16 @@ describe("family notification trust boundary", () => {
   });
 });
 describe("bounded notification target readers", () => {
+  it("loads only the requested announcement and retains a revoked target as unavailable", async () => {
+    const notice = { id: id(3), title: "School event", content: "The schedule is available.", published_at: stamp };
+    const signal = new AbortController().signal, options = { id: notice.id, role: "parent" as const, userId: uid };
+    const saved = client({ ...notice, unrelated_data: "private" });
+    expect(await loadFamilyAnnouncement(saved.client, options, signal)).toEqual(notice);
+    expect(saved.rpc).toHaveBeenCalledWith("get_family_announcement", { p_role: "parent", p_notice_id: notice.id });
+    expect(saved.setHeader).toHaveBeenCalledWith("Authorization", "Bearer owner-token");
+    expect(await loadFamilyAnnouncement(client(null).client, options, signal)).toBeNull();
+    await expect(loadFamilyAnnouncement(client({ ...notice, id: id(9) }).client, options, signal)).rejects.toThrow();
+  });
   const result=()=>familyResult({student_id:id(2),assessment_id:id(4),metadata:resultMetadata({assessment_id:id(4)})});
   const leave=()=>({id:id(3),school_id:"school-a",student_id:id(2),student_name:"QA child",admission_no:"QA-1",academic_year_id:"year-a",academic_year_name:"2026-27",class_name:"6",section_name:"A",start_date:"2026-11-06",end_date:"2026-11-06",reason:"Family visit",status:"approved",requester_id:"parent",requester_name:"QA parent",created_at:stamp,reviewed_by:"principal",reviewer_name:"QA principal",review_note:"Approved",reviewed_at:stamp,total_count:1});
   it("loads one exact result even outside the first history page", async()=>{

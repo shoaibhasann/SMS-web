@@ -375,7 +375,7 @@ export function AdminNoticesWorkspace() {
       <header>
         <p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p>
         <h1 className="mt-1 text-3xl font-black">Notices &amp; Circulars</h1>
-        <p className="mt-2 text-sm muted">Publish announcements for a school audience, class, or section.</p>
+        <p className="mt-2 text-sm muted">Publish announcements for a school audience, class, or section. Eligible students and linked guardians receive them in Notifications at the publish time.</p>
       </header>
 
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}

@@ -26,6 +26,20 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
+  it("shows an announcement without a pupil name and marks the same notice read", async () => {
+    const announcement: FamilyNotification = {
+      ...first, kind: "announcement", status: "published", source_id: first.id,
+      student_id: null, student_name: null, title: "Parent-teacher meeting",
+    };
+    load.mockResolvedValueOnce(inbox([announcement])).mockResolvedValue(inbox([{ ...announcement, read_at: readAt }]));
+    render(<FamilyNotificationInbox userId={uid} role="parent" />);
+    expect(await screen.findByRole("link", { name: announcement.title }))
+      .toHaveAttribute("href", `/modules/notices?view=guardian&notice=${announcement.id}`);
+    expect(screen.getByText("Announcement")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Mark as read: Parent-teacher meeting/ }));
+    expect(mark.mock.calls[0].slice(1, 5)).toEqual(["parent", "announcement", announcement.id, uid]);
+    expect(await screen.findByText("0 unread")).toBeInTheDocument();
+  });
   it("shows child gate preferences only on full Guardian Notifications", async () => {
     const view = render(<FamilyNotificationInbox userId={uid} role="parent" />); await screen.findByText("0 unread");
     expect(screen.getByRole("complementary", { name: "Gate preferences" })).toBeInTheDocument();

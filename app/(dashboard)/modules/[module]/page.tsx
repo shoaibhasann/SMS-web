@@ -56,7 +56,7 @@ function ModuleContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = String(params?.module || "");
-  const guardianView = ["attendance", "notifications", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
+  const guardianView = ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName) && searchParams.get("view") === "guardian";
   const initialChildId = searchParams.get("child") ?? undefined;
   const initialAssessmentId = searchParams.get("assessment") ?? undefined;
   const initialRequestId = searchParams.get("request") ?? undefined;
@@ -228,11 +228,14 @@ function ModuleContent() {
   }
 
   if (moduleName === "notices") {
+    const noticeId = searchParams.get("notice");
+    const announcement = noticeId && (access.role === "parent" || access.role === "student")
+      ? { id: noticeId, userId: access.userId, role: access.role } : undefined;
     return (
       <AppShell key={access.userId} userId={access.userId} role={access.role}>
         {access.role === "admin" || access.role === "principal"
           ? <AdminNoticesWorkspace key={access.userId} />
-          : <NoticeInbox key={access.userId} />}
+          : <NoticeInbox key={`${access.userId}:${access.role}:${announcement?.id ?? ""}`} announcement={announcement} />}
       </AppShell>
     );
   }

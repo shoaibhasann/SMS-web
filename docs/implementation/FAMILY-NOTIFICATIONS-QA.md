@@ -4,6 +4,12 @@
 
 Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
+## 9 November update: school announcements
+
+New notices appear at publication in the v4 Student and Guardian web inbox for their current audience. Each recipient and role has independent read state. Opening a notification rechecks the exact notice, expiry and current access. The release adds no historical backfill or external delivery, and earlier inbox versions are unchanged.
+
+Hosted migration `20261109142815` matches the repository SQL. The seven existing notices and the v3 inbox definition are unchanged. A rolled-back hosted check exercised Admin publication, both family roles, section/role isolation, exact detail and independent reads; no fixture sessions or rows remained. The full local suite passed 3,593 tests and the production build passed. Use [FN-16 to FN-18](../../public/qa/family-notifications-checklist.md#school-announcements) for browser acceptance.
+
 ## Included behavior
 
 Student and Guardian Notifications share a read-only event inbox with independent recipient read state. A verified eligible Student sees its own published result and approved/rejected leave events. Each currently eligible linked Guardian receives its own corresponding events. Guardian absence alerts remain in the same inbox with their original IDs and read timestamps; this phase does not add student absence alerts.

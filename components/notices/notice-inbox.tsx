@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { loadFamilyAnnouncement, type FamilyNotificationRole } from "@/lib/notifications/family";
 
 type Notice = {
   id: string;
@@ -18,16 +20,24 @@ const publishDate = new Intl.DateTimeFormat("en-IN", {
   day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata",
 });
 
-export function NoticeInbox() {
+export function NoticeInbox({ announcement }: {
+  announcement?: { id: string; userId: string; role: FamilyNotificationRole };
+}) {
   const [supabase] = useState(createClient);
   const [version, setVersion] = useState(0);
   const [result, setResult] = useState<NoticeResult | null>(null);
+  const { id, userId, role } = announcement ?? {};
 
   useEffect(() => {
     const controller = new AbortController();
     const now = new Date().toISOString();
     async function load() {
       try {
+        if (id && userId && role) {
+          const notice = await loadFamilyAnnouncement(supabase, { id, userId, role }, controller.signal);
+          if (!controller.signal.aborted) setResult({ notices: notice ? [notice] : [] });
+          return;
+        }
         const { data, error } = await supabase
           .from("notices")
           .select("id,title,content,published_at")
@@ -48,14 +58,16 @@ export function NoticeInbox() {
     }
     void load();
     return () => controller.abort();
-  }, [supabase, version]);
+  }, [id, role, supabase, userId, version]);
 
   return (
     <div className="space-y-6">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-black">Notices &amp; Circulars</h1>
-          <p className="mt-2 text-sm muted">Recent notices for your school and audience.</p>
+          <p className="mt-2 text-sm muted">{announcement ? "Announcement from your notifications." : "Recent notices for your school and audience."}</p>
+          {announcement && <Link className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)] hover:underline"
+            href={role === "parent" ? "/modules/notices?view=guardian" : "/modules/notices"}>View all notices</Link>}
         </div>
         <button
           type="button"
@@ -69,7 +81,7 @@ export function NoticeInbox() {
       <section className="card overflow-hidden" aria-label="Recent school notices">
         {!result ? <LoadingState variant="table" className="p-5 text-sm muted">Loading notices…</LoadingState>
           : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
-          : result.notices.length === 0 ? <p className="p-5 text-sm muted">No notices are available right now.</p>
+          : result.notices.length === 0 ? <p className="p-5 text-sm muted">{announcement ? "This announcement is no longer available." : "No notices are available right now."}</p>
           : <div className="divide-y divide-[var(--border)]">
             {result.notices.map((notice) => (
               <article key={notice.id} className="space-y-2 break-words p-5">

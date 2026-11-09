@@ -59,6 +59,8 @@ Check role, school, assignment and ownership at the database boundary. Audit per
 
 ## Build sequence
 
+**Family announcement inbox — 9 November:** New school notices appear in the Student and Guardian web Notifications inbox at publication for the selected audience. The inbox keeps per-account read state and opens the exact notice. Audience, enrollment, linked-child access and expiry are checked again when the notice is opened. Existing mobile clients continue to use the prior inbox APIs. [QA checklist](../../public/qa/family-notifications-checklist.md#school-announcements)
+
 **Earlier 6 November rollout checkpoint:** the original nine hardening/academic patches and two verified HTTP/performance follow-ups are applied to the demo project. The matching frontend, neutral/role-aware skeletons and stricter active-profile/module gates are released from `main` at [SMS Production](https://sms-web-shoaibhasann.vercel.app/login), code `2dfb1e26`. [Production founder acceptance](../implementation/PRODUCTION-RELEASE-QA.md) records the deployment and verification. Backend role/privacy and native concurrency checks plus real-data UI workflows pass; founder and real-school onboarding acceptance remain separate. Future releases use main/Production, with localhost for development.
 
 This sequence is an implementation decision. Commercial scope and sign-off are governed by the founder answers.
