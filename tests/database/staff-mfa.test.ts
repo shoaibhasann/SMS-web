@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRecoveryDatabase } from "../../scripts/database-recovery/replay.mjs";
@@ -36,6 +37,8 @@ const deny=(promise:Promise<unknown>,code="42501")=>expect(promise).rejects.toMa
 async function enable(){for(const user of staff)await enroll(user);return save(true);}
 beforeAll(async()=>{
   db=await createRecoveryDatabase();await seedRecoveryData(db);
+  const emailOtpMigration = new URL("../../supabase/migrations/20261109112234_admin_email_otp_eligibility.sql", import.meta.url);
+  await db.exec(await readFile(emailOtpMigration, "utf8"));
   for(const[user,role]of[[principal,"principal"],[accountant,"accountant"],[reception,"reception_staff"],[globalAdmin,"super_admin"]]){
     await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",[user,`${user}@mfa.invalid`]);
     await db.query("update public.profiles set school_id=$2 where id=$1",[user,role==="super_admin"?null:id.schoolA]);
@@ -44,6 +47,67 @@ beforeAll(async()=>{
   await db.exec("insert into auth.sessions(id,user_id,aal) select id,id,'aal1' from auth.users");
 },60_000);
 beforeEach(async()=>{await db.exec("begin");});afterEach(async()=>{await db.exec("rollback");});afterAll(async()=>{await db?.close();});
+
+describe("admin email OTP eligibility", () => {
+  const email = "admin-a@recovery.invalid";
+  const lookup = (address: string) => value<string | null>(
+    id.adminA, "select public.find_admin_email_otp_user($1) as value", [address], { role: "service_role", http: true },
+  );
+
+  it("only lets the server resolve a confirmed, active, same-school admin with verified TOTP", async () => {
+    await enroll(id.adminA, { verified: false });
+    expect(await lookup(email)).toBeNull();
+    const factor = await enroll(id.adminA);
+    expect(await lookup(`  ${email.toUpperCase()}  `)).toBe(id.adminA);
+    await enroll(id.teacherA);
+    expect(await lookup("teacher-a@recovery.invalid")).toBeNull();
+    expect(await lookup("unknown@recovery.invalid")).toBeNull();
+    for (const role of ["anon", "authenticated"] as const) {
+      await deny(value(id.adminA, "select public.find_admin_email_otp_user($1) as value", [email], { role, aal: "aal2" }));
+    }
+    await db.query("delete from auth.mfa_factors where id=$1", [factor]);
+    expect(await lookup(email)).toBeNull();
+  });
+
+  it.each([
+    ["unconfirmed email", "update auth.users set email_confirmed_at=null, phone_confirmed_at=now() where id=$1", id.adminA],
+    ["banned identity", "update auth.users set banned_until=now() + interval '1 day' where id=$1", id.adminA],
+    ["deleted identity", "update auth.users set deleted_at=now() where id=$1", id.adminA],
+    ["inactive profile", "update public.profiles set is_active=false where id=$1", id.adminA],
+    ["inactive school", "update public.schools set is_active=false where id=$1", id.schoolA],
+    ["mismatched school", "update public.profiles set school_id=(select id from public.schools where code='RECOVERY-B') where id=$1", id.adminA],
+    ["ambiguous email", "update auth.users set email='ADMIN-A@recovery.invalid' where id=$1", id.claimantA],
+  ])("rejects %s", async (_case, sql, target) => {
+    await enroll(id.adminA);
+    expect(await lookup(email)).toBe(id.adminA);
+    await db.query(sql, [target]);
+    expect(await lookup(email)).toBeNull();
+  });
+
+  it("keeps an admin OTP session gated through verification and factor removal", async () => {
+    await db.query("insert into auth.mfa_amr_claims values($1,'otp',now())", [id.adminA]);
+    expect(await status(id.adminA)).toMatchObject({ required: true, allowed: false, action: "sign_in" });
+    const factor = await enroll(id.adminA);
+    await db.query("insert into auth.mfa_amr_claims values($1,'totp',now() + interval '1 second')", [id.adminA]);
+    expect(await status(id.adminA)).toMatchObject({ required: true, allowed: false, action: "challenge" });
+    expect(await actor(id.adminA, "select id from public.students")).toEqual([]);
+    expect(await status(id.adminA, { aal: "aal2" })).toMatchObject({ allowed: true, action: "none" });
+    expect(await actor(id.adminA, "select id from public.students", [], { aal: "aal2" })).toHaveLength(2);
+    await db.query("delete from auth.mfa_factors where id=$1", [factor]);
+    expect(await status(id.adminA)).toMatchObject({ required: true, allowed: false, action: "sign_in" });
+    expect(await actor(id.adminA, "select id from public.students")).toEqual([]);
+  });
+
+  it.each([
+    [id.adminA, "password"],
+    [id.adminA, "oauth"],
+    [id.adminA, "recovery"],
+    [id.guardianA, "otp"],
+  ])("preserves optional MFA for %s signing in with %s", async (user, method) => {
+    await db.query("insert into auth.mfa_amr_claims values($1,$2,now())", [user, method]);
+    expect(await status(user)).toMatchObject({ required: false, allowed: true, action: "none" });
+  });
+});
 
 describe("native TOTP account authority and safe enrollment bootstrap",()=>{
   it("defaults policy OFF, preserves ordinary AAL1 and includes every actual staff role",async()=>{

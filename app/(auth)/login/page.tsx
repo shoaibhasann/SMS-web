@@ -6,8 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { AdminEmailOtpForm } from "@/components/auth/admin-email-otp-form";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
 import { mfaPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+
+const methods = [["email", "Email & password"], ["mobile", "Guardian mobile"], ["admin-code", "Admin email code"]] as const;
+const emailCodeEnabled = process.env.NEXT_PUBLIC_ADMIN_EMAIL_OTP_ENABLED === "true";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,13 +21,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [method, setMethod] = useState<"email" | "mobile">("email");
-  const [mobileBusy, setMobileBusy] = useState(false);
+  const [method, setMethod] = useState<(typeof methods)[number][0]>("email");
+  const [codeBusy, setCodeBusy] = useState(false);
   const [error, setError] = useState("");
   const [resumeUserId, setResumeUserId] = useState<string>();
   const [resuming, setResuming] = useState(false);
   const resumeAttempt = useRef<{ userId: string; controller: AbortController }>(null);
-  const busy = loading || googleLoading || mobileBusy || resuming;
+  const busy = loading || googleLoading || codeBusy || resuming;
 
   useEffect(() => {
     let check: AbortController | undefined;
@@ -166,13 +170,15 @@ export default function LoginPage() {
             <h1 id="login-heading" className="login-heading">Welcome back</h1>
             <p className="login-intro">Sign in to your school workspace.</p>
 
-            <div role="group" aria-label="Sign-in method" className="mt-5 grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
-              {([["email", "Email & password"], ["mobile", "Guardian mobile"]] as const).map(([value, title]) => <button key={value} type="button"
+            <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}>
+              {(emailCodeEnabled ? methods : methods.slice(0, 2)).map(([value, title]) => <button key={value} type="button"
                 aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); }}
                 className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{title}</button>)}
             </div>
 
-            {method === "mobile" ? <GuardianPhoneOtpForm purpose="login" onBusyChange={setMobileBusy} onVerified={() => {
+            {method === "admin-code" ? <AdminEmailOtpForm onBusyChange={setCodeBusy} onVerified={() => {
+              window.location.replace(mfaPath("/dashboard"));
+            }} /> : method === "mobile" ? <GuardianPhoneOtpForm purpose="login" onBusyChange={setCodeBusy} onVerified={() => {
               router.replace("/dashboard"); router.refresh();
             }} /> : <>
             <form onSubmit={signIn} className="login-form" aria-busy={busy}>

@@ -41,6 +41,7 @@ Term report cards/ranks, stored result PDFs, publication withdrawal, automatic l
 - [ ] **SHELL-06.** Change the password on a disposable login. “Password changed” appears below the button, the password fields clear, and Account details and Authenticator security stay visible.
 - [ ] **MFA-02.** Try a wrong code and check for “Incorrect code. Try the latest six-digit code.” Submit a valid code and check that “Verifying…” leads directly to the authorized page.
 - [ ] **MFA-03 · Retry or resume.** Sign in as a QA Admin with an enrolled authenticator. On the code screen choose **Back to sign-in options**, then **Continue with authenticator**; a valid code opens the dashboard. Repeat from a fresh sign-in and go back again, this time entering a wrong password. The error stays on sign-in, the resume option disappears, and reopening `/dashboard` leads to sign-in. A new correct password starts a fresh authenticator check.
+- [ ] **MFA-04 · Admin email code.** Once email code sign-in is enabled, use an active QA school admin with a real inbox and an enrolled authenticator. Request a code, try a wrong code, then verify the delivered code. Opening `/dashboard` before the authenticator succeeds must return to the challenge. Enter the authenticator code, reload the dashboard, then log out. Repeat using the password option. Check that a non-admin request does not receive a code from the app.
 
 | Case / role / device | Steps | Expected → actual | Screenshot / page URL / IST time |
 |---|---|---|---|
