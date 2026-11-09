@@ -64,6 +64,14 @@ async function scheduleExam(daysAhead = 1, section: string | null = id.sectionA,
     values($1,$2,$3,$4,$5,$6,'Private exam title',(statement_timestamp() at time zone 'Asia/Kolkata')::date+$7::int,50,'Private instructions','scheduled')
     returning id as value`, [id.schoolA,id.yearA,id.classA,section,id.subjectA,id.teacherRecordA,daysAhead]);
 }
+const noticeAudience = (roles: string[] = ["student", "parent"], sectionId: string = id.sectionA) =>
+  JSON.stringify({ roles, class_id: id.classA, section_id: sectionId });
+const saveNotice = (audience = noticeAudience(), published = true) => value<string>(id.adminA, `
+  insert into public.notices(school_id,title,content,audience,published_at,created_by)
+  values($1,'Private announcement title','Private announcement content',$2::jsonb,
+    case when $3 then statement_timestamp() end,$4) returning id as value`, [id.schoolA,audience,published,id.adminA]);
+const toggleNotice = (notice: string, publish: boolean) => actor(id.adminA, `update public.notices
+  set published_at=case when $2 then statement_timestamp() end where id=$1`, [notice,publish]);
 async function saveHomework(status: "draft" | "published", previousLog?: string, addedTitle?: string) {
   const previous = previousLog ? (await db.query<{ id: string; expected_updated_at: string; activity_id: string }>(`
     select log.id, log.updated_at::text as expected_updated_at, activity.id as activity_id
@@ -225,6 +233,101 @@ describe("native family push under the recovered application schema",()=>{
     await preferences(id.guardianA,"parent",false,true,true,true,1);
     expect(await prepare(leased)).toBeNull();
     expect((await job(leased.id)).result_code).toBe("preferences_changed");
+  });
+
+  it("queues first-published announcements only for opted-in devices in the live audience", async () => {
+    const existing = await saveNotice();
+    await preferences(id.guardianA,"parent",true,false,false,false);
+    const guardian = await register();
+    const student = await register(randomUUID(),fid(2),id.studentUserA,"student");
+    await preferences(id.studentUserB,"student");
+    await register(randomUUID(),fid(3),id.studentUserB,"student");
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')", [id.unlinkedPupilA,id.parentA]);
+    const otherSection = randomUUID();
+    await db.query("insert into public.sections(id,school_id,class_id,name) values($1,$2,$3,'Other notice section')", [otherSection,id.schoolA,id.classA]);
+    const draft = await saveNotice(noticeAudience(),false);
+    await saveNotice(noticeAudience(["student","parent"],otherSection));
+    await saveNotice(noticeAudience(["student"]));
+    expect(await countJobs()).toBe(0);
+
+    await toggleNotice(draft,true);
+    await preferences(id.studentUserA,"student");
+    const published = await saveNotice();
+    await actor(id.adminA,"update public.notices set content='Edited' where id=$1", [published]);
+    const { rows: jobs } = await db.query<{event_id:string;device_id:string}>(`
+      select event_id,device_id from app_private.family_push_jobs where kind='announcement'`);
+    expect(jobs).toHaveLength(3);
+    expect(jobs.filter(row => row.event_id===draft).map(row => row.device_id)).toEqual([guardian.device_id]);
+    expect(jobs.filter(row => row.event_id===published).map(row => row.device_id).sort()).toEqual([guardian.device_id,student.device_id].sort());
+    expect(jobs.some(row => row.event_id===existing)).toBe(false);
+    const leases = await claim();
+    expect(leases).toHaveLength(3);
+    for (const lease of leases) {
+      const prepared = await prepare(lease);
+      expect(prepared).toMatchObject({kind:"announcement"});
+      expect(JSON.stringify(prepared)).not.toContain("Private announcement");
+      expect(await finish(lease)).toBe(true);
+    }
+    await toggleNotice(published,false);
+    await toggleNotice(published,true);
+    expect(await countJobs()).toBe(3);
+    const inbox = await value<{notifications:{source_id:string;kind:string;read_at:string|null}[]}>(id.studentUserA,
+      "select public.get_family_notification_inbox_v8('student') as value");
+    expect(inbox.notifications).toContainEqual(expect.objectContaining({source_id:published,kind:"announcement",read_at:null}));
+  });
+
+  it("rechecks published announcement, current audience and guardian links after leasing", async () => {
+    await preferences();
+    await register();
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')", [id.unlinkedPupilA,id.parentA]);
+    const notice = await saveNotice();
+    const [remainingSibling] = await claim();
+    await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2", [id.parentA,id.pupilA]);
+    expect(await prepare(remainingSibling)).toMatchObject({kind:"announcement",event_id:notice});
+    expect(await finish(remainingSibling)).toBe(true);
+
+    await saveNotice();
+    const [removedLink] = await claim();
+    await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2", [id.parentA,id.unlinkedPupilA]);
+    expect(await prepare(removedLink)).toBeNull();
+
+    await preferences(id.studentUserA,"student");
+    await register(randomUUID(),fid(2),id.studentUserA,"student");
+    const narrowed = await saveNotice();
+    const [changedAudience] = await claim();
+    await actor(id.adminA,"update public.notices set audience=$2::jsonb where id=$1", [narrowed,noticeAudience(["parent"])]);
+    expect(await prepare(changedAudience)).toBeNull();
+
+    const unpublished = await saveNotice();
+    const [removedPublication] = await claim();
+    await toggleNotice(unpublished,false);
+    expect(await prepare(removedPublication)).toBeNull();
+  });
+
+  it("holds scheduled announcements until their current publication time", async () => {
+    await preferences();
+    await register();
+    const scheduled = await saveNotice(noticeAudience(),false);
+    await actor(id.adminA, `update public.notices set published_at=statement_timestamp()+interval '1 hour',
+      expires_at=statement_timestamp()+interval '3 hours' where id=$1`, [scheduled]);
+    expect(await claim()).toEqual([]);
+
+    const getSchedule = async () => (await db.query<{id:string;at_publish_time:boolean;by_notice_expiry:boolean}>(`
+      select job.id,job.next_attempt_at=notice.published_at as at_publish_time,
+        job.expires_at=notice.expires_at as by_notice_expiry
+      from app_private.family_push_jobs job join public.notices notice on notice.id=job.event_id
+      where job.kind='announcement' and notice.id=$1`, [scheduled])).rows;
+    const jobs = await getSchedule();
+    expect(jobs).toEqual([{id:expect.any(String),at_publish_time:true,by_notice_expiry:true}]);
+    await actor(id.adminA, "update public.notices set published_at=published_at+interval '1 hour' where id=$1", [scheduled]);
+    expect(await getSchedule()).toEqual(jobs);
+    await actor(id.adminA, "update public.notices set expires_at=expires_at+interval '1 hour' where id=$1", [scheduled]);
+    expect(await getSchedule()).toEqual(jobs);
+    expect(await claim()).toEqual([]);
+    await toggleNotice(scheduled,true);
+    const [lease] = await claim();
+    expect(lease.id).toBe(jobs[0].id);
+    expect(await prepare(lease)).toMatchObject({kind:"announcement",event_id:scheduled});
   });
 
   it("queues only the first homework publication for opted-in eligible devices and deduplicates siblings", async () => {

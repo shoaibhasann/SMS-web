@@ -20,6 +20,14 @@ Hosted migration `20261109175431` matched the source checksum. The [rollback-onl
 
 Keep delivery OFF until the Firebase sender and real Android tray/tap test are verified. See [NP-18–19](../../public/qa/native-push-checklist.md#homework-push).
 
+## 9 November update — school announcements
+
+The first publication or schedule queues one generic alert per eligible, opted-in device. School, role, class, section and teacher audience rules apply to the current Student or linked Guardian. Scheduled jobs become due at publication time, and edits to a future publish or expiry time update the same pending jobs. At send time the worker rechecks the audience, child placement and link, device, session and notice expiry. Tapping a push opens **Updates**, where the family can open the exact notice in SMS Web.
+
+Hosted migrations `20261109181045` and `20261109181202` match the committed SQL. Rollback-only QA passed audience targeting, opt-in, sibling deduplication, rescheduling, expiry extension, exact detail, revocation and unpublish. It verified the original notices, publication markers, read receipts and jobs against their pre-change fingerprints. The worker test used a mock sender. [Hosted QA fixture](../../scripts/qa/native-announcement-push.sql)
+
+Phone delivery and tapping remain part of the founder device check. [NP-20–22](../../public/qa/native-push-checklist.md#announcement-push)
+
 ## Scope and boundaries
 
 This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.

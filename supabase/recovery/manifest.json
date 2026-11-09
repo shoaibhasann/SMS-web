@@ -959,6 +959,22 @@
       "version": "20261109175431",
       "name": "native_homework_push",
       "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261109181045_native_announcement_push.sql",
+      "sha256": "a580e7a6d9b544037ba8951f36a3f8a8b79e4b57a1c8e73cd845e7ac0ed8cfe5",
+      "kind": "pending",
+      "version": "20261109181045",
+      "name": "native_announcement_push",
+      "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261109181202_refresh_scheduled_announcement_push_expiry.sql",
+      "sha256": "f51190898fd22eb3f1951cc8ae66eaabce4d70e6d6ae5482f064ad30097485ff",
+      "kind": "pending",
+      "version": "20261109181202",
+      "name": "refresh_scheduled_announcement_push_expiry",
+      "provenance": "Forward source. Exact hosted ledger SQL verified 9 November 2026."
     }
   ],
   "excluded": [
@@ -997,5 +1013,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "2df56e92106591bea653e35fe1abad3aea3ab1acecb9cf67bcfb2f8d793abe41"
+  "order_sha256": "263b787fa63c57d9a3e600ac0393d3ec653bc309448f51c34d261137292835aa"
 }

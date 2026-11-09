@@ -56,7 +56,7 @@ export async function dispatchNativePush(request: Request) {
         if (prepared.job_id !== job.id || prepared.lease_id !== job.lease_id
           || typeof prepared.device_fid !== "string" || !/^[A-Za-z0-9_-]{22}$/.test(prepared.device_fid)
           || !["android", "ios"].includes(String(prepared.platform)) || !["parent", "student"].includes(String(prepared.recipient_role))
-          || !["absence", "result_published", "leave_decision", "exam_schedule", "homework_assigned"].includes(String(prepared.kind)) || !uuid(prepared.event_id)
+          || !["absence", "result_published", "leave_decision", "exam_schedule", "homework_assigned", "announcement"].includes(String(prepared.kind)) || !uuid(prepared.event_id)
           || typeof prepared.expires_at !== "string" || !prepared.expires_at.includes("T") || !Number.isFinite(Date.parse(prepared.expires_at))) throw new Error("Invalid prepared push");
         const outcome = await sendFcmNotification(config.firebase, accessToken, {
           device_fid: prepared.device_fid, platform: prepared.platform as "android" | "ios", expires_at: prepared.expires_at,
