@@ -26,6 +26,14 @@ beforeEach(() => {
 });
 
 describe("family notification inbox", () => {
+  it("shows a reversed payment with the same exact receipt link", async () => {
+    const payment: FamilyNotification = { ...first, kind: "fee_payment", status: "reversed", source_id: first.id, title: "Payment entry reversed" };
+    load.mockResolvedValue(inbox([payment]));
+    render(<FamilyNotificationInbox userId={uid} role="parent" />);
+    expect(await screen.findByRole("link", { name: "Payment entry reversed First pupil" })).toHaveAttribute(
+      "href", `/modules/invoices?child=${payment.student_id}&view=guardian&payment=${payment.id}`);
+    expect(screen.getByText("Fee payment")).toBeInTheDocument();
+  });
   it("identifies the child's overdue fee and links to the exact demand", async () => {
     const fee: FamilyNotification = { ...first, kind: "fee_due", status: "overdue", source_id: first.id, title: "Tuition" };
     load.mockResolvedValue(inbox([fee]));

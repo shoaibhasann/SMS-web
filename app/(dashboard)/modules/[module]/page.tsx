@@ -24,7 +24,7 @@ import { OfficialAttendanceReports } from "@/components/admin/official-attendanc
 import { AuditHistoryWorkspace } from "@/components/admin/audit-history-workspace";
 import { GuardianInvitationsWorkspace } from "@/components/admin/guardian-invitations-workspace";
 import { GuardianContactSettings } from "@/components/family/guardian-contact-settings";
-import { FamilyFeeDueDetail } from "@/components/family/family-fee-due-detail";
+import { FamilyFeeDueDetail, FamilyFeePaymentDetail } from "@/components/family/family-fee-notification-detail";
 import { FamilyHomeworkDetail } from "@/components/family/family-homework-detail";
 import { FamilyNotificationInbox } from "@/components/family/family-notification-inbox";
 import { TeacherDirectoryWorkspace } from "@/components/admin/teacher-directory-workspace";
@@ -60,14 +60,16 @@ function ModuleContent() {
   const moduleName = String(params?.module || "");
   const exactHomework = moduleName === "homework" && searchParams.has("activity");
   const exactFee = moduleName === "invoices" && searchParams.has("fee");
+  const exactPayment = moduleName === "invoices" && searchParams.has("payment");
+  const exactInvoice = exactFee || exactPayment;
   const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "results", "result-report", "published-results"].includes(moduleName))
     && searchParams.get("view") === "guardian";
-  const scopedRole = guardianView ? "parent" : exactHomework || exactFee ? "student" : null;
+  const scopedRole = guardianView ? "parent" : exactHomework || exactInvoice ? "student" : null;
   const initialChildId = searchParams.get("child") ?? undefined;
   const initialAssessmentId = searchParams.get("assessment") ?? undefined;
   const initialRequestId = searchParams.get("request") ?? undefined;
   const accessKey = guardianView ? `${moduleName}?view=guardian`
-    : exactHomework ? `${moduleName}?activity` : exactFee ? `${moduleName}?fee` : moduleName;
+    : exactHomework ? `${moduleName}?activity` : exactInvoice ? `${moduleName}?family` : moduleName;
   const [access, setAccess] = useState<{
     key: string;
     role: UiRole | null;
@@ -104,7 +106,8 @@ function ModuleContent() {
           error: role ? null : guardianView
             ? "This view requires a linked guardian account."
             : exactHomework ? "This homework link requires a student account."
-              : exactFee ? "This fee link requires a student account." : "No recognized role is assigned to this login.",
+              : exactPayment ? "This payment link requires a student account."
+                : exactFee ? "This fee link requires a student account." : "No recognized role is assigned to this login.",
         });
       } catch (error) {
         if (isCurrent() && error instanceof StaffMfaRequiredError) {
@@ -144,7 +147,7 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, exactFee, exactHomework, guardianView, moduleName, router, scopedRole, searchParams]);
+  }, [accessKey, exactFee, exactHomework, exactPayment, guardianView, moduleName, router, scopedRole, searchParams]);
 
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
@@ -270,13 +273,16 @@ function ModuleContent() {
     }
   }
 
-  if (exactFee && (access.role === "student" || access.role === "parent")) {
-    const fees = searchParams.getAll("fee");
+  if (exactInvoice && (access.role === "student" || access.role === "parent")) {
+    const targets = searchParams.getAll(exactPayment ? "payment" : "fee");
     const children = searchParams.getAll("child");
+    const targetId = targets.length === 1 && !(exactFee && exactPayment) ? targets[0] : "";
+    const studentId = children.length === 1 ? children[0] : "";
     return (
       <AppShell key={access.userId} userId={access.userId} role={access.role}>
-        <FamilyFeeDueDetail feeId={fees.length === 1 ? fees[0] : ""} studentId={children.length === 1 ? children[0] : ""}
-          role={access.role} userId={access.userId} />
+        {exactPayment
+          ? <FamilyFeePaymentDetail paymentId={targetId} studentId={studentId} role={access.role} userId={access.userId} />
+          : <FamilyFeeDueDetail feeId={targetId} studentId={studentId} role={access.role} userId={access.userId} />}
       </AppShell>
     );
   }

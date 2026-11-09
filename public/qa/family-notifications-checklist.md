@@ -6,7 +6,7 @@ Use the existing privately supplied Student, Guardian and Admin/Principal QA acc
 
 **Engineering fixture:** after the native-push backend QA, existing private QA Guardian has 7 items / 5 unread; Student has 4 items / 1 unread. The extra approved leave is 11 November. New result `SMS-NOTIFICATIONS-V2-QA-20261106 · published practice` shows 18/20 for the linked demo child. New leaves: 9 November approved, 10 November rejected. Counts change as you test. All three original Guardian absence items remain unread.
 
-Notifications includes published results, reviewed leave decisions, school announcements, assigned homework and eligible unpaid fees. Fee reminders appear on the due date in India time and show the current outstanding amount when opened.
+Notifications includes published results, reviewed leave decisions, school announcements, assigned homework and fee activity. Due reminders show the current outstanding amount. Payment confirmations open the recorded receipt.
 
 ## New events and exact records
 
@@ -50,6 +50,12 @@ Notifications includes published results, reviewed leave decisions, school annou
 - [ ] **FN-23 · Payment and read state.** Mark an overdue item read as Guardian and confirm it stays unread for the Student. Record a partial payment for that fee and refresh to see the reduced balance. Settle it fully and refresh both the inbox and the original link. The reminder disappears and the old link shows an unavailable message. Reopening the same demand restores its saved read state for each account.
 - [ ] **FN-24 · Child access.** Swap the child or fee ID in an exact link, then open it from a different family's account. Confirm each link shows an unavailable state. For a disposable Guardian link, revoke access and refresh. The child's reminder disappears while reminders for any other linked children remain available.
 
+## Fee payment confirmations
+
+- [ ] **FN-25 · Record and open a payment.** Have Finance record a partial payment for a synthetic pupil. The Student and linked Guardian each see one confirmation. Open it and compare the pupil, fee, receipt number, paid date, method and amount with the receipt history. A retry of the same payment request still has one confirmation. Check the separate fee due reminder for the remaining balance.
+- [ ] **FN-26 · Reverse a payment entry.** Mark the confirmation read as Guardian and check it remains unread as Student. Approve a payment reversal in the office workflow. Refresh and verify that the same item reads **Payment entry reversed**, retains its receipt and read state, and shows a zero effective recorded amount.
+- [ ] **FN-27 · Receipt access.** Try the exact link from an unrelated account and replace the pupil ID in the URL. Both attempts show an unavailable state. After revoking a disposable Guardian link, verify the original link also becomes unavailable for that Guardian.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
@@ -57,6 +63,7 @@ Notifications includes published results, reviewed leave decisions, school annou
 | Announcement release revision | |
 | Homework release revision | |
 | Fee due release revision | |
+| Fee payment release revision | |
 | Tester, IST date/time, browser/device | |
 | Overall result | Pending |
 

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyAnnouncement, loadFamilyFeeDue, loadFamilyHomework, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
+import { familyNotificationsChangedEvent, familyNotificationsHref, loadFamilyAnnouncement, loadFamilyFeeDue, loadFamilyFeePayment, loadFamilyHomework, loadFamilyNotificationInbox, loadFamilyNotificationUnreadCount, markAllFamilyNotificationsRead, markFamilyNotificationRead, notificationHref, notifyFamilyNotificationsChanged, type FamilyNotification } from "@/lib/notifications/family";
 import { getFamilyNotificationResult } from "@/lib/result-publication";
 import { getFamilyNotificationLeave } from "@/lib/student-leave";
 import { familyResult, resultMetadata, resultUuid } from "./result-publication-fixture";
@@ -40,7 +40,7 @@ describe("family notification trust boundary", () => {
     const before = {created_at:stamp,kind:"absence" as const,id:id(9)}, saved = client(inbox());
     const signal = new AbortController().signal;
     expect((await loadFamilyNotificationInbox(saved.client,{userId:uid,role:"parent",unreadOnly:true,cursor:before,limit:5},signal)).unread_count).toBe(5);
-    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v6",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
+    expect(saved.rpc).toHaveBeenCalledWith("get_family_notification_inbox_v7",{p_role:"parent",p_unread_only:true,p_limit:5,p_before_created_at:stamp,p_before_kind:"absence",p_before_id:id(9)});
     expect(saved.abortSignal).toHaveBeenCalledWith(signal);
   });
   it("retains exact cursor precision and strips unknown payload fields", async () => {
@@ -122,7 +122,7 @@ describe("family notification trust boundary", () => {
     const saved = client(stamp);
     bound.mockResolvedValueOnce({ access_token: "captured-token" }).mockRejectedValueOnce(new Error("Account changed"));
     await expect(markFamilyNotificationRead(saved.client, "parent", "gate_arrival", id(1), uid)).rejects.toThrow("Account changed");
-    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v6", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
+    expect(saved.rpc).toHaveBeenCalledWith("mark_family_notification_read_v7", { p_role: "parent", p_kind: "gate_arrival", p_id: id(1) });
     expect(saved.setHeader).toHaveBeenCalledWith("Authorization", "Bearer captured-token");
     await expect(markFamilyNotificationRead(saved.client, "student", "gate_exit", id(1), uid)).rejects.toThrow();
   });
@@ -134,6 +134,25 @@ describe("family notification trust boundary", () => {
   });
 });
 describe("bounded notification target readers", () => {
+  it("opens the exact payment receipt and checks the recorded and reversed amounts", async () => {
+    const event = row({ kind: "fee_payment", status: "paid", source_id: id(1), title: "Fee payment recorded" });
+    expect(notificationHref(event, "student")).toBe(`/modules/invoices?child=${id(2)}&payment=${id(1)}`);
+    expect(notificationHref(event, "parent")).toBe(`/modules/invoices?child=${id(2)}&view=guardian&payment=${id(1)}`);
+    expect(() => notificationHref({ ...event, status: "due" }, "parent")).toThrow();
+    const payment = { id: id(1), student_id: id(2), student_name: "QA child", fee_name: "Tuition", receipt_no: "RCPT-001",
+      status: "paid", paid_at: stamp, payment_method: "upi", reversed_at: null, reversal_reference: null, amount: "100.25", net_amount: "100.25" };
+    const options = { id: payment.id, studentId: payment.student_id, role: "parent" as const, userId: uid };
+    const signal = new AbortController().signal, saved = client({ ...payment, office_note: "private" });
+    expect(await loadFamilyFeePayment(saved.client, options, signal)).toEqual(payment);
+    expect(saved.rpc).toHaveBeenCalledWith("get_family_fee_payment", { p_role: "parent", p_student_id: id(2), p_payment_id: id(1) });
+    expect(saved.setHeader).toHaveBeenCalledWith("Authorization", "Bearer owner-token");
+    const reversal = { ...payment, status: "reversed", net_amount: "0.00", reversed_at: stamp, reversal_reference: "REV-001" };
+    expect(await loadFamilyFeePayment(client(reversal).client, options, signal)).toEqual(reversal);
+    for (const patch of [{ student_id: id(9) }, { net_amount: "0.00" }, { status: "reversed" }, { amount: "100.251" }]) {
+      await expect(loadFamilyFeePayment(client({ ...payment, ...patch }).client, options, signal)).rejects.toThrow();
+    }
+    expect(await loadFamilyFeePayment(client(null).client, options, signal)).toBeNull();
+  });
   it("pins the fee target to the demand and child in the selected role", async () => {
     const reminder = row({ kind: "fee_due", status: "overdue", source_id: id(1), title: "Tuition" });
     expect(notificationHref(reminder, "student")).toBe(`/modules/invoices?child=${id(2)}&fee=${id(1)}`);

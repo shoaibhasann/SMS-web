@@ -5,11 +5,10 @@ import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type Famil
 import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import { listFamilyFeeReceipts, type FamilyFeeReceipt } from "@/lib/finance/fee-changes";
-import { formatFeeMoney } from "@/lib/finance/fee-batches";
+import { FamilyReceiptDetails } from "@/components/finance/family-receipt-details";
 import { LoadingState } from "@/components/ui/skeleton";
 
 const pageSize = 30;
-const paidDate = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata" });
 const button = "rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60";
 
 export function FamilyReceipts({ role, userId }: { role: "student" | "parent"; userId: string }) {
@@ -116,30 +115,7 @@ function ReceiptHistory({ client, student }: { client: ReturnType<typeof createC
           <ul aria-label="Receipt history" className="divide-y divide-[var(--border)]">
             {view.rows.map((row) => (
               <li key={row.id} className="px-4 py-4">
-                <dl className="grid grid-cols-3 items-start gap-3 text-sm sm:grid-cols-[minmax(0,2fr)_1fr_1fr_1fr] sm:gap-4">
-                  <div className="col-span-3 min-w-0 sm:col-span-1">
-                    <dt className="mb-1 text-xs muted">Receipt number</dt>
-                    <dd className="font-mono text-xs font-semibold [overflow-wrap:anywhere]">{row.receipt_no}</dd>
-                  </div>
-                  <div>
-                    <dt className="mb-1 text-xs muted">Paid date</dt>
-                    <dd>{row.paid_at ? paidDate.format(new Date(row.paid_at)) : "—"}</dd>
-                  </div>
-                  <div>
-                    <dt className="mb-1 text-xs muted">Method</dt>
-                    <dd className="capitalize">{row.payment_method === "upi" ? "UPI" : row.payment_method?.replaceAll("_", " ") ?? "—"}</dd>
-                  </div>
-                  <div className="text-right">
-                    <dt className="mb-1 text-xs muted">Receipt amount</dt>
-                    <dd className="font-semibold tabular-nums">{formatFeeMoney(row.amount)}</dd>
-                  </div>
-                </dl>
-                {row.status === "reversed" && <div className="mt-3 space-y-1 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm">
-                  <p className="font-semibold">Payment entry reversed{row.reversed_at ? ` · ${paidDate.format(new Date(row.reversed_at))} IST` : ""}</p>
-                  <p className="muted">The original receipt is retained. Effective recorded amount: {row.net_amount === null ? "Under review" : formatFeeMoney(row.net_amount)}.</p>
-                  {row.reversal_reference && <p className="break-all text-xs muted">Correction reference · {row.reversal_reference}</p>}
-                  <p className="text-xs muted">This is a correction of the school’s payment record. Refunds are handled separately by the school.</p>
-                </div>}
+                <FamilyReceiptDetails receipt={row} />
               </li>
             ))}
           </ul>

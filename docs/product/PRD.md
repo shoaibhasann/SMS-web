@@ -65,6 +65,8 @@ Check role, school, assignment and ownership at the database boundary. Audit per
 
 **Fee due reminders — 9 November.** A dated fee with an outstanding balance appears in the Student and eligible Guardian web inbox from its due date in India time. The detail shows the latest ledger balance for that child and fee. Full settlement removes the reminder. Reopening the same demand restores its prior read state. [QA checklist](../../public/qa/family-notifications-checklist.md#fee-due-reminders)
 
+**Fee payment confirmations — 9 November.** Newly recorded payments add one item per receipt to the Student and eligible Guardian web inbox. The exact link shows the receipt for that pupil. An approved reversal changes the original item's status and preserves its read state. [QA checklist](../../public/qa/family-notifications-checklist.md#fee-payment-confirmations)
+
 **Earlier 6 November rollout checkpoint:** the original nine hardening/academic patches and two verified HTTP/performance follow-ups are applied to the demo project. The matching frontend, neutral/role-aware skeletons and stricter active-profile/module gates are released from `main` at [SMS Production](https://sms-web-shoaibhasann.vercel.app/login), code `2dfb1e26`. [Production founder acceptance](../implementation/PRODUCTION-RELEASE-QA.md) records the deployment and verification. Backend role/privacy and native concurrency checks plus real-data UI workflows pass; founder and real-school onboarding acceptance remain separate. Future releases use main/Production, with localhost for development.
 
 This sequence is an implementation decision. Commercial scope and sign-off are governed by the founder answers.

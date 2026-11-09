@@ -4,6 +4,12 @@
 
 Use the single [SMS Production login](https://sms-web-shoaibhasann.vercel.app/login). The stable hostname alone does not prove this frontend revision is deployed. Record its commit/deployment below before running the founder checklist; no Preview URL is required.
 
+## 9 November update for fee payment confirmations
+
+The v7 web inbox adds one confirmation per newly recorded receipt for the Student and currently linked Guardians. Each recipient and role has a separate read state. An approved reversal changes the original item's status and shows the original receipt and effective recorded amount.
+
+Hosted migration `20261109152742` matches the repository SQL. Rollback-only QA exercised the governed payment, retry, independent reversal approval and family readback. Synthetic timestamps were aligned with the management SQL clock within the same business day. The ledger comparison covered 3,587 demands, 17 payments, reversal and change requests, and fee-day records. All 3,643 repository tests, lint and the production build passed. [FN-25 to FN-27](../../public/qa/family-notifications-checklist.md#fee-payment-confirmations)
+
 ## 9 November update for fee due reminders
 
 The v6 web inbox lists one item per eligible due or overdue fee demand, using the India calendar date. The exact detail shows the pupil, fee, due date and current outstanding balance from the same calculation as the fee ledger. Each recipient and role has its own read state. When a fee settles, the item disappears. If the same demand becomes outstanding again, its prior read state returns.
