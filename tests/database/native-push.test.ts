@@ -64,6 +64,24 @@ async function scheduleExam(daysAhead = 1, section: string | null = id.sectionA,
     values($1,$2,$3,$4,$5,$6,'Private exam title',(statement_timestamp() at time zone 'Asia/Kolkata')::date+$7::int,50,'Private instructions','scheduled')
     returning id as value`, [id.schoolA,id.yearA,id.classA,section,id.subjectA,id.teacherRecordA,daysAhead]);
 }
+async function saveHomework(status: "draft" | "published", previousLog?: string, addedTitle?: string) {
+  const previous = previousLog ? (await db.query<{ id: string; expected_updated_at: string; activity_id: string }>(`
+    select log.id, log.updated_at::text as expected_updated_at, activity.id as activity_id
+    from public.class_logs log join public.class_activities activity on activity.class_log_id = log.id
+    where log.id = $1`, [previousLog])).rows[0] : null;
+  const log = {
+    id: previous?.id, expected_updated_at: previous?.expected_updated_at, status, school_id: id.schoolA,
+    academic_year_id: id.yearA, class_id: id.classA, section_id: id.sectionA, subject_id: id.subjectA,
+    log_date: "2026-11-09", topic: "Private lesson",
+  };
+  const activities = [{ id: previous?.activity_id, activity_type: "homework", title: "Private assignment" }];
+  if (addedTitle) activities.push({ id: undefined, activity_type: "homework", title: addedTitle });
+  const logId = await value<string>(id.teacherA, "select public.save_academic_log($1::jsonb,$2::jsonb) as value",
+    [JSON.stringify(log), JSON.stringify(activities)]);
+  const { rows: [activity] } = await db.query<{ id: string }>(
+    "select id from public.class_activities where class_log_id=$1 and title=$2", [logId, addedTitle ?? activities[0].title]);
+  return { logId, activityId: activity.id };
+}
 async function ready(){await preferences();const device=await register();await leave();return device;}
 const job=async(jobId:string)=>(await db.query<Record<string,unknown>>("select * from app_private.family_push_jobs where id=$1",[jobId])).rows[0];
 
@@ -207,6 +225,74 @@ describe("native family push under the recovered application schema",()=>{
     await preferences(id.guardianA,"parent",false,true,true,true,1);
     expect(await prepare(leased)).toBeNull();
     expect((await job(leased.id)).result_code).toBe("preferences_changed");
+  });
+
+  it("queues only the first homework publication for opted-in eligible devices and deduplicates siblings", async () => {
+    await preferences(id.guardianA,"parent",true,false,false,false);
+    const guardian = await register();
+    await preferences(id.studentUserA,"student");
+    const student = await register(randomUUID(),fid(2),id.studentUserA,"student");
+    await preferences(id.studentUserB,"student");
+    await register(randomUUID(),fid(3),id.studentUserB,"student");
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')",[id.unlinkedPupilA,id.parentA]);
+
+    const draft = await saveHomework("draft");
+    expect(await countJobs()).toBe(0);
+    await saveHomework("published", draft.logId);
+    await saveHomework("draft", draft.logId);
+    await saveHomework("published", draft.logId);
+    await register(randomUUID(),fid(4));
+    expect(await countJobs()).toBe(2);
+
+    const { rows: jobs } = await db.query<{ device_id: string; expires_in_one_day: boolean }>(`
+      select job.device_id, job.expires_at = publication.published_at + interval '24 hours' as expires_in_one_day
+      from app_private.family_push_jobs job
+      join app_private.family_homework_publications publication on publication.activity_id = job.event_id
+      where job.kind = 'homework_assigned' and job.event_id = $1`, [draft.activityId]);
+    expect(jobs.map((item) => item.device_id).sort()).toEqual([guardian.device_id, student.device_id].sort());
+    expect(jobs.every((item) => item.expires_in_one_day)).toBe(true);
+    const leases = await claim();
+    expect(leases).toHaveLength(2);
+    for (const lease of leases) {
+      const message = await prepare(lease);
+      expect(message).toMatchObject({ kind: "homework_assigned", event_id: draft.activityId });
+      expect(JSON.stringify(message)).not.toContain("Private assignment");
+      expect(await finish(lease)).toBe(true);
+    }
+    const added = await saveHomework("published", draft.logId, "Additional assignment");
+    const addedLeases = await claim();
+    expect(addedLeases).toHaveLength(3);
+    for (const lease of addedLeases) {
+      expect(await prepare(lease)).toMatchObject({ kind: "homework_assigned", event_id: added.activityId });
+    }
+  });
+
+  it("rechecks current homework access before sending an already leased notification", async () => {
+    await preferences();
+    await register();
+    await register(randomUUID(),fid(3));
+    await preferences(id.studentUserA,"student");
+    await register(randomUUID(),fid(2),id.studentUserA,"student");
+    await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')",[id.unlinkedPupilA,id.parentA]);
+    const work = await saveHomework("published");
+    const leases = await claim();
+    expect(leases).toHaveLength(3);
+    const { rows: [{ id: studentJobId }] } = await db.query<{ id: string }>(
+      "select id from app_private.family_push_jobs where recipient_role='student'");
+    const student = leases.find(({ id }) => id === studentJobId)!;
+    const [parent, otherParent] = leases.filter(({ id }) => id !== studentJobId);
+
+    await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2",[id.parentA,id.pupilA]);
+    expect(await prepare(parent)).toMatchObject({ kind: "homework_assigned", event_id: work.activityId });
+    await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2",[id.parentA,id.unlinkedPupilA]);
+    expect(await prepare(otherParent)).toBeNull();
+    expect((await job(otherParent.id)).result_code).toBe("no_longer_eligible");
+    expect(await finish(parent)).toBe(false);
+    expect((await job(parent.id)).status).toBe("cancelled");
+
+    await saveHomework("draft", work.logId);
+    expect(await prepare(student)).toBeNull();
+    expect((await job(student.id)).result_code).toBe("no_longer_eligible");
   });
 
   it("fences batch/lease retries and rejects forged service context without exposing FIDs",async()=>{

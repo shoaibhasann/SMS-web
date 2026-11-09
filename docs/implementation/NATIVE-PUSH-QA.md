@@ -12,6 +12,14 @@ Hosted migration `20261109161017` matches the committed SQL. Rollback-only hoste
 
 **Real delivery is blocked.** Production has no Firebase HTTP v1 sender or protected recurring dispatcher. No FCM send or Android tray delivery was claimed. Set up the sender from the Firebase project owner's account per [Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api), keep credentials server-only, and run [NP-15–17](../../public/qa/native-push-checklist.md#exam-schedule-push) before enabling automatic sends. Devices on an older app build must update to see exam alerts.
 
+## 9 November update — published homework
+
+A first publication of section homework now queues a generic notification for each currently opted-in Student or linked Guardian device. The same Guardian device gets one job even if two linked children are in the section. Drafts, classwork, old publications and edits or republishes do not create extra jobs. The worker rechecks the current class, section, guardian links, device, session and published state before sending. From Android **Updates**, **Open in SMS Web** opens the exact homework with the current signed-in account; viewing it does not mark the update read.
+
+Hosted migration `20261109175431` matched the source checksum. The [rollback-only SQL QA](../../scripts/qa/native-homework-push.sql) passed publish, opt-in and sibling deduplication, draft and other-section exclusion, exact detail and retry, revoke and unpublish, and edit/republish/later opt-in without resend. All QA fixture rows rolled back; the original activities, logs, receipts and six queue rows matched pre-change fingerprints. The worker test confirmed the neutral payload without calling FCM.
+
+Keep delivery OFF until the Firebase sender and real Android tray/tap test are verified. See [NP-18–19](../../public/qa/native-push-checklist.md#homework-push).
+
 ## Scope and boundaries
 
 This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.
