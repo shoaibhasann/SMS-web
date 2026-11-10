@@ -4,7 +4,7 @@
 
 **Current scope:** Android can register opted-in Student and Guardian devices. New or materially updated exam schedules, first publications of homework or announcements, outstanding fees due today and recorded payments queue generic pushes under the account’s mobile push switch. Tapping opens authenticated **Updates**, where the family can open the exact record. Guardian absence, published result and leave settings remain independent; Students do not receive absence alerts.
 
-**Production delivery is OFF.** The Android client and queue are verified separately from sending. The Firebase HTTP v1 sender and protected recurring dispatcher must be configured before testing actual delivery.
+**Production uses Firebase HTTP v1 and a protected dispatcher.** Engineering verified a real exam push on the Android 36 emulator. The notice appeared in the tray and tapping it opened Updates and the matching exam. Run the device checks below on the phone and build intended for release.
 
 Use the existing privately supplied Student and Guardian QA accounts. Do not include credentials, installation IDs/proofs, FIDs or provider keys in screenshots or this document. Engineering results do not tick these boxes. Confirm the current main deployment before testing.
 
@@ -17,12 +17,12 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 - [ ] **NP-05 · Devices and privacy.** A fresh account without registrations shows No mobile devices linked. The prepared Guardian/Student QA accounts retain two/one revoked synthetic device rows respectively; these are not installed phones. There is no web Register device/Test push control. Prepared device rows show only label, Android/iOS, registration time and revocation status; no native identifiers or secrets are exposed. Mark the revoke part Blocked if no disposable fixture exists.
 - [ ] **NP-06 · Revoke safely.** For an engineering-prepared disposable device, Revoke opens an explicit confirmation. Cancel returns keyboard focus and leaves the device unchanged. Confirm persists after reload. Native automatic registration must not reactivate it; re-enrollment needs a fresh Firebase installation/FID, installation UUID and proof. Other devices, child links and school records remain intact. Unsaved preference choices are retained. Do not revoke shared founder devices without recording the baseline.
 - [ ] **NP-07 · Session and layout.** Sign out/switch account during a delayed read or save; old settings/devices must disappear and late responses must not restore them. Check phone/laptop width, keyboard focus, long device labels, Light/Dark, skeletons and retry messages.
-- [ ] **NP-08 · Honest availability.** Open [push backend status](https://sms-web-shoaibhasann.vercel.app/api/push/status): expect `configured: false` and `nativeAppRequired: true` while delivery is OFF. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
+- [ ] **NP-08 · Honest availability.** Open [push backend status](https://sms-web-shoaibhasann.vercel.app/api/push/status): expect `configured: true` and `nativeAppRequired: true` for the enabled release. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
 
 ## School Admin and Principal delivery monitor
 
 - [ ] **NP-27 · Access and refresh.** Sign in with a QA School Admin or Principal account and verify its authenticator. Open **Communication → Notifications**. Refresh the page and use **Refresh** on the panel. Check that current jobs and the last seven days of outcomes stay scoped to that school. An account without a verified authenticator must complete verification before seeing the counts.
-- [ ] **NP-28 · Status and privacy.** While the sender is off, expect **Sender setup pending**. Check that the totals contain no student names, receipt details or device identifiers. **Notices & Circulars** opens the existing publication workflow. Student and Guardian accounts still open their own notification inbox.
+- [ ] **NP-28 · Status and privacy.** Expect **Sender configured** on the enabled release. Check that the totals contain no student names, receipt details or device identifiers. **Notices & Circulars** opens the existing publication workflow. Student and Guardian accounts still open their own notification inbox.
 - [ ] **NP-29 · Verify on Android.** Once the sender is available, use the Android steps below. Record **Accepted by Firebase** from the monitor, receipt in the Android tray, and opening the update as three separate observations.
 
 ## Android device and delivery
@@ -64,9 +64,9 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
-| Engineering verification | Hosted homework, announcement, fee reminder and payment confirmation queue checks passed. Phone receive and tap checks are pending. |
+| Engineering verification | Hosted queue checks passed. A live exam push was accepted by Firebase, displayed in the Android 36 emulator tray, and opened Updates and the matching exam. |
 | Native app/build/device | Android development build available; install the updated app bundle |
-| Delivery/provider/schedule activation | OFF / not verified |
+| Delivery/provider/schedule activation | Production Firebase HTTP v1 and protected one-minute dispatcher. Verify the scheduled runs in NP-14. |
 | Tester, IST time, browser/device | |
 | Overall result | Pending |
 

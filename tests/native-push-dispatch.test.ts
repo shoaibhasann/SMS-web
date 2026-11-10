@@ -5,12 +5,16 @@ const mocks=vi.hoisted(()=>({createClient:vi.fn(),rpc:vi.fn(),fcmConfiguration:v
 vi.mock("@supabase/supabase-js",()=>({createClient:mocks.createClient}));
 vi.mock("@/lib/notifications/fcm",()=>({fcmConfiguration:mocks.fcmConfiguration,fcmAccessToken:mocks.fcmAccessToken,sendFcmNotification:mocks.send}));
 import { POST } from "@/app/api/push/dispatch/route";
+import { GET as CRON } from "@/app/api/push/cron/route";
 import { GET } from "@/app/api/push/status/route";
 const id=(n:number)=>`35000000-0000-4000-8000-${String(n).padStart(12,"0")}`;
 const secret="private-fixture-dispatch-secret-1234567890";
+const cronSecret = "private-fixture-cron-secret-1234567890";
 const fid="c"+"1".repeat(21);
 const config={projectId:"sms-fixture",email:"private@service.test",privateKey:"private-key"};
 const request=(auth=`Bearer ${secret}`)=>new Request("https://school.test/api/push/dispatch",{method:"POST",headers:{Authorization:auth}});
+const cronRequest = (auth = `Bearer ${cronSecret}`, method = "GET") =>
+ new Request("https://school.test/api/push/cron", { method, headers: { Authorization: auth } });
 const prepared=(n=1)=>({job_id:id(n),lease_id:id(n+10),device_fid:fid,platform:"android",kind:"leave_decision",event_id:id(n+20),recipient_role:"parent",expires_at:new Date(Date.now()+86400000).toISOString()});
 function response(data:unknown,error:unknown=null){return {abortSignal:vi.fn().mockResolvedValue({data,error})};}
 beforeEach(()=>{
@@ -27,6 +31,26 @@ describe("protected native push dispatch",()=>{
  });
  it.each(["http://fixture.supabase.co","https://user:pass@fixture.supabase.co","https://fixture.supabase.co/path","https://fixture.supabase.co/?secret=1"])("rejects unsafe database target %s",async url=>{vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL",url);expect((await POST(request())).status).toBe(503);expect(mocks.createClient).not.toHaveBeenCalled();});
  it("never claims a job when provider authentication fails",async()=>{mocks.fcmAccessToken.mockRejectedValue(new Error("private-provider-key"));const res=await POST(request());expect(res.status).toBe(503);expect(mocks.rpc).not.toHaveBeenCalled();expect(JSON.stringify(await res.json())).not.toContain("private-provider-key");});
+ it("requires the dedicated cron bearer before entering the worker", async () => {
+  vi.stubEnv("CRON_SECRET", undefined);
+  expect((await CRON(cronRequest())).status).toBe(401);
+  vi.stubEnv("CRON_SECRET", cronSecret);
+  expect((await CRON(cronRequest(`Bearer ${secret}`))).status).toBe(401);
+  expect((await POST(request(`Bearer ${cronSecret}`))).status).toBe(401);
+  expect((await CRON(cronRequest(undefined, "HEAD"))).status).toBe(405);
+  vi.stubEnv("NATIVE_PUSH_ENABLED", "false");
+  expect((await CRON(cronRequest())).status).toBe(503);
+  expect(mocks.fcmAccessToken).not.toHaveBeenCalled();
+  expect(mocks.createClient).not.toHaveBeenCalled();
+ });
+ it("dispatches the shared queue once through an authenticated cron GET", async () => {
+  vi.stubEnv("CRON_SECRET", cronSecret);
+  const response = await CRON(cronRequest());
+  expect(response.status).toBe(200);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toMatchObject({ claimed: 1, accepted: 1 });
+  expect(mocks.send).toHaveBeenCalledOnce();
+ });
  it("authenticates, claims bounded jobs, rechecks immediately before each send and records acceptance",async()=>{
   const res=await POST(request());expect(res.status).toBe(200);expect(await res.json()).toEqual({claimed:1,accepted:1,retry:0,invalid_token:0,failed:0,suppressed:0,unconfirmed:0});expect(res.headers.get("cache-control")).toBe("no-store");
   expect(mocks.createClient).toHaveBeenCalledWith("https://fixture.supabase.co","private-service-key",{auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false}});

@@ -10,7 +10,7 @@ The existing native queue now handles a newly scheduled or materially updated ex
 
 Hosted migration `20261109161017` matches the committed SQL. Rollback-only hosted QA passed two scoped family jobs, no-op save, reschedule, link revocation, completion and cleanup. All 3,663 web tests, lint and production build passed. Mobile checks include 253 tests, Expo lint, TypeScript and Android bundle export. On the Android 36 emulator with an isolated Student, login, OS permission, live Firebase installation registration, scoped job creation and exact exam details passed. After rescheduling, the device showed the new date and instructions and the old job was ineligible.
 
-**Real delivery is blocked.** Production has no Firebase HTTP v1 sender or protected recurring dispatcher. No FCM send or Android tray delivery was claimed. Set up the sender from the Firebase project owner's account per [Firebase HTTP v1 setup](https://firebase.google.com/docs/cloud-messaging/send/v1-api), keep credentials server-only, and run [NP-15–17](../../public/qa/native-push-checklist.md#exam-schedule-push) before enabling automatic sends. Devices on an older app build must update to see exam alerts.
+On 10 November 2026 the Production worker used the saved Firebase service account to deliver one queued exam notification to a disposable Student installation. The protected request claimed one job and recorded one Firebase acceptance. The notification appeared in the Android 36 emulator tray. Tapping it opened Updates, and the exam link opened the matching record. The engineering check used an emulator. Physical phone acceptance remains in the [founder checklist](../../public/qa/native-push-checklist.md#android-device-and-delivery).
 
 ## 9 November update — published homework
 
@@ -18,7 +18,7 @@ A first publication of section homework now queues a generic notification for ea
 
 Hosted migration `20261109175431` matched the source checksum. The [rollback-only SQL QA](../../scripts/qa/native-homework-push.sql) passed publish, opt-in and sibling deduplication, draft and other-section exclusion, exact detail and retry, revoke and unpublish, and edit/republish/later opt-in without resend. All QA fixture rows rolled back; the original activities, logs, receipts and six queue rows matched pre-change fingerprints. The worker test confirmed the neutral payload without calling FCM.
 
-Keep delivery OFF until the Firebase sender and real Android tray/tap test are verified. See [NP-18–19](../../public/qa/native-push-checklist.md#homework-push).
+Verify homework delivery and tap on the intended phone with [NP-18–19](../../public/qa/native-push-checklist.md#homework-push).
 
 ## 9 November update — school announcements
 
@@ -92,12 +92,12 @@ All ordinary calls use the signed-in family's Supabase session. A supplied role 
 
 Worker-only RPCs are `claim_family_push_jobs(p_batch_id,p_limit)`, `prepare_family_push_job(p_job_id,p_lease_id)` and `finish_family_push_job(...)`. Anonymous and ordinary authenticated roles cannot use them or read/write raw private device/job/preferences/batch tables. The native app never receives service-role or dispatch secrets.
 
-## Activation checklist — operator owned, currently OFF
+## Activation checklist — operator owned
 
 1. Build the native app's actual Firebase registration, phone-permission UX and secure installation-proof lifecycle. Verify startup refresh, reauthentication, account/role switch, logout, reinstall/reset and FID rotation against the current Firebase SDK. Never reuse another owner's installation identity.
 2. Configure a least-privilege Firebase sender and the correct Android/iOS project applications. Verify actual native registration; iOS also requires its APNs/Firebase setup. Keep the service-account key and Supabase service role server-only.
 3. Set `FIREBASE_SERVICE_ACCOUNT_JSON`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL` and a high-entropy `PUSH_DISPATCH_SECRET`. Do not put secrets in `NEXT_PUBLIC_` fields or source control. Keep `NATIVE_PUSH_ENABLED=false` until the target device and sender are ready.
-4. Establish a protected recurring HTTP POST to `/api/push/dispatch` with `Authorization: Bearer <dispatch secret>`. Set and inspect the real scheduler cadence, retries and operational ownership. This migration does not silently create or activate a cron job. A successful manual invocation is not a running scheduler.
+4. Use the one-minute Vercel cron GET at `/api/push/cron` with the Production `CRON_SECRET`. Manual HTTP POST to `/api/push/dispatch` uses the separate `PUSH_DISPATCH_SECRET`. Inspect the scheduled request history separately from manual dispatch.
 5. With an opted-in disposable native installation, verify new source event → private job → worker → FCM acceptance → real phone display → authenticated inbox and permitted record. Record the separate observations; do not label acceptance as display/read.
 6. Exercise shared-phone account switches, revocation while queued/in flight, expiry, reinstallation, denied OS permissions, stale native sessions, provider 429/5xx, long Retry-After, lost send/finish acknowledgements, duplicate scheduler invocations and cleanup. Only then enable the dispatch flag and recurring job for the approved scope.
 

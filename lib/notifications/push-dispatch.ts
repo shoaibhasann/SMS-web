@@ -18,8 +18,7 @@ function configuration() {
     return { firebase, serviceKey, secret, url: url.origin };
   } catch { return null; }
 }
-function authorized(request: Request) {
-  const secret = process.env.PUSH_DISPATCH_SECRET;
+function authorized(request: Request, secret: string | undefined) {
   if (!secret || !/^[A-Za-z0-9_-]{32,128}$/.test(secret)) return false;
   const actual = Buffer.from(request.headers.get("authorization") ?? ""), expected = Buffer.from(`Bearer ${secret}`);
   return actual.length === expected.length && timingSafeEqual(actual, expected);
@@ -27,8 +26,15 @@ function authorized(request: Request) {
 export function nativePushStatus() {
   return Response.json({ configured: configuration() !== null, nativeAppRequired: true }, { headers });
 }
-export async function dispatchNativePush(request: Request) {
-  if (!authorized(request)) return Response.json({ error: "Unauthorized" }, { status: 401, headers });
+export function dispatchNativePush(request: Request) {
+  return dispatchPush(request, process.env.PUSH_DISPATCH_SECRET);
+}
+export function dispatchScheduledNativePush(request: Request) {
+  if (request.method !== "GET") return new Response(null, { status: 405, headers });
+  return dispatchPush(request, process.env.CRON_SECRET);
+}
+async function dispatchPush(request: Request, secret: string | undefined) {
+  if (!authorized(request, secret)) return Response.json({ error: "Unauthorized" }, { status: 401, headers });
   const config = configuration();
   if (!config) return Response.json({ error: "Native push delivery is not configured" }, { status: 503, headers });
   const result = { claimed: 0, accepted: 0, retry: 0, invalid_token: 0, failed: 0, suppressed: 0, unconfirmed: 0 };
