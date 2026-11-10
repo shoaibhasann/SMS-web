@@ -34,6 +34,7 @@ beforeAll(async () => {
   await db.query("insert into public.class_activities(id,class_log_id,activity_type,title) values($1,$2,'homework','Legacy homework')",
     [legacyActivity, legacyLog]);
   await db.exec(await readFile(new URL(`../../${migrationPath}`, import.meta.url), "utf8"));
+  await db.exec(await readFile(new URL("../../supabase/migrations/20261110081325_scope_family_homework_before_permission_checks.sql", import.meta.url), "utf8"));
   await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,'other-guardian@homework.invalid',now())", [otherGuardian]);
   await db.query("update public.profiles set school_id=$1 where id=$2", [id.schoolA, otherGuardian]);
   await db.exec("insert into auth.sessions(id,user_id,aal) select id,id,'aal1' from auth.users");
@@ -176,6 +177,9 @@ describe("family homework notifications", () => {
     const [own] = await activities(await save([homework("Own section")]));
     const [peer] = await activities(await save([homework("Peer section")], logFields({ section_id: otherSection })));
     const [foreignClass] = await activities(await save([homework("Another class")], logFields({ class_id: otherClass, section_id: otherClassSection })));
+    await db.query(`insert into public.class_activities(class_log_id,activity_type,title)
+      select class_log_id,'homework','Unrelated work ' || n from public.class_activities cross join generate_series(1,240) n
+      where id=$1`, [foreignClass.id]);
     const visible = async (user: string, role: Role) => assignments(await inbox(user, role)).map(({ id }) => id);
     expect(await visible(id.studentUserA, "student")).toEqual([own.id]);
     expect(await visible(id.studentUserA, "parent")).toEqual([peer.id]);

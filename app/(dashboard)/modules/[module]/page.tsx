@@ -280,7 +280,8 @@ function ModuleContent() {
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "fees") {
-    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={access.userId} mode="fees" /></AppShell>;
+    const schoolId = searchParams.get("school") ?? undefined;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${schoolId ?? "default"}`} mode="fees" requestedSchoolId={schoolId} /></AppShell>;
   }
 
   if (moduleName === "advance-credit") {

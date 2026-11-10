@@ -999,6 +999,30 @@
       "version": "20261110054635",
       "name": "school_push_delivery_summary",
       "provenance": "Forward source. Exact hosted ledger SQL verified 10 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261110081325_scope_family_homework_before_permission_checks.sql",
+      "sha256": "be6537b221d60f49978e4c1d48f5c591b29e80dfba5bbd36f0bbc906aa66e412",
+      "kind": "pending",
+      "version": "20261110081325",
+      "name": "scope_family_homework_before_permission_checks",
+      "provenance": "Forward source. Hosted migration applied and ledger version verified 10 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261110081727_school_data_portability.sql",
+      "sha256": "988cee3a2cda072e68f54f8a757466ffe4465f736afa851a947c0103cda24526",
+      "kind": "pending",
+      "version": "20261110081727",
+      "name": "school_data_portability",
+      "provenance": "Forward source. Tenant portability export with verified Admin authorization."
+    },
+    {
+      "path": "supabase/migrations/20261110081832_bound_academic_family_read_to_linked_pupils.sql",
+      "sha256": "d2c24dbbbfc5ec12e756f6d6d4a0a27d0f55e6f75417a1aabd4c16fbd00ba5f5",
+      "kind": "pending",
+      "version": "20261110081832",
+      "name": "bound_academic_family_read_to_linked_pupils",
+      "provenance": "Forward source. Hosted migration applied and ledger version verified 10 November 2026."
     }
   ],
   "excluded": [
@@ -1037,5 +1061,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "634477559dcf3ae7f8a81ef868f9ec80865db48e2599925e83cc862c826704e3"
+  "order_sha256": "a938b5c8117431a340afb96e50208249bf481298d3832a8f56de79b5001570d6"
 }

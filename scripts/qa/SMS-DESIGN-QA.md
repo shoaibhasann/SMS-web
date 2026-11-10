@@ -1,5 +1,23 @@
 # Founder demo data seed
 
+## 10 November update — attendance, schoolwork and fees
+
+The [activity seed](sms-academic-activity-qa.sql) defaults to rollback. It fills the two existing synthetic 2,000-student rosters and one isolated Android QA pupil. It adds missing rows only and preserves existing marks, payments, accounts, roles and guardian links. Both roster cohorts have seven working days of attendance, two published lessons per section and a mix of open, submitted and graded homework. Fee Credit QA has sample overdue, partial and paid invoices. The MFA roster keeps its existing invoices.
+
+On Android, sign in as the demo Student or Parent and open **Attendance** for the 10 November Present mark. In **Learning**, open the Mathematics homework for sample feedback and the English homework to test a new submission as Student. The Parent view is read-only. Classwork and the complete fee ledger are available in SMS Web. The APK pupil has one paid invoice with a demo receipt and one overdue invoice.
+
+The seed retains in-app update history and discards only the push jobs created within the same transaction by these demo homework and payment rows. It sends no phone notifications. Use a new QA action to test push delivery.
+
+Hosted rollback, commit and replay verified these counts.
+
+| QA cohort | Students | Attendance marks | Classwork and homework | Sample submissions | Fee demands | Demo receipts |
+|---|---:|---:|---:|---:|---:|---:|
+| Fee Credit | 2,000 | 14,000 | 240 | 1,000 | 4,000 | 500 |
+| MFA | 2,000 | 14,000 | 240 | 1,000 | 3,566 retained | 0 |
+| Android Student and linked Parent | 1 | 1 | 4 | 1 | 2 | 1 |
+
+Both APK logins loaded the same pupil’s attendance, two homework tasks, one graded submission and four in-app Updates through the mobile data helpers. The web fee ledger returned two invoices and one receipt. A same-school pupil without a link remained inaccessible. Two hosted query changes retain the existing scope checks and keep the homework list and Updates usable with the larger roster.
+
 ## 9 November update — large roster in the same QA login
 
 The original large roster was in the separate MFA QA school. The Fee Credit QA Admin's existing school now has **2,044 students**: 44 original records plus 2,000 fictional students in 15 grade bands (Nursery to Class 12) and 60 new sections. The [insert-only seed](sms-fee-credit-roster-qa.sql) defaults to rollback. It does not create login accounts or add fees, attendance or teacher assignments for the new classes. The original student, role, academic-year and fee ledger fingerprints matched before and after.

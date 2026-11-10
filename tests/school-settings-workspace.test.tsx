@@ -34,6 +34,24 @@ async function edit(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("real school settings workspace", () => {
+  it("opens import templates and pins fee onboarding to the selected school", async () => {
+    const user = userEvent.setup();
+    mocks.access.mockResolvedValue({ userId: owner, schools: [{ id: schoolA, name: "QA School" }, { id: schoolB, name: "Second QA School" }], schoolAdminIds: [schoolA, schoolB] });
+    render(<SchoolSettingsWorkspace userId={owner} />);
+    const picker = await screen.findByRole("combobox", { name: "School" });
+    expect(screen.queryByText("Import school data")).not.toBeInTheDocument();
+    await user.selectOptions(picker, schoolB);
+    await user.click(screen.getByText("Import school data"));
+    const imports = screen.getByText("Import school data").closest("details")!;
+    expect(within(imports).getByText("Second QA School", { selector: "strong" })).toBeVisible();
+    await user.click(screen.getByText("Export school data"));
+    expect(screen.getByRole("link", { name: "Download archive" })).toHaveAttribute("href", `/api/school-data/export?school=${schoolB}`);
+    expect(screen.getByRole("link", { name: "Open opening fee balances" })).toHaveAttribute("href", `/modules/fees?school=${schoolB}`);
+    expect(screen.getByRole("link", { name: "Students CSV template" })).toHaveAttribute("download", "students-template.csv");
+    act(() => mocks.auth.mock.calls[0][0]("SIGNED_OUT", null));
+    expect(screen.queryByText("Import school data")).not.toBeInTheDocument();
+  });
+
   it("loads live scope and renders honest setup gaps with canonical links", async () => {
     render(<SchoolSettingsWorkspace userId={owner} />);
     expect(await screen.findByRole("heading", { name: "School details" })).toBeInTheDocument();
@@ -51,11 +69,13 @@ describe("real school settings workspace", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
-  it("keeps Principal/server-readonly access out of mutation controls", async () => {
+  it("keeps Principal/server-readonly access out of mutation and export controls", async () => {
+    mocks.access.mockResolvedValue({ userId: owner, schools: [{ id: schoolA, name: "QA School" }], schoolAdminIds: [] });
     mocks.load.mockResolvedValue(snapshot({ can_edit: false }));
     render(<SchoolSettingsWorkspace userId={owner} />);
     await screen.findByText(/Read-only access/);
     expect(screen.getByLabelText("School name")).toBeDisabled();
+    expect(screen.queryByText("Export school data")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Edit school details" })).not.toBeInTheDocument();
     expect(mocks.save).not.toHaveBeenCalled();
   });

@@ -9,6 +9,8 @@ import { LoadingState } from "@/components/ui/skeleton";
 import { SchoolStaffMfaPolicy } from "@/components/admin/school-staff-mfa-policy";
 import { SchoolAttendanceCalendar } from "@/components/admin/school-attendance-calendar";
 import { SchoolLateAlertSettings } from "@/components/admin/school-late-alert-settings";
+import { SchoolDataImport } from "@/components/admin/school-data-import";
+import { SchoolDataExport } from "@/components/admin/school-data-export";
 import { loadSchoolSettings, saveSchoolSettings, schoolBoards, schoolDetails, SchoolSettingsError, validateSchoolDetails,
   type SchoolDetails, type SchoolSettings, type SchoolSettingsIntent } from "@/lib/admin/school-settings";
 
@@ -74,6 +76,8 @@ function OwnSchoolSettings({ userId }: { userId: string }) {
               </select>
               {(locked || policyLocked || calendarLocked || lateAlertsLocked) && <span className="block text-xs font-normal muted">Finish or cancel the current edit before switching schools.</span>}
             </label>
+            {selected && <SchoolDataImport school={selected} />}
+            {selected && access.schoolAdminIds?.includes(selected.id) && <SchoolDataExport school={selected} />}
             {selected && <SchoolAttendanceCalendar client={client} schoolId={selected.id} userId={userId} onLock={setCalendarLocked} />}
             {selected && <SchoolLateAlertSettings key={`late-alerts:${selected.id}:${userId}`} schoolId={selected.id} userId={userId} onLock={setLateAlertsLocked} />}
             {selected && <SchoolEditor key={selected.id} client={client} schoolId={selected.id} userId={userId} onLock={setLocked} />}

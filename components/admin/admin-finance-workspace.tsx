@@ -82,7 +82,7 @@ function ReceiptStatus({ payment }: { payment: PaymentRecord }) {
   return <div className="space-y-1"><span className={`inline-flex rounded-full px-2 py-1 text-xs font-semibold capitalize ${payment.status === "reversed" ? "bg-amber-500/10 text-amber-900 dark:text-amber-200" : "bg-[var(--surface-2)]"}`}>{payment.status.replaceAll("_", " ")}</span>{payment.reversed_at && <p className="text-xs muted">Reversed {new Date(payment.reversed_at).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })} IST</p>}{payment.reversal_reference && <p className="max-w-52 break-all text-xs muted">{payment.reversal_reference}</p>}</div>;
 }
 
-export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "fees" | "invoices" | "reports"; initialReceiptNo?: string }) {
+export function AdminFinanceWorkspace({ mode, initialReceiptNo = "", requestedSchoolId }: { mode: "fees" | "invoices" | "reports"; initialReceiptNo?: string; requestedSchoolId?: string }) {
   const [supabase] = useState(createClient);
   const latestRequest = useRef(0);
   const mounted = useRef(true);
@@ -147,11 +147,14 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
           .eq("user_id", auth.user.id);
         if (rolesError) throw rolesError;
 
-        let schoolId = (roles ?? []).find((row) =>
+        const memberships = (roles ?? []).filter((row) => row.school_id && ["school_admin", "accountant", "principal"].includes(row.role));
+        if (requestedSchoolId !== undefined && !memberships.some((row) => row.school_id === requestedSchoolId)) {
+          setError("Your finance account is not assigned to the selected school.");
+          return;
+        }
+        let schoolId = requestedSchoolId ?? memberships.find((row) =>
           row.role === "school_admin" && row.school_id,
-        )?.school_id ?? (roles ?? []).find((row) =>
-          ["accountant", "principal"].includes(row.role) && row.school_id,
-        )?.school_id ?? "";
+        )?.school_id ?? memberships[0]?.school_id ?? "";
         if (!schoolId && (roles ?? []).some((row) => row.role === "super_admin" && row.school_id === null)) {
           const { data: profile, error: profileError } = await supabase
             .from("profiles")
@@ -244,7 +247,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "" }: { mode: "
       setError("Finance records could not be loaded. Please refresh or contact your administrator.");
       setLoading(false);
     });
-  }, [mode, supabase]);
+  }, [mode, requestedSchoolId, supabase]);
 
   useEffect(() => {
     mounted.current = true;

@@ -47,6 +47,22 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("effective office finance read models", () => {
+  it("loads opening balances for the explicitly selected finance school", async () => {
+    const db = database();
+    render(<AdminFinanceWorkspace mode="fees" requestedSchoolId="school-b" />);
+    await screen.findByText("School review available");
+    expect(api.positions).toHaveBeenCalledExactlyOnceWith(db.client, "school-b");
+    expect(api.receipts).toHaveBeenCalledExactlyOnceWith(db.client, "school-b");
+  });
+
+  it("rejects an unassigned school without falling back to another finance school", async () => {
+    database();
+    render(<AdminFinanceWorkspace mode="fees" requestedSchoolId="unassigned-school" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("not assigned to the selected school");
+    expect(api.positions).not.toHaveBeenCalled();
+    expect(api.receipts).not.toHaveBeenCalled();
+  });
+
   it("keeps unused advance credit separate from fee dues and shows completed refund outflow from server totals", async () => {
     api.summary.mockResolvedValue({ ...summary, advance: { invalid: false, invalid_count: 0, received_amount: "1000.00", reversed_amount: "0.00", allocated_amount: "600.00", refunded_amount: "150.00", balance_amount: "250.00", reserved_amount: "50.00", available_amount: "200.00" },
       collections: { ...summary.collections, gross_amount: "1400.00", refund_amount: "150.00", today_refund: "150.00", month_refund: "150.00", net_amount: "1150.00" } });

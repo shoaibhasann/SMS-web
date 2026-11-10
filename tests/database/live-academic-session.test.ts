@@ -67,6 +67,7 @@ afterAll(async () => { await db?.close(); });
 describe("native session revocation across legacy academic, leave, result and private-file contracts", () => {
   it.each(users)("retains exact authorized academic and private object reads for a live identity %s", async (user) => {
     expect(await actor(user, "select id from public.class_logs where id=$1", [log])).toEqual([{ id: log }]);
+    expect(await actor(user, "select id from public.class_activities where id=$1", [activity])).toEqual([{ id: activity }]);
     expect(await actor(user, "select id from public.activity_submissions where id=$1", [submission])).toEqual([{ id: submission }]);
     expect(await actor(user, "select name from storage.objects where name in ($1,$2) order by name", [materialPath, homeworkPath])).toEqual([]);
     expect(await value(user, "select public.authorize_private_academic_file('submission',$1) as value", [submission]))
@@ -116,9 +117,11 @@ describe("native session revocation across legacy academic, leave, result and pr
 
   it("retains role, school, child-link and assignment boundaries with otherwise valid native sessions", async () => {
     expect(await actor(id.studentUserB, "select id from public.class_logs")).toEqual([]);
+    expect(await actor(id.studentUserB, "select id from public.class_activities")).toEqual([]);
     expect(await actor(id.adminB, "select name from storage.objects")).toEqual([]);
     await denied(value(id.guardianA, "select public.get_family_assessment_results($1) as value", [id.unlinkedPupilA]));
     await db.query("delete from public.student_parents where parent_id=$1", [id.parentA]);
+    expect(await actor(id.guardianA, "select id from public.class_activities")).toEqual([]);
     expect(await actor(id.guardianA, "select id from public.activity_submissions")).toEqual([]);
     await db.query("delete from public.teacher_subject_assignments where id=$1", [id.assignmentA]);
     await denied(value(id.teacherA, "select public.list_homework_submissions_for_grading($1) as value", [activity]));
