@@ -10,6 +10,7 @@ const proof = "a".repeat(64);
 const fid = (n = 1) => `c${String(n).padStart(21,"0")}`;
 type Device = {device_id:string;generation:number};
 type Lease = {id:string;lease_id:string};
+type PaymentReceipt = {payment_id:string;receipt_no:string};
 type Settings = {preferences:{enabled:boolean;absence:boolean;result_published:boolean;leave_decision:boolean;version:number};devices:Record<string,unknown>[]};
 type Prepared = {job_id:string;lease_id:string;device_fid:string;platform:string;kind:string;event_id:string;recipient_role:string;expires_at:string};
 
@@ -81,8 +82,12 @@ async function saveFee(daysFromToday: number | null, amount = 1000, student = id
   [id.schoolA,student,id.structureA,daysFromToday,amount]);
   return fee;
 }
-const payFee = (fee: string, amount: number) => value(id.adminA,
-  "select public.record_office_fee_payment($1,$2,$3,'cash',$4,null) as value", [id.schoolA,fee,amount,randomUUID()]);
+const payFee = (fee: string, amount: number, requestId = randomUUID()) => value<PaymentReceipt>(id.adminA,
+  "select public.record_office_fee_payment($1,$2,$3,'cash',$4,null) as value", [id.schoolA,fee,amount,requestId]);
+const paymentRead = (user: string, role: string, payment: string) => value<string|null>(user,
+  "select public.mark_family_notification_read_v8($1,'fee_payment',$2)::text as value", [role,payment]);
+const paymentDetail = (user: string, role: string, payment: string) => value(user,
+  "select public.get_family_fee_payment($1,$2,$3) as value", [role,id.pupilA,payment]);
 async function saveHomework(status: "draft" | "published", previousLog?: string, addedTitle?: string) {
   const previous = previousLog ? (await db.query<{ id: string; expected_updated_at: string; activity_id: string }>(`
     select log.id, log.updated_at::text as expected_updated_at, activity.id as activity_id
@@ -342,18 +347,17 @@ describe("native family push under the recovered application schema",()=>{
   });
 
   it("leases due-today fee reminders for opted-in families and keeps inbox read state independent", async () => {
+    const due = await saveFee(0);
+    const partial = await saveFee(0);
+    await payFee(partial,250);
+    const settled = await saveFee(0);
+    await payFee(settled,1000);
     const installation = randomUUID();
     await preferences(id.guardianA,"parent",true,false,false,false);
     const guardian = await register(installation);
     const student = await register(randomUUID(),fid(2),id.studentUserA,"student");
     await preferences(id.studentUserB,"student");
     await register(randomUUID(),fid(3),id.studentUserB,"student");
-
-    const due = await saveFee(0);
-    const partial = await saveFee(0);
-    await payFee(partial,250);
-    const settled = await saveFee(0);
-    await payFee(settled,1000);
     await saveFee(-1);
     await saveFee(1);
     await saveFee(null);
@@ -423,6 +427,97 @@ describe("native family push under the recovered application schema",()=>{
       }
     }
     expect(await claim()).toEqual([]);
+  });
+
+  it("queues recorded fee payments once per opted-in family device and retains independent receipts", async () => {
+    const demand = await saveFee(1);
+    const earlier = await payFee(demand,100);
+    await preferences();
+    const guardian = await register();
+    const guardianTablet = await register(randomUUID(),fid(2));
+    const student = await register(randomUUID(),fid(3),id.studentUserA,"student");
+    await preferences(id.studentUserB,"student");
+    await register(randomUUID(),fid(4),id.studentUserB,"student");
+    const request = randomUUID();
+    const receipt = await payFee(demand,125.25,request);
+    expect(await payFee(demand,125.25,request)).toEqual(receipt);
+    expect(await paymentDetail(id.studentUserA,"student",receipt.payment_id)).toMatchObject({
+      id:receipt.payment_id,status:"paid",receipt_no:receipt.receipt_no,amount:"125.25",
+    });
+    const guardianRead = await paymentRead(id.guardianA,"parent",receipt.payment_id);
+    expect(guardianRead).toEqual(expect.any(String));
+    await preferences(id.studentUserA,"student");
+    const next = await payFee(demand,200);
+    const { rows: publications } = await db.query<{payment_id:string}>(`
+      select publication.payment_id from app_private.family_fee_payment_publications publication
+      join public.fee_payments payment on payment.id=publication.payment_id where payment.student_fee_id=$1`, [demand]);
+    expect(publications.map(row => row.payment_id).sort()).toEqual([earlier.payment_id,receipt.payment_id,next.payment_id].sort());
+    const { rows: jobs } = await db.query<{event_id:string;device_id:string}>(`
+      select event_id,device_id from app_private.family_push_jobs where kind='fee_payment'`);
+    expect(jobs).toHaveLength(5);
+    const guardianDevices = [guardian.device_id,guardianTablet.device_id];
+    expect(jobs.filter(row => row.event_id===receipt.payment_id).map(row => row.device_id).sort()).toEqual(guardianDevices.sort());
+    expect(jobs.filter(row => row.event_id===next.payment_id).map(row => row.device_id).sort()).toEqual([...guardianDevices,student.device_id].sort());
+    expect(jobs.some(row => row.event_id===earlier.payment_id)).toBe(false);
+
+    const leases = await claim();
+    expect(leases).toHaveLength(5);
+    for (const lease of leases) {
+      const prepared = await prepare(lease);
+      expect(prepared).toMatchObject({kind:"fee_payment"});
+      expect(prepared).not.toHaveProperty("amount");
+      expect(JSON.stringify(prepared)).not.toContain(receipt.receipt_no);
+      expect(await finish(lease)).toBe(true);
+    }
+    expect(await paymentRead(id.guardianA,"parent",receipt.payment_id)).toBe(guardianRead);
+    const inbox = await value<{notifications:{source_id:string;kind:string;read_at:string|null}[]}>(id.studentUserA,
+      "select public.get_family_notification_inbox_v8('student') as value");
+    expect(inbox.notifications).toContainEqual(expect.objectContaining({source_id:next.payment_id,kind:"fee_payment",read_at:null}));
+    expect(await claim()).toEqual([]);
+  });
+
+  it("suppresses claimed payment push after independently approved reversal without losing the original receipt", async () => {
+    await preferences();
+    await register();
+    await preferences(id.studentUserA,"student");
+    await register(randomUUID(),fid(2),id.studentUserA,"student");
+    const demand = await saveFee(1);
+    const receipt = await payFee(demand,100);
+    const guardianRead = await paymentRead(id.guardianA,"parent",receipt.payment_id);
+    expect(guardianRead).toEqual(expect.any(String));
+    const leases = await claim();
+    expect(leases).toHaveLength(2);
+
+    const principal = randomUUID();
+    await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())", [principal,`${principal}@fee-reversal.invalid`]);
+    await db.query("update public.profiles set school_id=$1 where id=$2", [id.schoolA,principal]);
+    await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,'principal')", [principal,id.schoolA]);
+    await db.query("insert into auth.sessions(id,user_id,aal) values($1,$1,'aal1')", [principal]);
+    const ledger = await value<{rows:{demand_id:string;financial_token:string}[]}>(id.adminA,
+      "select public.get_office_fee_ledger($1,null,$2) as value", [id.schoolA,id.pupilA]);
+    const token = ledger.rows.find(row => row.demand_id===demand)?.financial_token;
+    expect(token).toEqual(expect.any(String));
+    const reversal = await value<{id:string}>(id.adminA, `select public.request_office_fee_change(
+      $1,$2,'payment_reversal',null,$3,'Synthetic receipt correction',$4,$5) as value`,
+    [id.schoolA,demand,receipt.payment_id,token,randomUUID()]);
+    const approved = await value<{state:string;reference:string}>(principal,
+      "select public.review_office_fee_change($1,'approved','Synthetic independent review') as value", [reversal.id]);
+    expect(approved.state).toBe("approved");
+    for (const lease of leases) {
+      expect(await prepare(lease)).toBeNull();
+      expect(await job(lease.id)).toMatchObject({status:"cancelled",result_code:"no_longer_eligible"});
+    }
+    expect(await countJobs()).toBe(2);
+    for (const [user,role] of [[id.guardianA,"parent"],[id.studentUserA,"student"]]) {
+      expect(await paymentDetail(user,role,receipt.payment_id)).toMatchObject({
+        id:receipt.payment_id,status:"reversed",receipt_no:receipt.receipt_no,
+        amount:"100.00",net_amount:"0.00",reversal_reference:approved.reference,
+      });
+    }
+    expect(await paymentRead(id.guardianA,"parent",receipt.payment_id)).toBe(guardianRead);
+    const inbox = await value<{notifications:{source_id:string;kind:string;status:string;read_at:string|null}[]}>(id.studentUserA,
+      "select public.get_family_notification_inbox_v8('student') as value");
+    expect(inbox.notifications).toContainEqual(expect.objectContaining({source_id:receipt.payment_id,kind:"fee_payment",status:"reversed",read_at:null}));
   });
 
   it("queues only the first homework publication for opted-in eligible devices and deduplicates siblings", async () => {

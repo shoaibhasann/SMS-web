@@ -36,6 +36,12 @@ Hosted migration `20261110044115` matches the repository SQL. The rollback fixtu
 
 Phone delivery and tap are covered by the founder device check. [NP-23–24](../../public/qa/native-push-checklist.md#fee-reminder-push)
 
+## 10 November update — recorded fee payments
+
+The first successful recording of a valid payment queues one generic confirmation per eligible, opted-in Student or linked Guardian device. Jobs expire 24 hours after recording. The worker checks the current receipt, family access and any approved reversal before delivery. An approved reversal suppresses a pending confirmation, and the family receipt shows **Reversed**. Tapping an alert opens **Updates**, where **Fee payment → Open in SMS Web** opens the exact receipt. [NP-25–26](../../public/qa/native-push-checklist.md#recorded-payment-confirmation-push)
+
+Hosted migration `20261110053318` matches the repository SQL. The rollback fixture ran the office recording and independent reversal approval flows. It verified exact retry, opted-in device scope, the generic payload and suppression after approval. The reversed receipt retained its original identity and independent read state. The fee demands, payments, refunds, reversals, publication markers, read receipts and queue fingerprints matched before and after QA. [Hosted QA fixture](../../scripts/qa/native-fee-payment-push.sql)
+
 ## Scope and boundaries
 
 This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.

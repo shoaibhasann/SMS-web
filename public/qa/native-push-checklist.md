@@ -1,8 +1,8 @@
 # Founder QA — native push backend
 
-10 November 2026 · [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · Android exam schedules, homework, announcements and fee reminders
+10 November 2026 · [SMS login](https://sms-web-shoaibhasann.vercel.app/login) · Android exam schedules, homework, announcements and fee notifications
 
-**Current scope:** Android can register opted-in Student and Guardian devices. New or materially updated exam schedules, first publications of homework or announcements, and outstanding fees due today queue generic pushes under the account’s mobile push switch. Tapping opens authenticated **Updates**, where the family can open the exact record. Guardian absence, published result and leave settings remain independent; Students do not receive absence alerts.
+**Current scope:** Android can register opted-in Student and Guardian devices. New or materially updated exam schedules, first publications of homework or announcements, outstanding fees due today and recorded payments queue generic pushes under the account’s mobile push switch. Tapping opens authenticated **Updates**, where the family can open the exact record. Guardian absence, published result and leave settings remain independent; Students do not receive absence alerts.
 
 **Production delivery is OFF.** The Android client and queue are verified separately from sending. The Firebase HTTP v1 sender and protected recurring dispatcher must be configured before testing actual delivery.
 
@@ -22,7 +22,7 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 ## Android device and delivery
 
 - [ ] **NP-09 · Real registration.** Install the actual app, sign in, accept the phone's notification permission and register the current Firebase installation. Denied permission does not show a fake successful subscription. FID/session rotation updates the own registration safely. Record Android/iOS device and app build.
-- [ ] **NP-10 · Actual event flow.** Create a fresh permitted absence, result, leave, exam, homework, announcement or fee reminder event after opt-in. Verify job creation, provider acceptance, actual phone display and authenticated inbox opening separately. The correct currently permitted record opens after access checks. Old history is not backfilled by registering/enabling the device.
+- [ ] **NP-10 · Actual event flow.** Create a fresh permitted absence, result, leave, exam, homework, announcement, fee reminder or fee payment event after opt-in. Verify job creation, provider acceptance, actual phone display and authenticated inbox opening separately. The correct currently permitted record opens after access checks. Old history is not backfilled by registering/enabling the device.
 - [ ] **NP-11 · Shared phone and revocation.** Logout, account/role switch, reinstall/reset and revoked child access cannot reuse another owner's device registration or reveal their records. Revoke a disposable installation while queued; it receives no subsequent permitted send. Already displayed generic alerts cannot be recalled.
 - [ ] **NP-12 · Privacy and retry.** Lock-screen content contains no child name, marks, leave reason or private record reference. Offline phones, provider rate limits/errors, expiry, long Retry-After and lost acknowledgements follow the bounded retry rules. A duplicated scheduler request does not create duplicate source jobs. Occasional repeated generic display after an unknown send acknowledgement is not an exactly-once guarantee.
 - [ ] **NP-13 · Delivery versus read.** Provider Accepted is recorded as provider acceptance only. Phone display/open and in-app Mark as read are separate observations. A push send never silently marks the inbox item read.
@@ -50,10 +50,15 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 - [ ] **NP-23 · Due today and exact fee.** After delivery is enabled, register a disposable opted-in Student or Guardian Android installation. Create a QA fee due today in India with a positive balance. Confirm one job for that fee and device when the worker runs. After the generic alert appears, tap → **Updates** → **Fee reminder** → **Open in SMS Web**. Check the exact fee and its current outstanding balance. Verify that opening it leaves the read state available to update separately.
 - [ ] **NP-24 · Settlement and access.** Repeat a worker run, make a partial payment and confirm the same reminder still points to the new balance. Settle the fee or revoke the Guardian link before dispatch and verify that the worker suppresses the job. Check that tomorrow’s and earlier due dates do not generate today’s push and that an unsent due-today job expires at midnight IST.
 
+## Recorded payment confirmation push
+
+- [ ] **NP-25 · Payment and exact receipt.** After delivery is enabled, register a disposable opted-in Student or Guardian Android installation. Record a synthetic payment using the office payment flow. Verify one job per eligible device, provider acceptance and the generic alert on the phone. Tap → **Updates** → **Fee payment** → **Open in SMS Web**. Check the exact receipt, amount and status after signing in. The lock screen shows only a generic school update.
+- [ ] **NP-26 · Retry and reversal.** Retry the same recording request and verify the job count stays the same. For a second payment, approve a reversal before the worker prepares delivery. Verify the pending confirmation is suppressed, the exact receipt shows **Reversed**, and its read state stays independent. Record a distinct payment and confirm it has its own receipt and job.
+
 | Release / tester | Entry |
 |---|---|
 | Stable URL | https://sms-web-shoaibhasann.vercel.app/login |
-| Engineering verification | Hosted homework, announcement and fee reminder queue checks passed. Phone receive and tap checks are pending. |
+| Engineering verification | Hosted homework, announcement, fee reminder and payment confirmation queue checks passed. Phone receive and tap checks are pending. |
 | Native app/build/device | Android development build available; install the updated app bundle |
 | Delivery/provider/schedule activation | OFF / not verified |
 | Tester, IST time, browser/device | |

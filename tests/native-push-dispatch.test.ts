@@ -33,7 +33,7 @@ describe("protected native push dispatch",()=>{
   expect(mocks.rpc.mock.calls.map(([name])=>name)).toEqual(["claim_family_push_jobs","prepare_family_push_job","finish_family_push_job"]);
   expect(mocks.rpc.mock.calls[0][1]).toMatchObject({p_limit:20,p_batch_id:expect.stringMatching(/^[0-9a-f-]{36}$/)});expect(mocks.send).toHaveBeenCalledWith(config,"private-access",{device_fid:fid,platform:"android",expires_at:expect.any(String)});
  });
- it.each(["exam_schedule","homework_assigned","announcement","fee_due"])("sends %s through the neutral provider route",async kind=>{
+ it.each(["exam_schedule","homework_assigned","announcement","fee_due","fee_payment"])("sends %s through the neutral provider route",async kind=>{
   mocks.rpc.mockImplementation((name:string)=>response(name==="claim_family_push_jobs"?[{id:id(1),lease_id:id(11)}]:name==="prepare_family_push_job"?{...prepared(),kind}:true));
   const res=await POST(request());expect(res.status).toBe(200);expect(await res.json()).toMatchObject({accepted:1});
   expect(mocks.send).toHaveBeenCalledWith(config,"private-access",{device_fid:fid,platform:"android",expires_at:expect.any(String)});
