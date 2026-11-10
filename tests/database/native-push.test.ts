@@ -16,6 +16,8 @@ type Prepared = {job_id:string;lease_id:string;device_fid:string;platform:string
 beforeAll(async()=>{
   db=await createRecoveryDatabase();await seedRecoveryData(db);
   await db.exec("insert into auth.sessions(id,user_id) select id,id from auth.users;begin");
+  // Keep the baseline fees out of the due-today worker regardless of test date.
+  await db.exec("update public.student_fees set due_date=null");
   await db.query("update public.teacher_assessments set status='completed' where id=$1",[id.assessmentA]);
   await actor(id.teacherA,"insert into public.teacher_assessment_marks(assessment_id,student_id,marks_obtained) values($1,$2,0)",[id.assessmentA,id.unlinkedPupilA]);
   await db.exec("commit");
@@ -72,6 +74,15 @@ const saveNotice = (audience = noticeAudience(), published = true) => value<stri
     case when $3 then statement_timestamp() end,$4) returning id as value`, [id.schoolA,audience,published,id.adminA]);
 const toggleNotice = (notice: string, publish: boolean) => actor(id.adminA, `update public.notices
   set published_at=case when $2 then statement_timestamp() end where id=$1`, [notice,publish]);
+async function saveFee(daysFromToday: number | null, amount = 1000, student = id.pupilA) {
+  const { rows: [{ id: fee }] } = await db.query<{id:string}>(`
+    insert into public.student_fees(school_id,student_id,fee_structure_id,due_date,amount,status)
+    values($1,$2,$3,(statement_timestamp() at time zone 'Asia/Kolkata')::date+$4::int,$5,'pending') returning id`,
+  [id.schoolA,student,id.structureA,daysFromToday,amount]);
+  return fee;
+}
+const payFee = (fee: string, amount: number) => value(id.adminA,
+  "select public.record_office_fee_payment($1,$2,$3,'cash',$4,null) as value", [id.schoolA,fee,amount,randomUUID()]);
 async function saveHomework(status: "draft" | "published", previousLog?: string, addedTitle?: string) {
   const previous = previousLog ? (await db.query<{ id: string; expected_updated_at: string; activity_id: string }>(`
     select log.id, log.updated_at::text as expected_updated_at, activity.id as activity_id
@@ -328,6 +339,90 @@ describe("native family push under the recovered application schema",()=>{
     const [lease] = await claim();
     expect(lease.id).toBe(jobs[0].id);
     expect(await prepare(lease)).toMatchObject({kind:"announcement",event_id:scheduled});
+  });
+
+  it("leases due-today fee reminders for opted-in families and keeps inbox read state independent", async () => {
+    const installation = randomUUID();
+    await preferences(id.guardianA,"parent",true,false,false,false);
+    const guardian = await register(installation);
+    const student = await register(randomUUID(),fid(2),id.studentUserA,"student");
+    await preferences(id.studentUserB,"student");
+    await register(randomUUID(),fid(3),id.studentUserB,"student");
+
+    const due = await saveFee(0);
+    const partial = await saveFee(0);
+    await payFee(partial,250);
+    const settled = await saveFee(0);
+    await payFee(settled,1000);
+    await saveFee(-1);
+    await saveFee(1);
+    await saveFee(null);
+    await saveFee(0,-50);
+    await saveFee(0,1000,id.unlinkedPupilA);
+    const mark = () => value<string>(id.guardianA,"select public.mark_family_notification_read_v8('parent','fee_due',$1)::text as value", [partial]);
+    const readAt = await mark();
+    expect(readAt).toEqual(expect.any(String));
+    expect(await countJobs()).toBe(0);
+
+    const batch = randomUUID();
+    const guardianLeases = await claim(batch);
+    expect(guardianLeases).toHaveLength(2);
+    expect(await claim(batch)).toEqual(guardianLeases);
+    expect(await claim()).toEqual([]);
+    for (const lease of guardianLeases) {
+      expect(await prepare(lease)).toMatchObject({kind:"fee_due",recipient_role:"parent"});
+      expect(await finish(lease)).toBe(true);
+    }
+    expect(await register(installation,fid(4))).toMatchObject({device_id:guardian.device_id,generation:2});
+    expect(await claim()).toEqual([]);
+
+    await preferences(id.studentUserA,"student");
+    const studentLeases = await claim();
+    expect(studentLeases).toHaveLength(2);
+    for (const lease of studentLeases) {
+      const prepared = await prepare(lease);
+      expect(prepared).toMatchObject({kind:"fee_due",recipient_role:"student"});
+      expect(prepared).not.toHaveProperty("balance");
+      expect(JSON.stringify(prepared)).not.toContain("Recovery tuition");
+      expect(await finish(lease)).toBe(true);
+    }
+    expect(await mark()).toBe(readAt);
+    const inbox = await value<{notifications:{source_id:string;kind:string;read_at:string|null}[]}>(id.studentUserA,
+      "select public.get_family_notification_inbox_v8('student') as value");
+    expect(inbox.notifications).toContainEqual(expect.objectContaining({source_id:partial,kind:"fee_due",read_at:null}));
+    const { rows: jobs } = await db.query<{event_id:string;device_id:string;at_next_ist_midnight:boolean}>(`
+      select job.event_id,job.device_id,job.expires_at=(fee.due_date+1)::timestamp at time zone 'Asia/Kolkata' as at_next_ist_midnight
+      from app_private.family_push_jobs job join public.student_fees fee on fee.id=job.event_id where job.kind='fee_due'`);
+    expect(jobs).toHaveLength(4);
+    for (const device of [guardian,student]) {
+      expect(jobs.filter(row => row.device_id===device.device_id).map(row => row.event_id).sort()).toEqual([due,partial].sort());
+    }
+    expect(jobs.every(row => row.at_next_ist_midnight)).toBe(true);
+  });
+
+  it("rechecks live ledger, links and native session before sending leased fee reminders", async () => {
+    await preferences();
+    await register();
+    await preferences(id.studentUserA,"student");
+    await register(randomUUID(),fid(2),id.studentUserA,"student");
+    const settled = await saveFee(0);
+    const unlinked = await saveFee(0);
+    const leases = await claim();
+    expect(leases).toHaveLength(4);
+    await payFee(settled,1000);
+    await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2", [id.parentA,id.pupilA]);
+    for (const lease of leases) {
+      const row = await job(lease.id);
+      if (row.event_id===settled || row.recipient_role==="parent") {
+        expect(await prepare(lease)).toBeNull();
+        expect(await job(lease.id)).toMatchObject({status:"cancelled",result_code:"no_longer_eligible"});
+      } else {
+        await db.query("delete from auth.sessions where user_id=$1", [id.studentUserA]);
+        expect(await prepare(lease)).toBeNull();
+        expect(await job(lease.id)).toMatchObject({event_id:unlinked,status:"cancelled",result_code:"no_longer_eligible"});
+      }
+    }
+    expect(await claim()).toEqual([]);
   });
 
   it("queues only the first homework publication for opted-in eligible devices and deduplicates siblings", async () => {

@@ -28,6 +28,14 @@ Hosted migrations `20261109181045` and `20261109181202` match the committed SQL.
 
 Phone delivery and tapping remain part of the founder device check. [NP-20–22](../../public/qa/native-push-checklist.md#announcement-push)
 
+## 10 November update — fees due today
+
+The existing dispatch worker looks for outstanding fees on their due date in India. It checks the current balance in the fee ledger and queues one generic reminder per fee and opted-in Student or linked Guardian device. The job expires at the next midnight IST. Before preparing delivery, the worker checks the due date, balance and family access again. **Updates → Fee reminder → Open in SMS Web** opens the exact fee for the signed-in family. Overdue fees remain visible in the existing inbox.
+
+Hosted migration `20261110044115` matches the repository SQL. The rollback fixture passed due-date, balance and recipient checks, deduplication, settlement, revocation, payload privacy and read state. Pre- and post-test fingerprints matched for 3,587 fee demands, payments, adjustments, reversals, credit entries, read receipts and push jobs. An embedded replay with 2,000 opted-in fee and device pairs claimed 20 unpaid jobs in 53–60 ms. A second run with 2,000 settled fees returned zero jobs in 814–815 ms. [Hosted QA fixture](../../scripts/qa/native-fee-due-push.sql)
+
+Phone delivery and tap are covered by the founder device check. [NP-23–24](../../public/qa/native-push-checklist.md#fee-reminder-push)
+
 ## Scope and boundaries
 
 This slice prepares native Android/iOS push delivery for existing Guardian absence alerts and Student/Guardian published-result and reviewed-leave events. Absence events are Guardian-only; this backend does not add Student absence alerts. The native mobile app is a separate next phase. No PWA, service worker, browser push subscription or fabricated web device registration is included. Existing Student/Guardian in-app notifications and independent read timestamps remain their own source of truth.
