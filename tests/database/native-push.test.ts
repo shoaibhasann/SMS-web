@@ -24,11 +24,11 @@ beforeAll(async()=>{
   await db.exec("commit");
 },60_000);
 beforeEach(()=>db.exec("begin"));afterEach(()=>db.exec("rollback"));afterAll(()=>db?.close());
-async function actor<T extends Record<string,unknown>=Record<string,unknown>>(user:string|null,sql:string,args:unknown[]=[],role="authenticated",session:string|null=user,connection=db,claimRole=role){
+async function actor<T extends Record<string,unknown>=Record<string,unknown>>(user:string|null,sql:string,args:unknown[]=[],role="authenticated",session:string|null=user,connection=db,claimRole=role,aal?:string){
   await connection.exec("savepoint native_push_actor");
   try{
     await connection.exec(`set local role ${role}`);
-    await connection.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[user??"",JSON.stringify({sub:user,role:claimRole,session_id:session})]);
+    await connection.query("select set_config('request.jwt.claim.sub',$1,true),set_config('request.jwt.claims',$2,true)",[user??"",JSON.stringify({sub:user,role:claimRole,session_id:session,aal})]);
     const result=await connection.query<T>(sql,args);
     await connection.exec("reset role");await connection.query("select set_config('request.jwt.claim.sub','',true),set_config('request.jwt.claims','{}',true)");
     await connection.exec("release savepoint native_push_actor");return result;
@@ -108,8 +108,86 @@ async function saveHomework(status: "draft" | "published", previousLog?: string,
 }
 async function ready(){await preferences();const device=await register();await leave();return device;}
 const job=async(jobId:string)=>(await db.query<Record<string,unknown>>("select * from app_private.family_push_jobs where id=$1",[jobId])).rows[0];
+const deliverySummary = async (user: string | null = id.adminA, school: string = id.schoolA, aal = "aal2",
+  session = user, role = "authenticated") => (await actor(
+  user, "select public.get_school_push_delivery_summary($1) as summary", [school], role, session, db, role, aal,
+)).rows[0].summary;
+async function verifyAuthenticator(user: string) {
+  const factor = randomUUID();
+  await db.query("insert into auth.mfa_factors(id,user_id,factor_type,status) values($1,$2,'totp','verified')", [factor, user]);
+  await db.query("update auth.sessions set aal='aal2',factor_id=$2 where user_id=$1", [user, factor]);
+}
 
 describe("native family push under the recovered application schema",()=>{
+  it("summarizes live leases, retryable work and recent completions by school without modifying queue rows", async () => {
+    await verifyAuthenticator(id.adminA);
+    await verifyAuthenticator(id.adminB);
+    await db.query("update public.profiles set school_id=$2 where id=$1", [id.claimantA, id.schoolA]);
+    await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,'principal')", [id.claimantA, id.schoolA]);
+    await verifyAuthenticator(id.claimantA);
+
+    const summary = (counts: Record<string, number>) =>
+      ({ counts: { queued: 0, leased: 0, accepted: 0, failed: 0, cancelled: 0, ...counts } });
+    expect(await deliverySummary()).toEqual(summary({}));
+
+    const guardian = await ready();
+    expect(await deliverySummary()).toEqual(summary({ queued: 1 }));
+    const [lease] = await claim();
+    expect(await deliverySummary()).toEqual(summary({ leased: 1 }));
+    expect(await prepare(lease)).not.toBeNull();
+    expect(await finish(lease, "accepted", null, "projects/qa/messages/private-message-id")).toBe(true);
+    const foreignStudent = await register(randomUUID(), fid(2), id.studentUserB, "student");
+
+    await db.query(`
+      insert into app_private.family_push_jobs
+        (kind,event_id,device_id,device_generation,user_id,recipient_role,school_id,status,expires_at,lease_until,finished_at)
+      select 'leave_decision',gen_random_uuid(),device.id,device.generation,device.user_id,device.recipient_role,
+        device.school_id,fixture.status,now()+make_interval(days=>fixture.expiry),
+        now()+make_interval(days=>fixture.lease),now()-make_interval(days=>fixture.finished)
+      from (values
+        ($1::uuid,'queued',1,null,null), ($1,'leased',1,-1,null), ($1,'leased',1,1,null),
+        ($1,'queued',-1,null,null), ($1,'leased',-1,1,null),
+        ($1,'accepted',-1,null,8), ($1,'failed',-1,null,2), ($1,'cancelled',-1,null,3),
+        ($2,'queued',1,null,null)
+      ) fixture(device_id,status,expiry,lease,finished)
+      join app_private.family_push_devices device on device.id=fixture.device_id
+    `, [guardian.device_id, foreignStudent.device_id]);
+
+    const before = await rows("app_private.family_push_jobs");
+    const schoolA = summary({ queued: 2, leased: 1, accepted: 1, failed: 1, cancelled: 1 });
+    expect(await deliverySummary()).toEqual(schoolA);
+    expect(await deliverySummary(id.claimantA)).toEqual(schoolA);
+    expect(await deliverySummary(id.adminB, id.schoolB)).toEqual(summary({ queued: 1 }));
+    expect(await rows("app_private.family_push_jobs")).toEqual(before);
+  });
+
+  it("requires current same-school office membership and a live native AAL2 session for delivery summaries", async () => {
+    for (const user of [id.adminA, id.adminB, id.teacherA, id.guardianA, id.studentUserA]) {
+      await verifyAuthenticator(user);
+    }
+    for (const user of [id.adminB, id.teacherA, id.guardianA, id.studentUserA]) {
+      await denied(deliverySummary(user));
+    }
+    await denied(deliverySummary(id.adminA, id.schoolB));
+    await denied(deliverySummary(id.adminA, id.schoolA, "aal1"));
+    await denied(deliverySummary(id.adminA, id.schoolA, "aal2", id.adminB));
+    await denied(deliverySummary(null, id.schoolA, "aal2", null, "anon"));
+    await denied(deliverySummary(id.adminA, id.schoolA, "aal2", id.adminA, "service_role"));
+    await denied(actor(id.adminA, "select * from app_private.family_push_jobs"));
+
+    for (const mutation of [
+      "update auth.sessions set aal='aal1' where user_id=$1",
+      "update auth.sessions set not_after=now()-interval '1 second' where user_id=$1",
+      "update auth.mfa_factors set status='unverified' where user_id=$1",
+      "delete from public.user_roles where user_id=$1",
+    ]) {
+      await db.exec("savepoint invalid_delivery_identity");
+      await db.query(mutation, [id.adminA]);
+      await denied(deliverySummary());
+      await db.exec("rollback to savepoint invalid_delivery_identity; release savepoint invalid_delivery_identity");
+    }
+  });
+
   it("defaults OFF without creating devices, queues, historical backfill or changing original history",async()=>{
     const tables=["public.attendance","public.student_fees","public.fee_payments","app_private.guardian_absence_alerts"];
     const before=await Promise.all(tables.map(rows));

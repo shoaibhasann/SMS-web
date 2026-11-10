@@ -60,6 +60,12 @@ vi.mock("@/components/admin/audit-history-workspace", () => ({
 vi.mock("@/components/admin/school-settings-workspace", () => ({
   SchoolSettingsWorkspace: ({ userId }: { userId: string }) => <section aria-label="Real school settings">{userId}</section>,
 }));
+vi.mock("@/components/admin/admin-notification-delivery", () => ({
+  AdminNotificationDelivery: ({ userId, schoolId }: { userId: string; schoolId: string }) => <section aria-label="School mobile delivery">{userId} {schoolId}</section>,
+}));
+vi.mock("@/components/family/family-notification-inbox", () => ({
+  FamilyNotificationInbox: () => <section aria-label="Family inbox" />,
+}));
 vi.mock("@/components/admin/official-attendance-reports", () => ({
   OfficialAttendanceReports: ({ userId, role }: { userId: string; role: string }) => <section aria-label="Official office attendance reports">{role} {userId}</section>,
 }));
@@ -130,6 +136,30 @@ describe("real office routes", () => {
     page.unmount(); currentModule = "admissions"; render(<ModulePage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
     expect(screen.queryByRole("region", { name: "Real student enrollment" })).not.toBeInTheDocument();
+  });
+});
+
+describe("school notification delivery route", () => {
+  beforeEach(() => { currentModule = "notifications"; });
+
+  it.each(["school_admin", "principal"])("opens the active school's monitor for %s", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "School mobile delivery" })).toHaveTextContent("actor school");
+  });
+
+  it.each([{ role: "super_admin" }, { role: "principal", school_id: "other" }])("requires active-school membership for $role", async (role) => {
+    readRoles.mockResolvedValue({ data: [role], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("An active school assignment");
+    expect(screen.queryByRole("region", { name: "School mobile delivery" })).not.toBeInTheDocument();
+  });
+
+  it.each(["parent", "student"])("keeps the %s inbox separate", async (role) => {
+    readRoles.mockResolvedValue({ data: [{ role }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: "Family inbox" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "School mobile delivery" })).not.toBeInTheDocument();
   });
 });
 

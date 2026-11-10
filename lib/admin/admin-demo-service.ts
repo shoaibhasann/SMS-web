@@ -6,7 +6,6 @@ export type AdminDemoModule =
   | "admissions"
   | "timetable"
   | "events"
-  | "notifications"
   | "library"
   | "transport"
   | "inventory"
@@ -101,10 +100,6 @@ const demoSeed: AdminDemoStorage = {
   events: [
     { id: "event-demo-1", title: "Parent–Teacher Meeting", type: "PTM", date: "2026-11-07", startTime: "09:00", endTime: "12:00", location: "School Auditorium", audience: "Parents", status: "Scheduled", description: "Term progress discussions." },
     { id: "event-demo-2", title: "Children's Day Celebration", type: "School Event", date: "2026-11-14", startTime: "08:30", endTime: "13:00", location: "School Ground", audience: "Everyone", status: "Scheduled", description: "School-wide celebration and activities." },
-  ],
-  notifications: [
-    { id: "notification-demo-1", title: "Fee due reminder", type: "Fee Due", audience: "Parents", date: "2026-11-02", status: "Sent", detail: "Monthly fee reminder for November." },
-    { id: "notification-demo-2", title: "PTM scheduled", type: "Event", audience: "Parents", date: "2026-11-01", status: "Scheduled", detail: "Parent–Teacher Meeting on 7 November." },
   ],
   library: [
     { id: "book-demo-1", name: "The Secret Garden", isbn: "9780141321062", category: "Fiction", author: "Frances Hodgson Burnett", quantity: 8, available: 5, status: "Available" },

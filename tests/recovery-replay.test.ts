@@ -55,13 +55,13 @@ describe("recovery source boundary", () => {
 
   it("keeps tenant bootstrap scripts archived but outside the replay plan", async () => {
     const actual = await readRecoveryManifest();
-    expect(actual.plan).toHaveLength(115);
-    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(45);
+    expect(actual.plan).toHaveLength(116);
+    expect(actual.plan.filter((source) => source.kind === "pending")).toHaveLength(46);
     expect(actual.plan.some((source) => source.path.endsWith("20261030_academic_teacher_self_management.sql"))).toBe(false);
     expect(actual.plan.some((source) => /20261030094244|20261030095353/.test(source.path))).toBe(false);
     const before = await readRecoverySources(actual, { applyPending: false });
     const after = await readRecoverySources(actual);
-    expect(after.length - before.length).toBe(45);
+    expect(after.slice(before.length)).toEqual(actual.plan.filter((source) => source.kind === "pending").map((source) => expect.objectContaining(source)));
     expect(after.slice(0, before.length)).toEqual(before);
   });
 

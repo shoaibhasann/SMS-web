@@ -991,6 +991,14 @@
       "version": "20261110053318",
       "name": "native_fee_payment_push",
       "provenance": "Forward source. Exact hosted ledger SQL verified 10 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261110054635_school_push_delivery_summary.sql",
+      "sha256": "fc4e45648e444546acdd2359e871dc3a1e0b302e257ca83b784d9d7d4c1a6431",
+      "kind": "pending",
+      "version": "20261110054635",
+      "name": "school_push_delivery_summary",
+      "provenance": "Forward source. Exact hosted ledger SQL verified 10 November 2026."
     }
   ],
   "excluded": [
@@ -1029,5 +1037,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "d3dad7b2af7e840ae9f851df123b3c40ae72378a94c3ff64d7d7b38a8a64538a"
+  "order_sha256": "634477559dcf3ae7f8a81ef868f9ec80865db48e2599925e83cc862c826704e3"
 }

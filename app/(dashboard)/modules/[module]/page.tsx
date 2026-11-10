@@ -15,6 +15,7 @@ import { TeacherAcademicActivityWorkspace } from "@/components/academic/teacher-
 import { AdminModulePlaceholder } from "@/components/admin/admin-module-placeholder";
 import { AdminAssessmentWorkspace } from "@/components/admin/admin-assessment-workspace";
 import { AdminNoticesWorkspace } from "@/components/admin/admin-notices-workspace";
+import { AdminNotificationDelivery } from "@/components/admin/admin-notification-delivery";
 import { NoticeInbox } from "@/components/notices/notice-inbox";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { AdminAcademicSetupWorkspace } from "@/components/admin/admin-academic-setup-workspace";
@@ -77,6 +78,7 @@ function ModuleContent() {
     key: string;
     role: UiRole | null;
     userId: string | null;
+    notificationSchoolId?: string | null;
     error: string | null;
   } | null>(null);
 
@@ -106,6 +108,9 @@ function ModuleContent() {
           key: accessKey,
           role,
           userId: verified.userId,
+          notificationSchoolId: moduleName === "notifications" && roles.some((row) =>
+            row.school_id === verified.profileSchoolId && (row.role === "school_admin" || row.role === "principal"))
+            ? verified.profileSchoolId : null,
           error: role ? null : guardianView
             ? "This view requires a linked guardian account."
             : exactHomework ? "This homework link requires a student account."
@@ -329,6 +334,14 @@ function ModuleContent() {
     );
   }
 
+  if (moduleName === "notifications" && (access.role === "admin" || access.role === "principal")) {
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}>
+      {access.notificationSchoolId
+        ? <AdminNotificationDelivery key={`${access.userId}:${access.notificationSchoolId}`} userId={access.userId} schoolId={access.notificationSchoolId} />
+        : <p role="alert" className="card p-5 text-sm">An active school assignment as School Admin or Principal is required to view mobile push delivery.</p>}
+    </AppShell>;
+  }
+
   if (moduleName === "profile" && access.role === "parent") {
     return (
       <AppShell key={access.userId} userId={access.userId} role="parent">
@@ -374,7 +387,7 @@ function ModuleContent() {
   }
 
   if (access.role === "admin" && [
-    "events", "notifications",
+    "events",
     "library", "transport", "inventory", "hr-payroll", "leave", "profile", "documents",
   ].includes(moduleName)) {
     return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminDemoWorkspace module={moduleName as AdminDemoModule} /></AppShell>;

@@ -19,6 +19,12 @@ Use the existing privately supplied Student and Guardian QA accounts. Do not inc
 - [ ] **NP-07 · Session and layout.** Sign out/switch account during a delayed read or save; old settings/devices must disappear and late responses must not restore them. Check phone/laptop width, keyboard focus, long device labels, Light/Dark, skeletons and retry messages.
 - [ ] **NP-08 · Honest availability.** Open [push backend status](https://sms-web-shoaibhasann.vercel.app/api/push/status): expect `configured: false` and `nativeAppRequired: true` while delivery is OFF. Saving preferences does not claim that a phone received an alert. In-app notifications remain testable with the existing family notification checklist.
 
+## School Admin and Principal delivery monitor
+
+- [ ] **NP-27 · Access and refresh.** Sign in with a QA School Admin or Principal account and verify its authenticator. Open **Communication → Notifications**. Refresh the page and use **Refresh** on the panel. Check that current jobs and the last seven days of outcomes stay scoped to that school. An account without a verified authenticator must complete verification before seeing the counts.
+- [ ] **NP-28 · Status and privacy.** While the sender is off, expect **Sender setup pending**. Check that the totals contain no student names, receipt details or device identifiers. **Notices & Circulars** opens the existing publication workflow. Student and Guardian accounts still open their own notification inbox.
+- [ ] **NP-29 · Verify on Android.** Once the sender is available, use the Android steps below. Record **Accepted by Firebase** from the monitor, receipt in the Android tray, and opening the update as three separate observations.
+
 ## Android device and delivery
 
 - [ ] **NP-09 · Real registration.** Install the actual app, sign in, accept the phone's notification permission and register the current Firebase installation. Denied permission does not show a fake successful subscription. FID/session rotation updates the own registration safely. Record Android/iOS device and app build.
