@@ -1023,6 +1023,14 @@
       "version": "20261110081832",
       "name": "bound_academic_family_read_to_linked_pupils",
       "provenance": "Forward source. Hosted migration applied and ledger version verified 10 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261110102216_family_class_teachers.sql",
+      "sha256": "0497f3cfc2bd2398fe23856c07cc34727d400e6c8b05d569d88272fd314d8d7b",
+      "kind": "pending",
+      "version": "20261110102216",
+      "name": "family_class_teachers",
+      "provenance": "Forward source. Hosted migration applied and ledger version verified 10 November 2026."
     }
   ],
   "excluded": [
@@ -1061,5 +1069,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "a938b5c8117431a340afb96e50208249bf481298d3832a8f56de79b5001570d6"
+  "order_sha256": "3130986f02675aea42b78e95fd4ca7219fbe6eb785e14ded4960992776ae0eeb"
 }
