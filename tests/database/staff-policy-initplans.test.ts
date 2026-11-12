@@ -36,7 +36,7 @@ let db: PGlite;
 const extra = {
   principalA: randomUUID(), accountantA: randomUUID(), receptionA: randomUUID(), accountantB: randomUUID(),
   superAdmin: randomUUID(), scopedSuperAdminA: randomUUID(), inactiveAdminA: randomUUID(), principalTeacherB: randomUUID(),
-  subjectTeacherA: randomUUID(), ghost: randomUUID(),
+  subjectTeacherA: randomUUID(), substituteA: randomUUID(), ghost: randomUUID(),
 };
 const callers: [string, string][] = [
   ["admin A", id.adminA], ["admin B", id.adminB], ["class teacher A", id.teacherA], ["guardian A", id.guardianA],
@@ -44,7 +44,7 @@ const callers: [string, string][] = [
   ["principal A", extra.principalA], ["accountant A", extra.accountantA], ["reception A", extra.receptionA],
   ["accountant B", extra.accountantB], ["global super admin", extra.superAdmin], ["super admin row scoped to school A", extra.scopedSuperAdminA],
   ["inactive admin A", extra.inactiveAdminA], ["principal B who also teaches", extra.principalTeacherB],
-  ["subject teacher A", extra.subjectTeacherA], ["unknown user", extra.ghost],
+  ["subject teacher A", extra.subjectTeacherA], ["substitute covering section A today", extra.substituteA], ["unknown user", extra.ghost],
 ];
 
 async function asCaller<T>(user: string, work: () => Promise<T>, role: string | null = null) {
@@ -77,9 +77,14 @@ beforeAll(async () => {
   await addUser(extra.principalTeacherB, id.schoolB, "principal");
   await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,'teacher')", [extra.principalTeacherB, id.schoolB]);
   await addUser(extra.subjectTeacherA, id.schoolA, "teacher");
-  const [teacherB, subjectTeacher] = [randomUUID(), randomUUID()];
+  await addUser(extra.substituteA, id.schoolA, "teacher");
+  const [teacherB, subjectTeacher, substitute] = [randomUUID(), randomUUID(), randomUUID()];
   await db.query("insert into public.teachers(id,school_id,profile_id,employee_id,full_name) values($1,$2,$3,'STAFF-POLICY-B','Synthetic teacher B'),($4,$5,$6,'STAFF-POLICY-A2','Synthetic subject teacher')",
     [teacherB, id.schoolB, extra.principalTeacherB, subjectTeacher, id.schoolA, extra.subjectTeacherA]);
+  await db.query("insert into public.teachers(id,school_id,profile_id,employee_id,full_name) values($1,$2,$3,'STAFF-POLICY-SUB','Synthetic substitute')", [substitute, id.schoolA, extra.substituteA]);
+  await db.query(`insert into app_private.substitute_attendance_coverages(id,school_id,academic_year_id,class_id,section_id,subject_id,source_assignment_id,source_teacher_id,substitute_teacher_id,starts_on,ends_on,created_by,reason)
+    values(gen_random_uuid(),$1,$2,$3,$4,$5,$6,$7,$8,(statement_timestamp() at time zone 'Asia/Kolkata')::date,(statement_timestamp() at time zone 'Asia/Kolkata')::date,$9,'Synthetic cover for the register')`,
+    [id.schoolA, id.yearA, id.classA, id.sectionA, id.subjectA, id.assignmentA, id.teacherRecordA, substitute, id.adminA]);
   await db.query(`insert into public.teacher_subject_assignments(teacher_id,academic_year_id,class_id,section_id,subject_id,is_class_teacher)
     values($1,$2,$3,$4,$5,true),($6,$7,$8,null,$9,false)`, [teacherB, id.yearB, id.classB, id.sectionB, id.subjectB, subjectTeacher, id.yearA, id.classA, id.subjectA]);
   // More rows of each shape: pupils in both schools with enrollments, marks on two days, demands and payments, homework logs.
@@ -90,8 +95,9 @@ beforeAll(async () => {
       const pupil = randomUUID(), fee = randomUUID();
       await db.query(`insert into public.students(id,school_id,admission_no,first_name,dob,registered_mobile) values($1,$2,$3,'Synthetic pupil','2014-06-15','0000000000')`, [pupil, school, `${prefix}-${n}`]);
       await db.query("insert into public.enrollments(student_id,academic_year_id,class_id,section_id) values($1,$2,$3,$4)", [pupil, year, klass, n % 3 === 0 ? null : section]);
-      for (const day of ["2026-11-05", "2026-11-06"]) {
-        await db.query(`insert into public.attendance(school_id,academic_year_id,section_id,student_id,attendance_date,status) values($1,$2,$3,$4,$5,'present')`, [school, year, section, pupil, day]);
+      for (const day of ["2026-11-05", "2026-11-06", "today"]) {
+        await db.query(`insert into public.attendance(school_id,academic_year_id,section_id,student_id,attendance_date,status)
+          values($1,$2,$3,$4,case when $5='today' then (statement_timestamp() at time zone 'Asia/Kolkata')::date else $5::date end,'present')`, [school, year, section, pupil, day]);
       }
       await db.query(`insert into public.student_fees(id,school_id,student_id,fee_structure_id,billing_period,due_date,amount,status) values($1,$2,$3,$4,'2026-11','2026-11-30',1000,'pending')`, [fee, school, pupil, structure]);
       if (n % 2 === 0) await db.query(`insert into public.fee_payments(school_id,student_id,student_fee_id,receipt_no,amount,payment_method,status) values($1,$2,$3,$4,100,'cash','paid')`, [school, pupil, fee, `${prefix}-R${n}`]);
@@ -112,7 +118,7 @@ afterAll(async () => { await db?.close(); });
 const current = async (table: string, policy: string) => (await db.query<{ qual: string | null; with_check: string | null }>(
   "select qual,with_check from pg_policies where schemaname='public' and tablename=$1 and policyname=$2", [table, policy])).rows[0];
 
-describe("staff policies evaluate role checks once per statement (20261112140000)", () => {
+describe("staff policies evaluate role checks once per statement (20261112140000, 20261112150000)", () => {
   it("admit exactly the rows the previous expressions admitted, for every caller, row and check", async () => {
     const admitted = new Map<string, number>();
     for (const [label, user] of callers) {
@@ -131,8 +137,8 @@ describe("staff policies evaluate role checks once per statement (20261112140000
         }
       });
     }
-    // Every rewritten expression admits some row for some caller, except the substitute ones (no coverage is seeded).
-    const never = [...admitted].filter(([key, yes]) => yes === 0 && !key.includes("substitute")).map(([key]) => key);
+    // Every rewritten expression admits some row for some caller.
+    const never = [...admitted].filter(([, yes]) => yes === 0).map(([key]) => key);
     expect(never).toEqual([]);
   });
 
@@ -190,5 +196,15 @@ describe("staff policies evaluate role checks once per statement (20261112140000
     expect(await facts(extra.scopedSuperAdminA)).toEqual({ super: false, schools: [] });
     expect(await facts(extra.inactiveAdminA)).toEqual({ super: false, schools: [] });
     expect(await facts(extra.ghost)).toEqual({ super: false, schools: [] });
+    const scopes = (user: string) => asCaller(user, async () => (await db.query<{ value: unknown }>(`select coalesce(jsonb_agg(jsonb_build_array(s.school_id, s.academic_year_id, s.section_id) order by s.section_id), '[]') as value
+      from app_private.caller_attendance_register_scopes() s`)).rows[0].value, "authenticated");
+    expect(await scopes(id.teacherA)).toEqual([[id.schoolA, id.yearA, id.sectionA]]);
+    expect(await scopes(extra.substituteA)).toEqual([[id.schoolA, id.yearA, id.sectionA]]);
+    expect(await scopes(extra.subjectTeacherA)).toEqual([]);
+    expect(await scopes(id.adminA)).toEqual([]);
+    expect(await scopes(extra.ghost)).toEqual([]);
+    const { rows: [helper] } = await db.query<{ anon: boolean; authenticated: boolean }>(`select has_function_privilege('anon','app_private.caller_attendance_register_scopes()','EXECUTE') as anon,
+      has_function_privilege('authenticated','app_private.caller_attendance_register_scopes()','EXECUTE') as authenticated`);
+    expect(helper).toEqual({ anon: false, authenticated: true });
   });
 });

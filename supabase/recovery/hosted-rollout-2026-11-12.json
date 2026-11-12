@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-12T11:16:06.149Z",
-  "allMigrationsVerifiedAt": "2026-11-12T16:00:06.646Z",
+  "allMigrationsVerifiedAt": "2026-11-12T16:25:21.814Z",
   "method": "Supabase CLI `db query` (Management API): each file sent whole as one statement with its own begin/commit, then one ledger row with a server-allocated UTC version. Verified by reading the ledger back: one statement per row, SHA-256 equal to the source file.",
   "backupScope": "No backup was taken: the project is on the free plan, which has no managed backups. The 42 files change schema only; their one row change is a one-off delete of push dispatch batch rows that had expired more than a day earlier (app_private.family_push_batches; 1,662 of 3,106 rows were eligible at the pre-check).",
   "preflight": {
@@ -489,11 +489,22 @@
       "recorded_sql_sha256": "26e59fe053105553a60be7e39f312be1f56b2e82c0c7d10d54e3c32a7d25d515",
       "verifiedAt": "2026-11-12T16:00:06.646Z",
       "reason": "Staff row-level-security policies called role functions once per row (has_school_roles, is_school_admin_for_school, has_school_roles_for_student and others), so a whole-school read took seconds: students 2.7 s, enrollments 3.7 s, one attendance day 4.9 s, measured as a caller with no access. 23 policies on seven tables now check the caller's roles once per statement through three caller-only helpers, with a once-per-statement gate in front of the row-dependent checks that stay. For 17 caller types and every row, the new expressions admit exactly what the previous ones admitted."
+    },
+    {
+      "sourceVersion": "20261112150000",
+      "sourcePath": "supabase/migrations/20261112150000_teacher_attendance_register_prefilter.sql",
+      "sourceSha256": "f4150565eae1e62df8c2aaf7ce6494ec1c71524b4d06630814ce29180326216b",
+      "version": "20261112162435",
+      "name": "teacher_attendance_register_prefilter",
+      "statement_count": 1,
+      "recorded_sql_sha256": "f4150565eae1e62df8c2aaf7ce6494ec1c71524b4d06630814ce29180326216b",
+      "verifiedAt": "2026-11-12T16:25:21.814Z",
+      "reason": "The class-teacher attendance policy ran teacher_owns_attendance_register_on() for every attendance row a teacher's read touched, because its once-per-statement gate (the caller has a teacher record) is true for every teacher. The policy now first keeps rows in a register the caller can own or cover today, a superset computed once per statement; the function still decides. For 18 caller types (including a substitute covering a section today) and every row, the policy admits exactly what it admitted before."
     }
   ],
   "requested_migrations": 42,
-  "followup_fixes": 4,
-  "total_applied": 46,
+  "followup_fixes": 5,
+  "total_applied": 47,
   "postchecks": {
     "run": 41,
     "verdicts": {
@@ -657,6 +668,38 @@
           "after": 10
         }
       },
+      "postgresErrorsInFourMinutesAfterApply": 0
+    },
+    {
+      "after": [
+        "teacher_attendance_register_prefilter"
+      ],
+      "hostedRows": 3760,
+      "identicalToLocalReplay": 3724,
+      "unexplainedDifferences": 0,
+      "explainedPlatformDifferences": {
+        "default privileges of a hosted platform schema": 18,
+        "range type constructor owned by supabase_admin on hosted": 5,
+        "same function body, CRLF line endings on hosted": 2,
+        "hosted platform trigger on storage tables": 11,
+        "not-null constraint row listed only by the local engine": 965
+      },
+      "measuredLocally": {
+        "note": "PGlite, 2,000 extra pupils over 20 sections, the class teacher of one section, best of three",
+        "wholeDayReadMs": {
+          "before": 91,
+          "after": 10
+        },
+        "absencesOfOneDayMs": {
+          "before": 91,
+          "after": 10
+        },
+        "ownRegisterMs": {
+          "before": 9,
+          "after": 9
+        }
+      },
+      "productionNote": "not timed on hosted for a teacher: that would need a real teacher identity",
       "postgresErrorsInFourMinutesAfterApply": 0
     }
   ]

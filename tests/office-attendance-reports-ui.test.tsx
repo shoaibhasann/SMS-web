@@ -36,8 +36,20 @@ describe("Office official attendance workspace", () => {
     const monthly = await screen.findByRole("article", { name: "Monthly attendance" }); expect(within(monthly).getByText("Awaiting attendance")).toBeInTheDocument(); expect(within(monthly).getByText("—")).toBeInTheDocument(); expect(within(monthly).queryByText(/%/)).not.toBeInTheDocument();
     expect(within(monthly).getByText(/not assumed Absent/)).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
   });
+  it("opens on the first class instead of the whole school, which stays one choice away", async () => {
+    render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    expect(report).toHaveBeenCalledTimes(1);
+    expect(report).toHaveBeenLastCalledWith(client, user, { schoolId: school, academicYearId: year.id, month: null, classId: officeClass.id, sectionId: null }, expect.any(AbortSignal));
+    expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue(officeClass.id);
+    fireEvent.change(screen.getByRole("combobox", { name: "Class" }), { target: { value: "" } });
+    await waitFor(() => expect(report).toHaveBeenLastCalledWith(client, user, { schoolId: school, academicYearId: year.id, month: null, classId: null, sectionId: null }, expect.any(AbortSignal)));
+  });
   it("switches class and section with fresh explicit scope and clears old totals while waiting", async () => {
     render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    const whole = pending<OfficeAttendanceReport>(); report.mockReturnValueOnce(whole.promise);
+    fireEvent.change(screen.getByRole("combobox", { name: "Class" }), { target: { value: "" } }); expect(screen.queryByText("90%")).not.toBeInTheDocument();
+    await act(async () => whole.resolve(officeReport()));
+    expect(await screen.findByRole("article", { name: "Monthly attendance" })).toBeInTheDocument();
     const next = pending<OfficeAttendanceReport>(); report.mockReturnValueOnce(next.promise);
     fireEvent.change(screen.getByRole("combobox", { name: "Class" }), { target: { value: officeClass.id } }); expect(screen.queryByText("90%")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Section" })).toBeEnabled();
@@ -51,13 +63,16 @@ describe("Office official attendance workspace", () => {
     const expected = officeReport({ year: oldOfficeYear, month: "2026-03-01", month_summary: officePeriod({ from: "2026-03-01", to: "2026-03-07" }), year_summary: officePeriod({ from: "2026-03-01", to: "2026-03-07" }) });
     report.mockResolvedValue(expected); sessionStorage.setItem(`erp:office-attendance:${user}:admin:${school}`, JSON.stringify({ yearId: oldOfficeYear.id, month: "2026-03-01", classId: null, sectionId: null }));
     const { unmount } = render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); expect(screen.getByRole("combobox", { name: "Academic year" })).toHaveValue(oldOfficeYear.id);
-    expect(screen.getByRole("combobox", { name: "Reporting month" })).toHaveValue("2026-03-01"); unmount();
+    expect(screen.getByRole("combobox", { name: "Reporting month" })).toHaveValue("2026-03-01");
+    // A saved whole-school choice still beats the first-class default.
+    expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("");
+    expect(report).toHaveBeenLastCalledWith(client, user, { schoolId: school, academicYearId: oldOfficeYear.id, month: "2026-03-01", classId: null, sectionId: null }, expect.any(AbortSignal)); unmount();
     render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); expect(context).toHaveBeenCalledTimes(2); expect(report).toHaveBeenCalledTimes(2);
   });
   it("does not inherit another role's preferences or a stale school class", async () => {
     sessionStorage.setItem(`erp:office-attendance:${user}:principal:${school}`, JSON.stringify({ yearId: oldOfficeYear.id, month: "2026-03-01", classId: null, sectionId: null }));
     sessionStorage.setItem(`erp:office-attendance:${user}:admin:${school}`, JSON.stringify({ yearId: year.id, month: null, classId: id(99), sectionId: null }));
-    render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); expect(screen.getByRole("combobox", { name: "Academic year" })).toHaveValue(year.id); expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue("");
+    render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); expect(screen.getByRole("combobox", { name: "Academic year" })).toHaveValue(year.id); expect(screen.getByRole("combobox", { name: "Class" })).toHaveValue(officeClass.id);
   });
   it("does not automatically choose an archive when current-year setup is unavailable", async () => {
     context.mockResolvedValue(officeContext({ current_year_id: null, years: [oldOfficeYear] })); render(<OfficialAttendanceReports {...props} />);
