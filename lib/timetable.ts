@@ -126,6 +126,17 @@ export async function getOfficeTimetable(client: SupabaseClient, schoolId: strin
   const { data, error } = await client.rpc("get_office_timetable", { p_school_id: schoolId, p_year_id: yearId, p_class_id: classId, p_section_id: sectionId });
   rpcError(error); return readView(data, { schoolId, yearId, classId, sectionId, office: true });
 }
+// Periods kept live by an assignment removed before periods retired with it (or by a trusted writer).
+// Legacy rows without any assignment stay for repair; only rows pointing at a missing assignment are stale.
+export async function findStaleTimetablePeriods(client: SupabaseClient, rows: TimetablePeriod[]) {
+  const candidates = rows.filter((row) => row.needs_attention && row.assignment_id);
+  const ids = [...new Set(candidates.map((row) => row.assignment_id as string))];
+  if (!ids.length) return [];
+  const { data, error } = await client.from("teacher_subject_assignments").select("id").in("id", ids);
+  if (error || !Array.isArray(data)) throw invalid();
+  const live = new Set(data.map((row: { id: unknown }) => row.id));
+  return candidates.filter((row) => !live.has(row.assignment_id));
+}
 export async function getTeacherTimetable(client: SupabaseClient) {
   const { data, error } = await client.rpc("get_teacher_timetable"); rpcError(error); return readView(data, {});
 }

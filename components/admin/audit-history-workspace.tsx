@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/client";
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 type Result<T> = { data: T } | { error: string };
+const dayFormat = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" });
+const dayLabel = (value: string) => dayFormat.format(new Date(`${value}T00:00:00Z`));
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] disabled:opacity-50";
 const label = "block min-w-0 space-y-2 text-sm font-semibold";
 const dateLabel = new Intl.DateTimeFormat("en-IN", {
@@ -97,7 +99,8 @@ function SchoolAuditHistory({ client, schoolId }: { client: Client; schoolId: st
   }, [client, schoolId, query]);
 
   useEffect(() => {
-    const refresh = () => setQuery((current) => ({ ...current, cursors: [null], revision: current.revision + 1 }));
+    // Revalidate the page the reviewer is on; only Refresh history / Apply filters restart at page 1.
+    const refresh = () => setQuery((current) => ({ ...current, revision: current.revision + 1 }));
     const visible = () => { if (document.visibilityState === "visible") refresh(); };
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", visible);
@@ -123,7 +126,7 @@ function SchoolAuditHistory({ client, schoolId }: { client: Client; schoolId: st
           onChange={(event) => setDraft((current) => ({ ...current, module: (event.target.value || null) as AuditModule | null }))}>
           <option value="">All covered modules</option>{auditModules.map(({ key, label }) => <option key={key} value={key}>{label}</option>)}
         </select></label>
-        <button type="submit" className={`${button} bg-blue-700 text-white hover:bg-blue-800`}>Apply filters</button>
+        <button type="submit" className="btn btn-primary">Apply filters</button>
       </div>
       <p className="text-xs leading-5 muted">Choose up to 366 days. Filters take effect when you select Apply filters.</p>
       {invalid && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{invalid}</p>}
@@ -131,7 +134,7 @@ function SchoolAuditHistory({ client, schoolId }: { client: Client; schoolId: st
     <section className="card overflow-hidden" aria-labelledby={headingId} aria-busy={!result}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-4 sm:px-5">
         <div><h2 id={headingId} className="font-semibold">Recorded activity</h2>
-          <p className="mt-1 text-xs leading-5 muted">{query.filters.from} to {query.filters.to} · {auditModules.find(({ key }) => key === query.filters.module)?.label ?? "All covered modules"} · newest first</p></div>
+          <p className="mt-1 text-xs leading-5 muted">{dayLabel(query.filters.from)} to {dayLabel(query.filters.to)} · {auditModules.find(({ key }) => key === query.filters.module)?.label ?? "All covered modules"} · newest first</p></div>
         <button type="button" className={button} onClick={() => setQuery((current) => ({ ...current, cursors: [null], revision: current.revision + 1 }))}>
           <RefreshCw size={16} aria-hidden="true" /> Refresh history</button>
       </header>
@@ -161,7 +164,7 @@ function SchoolAuditHistory({ client, schoolId }: { client: Client; schoolId: st
     </section>
     <aside className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-xs leading-6 muted">
       <h2 className="font-semibold text-[var(--text)]">What this history covers</h2>
-      <p>Recorded guardian access/contact changes, attendance corrections and cutoff changes, roster placement/withdrawal/session activation, student leave decisions, result publication reviews and timetable changes. This is a view of saved evidence; other ERP actions and older unrecorded changes may not appear. Private reasons, contact values and raw record payloads are excluded.</p>
+      <p>Recorded guardian access/contact changes, attendance corrections and cutoff changes, roster admissions, pupil detail edits, placement/withdrawal/reinstatement and session activation, student leave decisions, result publication reviews and timetable changes. This is a view of saved evidence; other ERP actions and older unrecorded changes may not appear. Private reasons, contact values and raw record payloads are excluded.</p>
     </aside>
   </>;
 }

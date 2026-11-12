@@ -75,6 +75,14 @@ describe("read-only school audit workspace", () => {
     expect(list.mock.lastCall?.[3]).toBeNull();
   });
 
+  it("shows the applied range as readable dates", async () => {
+    render(<AuditHistoryWorkspace userId="admin" />); await screen.findByText("Leave requested");
+    fireEvent.change(screen.getByLabelText("From (IST)"), { target: { value: "2026-11-01" } });
+    fireEvent.change(screen.getByLabelText("To (IST)"), { target: { value: "2026-11-06" } });
+    fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+    expect(await screen.findByText(/1 Nov 2026 to 6 Nov 2026/)).toBeInTheDocument();
+  });
+
   it("rejects invalid date ranges locally and preserves a draft through a failed read", async () => {
     render(<AuditHistoryWorkspace userId="admin" />); await screen.findByText("Leave requested");
     fireEvent.change(screen.getByLabelText("From (IST)"), { target: { value: "2025-01-01" } });

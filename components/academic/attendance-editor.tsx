@@ -37,6 +37,12 @@ type LoadState = {
   error: string | null;
 };
 
+// 22023 on a Holiday write is the DB guard refusing pupil Holiday marks on a configured working day.
+function holidayRefused(code: string | undefined, statuses: (AttendanceStatus | undefined)[]) {
+  return code === "22023" && statuses.includes("holiday")
+    ? "Holiday can only be marked on a school holiday. Reload the register." : null;
+}
+
 /** One editor is used by the dashboard and the dedicated teacher register. */
 export function AttendanceEditor(props: Props) {
   if (!props.context) {
@@ -79,7 +85,7 @@ function ScopedAttendanceEditor({
   const [loaded, setLoaded] = useState<LoadState | null>(null);
   const [draft, setDraft] = useState<Record<string, AttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState<{ text: string; error?: boolean; pending?: boolean } | null>(null);
   const [correctionReason, setCorrectionReason] = useState("");
   const [correctionConflict, setCorrectionConflict] = useState(false);
   const [search, setSearch] = useState("");
@@ -96,14 +102,23 @@ function ScopedAttendanceEditor({
   const historical = date < schoolToday;
   const closedDay = snapshot?.day?.is_working === false;
   const canMarkHoliday = snapshot?.day?.can_mark_holiday === true;
+  // A configured working day stays in the denominator; closures belong in the school calendar, not pupil Holiday marks.
+  const canChooseHoliday = canMarkHoliday && snapshot?.day?.configured !== true;
   const requestHistorical = !readOnly && historical && !reviewOnlyHistory && !closedDay
     && snapshot?.day?.can_request_correction !== false && Boolean(repository.requestCorrection);
   const canEdit = !readOnly && !closedDay && (date === schoolToday || requestHistorical);
   const students = snapshot?.students ?? [];
+  const searchTerm = search.trim().toLocaleLowerCase();
+  const filtering = studentSearch && Boolean(searchTerm);
+  const visibleStudents = filtering ? students.filter((student) =>
+    [studentName(student), student.admission_no, student.roll_no].some((value) =>
+      value?.toLocaleLowerCase().includes(searchTerm)),
+  ) : students;
   const dirtyIds = Object.keys(draft).filter(
     (id) => draft[id] !== snapshot?.entries[id]?.status,
   );
   const dirty = dirtyIds.length > 0;
+  const hasVisibleUnmarked = visibleStudents.some((student) => !draft[student.id] && !snapshot?.entries[student.id]);
   const loadError = loaded?.key === requestKey ? loaded.error : null;
   const locked = saving || dirty || (!ready && !loadError);
 
@@ -151,14 +166,15 @@ function ScopedAttendanceEditor({
     setCorrectionReason("");
     setCorrectionConflict(false);
     correctionRequest.current = null;
-    setMessage("");
+    setMessage(null);
     setDate(value);
   }
 
   function mark(studentId: string, status: AttendanceStatus) {
     if (!ready || !canEdit || savingRef.current || (historical && dirty && !dirtyIds.includes(studentId))) return;
-    if (!canMarkHoliday && (status === "holiday" || snapshot?.entries[studentId]?.status === "holiday")) return;
-    setMessage("");
+    if (status === "holiday" && !canChooseHoliday) return;
+    if (!canMarkHoliday && snapshot?.entries[studentId]?.status === "holiday") return;
+    setMessage(null);
     setDraft((previous) => {
       const next = { ...previous };
       if (snapshot?.entries[studentId]?.status === status) delete next[studentId];
@@ -170,21 +186,21 @@ function ScopedAttendanceEditor({
   function markUnmarkedPresent() {
     if (!snapshot || !canEdit || historical || savingRef.current) return;
     const next = { ...draft };
-    for (const student of students) {
+    for (const student of visibleStudents) {
       if (!next[student.id] && !snapshot.entries[student.id]) next[student.id] = "present";
     }
     setDraft(next);
-    setMessage("");
+    setMessage(null);
   }
 
   function markHoliday() {
-    if (!snapshot || !canEdit || !canMarkHoliday || historical || savingRef.current) return;
+    if (!snapshot || !canEdit || !canChooseHoliday || filtering || historical || savingRef.current) return;
     const next: Record<string, AttendanceStatus> = {};
     for (const student of students) {
       if (snapshot.entries[student.id]?.status !== "holiday") next[student.id] = "holiday";
     }
     setDraft(next);
-    setMessage("Holiday selected for this register. Review and save to apply it.");
+    setMessage({ text: "Holiday selected for this register. Review and save to apply it.", pending: true });
   }
 
   async function save() {
@@ -193,7 +209,7 @@ function ScopedAttendanceEditor({
     savingRef.current = true;
     const loadGeneration = loadGenerationRef.current;
     setSaving(true);
-    setMessage("");
+    setMessage(null);
     const changes = dirtyIds.map((studentId) => ({
       studentId,
       status: draft[studentId],
@@ -209,7 +225,7 @@ function ScopedAttendanceEditor({
         correctionRequest.current = null;
         setDraft({});
         setCorrectionReason("");
-        setMessage("Correction requested. The saved attendance stays in place until a reviewer approves it.");
+        setMessage({ text: "Correction requested. The saved attendance stays in place until a reviewer approves it." });
         onCorrectionRequested?.();
         return;
       }
@@ -218,7 +234,7 @@ function ScopedAttendanceEditor({
       if (loadGeneration !== loadGenerationRef.current) {
         if (result.saved.length) onSaved?.();
         setRevision((value) => value + 1);
-        setMessage("The register changed while saving. Reloading the current records; review any remaining edits.");
+        setMessage({ text: "The register changed while saving. Reloading the current records; review any remaining edits.", error: true });
         return;
       }
       const savedEntries: Record<string, AttendanceEntry> = { ...snapshot.entries };
@@ -232,14 +248,17 @@ function ScopedAttendanceEditor({
       if (result.failures.length) {
         const firstFailure = result.failures[0];
         const student = students.find((item) => item.id === firstFailure.studentId);
-        setMessage(`${result.saved.length} saved; ${result.failures.length} could not be saved. ${student ? studentName(student) + ": " : ""}${firstFailure.message} Your remaining edits are kept. Reload to check the current register.`);
+        const failure = holidayRefused(firstFailure.code, [draft[firstFailure.studentId]]) ?? firstFailure.message;
+        setMessage({ text: `${result.saved.length} saved; ${result.failures.length} could not be saved. ${student ? studentName(student) + ": " : ""}${failure} Your remaining edits are kept. Reload to check the current register.`, error: true });
       } else {
-        setMessage(`Attendance saved for ${result.saved.length} student${result.saved.length === 1 ? "" : "s"}.`);
+        setMessage({ text: `Attendance saved for ${result.saved.length} student${result.saved.length === 1 ? "" : "s"}.` });
       }
       if (result.saved.length) onSaved?.();
     } catch (error: unknown) {
       if (aliveRef.current && historical && ["PT409", "40001"].includes((error as { code?: string })?.code ?? "")) setCorrectionConflict(true);
-      if (aliveRef.current) setMessage(`${error instanceof Error ? error.message : "Attendance could not be saved."} Your edits are kept. Reload before retrying if the connection was interrupted.`);
+      // Correction-request 22023s mean other refusals (reason, same status, day), not the Holiday guard.
+      if (aliveRef.current) setMessage({ text: `${(!historical ? holidayRefused((error as { code?: string })?.code, changes.map((change) => change.status)) : null)
+        ?? (error instanceof Error ? error.message : "Attendance could not be saved.")} Your edits are kept. Reload before retrying if the connection was interrupted.`, error: true });
     } finally {
       savingRef.current = false;
       if (aliveRef.current) setSaving(false);
@@ -252,16 +271,11 @@ function ScopedAttendanceEditor({
     setCorrectionReason("");
     setCorrectionConflict(false);
     correctionRequest.current = null;
-    setMessage("");
+    setMessage(null);
     setRevision((value) => value + 1);
   }
 
   const marked = students.filter((student) => draft[student.id] || snapshot?.entries[student.id]).length;
-  const searchTerm = search.trim().toLocaleLowerCase();
-  const visibleStudents = studentSearch && searchTerm ? students.filter((student) =>
-    [studentName(student), student.admission_no, student.roll_no].some((value) =>
-      value?.toLocaleLowerCase().includes(searchTerm)),
-  ) : students;
 
   return (
     <section className="space-y-3" aria-label="Attendance editor" aria-busy={!ready && !loadError || saving}>
@@ -271,18 +285,23 @@ function ScopedAttendanceEditor({
         </label>
         <div className="flex flex-wrap gap-2">
           {canEdit && !historical && <>
-            <button type="button" onClick={markUnmarkedPresent} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark unmarked present</button>
-            {canMarkHoliday && <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>}
+            <button type="button" onClick={markUnmarkedPresent} disabled={!ready || saving || !hasVisibleUnmarked} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark unmarked present</button>
+            {canChooseHoliday && <button type="button" onClick={markHoliday} disabled={!ready || saving || !students.length || filtering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">Mark holiday</button>}
           </>}
-          <button type="button" onClick={reload} disabled={saving} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">{dirty ? "Discard changes and reload" : "Reload register"}</button>
+          <button type="button" onClick={reload} disabled={saving} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm disabled:opacity-50">{dirty ? "Discard changes and reload" : "Reload register"}</button>
         </div>
       </div>
-      {loadError ? <p role="alert" className="text-sm text-red-600">{loadError} Saving is disabled until the register loads successfully.</p> : !ready ? <LoadingState variant="table" className="text-sm muted">Loading attendance register…</LoadingState> : (
+      {canEdit && !historical && canChooseHoliday && filtering && <p className="text-xs muted">Clear the search to mark the whole register as a holiday.</p>}
+      {loadError ? <div className="space-y-2">
+        <p role="alert" className="notice notice-error">{loadError} Saving is disabled until the register loads successfully.</p>
+        <button type="button" onClick={reload} disabled={saving} className="btn btn-secondary">Retry loading register</button>
+      </div> : !ready ? <LoadingState variant="table" className="text-sm muted">Loading attendance register…</LoadingState> : (
         <>
           {snapshot.day && <p role="status" className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-6">
             {!snapshot.day.configured ? "School calendar is not configured for this date. Existing daily attendance rules remain in effect."
               : closedDay ? `${snapshot.day.label ?? "School closed"}. No daily register is required; existing history stays available. Gate scans are held for review.`
-                : `${snapshot.day.label ?? "School working day"}. The saved school calendar applies to this register and gate attendance.`}
+                : `${snapshot.day.label ?? "School working day"}. The saved school calendar applies to this register and gate attendance.${canMarkHoliday && !historical && !readOnly
+                  ? " To close the whole school, add a holiday exception in Settings > Calendar & daily attendance rules (future dates, or today before any attendance or gate scan is recorded); pupil Holiday marks on a working day are not accepted." : ""}`}
             {historical && snapshot.day.can_request_correction === false && !reviewOnlyHistory && !readOnly
               ? " Teacher correction requests are unavailable under the current school policy or assignment. Contact the school office." : ""}
           </p>}
@@ -296,7 +315,7 @@ function ScopedAttendanceEditor({
                 placeholder="Name, admission number or roll number" />
             </label>
           )}
-          <div className="max-h-96 overflow-auto rounded-xl border border-[var(--border)]">
+          <div className="rounded-xl border border-[var(--border)] sm:max-h-96 sm:overflow-auto">
             {visibleStudents.length ? visibleStudents.map((student) => (
               <div key={student.id} className="flex items-center gap-3 border-b border-[var(--border)] p-3 last:border-0">
                 <div className="min-w-0 flex-1">
@@ -305,22 +324,25 @@ function ScopedAttendanceEditor({
                 </div>
                 <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving || !canEdit || !canMarkHoliday && snapshot?.entries[student.id]?.status === "holiday" || (historical && dirty && !dirtyIds.includes(student.id))} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
                   <option value="" disabled>Unmarked</option>
-                  {attendanceStatuses.map((status) => <option key={status} value={status} disabled={status === "holiday" && !canMarkHoliday}>{attendanceLabels[status]}</option>)}
+                  {attendanceStatuses.map((status) => <option key={status} value={status} disabled={status === "holiday" && !canChooseHoliday}>{attendanceLabels[status]}</option>)}
                 </select>
               </div>
             )) : <p className="p-5 text-sm muted">{students.length ? "No students match your search." : "No students found for this class and section on the selected date."}</p>}
           </div>
         </>
       )}
-      {dirty && <p className="text-xs muted">{dirtyIds.length} unsaved change{dirtyIds.length === 1 ? "" : "s"}. {historical ? "Request or discard before changing the date or class." : "Save or discard before changing the date or class."}</p>}
       {requestHistorical && dirty && <label className="block max-w-lg space-y-1.5 text-sm font-semibold">
         <span>Correction reason</span>
         <textarea className="field" rows={2} value={correctionReason} maxLength={500} required disabled={saving} onChange={(event) => setCorrectionReason(event.target.value)} />
       </label>}
-      {canEdit && <button type="button" disabled={!ready || saving || !dirty || !students.length || (historical && (correctionConflict || !correctionReason.trim()))} onClick={save} className="rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50">
-        {historical ? saving ? "Submitting correction…" : "Request correction" : saving ? "Saving attendance…" : "Save Attendance"}
-      </button>}
-      {message && <p role="status" className="text-sm" aria-live="polite">{message}</p>}
+      {/* Below lg the app shell's fixed mobile nav (z-30) owns the bottom ~5rem, so pin above it. */}
+      {(dirty || canEdit || message) && <div className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-10 flex flex-wrap items-center gap-3 border-t border-[var(--border)] bg-[var(--surface)] py-3 lg:bottom-0">
+        {message && <p role={message.error ? "alert" : "status"} className={`notice w-full ${message.error ? "notice-error" : message.pending ? "notice-warning" : "notice-success"}`}>{message.text}</p>}
+        {dirty && <p className="text-xs muted">{dirtyIds.length} unsaved change{dirtyIds.length === 1 ? "" : "s"}. {historical ? "Request or discard before changing the date or class." : "Save or discard before changing the date or class."}</p>}
+        {canEdit && <button type="button" disabled={!ready || saving || !dirty || !students.length || (historical && (correctionConflict || !correctionReason.trim()))} onClick={save} className="min-h-11 w-full rounded-xl gradient px-4 py-2.5 text-sm font-bold disabled:opacity-50 sm:w-auto">
+          {historical ? saving ? "Submitting correction…" : "Request correction" : saving ? "Saving attendance…" : "Save Attendance"}
+        </button>}
+      </div>}
     </section>
   );
 }

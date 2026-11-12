@@ -16,6 +16,8 @@ type Access = Awaited<ReturnType<typeof loadAdminAttendanceAccess>>;
 type Setup = Awaited<ReturnType<typeof loadAdminAttendanceSetup>>;
 type LoadState<T> = { data: T; error?: never } | { data?: never; error: string };
 
+const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+
 function loadError(error: unknown) {
   return { error: error instanceof Error ? error.message : "Attendance could not be loaded. Try again." };
 }
@@ -58,16 +60,16 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p>
-        <h1 className="mt-1 text-3xl font-black">Attendance</h1>
+        <p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">School administration</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">Attendance</h1>
         <p className="mt-2 text-sm muted">Record current attendance or view saved registers from earlier academic years.</p>
         <Link href="/modules/reports" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2">Official class and school reports</Link>
       </header>
       {!access ? <LoadingState variant="form" className="text-sm muted">Checking attendance access…</LoadingState>
         : !access.data ? (
           <section className="card space-y-3 p-4">
-            <p role="alert" className="text-sm text-red-600">{access.error}</p>
-            <button type="button" className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm" onClick={() => {
+            <p role="alert" className="text-sm text-danger">{access.error}</p>
+            <button type="button" className="btn btn-secondary" onClick={() => {
               setAccess(undefined);
               setAccessAttempt((attempt) => attempt + 1);
             }}>Retry access check</button>
@@ -90,7 +92,7 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
               onReviewAttendance={() => { focusReview.current = true; setView("register"); setShowCorrections(true); }} /> : schoolId ? <>
               <AttendanceSubmissionMonitor key={`monitor:${schoolId}`} schoolId={schoolId} userId={access.data.userId}
                 settings disabled={scopeLocked} refreshVersion={monitorRevision} onBusyChange={setCutoffSaving} />
-              <button ref={reviewToggle} type="button" aria-expanded={showCorrections} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold"
+              <button ref={reviewToggle} type="button" aria-expanded={showCorrections} className="btn btn-secondary"
                 onClick={() => setShowCorrections((value) => !value)}>{showCorrections ? "Hide attendance corrections" : "Review attendance corrections"}</button>
               {showCorrections && <AttendanceCorrectionQueue key={schoolId} client={client} schoolId={schoolId}
                 userId={access.data.userId} disabled={scopeLocked} onReviewed={() => {
@@ -137,8 +139,8 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
   if (!setup) return <LoadingState variant="form" className="text-sm muted">Loading the school register setup…</LoadingState>;
   if (!setup.data) return (
     <section className="card space-y-3 p-4">
-      <p role="alert" className="text-sm text-red-600">{setup.error}</p>
-      <button type="button" className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm" onClick={() => {
+      <p role="alert" className="text-sm text-danger">{setup.error}</p>
+      <button type="button" className="btn btn-secondary" onClick={() => {
         setSetup(undefined);
         setSetupAttempt((attempt) => attempt + 1);
       }}>Retry school setup</button>
@@ -182,7 +184,7 @@ function SchoolAttendance({ client, schoolId, userId, locked, onLockChange, revi
           </select>
         </label>
       </section>
-      {year.start_date > today ? <p className="text-sm muted">This academic year begins on {year.start_date}.</p> : classId && sectionId ? (
+      {year.start_date > today ? <p className="text-sm muted">This academic year begins on {formatDate(year.start_date)}.</p> : classId && sectionId ? (
         <section className="card space-y-4 p-4">
           <h2 className="font-bold">Attendance register</h2>
           <AttendanceEditor context={{ schoolId, academicYearId: year.id, classId, sectionId }}

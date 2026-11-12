@@ -23,6 +23,8 @@ describe("attendance correction review conflicts", () => {
     const onReviewed = vi.fn();
     render(<AttendanceCorrectionQueue client={{ rpc } as unknown as SupabaseClient} schoolId="school-a" userId="principal-a" onReviewed={onReviewed} />);
     await user.click(await screen.findByRole("button", { name: "Review request" }));
+    expect(screen.getByText("Pending review")).toHaveClass("badge", "text-warning");
+    expect(screen.getByText("4 Nov 2026").closest("p")).toHaveTextContent("4 Nov 2026 IST · Class 6 A");
     const reason = screen.getByRole("textbox", { name: "Review reason" });
     await user.type(reason, "The register must be checked again.");
     await user.click(screen.getByRole("button", { name: "Approve correction" }));
@@ -46,5 +48,6 @@ describe("attendance correction review conflicts", () => {
     expect(rpc).toHaveBeenCalledWith("review_attendance_correction", { p_request_id: "request-a", p_decision: "rejected", p_reason: "The register must be checked again." });
     expect(reviewCalls).toBe(2); expect(onReviewed).toHaveBeenCalledTimes(1);
     expect(state).toBe("rejected");
+    expect(await screen.findByText("Rejected")).toHaveClass("badge", "text-danger");
   });
 });

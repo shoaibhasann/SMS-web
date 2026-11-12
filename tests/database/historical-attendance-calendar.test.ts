@@ -12,7 +12,7 @@ type Preview = { user_id: string; school_id: string; academic_year_id: string; r
   rows: (Row & { row_number: number; issue: string | null; attendance_count: number; pupils_with_marks: number; present_count: number; holiday_count: number })[];
   summary: { total_rows: number; valid_rows: number; working_rows: number; holiday_rows: number; attendance_records: number; pupils_with_marks: number } };
 type Ack = { user_id: string; revision: number; request_id: string; imported_rows: number; working_rows: number; holiday_rows: number; replayed: boolean };
-type Context = { revision: number; can_import: boolean; years: { id: string }[]; history: { request_id: string; revision: number; reason: string }[] };
+type Context = { revision: number; can_import: boolean; years: { id: string }[]; history: { request_id: string; revision: number; reason: string; actor_id: string; actor_name: string | null }[] };
 async function actor<T>(user: string | null, sql: string, args: unknown[] = [], options: { role?: "authenticated" | "anon" | "service_role"; aal?: string; session?: string } = {}) {
   await db.exec("savepoint historical_calendar_actor");
   try {
@@ -226,6 +226,13 @@ describe("atomic publication, exact retries and official reporting", () => {
     await denied(commit(view, rows(), { request: key, reason: "Different request evidence" }), "PT409");
     const saved = await context(); expect(saved.revision).toBe(1); expect(saved.history).toHaveLength(1);
     expect(saved.history[0]).toMatchObject({ request_id: key, revision: 1, reason: "Verified historical school register" });
+  });
+  it("names the importing actor from the same school in history, never only a UUID", async () => {
+    await db.query("update public.profiles set full_name='Priya Principal' where id=$1", [principal]);
+    await commit(await preview(rows(), principal), rows(), { user: principal });
+    expect((await context()).history[0]).toMatchObject({ actor_id: principal, actor_name: "Priya Principal" });
+    await db.query("update public.profiles set school_id=$1 where id=$2", [id.schoolB, principal]);
+    expect((await context()).history[0]).toMatchObject({ actor_id: principal, actor_name: null });
   });
   it("allows Principal publication and isolates a different school's revision and dates", async () => {
     const view = await preview(rows(), principal);

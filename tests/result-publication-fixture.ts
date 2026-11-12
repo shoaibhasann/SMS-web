@@ -17,7 +17,7 @@ export function resultPreview(patch: Partial<PublicationPreview> = {}): Publicat
 export function resultDetail(patch: Partial<PublicationDetail> = {}): PublicationDetail {
   return { id: resultUuid(1), assessment_id: "assessment-a", school_id: "school-a", status: "pending", source_token: resultToken,
     requested_by: "teacher", requester_name: "QA Teacher", requested_at: "2026-11-06T08:00:00Z", reviewed_by: null, reviewer_name: null,
-    review_note: null, reviewed_at: null, revision: null, source_matches: true, snapshot: { metadata: resultMetadata(), pupils: resultPreview().pupils }, ...patch };
+    review_note: null, reviewed_at: null, revision: null, source_matches: true, viewer_entered_marks: false, snapshot: { metadata: resultMetadata(), pupils: resultPreview().pupils }, ...patch };
 }
 export function resultSummary(detail: PublicationDetail = resultDetail()): PublicationSummary {
   return { id: detail.id, assessment_id: detail.assessment_id, school_id: detail.school_id, status: detail.status,

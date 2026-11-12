@@ -37,8 +37,8 @@ export async function loadFamilyStudents(
 
   const { data: parent, error: parentError } = await client.from("parents").select("id,school_id")
     .eq("profile_id", userId).returns<{ id: string; school_id: string }[]>().maybeSingle();
-  if (parentError) throw new Error("Your parent profile could not be loaded. Refresh to try again.");
-  if (!parent) throw new Error("No parent profile is linked to this account.");
+  if (parentError) throw new Error("Your guardian profile could not be loaded. Refresh to try again.");
+  if (!parent) throw new Error("No guardian profile is linked to this account.");
 
   const { data: links, error: linksError } = await client.from("student_parents")
     .select("student_id").eq("parent_id", parent.id).returns<{ student_id: string }[]>();

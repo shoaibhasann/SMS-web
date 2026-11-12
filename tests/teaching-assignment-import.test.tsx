@@ -31,7 +31,7 @@ function renderManager(rpc: ReturnType<typeof vi.fn>) {
     access: vi.fn().mockResolvedValue({ userId: "user", schools: [{ id: "school-a", name: "QA School", canManage: true, teacherId: null }] }),
     load: vi.fn().mockResolvedValue(data),
     save: vi.fn(),
-    remove: vi.fn(),
+    remove: vi.fn(), timetablePeriods: vi.fn().mockResolvedValue([]),
     ...createAssignmentImportRepository(client),
   };
   render(<TeachingAssignmentManager repository={repo} />);

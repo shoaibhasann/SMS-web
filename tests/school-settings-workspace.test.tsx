@@ -181,8 +181,8 @@ describe("real school settings workspace", () => {
   it("keeps a current year outside today's dates flagged for review and records-only attendance wording", async () => {
     const data = snapshot(); data.setup.current_year_count = 1; data.setup.current_year = { id: id(8), name: "Future session", start_date: "2027-04-01", end_date: "2028-03-31" }; data.setup.today_attendance = 2;
     mocks.load.mockResolvedValue(data); render(<SchoolSettingsWorkspace userId={owner} />);
-    expect(await screen.findByText(/Future session.*Review dates/)).toBeInTheDocument();
-    expect(screen.getByText(/2 saved attendance records.*does not confirm all registers are complete/)).toBeInTheDocument();
+    expect(await screen.findByText("Future session · 1 Apr 2027 to 31 Mar 2028 · Review dates")).toBeInTheDocument();
+    expect(screen.getByText(/2 saved attendance records for 7 Nov 2026\. This count does not confirm all registers are complete/)).toBeInTheDocument();
   });
 
   it("allows same-user token refresh and rejects a mismatched access-load owner", async () => {

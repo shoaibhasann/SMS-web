@@ -7,7 +7,7 @@ const { getUser, profile, roles, eq, security } = vi.hoisted(() => ({
   getUser: vi.fn(), profile: vi.fn(), roles: vi.fn(), eq: vi.fn(), security: vi.fn(),
 }));
 vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: security }));
-vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); } }));
+vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); }, useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({
   auth: { getUser },
   from: (table: string) => ({ select: () => ({ eq: (column: string, value: string) => {

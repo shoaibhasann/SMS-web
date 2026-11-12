@@ -259,50 +259,85 @@ describe("mark-save conflict feedback", () => {
     return marks;
   }
 
+  // Marks render as a desktop table and a phone list (both in jsdom); scope queries to the table copy.
+  const marksTable = async () => within(await screen.findByRole("table"));
+
   async function openMarks() {
     const user = userEvent.setup();
     render(<TeacherModuleView module="exams" />);
     await user.click(await screen.findByRole("button", { name: /First test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Enter Marks" }));
-    await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" });
+    await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" });
     return user;
   }
+
+  it("stacks marks entry on phones with the same draft as the md+ table and labels status and date", async () => {
+    editableMarks();
+    await openMarks();
+    const table = screen.getByRole("table");
+    expect(table.parentElement).toHaveClass("hidden", "md:block");
+    expect(within(table).getAllByRole("columnheader").every((heading) => heading.getAttribute("scope") === "col")).toBe(true);
+    const list = screen.getByRole("list", { name: "Student marks" });
+    expect(list).toHaveClass("md:hidden");
+    const phoneMarks = within(list).getByRole("spinbutton", { name: "Marks for Bina 1002" });
+    expect(phoneMarks).toHaveAttribute("inputmode", "decimal");
+    expect(phoneMarks.closest("label")).toHaveTextContent("Marks (max 20)");
+    expect(within(list).getByRole("textbox", { name: "Remarks for Bina 1002" }).closest("label")).toHaveTextContent("Remarks");
+    fireEvent.change(phoneMarks, { target: { value: "17" } });
+    expect(within(table).getByRole("spinbutton", { name: "Marks for Bina 1002" })).toHaveValue(17);
+    expect(screen.getAllByText("Scheduled", { selector: ".badge" })[0]).toHaveClass("text-warning");
+    expect(screen.getByText("2 Nov 2026")).toBeInTheDocument();
+  });
+
+  it("focuses Cancel in the delete dialog, keeps Delete reachable by Tab, and closes on Escape", async () => {
+    editableMarks();
+    const user = await openMarks();
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Delete Exam / Test?" });
+    expect(dialog).toHaveAccessibleDescription("“First test” and its marks will be permanently removed.");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.tab();
+    expect(within(dialog).getByRole("button", { name: "Delete" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(queries.some((query) => query.action === "delete")).toBe(false);
+  });
 
   it("saves only the changed pupil and reloads another session's accepted mark", async () => {
     const server = editableMarks();
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
     Object.assign(server[0], { marks_obtained: 19, updated_at: "other-session" });
     await user.click(screen.getByRole("button", { name: "Save Marks" }));
     await screen.findByText("1 changed mark saved.");
     expect(server.map((mark) => mark.marks_obtained)).toEqual([19, 16]);
     expect(queries.filter((query) => query.table === "teacher_assessment_marks" && query.action === "update")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Reload marks" }));
-    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
-    expect(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" })).toHaveValue(16);
+    expect(await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
+    expect(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Bina 1002" })).toHaveValue(16);
   });
 
   it("retains a conflicted draft, reports partial success, and requires explicit discard/reload", async () => {
     const server = editableMarks();
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
     Object.assign(server[0], { marks_obtained: 19, updated_at: "other-session" });
     await user.click(screen.getByRole("button", { name: "Save Marks" }));
     await screen.findByText("1 changed mark saved.");
     expect(screen.getByRole("alert")).toHaveTextContent("1 mark was not confirmed");
-    expect(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
     expect(screen.getByRole("button", { name: "Save Marks" })).toBeDisabled();
     expect(server.map((mark) => mark.marks_obtained)).toEqual([19, 16]);
     await user.click(screen.getByRole("button", { name: "Discard changes and reload marks" }));
-    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
+    expect(await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(19);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("rejects clearing a saved score without deleting it or discarding the draft", async () => {
     const server = editableMarks();
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "" } });
     await user.click(screen.getByRole("button", { name: "Save Marks" }));
     expect(screen.getByRole("alert")).toHaveTextContent("cannot be cleared here");
     expect(server[0].marks_obtained).toBe(12);
@@ -312,15 +347,15 @@ describe("mark-save conflict feedback", () => {
   it("recovers from an unseen parent change by refreshing its version before reloading marks", async () => {
     const server = editableMarks();
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
     assessments[0] = { ...assessments[0], maximum_marks: 25, updated_at: "parent-newer" };
     await user.click(screen.getByRole("button", { name: "Save Marks" }));
     await screen.findByRole("alert");
     expect(server[0].marks_obtained).toBe(12);
-    expect(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
     expect(mocks.rpc).toHaveBeenLastCalledWith("save_assessment_mark", expect.objectContaining({ p_expected_assessment_updated_at: "parent-loaded" }));
     await user.click(screen.getByRole("button", { name: "Discard changes and reload marks" }));
-    const refreshed = await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" });
+    const refreshed = await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" });
     expect(refreshed).toHaveValue(12);
     expect(refreshed).toHaveAttribute("max", "25");
     fireEvent.change(refreshed, { target: { value: "19" } });
@@ -333,7 +368,7 @@ describe("mark-save conflict feedback", () => {
   it("keeps a copyable draft when an unrelated refresh finds the selected assessment removed", async () => {
     editableMarks();
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
     assessments = assessments.filter((row) => row.id !== "exam-a");
     await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
@@ -348,14 +383,14 @@ describe("mark-save conflict feedback", () => {
   it("retains an ungraded draft but blocks saving after an observed subject relocation", async () => {
     editableMarks().splice(0);
     const user = await openMarks();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
+    fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
     assessments[0] = { ...assessments[0], subject_id: "subject-b" };
     await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
     await screen.findByText("Assessment deleted.");
     await user.click(screen.getByRole("button", { name: /First test.*Open/ }));
-    expect(await screen.findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
+    expect(await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
     expect(screen.getByRole("alert")).toHaveTextContent("assessment context changed");
     expect(screen.getByRole("button", { name: "Save Marks" })).toBeDisabled();
     expect(queries.some((query) => query.table === "teacher_assessment_marks" && query.action !== "read")).toBe(false);
@@ -381,6 +416,10 @@ describe("result report scope", () => {
       }
       return defaultRead(query);
     };
+    // The report resolves marked pupils through the assessment-scoped RPC; serve it from the same pupil rows.
+    mocks.rpc.mockImplementation((name: string, args: { p_assessment_ids: string[] }) => name === "list_assessment_result_students"
+      ? mocks.from("students").in("id", args.p_assessment_ids.map((id) => id.replace("exam-", "student-")))
+      : Promise.resolve({ data: [], error: null }));
     render(<TeacherModuleView module="results" />);
     await screen.findAllByText("Asha Student");
     await user.selectOptions(screen.getByRole("combobox", { name: "Class" }), "class-a");

@@ -101,7 +101,7 @@ export function AccountMenu({ identity, name, email, onLogout, signingOut }: {
         <div className="mt-1 border-t border-[var(--border)] pt-1">
           <button type="button" className={`${action} text-red-700 disabled:opacity-60 dark:text-red-300`} disabled={signingOut} onClick={onLogout}>
             {signingOut ? <Loader2 size={17} aria-hidden="true" className="motion-safe:animate-spin" /> : <LogOut size={17} aria-hidden="true" />}
-            {signingOut ? "Signing out…" : "Logout"}
+            {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
       </div>

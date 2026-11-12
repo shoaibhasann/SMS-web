@@ -14,20 +14,27 @@ export type AssignmentData = {
   year: AssignmentOption; teachers: AssignmentOption[]; classes: AssignmentOption[];
   sections: AssignmentSection[]; subjects: AssignmentOption[]; rows: TeachingAssignmentRow[];
 };
+export type AssignmentPeriod = {
+  id: string; class_name: string; section_name: string | null; day_of_week: number;
+  period_no: number; start_time: string | null; end_time: string | null;
+};
 export interface TeachingAssignmentRepository extends ReturnType<typeof createAssignmentImportRepository> {
   access(): Promise<AssignmentAccess>;
   load(school: AssignmentSchool): Promise<AssignmentData>;
   save(schoolId: string, yearId: string, draft: TeachingAssignmentDraft, previous: TeachingAssignmentRow | null): Promise<void>;
   remove(schoolId: string, previous: TeachingAssignmentRow): Promise<void>;
+  /** Live timetable periods that removing or re-pointing this assignment retires. */
+  timetablePeriods(schoolId: string, assignmentId: string): Promise<AssignmentPeriod[]>;
 }
 type RoleRow = { role: string; school_id: string | null };
 type Result = { data: unknown; error: { message: string; code?: string } | null; count?: number | null };
 const COLUMNS = "id,teacher_id,academic_year_id,class_id,section_id,subject_id,is_class_teacher";
 const managerRoles = new Set(["school_admin", "principal"]);
 
-function failure(error: { code?: string } | null, fallback: string): Error {
+function failure(error: { code?: string; message?: string } | null, fallback: string): Error {
   if (error?.code === "23505") return new Error("This assignment or class-teacher duty conflicts with an existing record. Refresh and review the assignments.");
   if (error?.code === "42501") return new Error("Your permission changed or this record is inaccessible. Refresh before trying again.");
+  if (error?.code === "22023" && error.message) return new Error(error.message);
   return new Error(fallback);
 }
 
@@ -168,6 +175,15 @@ export function createTeachingAssignmentRepository(client: SupabaseClient): Teac
       if (!Array.isArray(result.data) || result.data.length !== 1 || result.data[0].id !== previous.id) {
         throw new Error("The assignment changed elsewhere or could not be accessed. No removal was confirmed. Refresh before retrying.");
       }
+    },
+
+    async timetablePeriods(schoolId, assignmentId) {
+      const { data, error } = await client.rpc("get_assignment_timetable_periods", { p_school_id: schoolId, p_assignment_id: assignmentId });
+      if (error || !Array.isArray(data) || data.some((row) => !row || typeof row.id !== "string" || typeof row.class_name !== "string"
+        || !Number.isInteger(row.day_of_week) || !Number.isInteger(row.period_no))) {
+        throw failure(error, "Timetable periods for this assignment could not be checked.");
+      }
+      return data as AssignmentPeriod[];
     },
   };
 }

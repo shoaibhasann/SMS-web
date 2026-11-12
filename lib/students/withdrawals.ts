@@ -31,9 +31,21 @@ export async function withdrawRosterStudent(
     p_reason: reason.trim(),
   });
   if (error?.code === "42501") throw new Error("You cannot withdraw students for this school.");
+  if (error?.code === "55000") throw new Error("Resolve this pupil’s pending attendance corrections before withdrawing.");
   if (error?.code === "22023") throw new Error("Check the reason and reload the current roster. The enrollment may no longer be active.");
   if (error || typeof data !== "string" || !data) {
     throw new Error("The withdrawal could not be confirmed. Retry with the same reason or reload the roster.");
+  }
+}
+
+export async function reinstateRosterEnrollment(client: SupabaseClient, schoolId: string, enrollmentId: string, reason: string) {
+  const { data, error } = await client.rpc("reinstate_roster_enrollment", {
+    p_school_id: schoolId, p_enrollment_id: enrollmentId, p_reason: reason.trim(),
+  });
+  if (error?.code === "42501") throw new Error("You cannot reinstate students for this school.");
+  if (error?.code === "22023") throw new Error("Only a current-year withdrawal can be reinstated. Check the reason and reload the roster.");
+  if (error || data !== enrollmentId) {
+    throw new Error("The reinstatement could not be confirmed. Retry with the same reason or reload the roster.");
   }
 }
 

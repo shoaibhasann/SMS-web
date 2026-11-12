@@ -9,14 +9,14 @@ const props = { identity: <span>QA Principal</span>, name: "QA Principal", email
 describe("header account disclosure", () => {
   it("keeps settings, appearance and logout behind one account button", () => {
     render(<AccountMenu {...props} />);
-    expect(screen.queryByRole("button", { name: "Logout" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Account options" }));
     const options = within(screen.getByRole("group", { name: "Account options" }));
     expect(options.getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/account/settings");
     expect(options.queryByRole("combobox")).not.toBeInTheDocument();
     fireEvent.click(options.getByRole("button", { name: "Appearance" }));
     expect(options.getByRole("combobox", { name: "Color theme" })).toBeInTheDocument();
-    fireEvent.click(options.getByRole("button", { name: "Logout" }));
+    fireEvent.click(options.getByRole("button", { name: "Sign out" }));
     expect(props.onLogout).toHaveBeenCalledOnce();
   });
 

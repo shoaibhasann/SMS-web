@@ -30,6 +30,11 @@ const object = (value: unknown): Record<string, unknown> => value !== null && ty
 const uuid = (value: unknown): value is string => typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const integer = (value: unknown, max = Number.MAX_SAFE_INTEGER): value is number => Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= max;
 const text = (value: unknown, min: number, max: number): value is string => typeof value === "string" && value.trim().length >= min && value.length <= max && !/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/u.test(value);
+// Stored pupil names/admission numbers are display-only here; strip invisible marks instead of blocking the workspace.
+function plainPupilText(row: Record<string, unknown>) {
+  for (const key of ["student_name", "admission_no"]) if (typeof row[key] === "string") row[key] = (row[key] as string).replace(/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/gu, "");
+  return row;
+}
 const identifier = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(value);
 const time = (value: unknown): value is string => typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 const timestamp = (value: unknown): value is string => typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
@@ -52,7 +57,7 @@ export function parseGateSetup(value: unknown, userId: string, schoolId: string,
     if (device.revoked_at === null && ++active > 1) throw invalid();
   }
   for (const value of row.mappings) {
-    const mapping = object(value);
+    const mapping = plainPupilText(object(value));
     if (!uuid(mapping.mapping_id) || !uuid(mapping.device_id) || !uuid(mapping.student_id) || !identifier(mapping.subject_id) || !validCalendarDate(mapping.valid_from)
       || !revoked(mapping.revoked_at) || !text(mapping.admission_no, 1, 200) || !text(mapping.student_name, 1, 500)) throw invalid();
   }
@@ -62,7 +67,7 @@ export function parseGateEvents(value: unknown, userId: string, schoolId: string
   const row = object(value); page(row, userId, schoolId, offset, 100);
   if (!integer(row.total_count) || !integer(row.device_count) || !Array.isArray(row.events) || row.events.length !== Math.min(Math.max(row.total_count - offset, 0), 100) || !unique(row.events, "receipt_id")) throw invalid();
   for (const value of row.events) {
-    const event = object(value);
+    const event = plainPupilText(object(value));
     if (!uuid(event.receipt_id) || !uuid(event.device_id) || !identifier(event.event_id) || !identifier(event.subject_id) || !["IN", "OUT"].includes(String(event.direction))
       || !timestamp(event.occurred_at) || !timestamp(event.received_at) || !["accepted", "held_review"].includes(String(event.status)) || !Object.hasOwn(gateReasonLabels, String(event.reason))
       || !(event.student_id === null || uuid(event.student_id)) || !(event.attendance_id === null || uuid(event.attendance_id))
@@ -76,7 +81,7 @@ export function parseGatePupils(value: unknown, userId: string, schoolId: string
   if (row.query !== query.trim() || !text(row.query, 2, 80) || !integer(row.total_count) || !Array.isArray(row.pupils)
     || row.pupils.length !== Math.min(Math.max(row.total_count - offset, 0), 25) || !unique(row.pupils, "student_id")) throw invalid();
   for (const value of row.pupils) {
-    const pupil = object(value);
+    const pupil = plainPupilText(object(value));
     if (!uuid(pupil.student_id) || !text(pupil.student_name, 1, 500) || !text(pupil.admission_no, 1, 200)) throw invalid();
   }
   return value as GatePupils;

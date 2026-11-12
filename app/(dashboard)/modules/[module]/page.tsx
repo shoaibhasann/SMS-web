@@ -6,8 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
-import { canAccessModule } from "@/lib/modules";
-import { resolveUiRole, type UiRole } from "@/lib/auth/roles";
+import { canAccessModule, resolveModuleRole } from "@/lib/modules";
+import type { UiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { TeacherModuleView } from "@/components/teacher/teacher-views";
@@ -39,8 +39,7 @@ import { FamilyAttendanceRegister } from "@/components/academic/family-attendanc
 import { FamilyReceipts } from "@/components/finance/family-receipts";
 import { AdvanceCreditWorkspace } from "@/components/finance/advance-credit-workspace";
 import { FamilyAdvanceCredit } from "@/components/finance/family-advance-credit";
-import { TeachingAssignmentManager } from "@/components/academic/teaching-assignment-manager";
-import { SubstituteCoverageWorkspace } from "@/components/academic/substitute-coverage-workspace";
+import { TeacherAssignmentsWorkspace } from "@/components/academic/teacher-assignments-workspace";
 import { StudentLeaveWorkspace } from "@/components/family/student-leave-workspace";
 import { TimetableWorkspace } from "@/components/academic/timetable-workspace";
 import { ResultPublicationWorkspace } from "@/components/academic/result-publication-workspace";
@@ -66,7 +65,8 @@ function ModuleContent() {
   const exactInvoice = exactFee || exactPayment;
   const exactExam = moduleName === "exams" && searchParams.has("assessment");
   const studentExamView = moduleName === "exams" && (exactExam || searchParams.get("view") === "student");
-  const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "exams", "results", "result-report", "published-results"].includes(moduleName))
+  const guardianView = (exactHomework || ["attendance", "notifications", "notices", "profile", "advance-credit", "invoices", "student-leave", "timetable", "exams", "results", "result-report", "published-results",
+    "class-logs", "classwork", "homework", "assignments", "projects", "study-material", "missed-activities"].includes(moduleName))
     && searchParams.get("view") === "guardian";
   const scopedRole = guardianView ? "parent" : exactHomework || exactInvoice || studentExamView ? "student" : null;
   const initialChildId = searchParams.get("child") ?? undefined;
@@ -103,7 +103,7 @@ function ModuleContent() {
         const roles = verified.roles;
         const role = scopedRole
           ? roles.some((row) => row.role === scopedRole && row.school_id === verified.profileSchoolId) ? scopedRole : null
-          : resolveUiRole(roles);
+          : resolveModuleRole(roles, verified.profileSchoolId, moduleName);
         setAccess({
           key: accessKey,
           role,
@@ -309,11 +309,14 @@ function ModuleContent() {
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "invoices") {
     const receipt = searchParams.get("receipt") ?? "";
-    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${receipt}`} mode="invoices" initialReceiptNo={receipt} /></AppShell>;
+    const tab = searchParams.get("tab") === "receipts" ? "receipts" : "invoices";
+    const schoolId = searchParams.get("school") ?? undefined;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${schoolId ?? "default"}:${receipt}:${tab}`} mode="invoices" initialReceiptNo={receipt} initialTab={tab} requestedSchoolId={schoolId} /></AppShell>;
   }
 
   if ((access.role === "admin" || access.role === "principal" || access.role === "finance") && moduleName === "finance-reports") {
-    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={access.userId} mode="reports" /></AppShell>;
+    const schoolId = searchParams.get("school") ?? undefined;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}><AdminFinanceWorkspace key={`${access.userId}:${schoolId ?? "default"}`} mode="reports" requestedSchoolId={schoolId} /></AppShell>;
   }
 
   if (moduleName === "invoices" && (access.role === "student" || access.role === "parent")) {
@@ -395,23 +398,21 @@ function ModuleContent() {
   }
 
   if (["class-logs", "classwork", "homework", "assignments", "projects", "study-material", "missed-activities"].includes(moduleName)) {
-    return <AcademicWorkspace module={moduleName} />;
+    return <AcademicWorkspace module={moduleName} role={access.role} />;
   }
 
   if (moduleName === "teacher-assignments") {
-    return <AppShell key={access.userId} userId={access.userId} role={access.role}><div className="space-y-6">
-      {(access.role === "admin" || access.role === "principal") && <SubstituteCoverageWorkspace key={access.userId} userId={access.userId} />}
-      <TeachingAssignmentManager />
-    </div></AppShell>;
+    return <AppShell key={access.userId} userId={access.userId} role={access.role}>
+      <TeacherAssignmentsWorkspace key={access.userId} userId={access.userId} showCoverage={access.role === "admin" || access.role === "principal"} />
+    </AppShell>;
   }
 
   if (access.role === "teacher") {
-    const renderTeacherModule = (teacherModule: "exams" | "results" | "fees" | "profile") => (
+    const renderTeacherModule = (teacherModule: "exams" | "results" | "profile") => (
       <AppShell key={verifiedUserId} userId={verifiedUserId} role="teacher"><TeacherModuleView module={teacherModule} /></AppShell>
     );
     if (moduleName === "exams") return renderTeacherModule("exams");
     if (moduleName === "results" || moduleName === "result-report") return renderTeacherModule("results");
-    if (moduleName === "fees") return renderTeacherModule("fees");
     if (moduleName === "profile") return renderTeacherModule("profile");
   }
 
@@ -419,31 +420,13 @@ function ModuleContent() {
     return <AppShell key={access.userId} userId={access.userId} role="admin"><AdminModulePlaceholder moduleName={moduleName} /></AppShell>;
   }
 
-  return <GenericModule moduleName={moduleName} />;
-}
-
-/* =========================================================
-   GENERIC MODULE
-========================================================= */
-
-function GenericModule({
-  moduleName,
-}: {
-  moduleName: string;
-}) {
-  const title = moduleName
-    .replace(/-/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-
+  // Safety net for a key a role lists but no branch implements: stay inside the shell, themed.
   return (
-    <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-8">
-      <h1 className="text-2xl font-bold text-white">
-        {title}
-      </h1>
-
-      <p className="mt-2 text-sm text-slate-400">
-        This module is ready for its dedicated management screen.
-      </p>
-    </div>
+    <AppShell key={access.userId} userId={access.userId} role={access.role}>
+      <section className="card p-5">
+        <h1 className="text-xl font-bold">{moduleName.replace(/-/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())}</h1>
+        <p className="mt-2 text-sm muted">This page is not available for your role yet.</p>
+      </section>
+    </AppShell>
   );
 }

@@ -57,11 +57,14 @@ async function responseJson(response: Response): Promise<unknown> {
 }
 
 export async function sendFcmNotification(config: FcmConfiguration, accessToken: string,
-  job: { device_fid: string; platform: "android" | "ios"; expires_at: string }): Promise<PushSendResult> {
+  job: { device_fid: string; platform: "android" | "ios"; kind: string; expires_at: string }): Promise<PushSendResult> {
   if (!/^[A-Za-z0-9_-]{22}$/.test(job.device_fid) || !["android", "ios"].includes(job.platform)) throw new Error("Invalid prepared push device");
   const remaining = Math.floor((Date.parse(job.expires_at) - Date.now()) / 1_000);
   if (!Number.isFinite(remaining) || remaining <= 0) return { outcome: "failed", code: "EXPIRED" };
-  const ttl = Math.min(300, remaining);
+  // Keep the alert for phones that reconnect within the job lifetime; a future gate kind must cap this at 2 h.
+  const ttl = Math.min(86_400, remaining);
+  // Due-today fee reminders are daytime nudges, not urgent alerts.
+  const urgent = job.kind !== "fee_due";
   try {
     const response = await fetch(`https://fcm.googleapis.com/v1/projects/${config.projectId}/messages:send`, {
       method: "POST", headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
@@ -70,8 +73,9 @@ export async function sendFcmNotification(config: FcmConfiguration, accessToken:
         notification: { title: "SMS school update", body: "Open SMS to view your school updates." },
         // A dispatch can race revocation; resolve private records only after app sign-in.
         data: { screen: "notifications" },
-        ...(job.platform === "android" ? { android: { priority: "high", ttl: `${ttl}s`, collapse_key: "sms-school-updates", notification: { tag: "sms-school-updates" } } }
-          : { apns: { headers: { "apns-priority": "10", "apns-push-type": "alert", "apns-expiration": String(Math.floor(Date.now() / 1_000) + ttl), "apns-collapse-id": "sms-school-updates" }, payload: { aps: { sound: "default" } } } }),
+        // Reminders use the app's low-importance "sms-reminders" Android channel and play no APNs sound.
+        ...(job.platform === "android" ? { android: { priority: urgent ? "high" : "normal", ttl: `${ttl}s`, collapse_key: "sms-school-updates", notification: { tag: "sms-school-updates", ...(urgent ? {} : { channel_id: "sms-reminders" }) } } }
+          : { apns: { headers: { "apns-priority": urgent ? "10" : "5", "apns-push-type": "alert", "apns-expiration": String(Math.floor(Date.now() / 1_000) + ttl), "apns-collapse-id": "sms-school-updates" }, ...(urgent ? { payload: { aps: { sound: "default" } } } : {}) } }),
       } }), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(5_000),
     });
     if (response.status === 429 || response.status >= 500) {

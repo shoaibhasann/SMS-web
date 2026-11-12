@@ -34,7 +34,7 @@ export function parseGuardianCsv(text: string): GuardianCsvRow[] {
     else if (!admissionNumber || !validCsvCell(admissionNumber, 64)) error = "Enter a valid admission number up to 64 characters.";
     else if (!validCsvCell(email, 254) || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) error = "Enter a valid guardian email address.";
     else {
-      const pair = JSON.stringify([admissionNumber, email]);
+      const pair = JSON.stringify([admissionNumber.toLowerCase(), email]);
       const firstRow = firstRowByPair.get(pair);
       if (firstRow) error = `This student and email already appear in row ${firstRow}.`;
       else firstRowByPair.set(pair, rowNumber);

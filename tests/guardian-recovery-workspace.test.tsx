@@ -66,6 +66,13 @@ describe("guardian recovery school workspace", () => {
     expect(screen.queryByRole("button", { name: "Review and approve" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Reject" })).not.toBeInTheDocument();
   });
+  it("marks pending status with a warning badge and keeps reject confirmation off the primary style", async () => {
+    mount(); expect(await screen.findByText("pending")).toHaveClass("badge", "text-warning");
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+    expect(screen.getByRole("button", { name: "Confirm reject" })).toHaveClass("btn-danger-solid");
+    fireEvent.click(screen.getByRole("button", { name: "Keep unchanged" })); fireEvent.click(screen.getByRole("button", { name: "Review and approve" }));
+    expect(screen.getByRole("button", { name: "Confirm approve" })).not.toHaveClass("btn-danger-solid");
+  });
   it("keeps the exact unknown request and locks all competing actions until retry confirms it", async () => {
     mocks.save.mockRejectedValueOnce(new GuardianRecoveryError("The recovery result is unknown.")); mount(); await request();
     expect(await screen.findByRole("alert")).toHaveTextContent("unknown");

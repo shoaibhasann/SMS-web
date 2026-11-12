@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { createGovernedFeeDatabase } from "./governed-office-fees-fixture";
+import { applyLaterFeeRedefinitions, createGovernedFeeDatabase, GOVERNED_FEE_MIGRATIONS } from "./governed-office-fees-fixture";
 import { asStaffActor, STAFF_IDS, STAFF_ROWS } from "./staff-scope-fixture";
 
 export type Summary = { received_amount: string | null; reversed_amount: string | null; allocated_amount: string | null; refunded_amount: string | null; reserved_amount: string | null; balance_amount: string | null; available_amount: string | null; invalid: boolean };
@@ -17,6 +17,7 @@ export async function createCreditDatabase() {
     const files = (await readdir(directory)).filter((name) => name.endsWith("_office_student_advance_credit.sql"));
     if (files.length !== 1) throw new Error("Expected exactly one advance-credit migration.");
     await fixture.db.exec(await readFile(new URL(files[0], directory), "utf8"));
+    await applyLaterFeeRedefinitions(fixture.db, [...GOVERNED_FEE_MIGRATIONS, "_office_student_advance_credit.sql"]);
     const { schoolA, accountantA, principalA } = STAFF_IDS, { A } = STAFF_ROWS;
     const value = async <T = Record<string, unknown>>(sql: string, params: unknown[] = [], actor: string = accountantA) =>
       (await asStaffActor<{ value: T }>(fixture.db, actor, sql, params)).rows[0].value;

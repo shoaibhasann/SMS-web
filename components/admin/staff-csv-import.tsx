@@ -140,7 +140,7 @@ export function StaffCsvImport({
             <div tabIndex={0} role="region" aria-label="Staff CSV preview"
               className="max-h-72 overflow-auto rounded-xl border border-[var(--border)]">
               <table className="w-full min-w-[38rem] text-left text-sm">
-                <thead className="border-b border-[var(--border)]">
+                <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-2)]">
                   <tr>
                     <th scope="col" className="px-3 py-2">Data row</th>
                     <th scope="col" className="px-3 py-2">Employee ID</th>
@@ -166,7 +166,7 @@ export function StaffCsvImport({
               </table>
             </div>
             <button type="button" disabled={!canSubmit} onClick={() => void submit()}
-              className="min-h-11 rounded-xl bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:opacity-60">
+              className="btn btn-primary">
               {importing ? "Importing staff…" : feedback?.kind === "success" ? "Imported"
                 : feedback?.kind === "retry" ? "Retry same import" : `Import ${rows.length} ${rows.length === 1 ? "record" : "records"}`}
             </button>

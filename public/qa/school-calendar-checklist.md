@@ -10,6 +10,7 @@ Calendar runtime `7883753` is verified on [SMS Production](https://sms-web-shoai
 - [ ] **SC-04 — Concurrent save:** Save from two sessions at the same revision. The stale action cannot overwrite the winner; refresh or exact retry reconciles the saved result.
 - [ ] **SC-05 — Effective date/history:** Backdated configuration is rejected. Future configuration does not change earlier rules or existing attendance/fee/link/read history.
 - [ ] **SC-06 — Holiday:** Save a future closed-day exception. The calendar identifies its date and label. On that date, ordinary register marks cannot be saved and no fake pupil Holiday/Absent rows are generated.
+- [ ] **SC-06b — No pupil Holiday on a working day:** As Admin, open today's register on a configured working day. There is no Mark holiday button, the Holiday option is disabled, and the status line points to a calendar holiday exception. An existing legacy Holiday mark can still be changed to Present/Absent.
 - [ ] **SC-07 — Extra working day:** A working exception overrides a normally closed weekday. Eligible daily attendance can be recorded; other dates keep their weekly rules.
 - [ ] **SC-08 — Restore weekly rule:** Add an inherit exception revision. The date returns to its effective weekday rule; prior revisions remain auditable.
 - [ ] **SC-09 — Day already started:** Once the isolated school's date has a saved mark or any gate evidence, changing that date's calendar is rejected. Existing records are preserved.

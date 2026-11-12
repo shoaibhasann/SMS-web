@@ -51,14 +51,14 @@ export function AdminAcademicSetupWorkspace({ userId }: { userId: string }) {
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">Academics · Configuration</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">Academics · Configuration</p>
         <h1 className="mt-1 text-3xl font-black">Academics &amp; Subjects</h1>
         <p className="mt-2 text-sm muted">Set up the academic years, classes, sections and subjects used by enrollment and attendance.</p>
       </header>
-      {sessionChanged ? <p role="alert" className="text-sm text-red-600">Your sign-in changed. Refresh to check access.</p> : error ? (
+      {sessionChanged ? <p role="alert" className="text-sm text-danger">Your sign-in changed. Refresh to check access.</p> : error ? (
         <section className="card space-y-3 p-4">
-          <p role="alert" className="text-sm text-red-600">{error}</p>
-          <button type="button" className="text-sm font-semibold text-blue-600" onClick={() => {
+          <p role="alert" className="text-sm text-danger">{error}</p>
+          <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]" onClick={() => {
             setError("");
             setAttempt((count) => count + 1);
           }}>Retry school access</button>
@@ -169,9 +169,9 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
           setNotice(undefined);
           setSetup(undefined);
           setAttempt((count) => count + 1);
-        }} className="text-sm font-semibold text-blue-600">Refresh records</button>
+        }} className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)] disabled:opacity-60">Refresh records</button>
       </div>
-      {notice && <p role={notice.error ? "alert" : "status"} className={`text-sm ${notice.error ? "text-red-600" : "text-emerald-600"}`}>{notice.text}</p>}
+      {notice && <p role={notice.error ? "alert" : "status"} className={`text-sm ${notice.error ? "text-danger" : "text-success"}`}>{notice.text}</p>}
       {selectedTab.key !== "years" && (
         <AcademicSetupCsvImport key={selectedTab.key} client={client} schoolId={schoolId} kind={selectedTab.key}
           setup={setup} disabled={saving} refreshVersion={attempt} onBusyChange={setSaving} onImported={() => {

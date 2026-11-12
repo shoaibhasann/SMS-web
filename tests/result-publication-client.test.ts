@@ -50,6 +50,12 @@ describe("result publication RPC boundary", () => {
     const cancelled = resultDetail({ status: "cancelled", reviewed_by: "teacher", reviewer_name: "QA Teacher", review_note: "Replace this snapshot", reviewed_at: "2026-11-06T10:00:00Z", source_matches: null });
     expect(await getResultSubmission(client(cancelled).client, resultUuid(1))).toEqual(cancelled);
   });
+  it("reads the viewer's live score authorship and rejects a malformed flag", async () => {
+    expect((await getResultSubmission(client(resultDetail({ viewer_entered_marks: true })).client, resultUuid(1))).viewer_entered_marks).toBe(true);
+    const { viewer_entered_marks: _flag, ...older } = resultDetail(); void _flag;
+    expect((await getResultSubmission(client(older).client, resultUuid(1))).viewer_entered_marks).toBe(false);
+    await expect(getResultSubmission(client({ ...resultDetail(), viewer_entered_marks: "yes" }).client, resultUuid(1))).rejects.toThrow("could not be verified");
+  });
   it("trims bounded review/cancel reasons and requires canonical mutation IDs", async () => {
     expect(validatePublicationReason(" \n ")).toBeTruthy(); const saved = client(resultUuid(1));
     await decidePublication(saved.client, resultUuid(1), "published", "  Reviewed every score  ");
@@ -84,6 +90,16 @@ describe("result publication RPC boundary", () => {
       printPublishedResult(familyResult({ student_name: "<img src=x onerror=alert(1)>", remarks: "<script>bad()</script>" }));
       expect(doc.body.textContent).toContain("<img src=x onerror=alert(1)>"); expect(doc.body.querySelector("img,script")).toBeNull();
       expect(doc.body.textContent).toContain("74 / 100"); expect(doc.body.textContent).not.toContain("QA Kabir"); expect(popup.print).toHaveBeenCalledOnce(); expect(popup.opener).toBeNull();
+    } finally { opened.mockRestore(); }
+  });
+  it("prints the publication time in IST and a readable assessment date", () => {
+    const doc = document.implementation.createHTMLDocument(), popup = { document: doc, focus: vi.fn(), print: vi.fn(), opener: {} };
+    const opened = vi.spyOn(window, "open").mockReturnValue(popup as unknown as Window);
+    try {
+      printPublishedResult(familyResult({ published_at: "2026-11-05T19:30:00Z" }));
+      const printed = doc.body.textContent ?? "";
+      expect(printed).toContain("6 Nov 2026"); expect(printed).toContain("IST"); expect(printed).toContain("5 Nov 2026");
+      expect(printed).not.toContain("2026-11-05T19:30"); expect(printed).not.toContain("2026-11-05");
     } finally { opened.mockRestore(); }
   });
   it("reports blocked print windows explicitly", () => {

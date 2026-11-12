@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SchoolStaffMfaPolicy } from "@/components/admin/school-staff-mfa-policy";
@@ -9,7 +9,7 @@ vi.mock("@/lib/admin/staff-mfa-policy", async (original) => ({ ...await original
 vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: mocks.status }));
 const client = { auth: { onAuthStateChange: mocks.subscribe } } as unknown as SupabaseClient;
 const school = "b2000000-0000-0000-0000-000000000001";
-const policy: StaffMfaPolicy = { school_id: school, required: false, revision: 1, can_manage: true, staff_count: 5, enrolled_staff_count: 5, enrollment_required_count: 0, history: [] };
+const policy: StaffMfaPolicy = { school_id: school, required: false, revision: 1, can_manage: true, staff_count: 5, enrolled_staff_count: 5, enrollment_required_count: 0, history: [], pending: [] };
 const locked = vi.fn();
 let authChanged: (event: string, session: { user: { id: string } } | null) => void;
 beforeEach(() => {
@@ -32,6 +32,21 @@ describe("school authenticator policy UI", () => {
     mocks.load.mockResolvedValue({ ...policy, enrolled_staff_count: 4, enrollment_required_count: 1 }); mount();
     expect(await screen.findByRole("button", { name: "Require authenticator for staff" })).toBeDisabled();
     expect(screen.getByText(/Ask remaining staff/)).toBeInTheDocument(); expect(mocks.save).not.toHaveBeenCalled();
+  });
+  it("names the staff still to enroll with their roles and what blocks them", async () => {
+    mocks.load.mockResolvedValue({ ...policy, enrolled_staff_count: 2, enrollment_required_count: 3, pending: [
+      { profile_id: "b2000000-0000-0000-0000-000000000004", full_name: "Asha Teacher", roles: ["accountant", "teacher"], reason: "not_enrolled" },
+      { profile_id: "b2000000-0000-0000-0000-000000000005", full_name: "Ravi Front Desk", roles: ["reception_staff"], reason: "unconfirmed" },
+      { profile_id: "b2000000-0000-0000-0000-000000000006", full_name: null, roles: ["principal"], reason: "banned" },
+    ] }); mount();
+    const list = await screen.findByRole("list", { name: "Staff still to enroll" });
+    const rows = within(list).getAllByRole("listitem").map((row) => row.textContent);
+    expect(rows).toEqual([
+      expect.stringMatching(/Asha Teacher.*Finance, Teacher.*Not enrolled/),
+      expect.stringMatching(/Ravi Front Desk.*Reception \/ Staff.*Email or phone not confirmed/),
+      expect.stringMatching(/Unnamed staff account.*Principal.*Account blocked/),
+    ]);
+    expect(screen.queryByText(/Showing the first 200/)).not.toBeInTheDocument();
   });
   it("links an unenrolled Admin to explicit own setup rather than changing policy at AAL1", async () => {
     mocks.status.mockResolvedValue({ allowed: true, current_aal: "aal1", verified_totp_count: 0 }); mount();

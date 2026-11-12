@@ -1,6 +1,6 @@
 # Login visual direction
 
-The layout uses the supplied reference's two-panel composition: a school-community illustration on the left and a compact, centred form on the right. The product name is **SMS**, presented as a bold uppercase wordmark without a graduation-cap badge. Blue/navy remain the brand colors. The reference's university logo, Christmas scene and green palette are not copied.
+The layout uses the supplied reference's two-panel composition: a school-community illustration on the left and a compact, centred form on the right. The product name is **SMS**, presented as a bold uppercase wordmark without a graduation-cap badge, with the SMS logo tile to its left. Blue/navy remain the brand colors. The reference's university logo, Christmas scene and green palette are not copied.
 
 ## Theme behavior
 

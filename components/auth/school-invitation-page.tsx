@@ -6,12 +6,15 @@ import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent } fro
 import { guardianAttendancePath, rememberFamilyChild } from "@/lib/attendance/family";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { needsAuthenticatorStep } from "@/lib/auth/authenticator-step";
 import { mfaPath } from "@/lib/auth/staff-mfa";
+import { MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/account/password-rule";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { acceptGuardianRecovery, GuardianRecoveryError, loadGuardianRecoveryClaim, type GuardianRecoveryClaim } from "@/lib/guardian-invitations/recovery";
 import { GuardianPhoneOtpForm } from "./phone-otp-form";
 
-const primaryButton = "w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-bold text-white hover:bg-blue-800 disabled:opacity-50";
-const textButton = "text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
+const primaryButton = "login-submit";
+const textButton = "inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
 const unavailable = "This invitation is expired, revoked, already used, or no longer available. Ask your school for a new link if you still need access.";
 
 type Account = { id: string; email?: string };
@@ -60,17 +63,19 @@ export function SchoolInvitationPage({ kind }: { kind: InvitationKind }) {
       <section className="card w-full max-w-lg overflow-hidden" aria-labelledby="school-invite-heading">
         <header className="gradient p-5 text-white sm:p-7">
           <div>
-            <p className="text-[30px] font-black leading-none tracking-[-0.045em]">SMS</p>
+            <p className="flex items-center gap-3 text-[30px] font-black leading-none tracking-[-0.045em]"><BrandLogo size={36} />SMS</p>
             <h1 id="school-invite-heading" className="mt-3 text-2xl font-black">{title}</h1>
           </div>
         </header>
         <div className="space-y-5 p-5 sm:p-7">
-          {hash === null ? <LoadingState variant="form" className="text-sm muted">Opening invitation…</LoadingState>
+          {hash === null ? <LoadingState variant="form" className="text-sm muted">{kind === "recovery" ? "Opening recovery link…" : "Opening invitation…"}</LoadingState>
             : token ? <SchoolInviteForm key={token} token={token} kind={kind} />
             : (
               <>
-                <p className="text-sm muted">Open the original invitation from your school. If you just confirmed your email, reopen that link to finish linking your account.</p>
-                <Link href="/login" className={textButton}>Go to sign in</Link>
+                <p className="text-sm muted">{kind === "recovery"
+                  ? "Open the private recovery link your school shared with you. If you just confirmed your email, reopen that link to finish restoring your access."
+                  : "Open the original invitation from your school. If you just confirmed your email, reopen that link to finish linking your account."}</p>
+                <Link href="/login" className={textButton}>Back to sign in</Link>
               </>
             )}
         </div>
@@ -149,6 +154,11 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
       return;
     }
 
+    if (passwordProblem(password)) {
+      setMessage("");
+      setError(`Use at least ${MIN_PASSWORD_LENGTH} characters and at most ${MAX_PASSWORD_BYTES} bytes.`);
+      return;
+    }
     await runAction(async () => {
       const callback = new URL("/auth/callback", window.location.origin);
       callback.searchParams.set("next", details.route);
@@ -165,7 +175,9 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
         return;
       }
       setMode("signin");
-      setMessage("Check your email for a confirmation link. Confirm your email, then reopen the original school invitation and sign in. If you already have an account, sign in below.");
+      setMessage(kind === "recovery"
+        ? "Check your email for a confirmation link. Confirm your email, then reopen the private recovery link your school shared and sign in. If you already have an account, sign in below."
+        : "Check your email for a confirmation link. Confirm your email, then reopen the original school invitation and sign in. If you already have an account, sign in below.");
     }, "Could not create the account. Check your email and password, or sign in if you already have an account.");
   }
 
@@ -191,6 +203,7 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
       }
       const { data, error: inviteError } = await client.rpc(details.rpc, { p_token: token });
       if (inviteError?.code === "42501") {
+        if (await needsAuthenticatorStep(client, account.id)) { router.replace(`${mfaPath(details.route)}#token=${token}`); return; }
         setError(kind === "teacher"
           ? "This account cannot accept the invitation. Use the confirmed email your school invited. If that is already correct, ask the school to check your existing roles and teacher link."
           : "This account cannot accept the invitation. Sign in with the confirmed email your school invited, or ask the school to check your access.");
@@ -239,24 +252,25 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
 
   return (
     <>
-      {error && <p role="alert" className="rounded-xl border border-red-500/40 p-3 text-sm text-red-700 dark:text-red-300">{error}</p>}
+      {error && <p role="alert" className="login-error">{error}</p>}
       {message && <p role="status" className="rounded-xl border border-[var(--border)] p-3 text-sm">{message}</p>}
       {account ? (
         <div className="space-y-4">
           <p className="break-words text-sm muted">Signed in as <strong>{account.email ?? "your account"}</strong>.</p>
           <p className="text-sm muted">{kind === "recovery" ? "Accept the school's independently approved recovery to restore your existing access. The former login will lose school access." : `Accept the invitation to link your school account and ${details.access}.`}</p>
           {kind === "recovery" && <>
-            {claim && <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm leading-6">{claim.school_name} · {claim.linked_children} linked children{claim.requires_mfa ? " · A verified authenticator is required before recovery." : "."}</p>}
+            {claim && <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm leading-6">{claim.school_name} · {claim.linked_children} linked {claim.linked_children === 1 ? "child" : "children"}{claim.requires_mfa ? " · A verified authenticator is required before recovery." : "."}</p>}
             <p className="text-xs leading-6 muted">Use the new verified contact approved by your school. This does not merge existing school accounts. <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">Set up or verify account security</Link> if needed, then return to this link.</p>
           </>}
-          {kind === "teacher" && <p className="text-xs leading-6 muted">If your school requires an authenticator, <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">set up account security</Link> before accepting. You will return to this invitation.</p>}
+          {kind !== "recovery" && <p className="text-xs leading-6 muted">{kind === "teacher" ? "If your school requires an authenticator," : "If you use an authenticator,"} <Link href={`${mfaPath(details.route)}&setup=1#token=${token}`} className="font-semibold text-[var(--primary)] underline">set up account security</Link> before accepting. You will return to this invitation.</p>}
           <button type="button" className={primaryButton} onClick={acceptInvite} disabled={pending || kind === "recovery" && !claim}>{kind === "recovery" ? "Accept account recovery" : "Accept invitation"}</button>
           <button type="button" className={textButton} onClick={switchAccount} disabled={pending}>Use a different account</button>
           {pending && <p role="status" className="text-sm muted">Please wait…</p>}
         </div>
       ) : (
         <>
-        {kind === "recovery" && <div className="flex flex-wrap gap-2" role="group" aria-label="Replacement sign-in method"><button type="button" className={textButton} disabled={pending} aria-pressed={method === "email"} onClick={() => setMethod("email")}>Email and password</button><button type="button" className={textButton} disabled={pending} aria-pressed={method === "phone"} onClick={() => setMethod("phone")}>Mobile OTP</button></div>}
+        {kind === "recovery" && <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1" role="group" aria-label="Replacement sign-in method">{([["email", "Email and password"], ["phone", "Mobile OTP"]] as const).map(([value, label]) => <button key={value} type="button" disabled={pending} aria-pressed={method === value} onClick={() => setMethod(value)}
+          className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{label}</button>)}</div>}
         {kind === "recovery" && method === "phone" ? <GuardianPhoneOtpForm purpose="recovery" disabled={pending} onVerified={user => { setAccount(user); setError(""); }} /> : <form className="space-y-4" onSubmit={authenticate}>
           <p className="text-sm muted">Use the email address your school invited. New accounts need email confirmation before accepting.</p>
           <label className="block space-y-1 text-sm font-semibold">
@@ -267,7 +281,7 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
           <label className="block space-y-1 text-sm font-semibold">
             <span>Password</span>
             <input className="field" autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              type="password" required minLength={mode === "signup" ? 8 : undefined} value={password}
+              type="password" required minLength={mode === "signup" ? MIN_PASSWORD_LENGTH : undefined} value={password}
               disabled={pending} onChange={(event) => setPassword(event.target.value)} />
           </label>
           <button type="submit" className={primaryButton} disabled={pending}>

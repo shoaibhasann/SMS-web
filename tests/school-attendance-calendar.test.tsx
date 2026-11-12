@@ -26,7 +26,8 @@ async function policyDraft(user: ReturnType<typeof userEvent.setup>) {
 }
 describe("school attendance calendar manager", () => {
   it("renders complete resolved days without guessed default rules or attendance rates", async () => {
-    render(element()); expect(await screen.findByRole("table", { name: "School working and closed days" })).toBeInTheDocument();
+    render(element()); const grid = await screen.findByRole("table", { name: "School working and closed days" });
+    expect(grid).toHaveClass("min-w-[26rem]"); expect(grid.parentElement).toHaveClass("overflow-x-auto");
     expect(screen.getAllByText("Not set")).toHaveLength(30); expect(screen.getByText("No weekly policy configured.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add dated exception" })).toBeDisabled();
     expect(screen.queryByText(/\d+%/)).not.toBeInTheDocument();

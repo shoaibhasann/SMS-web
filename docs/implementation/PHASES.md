@@ -495,7 +495,7 @@ Finish fee demands, allocations, approved adjustments/reversals, receipts, day c
 
 Office users can issue a monthly demand from a matching current-year fee structure, then record a full or partial payment. Migration `20261104113121_record_office_fee_payment` locks the demand while it checks the balance, saves a receipt and updates payment status. An identical retry returns the original receipt. Existing family reads remain available, and the office flow uses the transaction instead of separate direct writes.
 
-Hosted API checks with the seeded QA school returned one demand ID for two identical requests and one receipt for two concurrent ₹400 submissions with the same request ID. Overpayment and access from a student or a different school were denied. Fee structure setup, approved adjustments and reversals, and day closing remain separate flows.
+Hosted API checks with the seeded QA school returned one demand ID for two identical requests and one receipt for two concurrent ₹400 submissions with the same request ID. Overpayment and access from a student or a different school were denied. Fee structure setup, approved adjustments and reversals, and day closing remain separate flows. A single demand for a yearly or one-time structure is issued at most once per pupil per session, and quarterly or half-yearly structures at most once per 3- or 6-month period counted from the session start; a different billing month for the same period is refused.
 
 Chromium verified a ₹1,000 demand, ₹300 cash partial payment, recovery of the same receipt after a simulated lost response and reload, and a final ₹700 UPI settlement. The office reopened both receipts. Reports reconciled both QA pupils at ₹1,400 collected and ₹600 outstanding, including the separate API test.
 
@@ -539,6 +539,8 @@ School-specific attendance windows, period attendance, substitute coverage and g
 ## Same-school transfer and session promotion
 
 School Admin and Principal can move a pupil between classes or sections from Students. Migration `20261104181843_change_roster_placement` preserves the student and enrollment IDs, retains original attendance placement by date and writes a private reason and actor history. The transfer takes effect before attendance is marked on the current IST day. Prior attendance remains visible by date, and the existing demand, balance and receipts retain their original records.
+
+Homework follows the same rule. Migration `20261111180400_keep_homework_history_after_section_move` reads the audited move history, so a moved pupil's earlier submissions, grades, feedback and attachments stay readable. The pupil, linked guardian, office and the still-assigned old-section teacher can all read them, and the old section's published logs stay in the family's same-year history. The old section is read-only for the pupil: new submissions and uploads follow the current placement only. Old-section history is shown on the web; the mobile homework list follows the current placement.
 
 A promotion stages one destination enrollment per pupil and academic year. Staff can revise the destination with another audited reason before activation. Staged enrollment is visible to school office roles and does not grant family or teacher access to destination records. Withdrawal cancels a staged promotion. The outgoing active placement remains in use until the year switch.
 

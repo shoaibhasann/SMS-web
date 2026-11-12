@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { cookies } = vi.hoisted(() => ({ cookies: vi.fn() }));
 vi.mock("next/headers", () => ({ cookies }));
+vi.mock("../lib/auth/attempt-throttle", () => ({ allowAuthAttempt: async () => true }));
 
 import { POST } from "../app/(auth)/auth/recovery/request/route";
 import { sameOriginRecoveryPost } from "../lib/auth/recovery";

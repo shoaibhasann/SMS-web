@@ -103,7 +103,8 @@ function Schedule({ assessmentId, role, userId }: Props) {
         {sessionChanged ? <p role="alert" className="p-5 text-sm muted">Your sign-in changed. Reopen the exam schedule.</p>
           : !valid ? <p className="p-5 text-sm muted">{unavailable}</p>
             : !result ? <LoadingState variant={exact ? "form" : "list"} label="Loading exam schedule…" className="p-5" />
-              : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
+              : "error" in result ? <div className="space-y-3 p-5"><p role="alert" className="text-sm text-danger">{result.error}</p>
+                <button type="button" className="btn btn-secondary" onClick={refresh}>Try again</button></div>
                 : "exam" in result ? result.exam ? <ExamDetail exam={result.exam} /> : <p className="p-5 text-sm muted">{unavailable}</p>
                   : <ExamList role={role} page={result.page} offset={offset} onPage={setOffset} />}
       </section>

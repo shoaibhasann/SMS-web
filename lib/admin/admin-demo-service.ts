@@ -98,7 +98,7 @@ const demoSeed: AdminDemoStorage = {
     { id: "period-demo-7", academicYear: "2026–27", className: "Class 6", section: "A", day: "Saturday", period: "1", startTime: "08:30", endTime: "09:15", subject: "Art", teacher: "Megha Das", room: "Art Room" },
   ],
   events: [
-    { id: "event-demo-1", title: "Parent–Teacher Meeting", type: "PTM", date: "2026-11-07", startTime: "09:00", endTime: "12:00", location: "School Auditorium", audience: "Parents", status: "Scheduled", description: "Term progress discussions." },
+    { id: "event-demo-1", title: "Parent–Teacher Meeting", type: "PTM", date: "2026-11-07", startTime: "09:00", endTime: "12:00", location: "School Auditorium", audience: "Guardians", status: "Scheduled", description: "Term progress discussions." },
     { id: "event-demo-2", title: "Children's Day Celebration", type: "School Event", date: "2026-11-14", startTime: "08:30", endTime: "13:00", location: "School Ground", audience: "Everyone", status: "Scheduled", description: "School-wide celebration and activities." },
   ],
   library: [
@@ -166,7 +166,13 @@ export const AdminDemoService = {
   },
   reset(module: AdminDemoModule) {
     if (typeof window === "undefined") return;
-    window.localStorage.removeItem(`${storagePrefix}${module}`);
+    const related = ({ library: "library-loans", transport: "transport-allocations", inventory: "inventory-movements" } as Partial<Record<AdminDemoModule, string>>)[module];
+    try {
+      window.localStorage.removeItem(`${storagePrefix}${module}`);
+      if (related) window.localStorage.removeItem(`${storagePrefix}${related}`);
+    } catch (error) {
+      console.error(`Could not reset local ${module} demo data`, error);
+    }
   },
   loadLibraryLoans(): AdminLibraryLoan[] {
     return loadLocalList("library-loans", libraryLoanSeed);

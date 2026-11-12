@@ -166,10 +166,10 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
 
 function MonthGrid({ calendar }: { calendar: CalendarRecord }) {
   const leading = new Date(`${calendar.from}T00:00:00Z`).getUTCDay(), cells = [...Array<null>(leading).fill(null), ...calendar.days];
-  return <div className="overflow-x-auto p-3"><table className="w-full table-fixed text-center text-xs" aria-label="School working and closed days"><thead><tr>{weekdayLabels.map(day => <th scope="col" key={day} className="pb-2 font-semibold muted">{day}</th>)}</tr></thead>
+  return <div className="overflow-x-auto p-3"><table className="w-full min-w-[26rem] table-fixed text-center text-xs" aria-label="School working and closed days"><thead><tr>{weekdayLabels.map(day => <th scope="col" key={day} className="pb-2 font-semibold muted">{day}</th>)}</tr></thead>
     <tbody>{Array.from({ length: Math.ceil(cells.length / 7) }, (_, week) => <tr key={week}>{Array.from({ length: 7 }, (_, dayIndex) => {
       const day = cells[week * 7 + dayIndex];
-      return <td key={dayIndex} className="p-0.5 align-top">{day && <div className={`min-h-16 rounded-lg border p-1.5 ${day.day === calendar.server_today ? "border-[var(--primary)]" : "border-[var(--border)]"} ${day.configured && day.is_working === false ? "bg-amber-500/10" : "bg-[var(--surface-2)]"}`} title={day.label ?? undefined}>
+      return <td key={dayIndex} className="p-0.5 align-top">{day && <div className={`min-h-16 rounded-lg border p-1 sm:p-1.5 ${day.day === calendar.server_today ? "border-[var(--primary)]" : "border-[var(--border)]"} ${day.configured && day.is_working === false ? "bg-amber-500/10" : "bg-[var(--surface-2)]"}`} title={day.label ?? undefined}>
         <time dateTime={day.day} className="block font-semibold">{Number(day.day.slice(-2))}</time><span className="mt-1 block break-words text-[10px] leading-4 muted">{!day.configured ? "Not set" : day.is_working ? "Working" : "Closed"}</span>{(day.source === "exception" || day.source === "import") && <span className="sr-only">{day.label ?? "Dated exception"}</span>}
       </div>}</td>;
     })}</tr>)}</tbody></table></div>;

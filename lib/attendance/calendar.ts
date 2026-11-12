@@ -22,6 +22,11 @@ const revision = (value: unknown): value is number => integer(value, 2147483647)
 const text = (value: unknown, min: number, max: number): value is string => typeof value === "string" && value.trim().length >= min && value.length <= max && !/[\u0000-\u001f\u007f]/.test(value);
 export const validCalendarDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !value.startsWith("0000")
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+// CSV date cells: Excel on an en-IN PC saves typed ISO dates as DD-MM-YYYY; returns the ISO date for real dates only.
+export function csvCalendarDate(value: string) {
+  const day = value.replace(/^(\d{2})-(\d{2})-(\d{4})$/, "$3-$2-$1");
+  return validCalendarDate(day) ? day : undefined;
+}
 const timestamp = (value: unknown): value is string => typeof value === "string" && value.includes("T") && Number.isFinite(Date.parse(value));
 const weekdays = (value: unknown): value is number[] => Array.isArray(value) && value.length >= 1 && value.length <= 7 && value.every(day => integer(day, 6)) && new Set(value).size === value.length;
 const modes = ["holiday", "working", "inherit"] as const;

@@ -113,6 +113,13 @@ describe("own authenticator UI", () => {
     expect(await screen.findByRole("button", { name: "Remove My phone" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Add backup authenticator" })).toBeEnabled(); expect(mocks.remove).not.toHaveBeenCalled();
   });
+  it("styles the irreversible removal confirmation as destructive and keeps Keep neutral", async () => {
+    mocks.status.mockResolvedValue({ ...status, current_aal: "aal2", verified_totp_count: 2 }); mocks.list.mockResolvedValue([factor, { ...factor, id: "backup", friendly_name: "Backup" }]);
+    render(<AccountAuthenticator userId="owner" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Remove My phone" }));
+    expect(screen.getByRole("button", { name: "Confirm removal" })).toHaveClass("btn", "btn-danger");
+    expect(screen.getByRole("button", { name: "Keep authenticator" })).not.toHaveClass("btn-danger"); expect(mocks.remove).not.toHaveBeenCalled();
+  });
   it("aborts and discards setup after an account switch without consuming a late enrollment", async () => {
     const pending = deferred<{ id: string; secret: string; qr: string }>(); mocks.enroll.mockReturnValueOnce(pending.promise);
     render(<AccountAuthenticator userId="owner" />);

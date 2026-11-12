@@ -12,7 +12,7 @@ const row = {
   academic_year_id: "year-a", academic_year_name: "2026–27", class_name: "Class 4", section_name: "A",
   start_date: "2026-11-10", end_date: "2026-11-12", reason: "Family visit", status: "pending",
   requester_id: "guardian-a", requester_name: "QA Guardian", created_at: "2026-11-06T10:00:00Z",
-  reviewed_by: null, reviewer_name: null, review_note: null, reviewed_at: null, total_count: 1,
+  reviewed_by: null, reviewer_name: null, review_note: null, reviewed_at: null, total_count: 1, is_family_reviewer: false,
 };
 
 function mockClient(data: unknown, error: { code?: string; message?: string } | null = null) {
@@ -60,6 +60,10 @@ describe("student leave client", () => {
     await expect(listStudentLeaveReview(client, "school-a", "pending")).rejects.toThrow(/could not be verified/);
     await expect(listStudentLeaveReview(client, "school-b", null)).rejects.toThrow(/could not be verified/);
     await expect(listStudentLeaveReview(client, "school-a", null, -1)).rejects.toThrow(/valid history page/);
+    rpc.mockResolvedValue({ data: [{ ...row, is_family_reviewer: undefined }], error: null });
+    await expect(listStudentLeaveReview(client, "school-a", null)).rejects.toThrow(/could not be verified/);
+    rpc.mockResolvedValue({ data: [{ ...row, is_family_reviewer: true }], error: null });
+    expect((await listStudentLeaveReview(client, "school-a", null))[0].is_family_reviewer).toBe(true);
   });
 
   it("submits a trimmed reason and caller-owned retry reference, without trusting a supplied actor", async () => {

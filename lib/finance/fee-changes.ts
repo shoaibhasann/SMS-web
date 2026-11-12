@@ -64,6 +64,8 @@ export type FamilyFeeReceipt = {
   reversed_amount: FeeMoney;
   reversed_at: string | null;
   reversal_reference: string | null;
+  fee_name?: string | null;
+  billing_period?: string | null;
 };
 export type OfficeFeeReceipt = FamilyFeeReceipt & {
   financial_token: string | null;
@@ -200,6 +202,8 @@ function receipt(value: unknown): FamilyFeeReceipt {
     id: identifier(row.id), student_fee_id: identifier(row.student_fee_id), student_id: identifier(row.student_id), receipt_no: identifier(row.receipt_no),
     amount: money(row.amount), payment_method: nullableText(row.payment_method), status: text(row.status), recorded_status: text(row.recorded_status), paid_at: nullableDate(row.paid_at),
     net_amount: nullableMoney(row.net_amount), reversed_amount: money(row.reversed_amount), reversed_at: nullableDate(row.reversed_at), reversal_reference: nullableText(row.reversal_reference),
+    // Older servers do not label receipts yet.
+    ...(row.fee_name === undefined ? {} : { fee_name: nullableText(row.fee_name), billing_period: nullableText(row.billing_period) }),
   };
 }
 

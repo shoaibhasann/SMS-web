@@ -14,6 +14,12 @@ export function canEditAcademicLog(assignments: TeachingAssignment[], teacherId:
     && assignments.some((assignment) => assignment.teacher_id === teacherId && matchesAcademicScope(assignment, log)));
 }
 
+/** The current assignee of the log's scope may grade its published work after a handover; editing stays with the author. */
+export function canGradeAcademicLog(assignments: TeachingAssignment[], teacherId: string, schoolId: string, log: AcademicLogRecord) {
+  return Boolean(teacherId && schoolId && log.school_id === schoolId
+    && assignments.some((assignment) => assignment.teacher_id === teacherId && matchesAcademicScope(assignment, log)));
+}
+
 export function academicAssignmentSignature(assignments: TeachingAssignment[]) {
   return JSON.stringify(assignments.map((assignment) => [assignment.id, assignment.teacher_id, assignment.academic_year_id,
     assignment.class_id, assignment.section_id, assignment.subject_id]).sort((left, right) => left[0].localeCompare(right[0])));

@@ -56,6 +56,15 @@ Database backups contain Storage metadata, **not uploaded object bytes**. Backup
 
 Auth providers, SMTP, API/JWT keys, Edge Functions, domains and other service configuration require their own recovery steps. Restoring a database does not prove that users can sign in or that confirmation emails, signed downloads and attachment bytes work. [Supabase platform restore](https://supabase.com/docs/guides/self-hosting/restore-from-platform)
 
+Both Edge Functions authenticate callers themselves and must be redeployed with the gateway JWT precheck off. `supabase/config.toml` pins `verify_jwt = false` for both; also pass the explicit flag:
+
+```sh
+npx supabase functions deploy gate-attendance-events --project-ref YOUR_PROJECT_REF --no-verify-jwt
+npx supabase functions deploy private-academic-file --project-ref YOUR_PROJECT_REF --no-verify-jwt
+```
+
+After deploying, a credential-free POST to `gate-attendance-events` must return the handler's own 401 body and a GET must return 405; a bare gateway 401 means JWT verification was re-enabled and every gate device call is being rejected. Do not run `supabase config push` with that minimal file, because it would overwrite hosted Auth/MFA settings with defaults.
+
 ## Before a real recovery rehearsal
 
 1. Record the approved source/target project identities, PostgreSQL/service versions, capture time, migration list and operator. Keep credentials and account/data dumps out of Git, screenshots and command logs. Preserve backups privately outside the build-scanned repository.

@@ -88,6 +88,7 @@ describe("governed fee change UI", () => {
     const proposal = within(await screen.findByRole("region", { name: "Proposed fee change" }));
     expect(proposal.getByText("This corrects a recorded entry; it does not send a bank refund.")).toBeVisible();
     expect(proposal.getByText(/Cash book impact: −₹400.00/)).toBeVisible();
+    expect(proposal.getByText(/counter-entry reduces Cash collections/)).toBeVisible();
     expect(screen.queryByLabelText("Reduction amount")).not.toBeInTheDocument();
     await submitPrepared(user); await waitFor(() => expect(api.request).toHaveBeenCalledTimes(1));
     expect(api.request.mock.calls[0][2]).toEqual(expect.objectContaining({ kind: "payment_reversal", amount: null, paymentId: "payment-a" }));

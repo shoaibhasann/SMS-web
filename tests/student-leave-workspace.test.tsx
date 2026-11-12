@@ -29,7 +29,7 @@ function request(patch: Partial<StudentLeaveRequest> = {}): StudentLeaveRequest 
     academic_year_id: "year-a", academic_year_name: "2026–27", class_name: "Class 4", section_name: "A",
     start_date: "2026-11-10", end_date: "2026-11-12", reason: "Family visit", status: "pending",
     requester_id: "guardian-a", requester_name: "QA Guardian", created_at: "2026-11-06T10:00:00Z",
-    reviewed_by: null, reviewer_name: null, review_note: null, reviewed_at: null, total_count: 1, ...patch };
+    reviewed_by: null, reviewer_name: null, review_note: null, reviewed_at: null, total_count: 1, is_family_reviewer: false, ...patch };
 }
 
 type RpcResult = { data: unknown; error: { code?: string; message: string } | null };
@@ -303,6 +303,15 @@ describe("student leave workspace", () => {
     expect(mocks.rpc.mock.calls.some(([name]) => name === "review_student_leave")).toBe(false);
   });
 
+  it("does not offer a decision to a reviewer who is the pupil or a guardian of the pupil", async () => {
+    fakeStore([request({ is_family_reviewer: true })]);
+    render(<StudentLeaveWorkspace role="principal" userId="principal-a" />);
+    await screen.findByText("You are this pupil or their guardian; another reviewer must decide.");
+    expect(screen.queryByRole("button", { name: "Review request" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve leave" })).not.toBeInTheDocument();
+    expect(mocks.rpc.mock.calls.some(([name]) => name === "review_student_leave")).toBe(false);
+  });
+
   it("ignores a previous school's late review history", async () => {
     const user = userEvent.setup(); let finish!: (value: RpcResult) => void;
     const pending = new Promise<RpcResult>((resolve) => { finish = resolve; });
@@ -347,6 +356,8 @@ describe("notification leave links", () => {
     mocks.rpc.mockResolvedValue({data:row,error:null});
     const view=render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={child.id} initialRequestId={row.id} />);
     expect(await screen.findByText("Approved from notification")).toBeInTheDocument();
+    const badge = screen.getByText("Approved", { selector: "span" });
+    expect(badge.querySelector("svg.lucide-check")).not.toBeNull(); expect(badge.querySelector("svg.lucide-clock3, svg.lucide-clock-3")).toBeNull();
     expect(mocks.rpc).toHaveBeenCalledWith("get_family_notification_leave",{p_role:"parent",p_student_id:child.id,p_request_id:row.id});
     expect(mocks.rpc.mock.calls.some(([name])=>name==="list_family_student_leave")).toBe(false);
     expect(screen.getByRole("link",{name:"All leave history"})).toHaveAttribute("href",`/modules/student-leave?view=guardian&child=${child.id}`);
@@ -369,4 +380,24 @@ it("points a newly submitted request back to complete history when viewing an ol
   await screen.findByText("Approved old request");fillRequest();await userEvent.click(screen.getByRole("button",{name:"Submit leave request"}));
   expect(await screen.findByText(/Open All leave history to follow the new request/)).toBeInTheDocument();
   expect(screen.getByRole("link",{name:"All leave history"})).toHaveAttribute("href",`/modules/student-leave?view=guardian&child=${child.id}`);
+});
+
+it.each([
+  ["decided", (row: StudentLeaveRequest) => ({ data: { ...row, id: requestId(30), status: "rejected" }, error: null }), /already rejected by the school\. Open All leave history to see its decision\./],
+  ["lookup failed", () => ({ data: null, error: { message: "Lookup interrupted" } }), /Leave request saved\. Open All leave history to see its current status\./],
+])("points a replayed submit (%s) to All leave history on a notification decision view", async (_case, lookup, notice) => {
+  const child={...childA,id:requestId(20)};familyLoader.mockResolvedValue([child]);
+  const row=request({student_id:child.id,status:"approved",reviewed_by:"principal-a",reviewer_name:"QA Principal",review_note:"Approved old request",reviewed_at:"2026-11-06T12:00:00Z"});
+  let submits=0;
+  mocks.rpc.mockImplementation(async(name:string,args:Args)=>name==="submit_student_leave"
+    ? (++submits===1?{data:null,error:{message:"Connection interrupted"}}:{data:requestId(30),error:null})
+    : args.p_request_id===requestId(30)?lookup(row):{data:row,error:null});
+  render(<StudentLeaveWorkspace role="parent" userId="guardian-a" initialChildId={child.id} initialRequestId={row.id} />);
+  await screen.findByText("Approved old request");fillRequest();
+  await userEvent.click(screen.getByRole("button",{name:"Submit leave request"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("could not be confirmed");
+  await userEvent.click(screen.getByRole("button",{name:"Submit leave request"}));
+  expect(await screen.findByText(notice)).toBeInTheDocument();
+  expect(screen.queryByText(/in the leave history/)).not.toBeInTheDocument();
+  expect(screen.getByRole("link",{name:"All leave history"})).toBeInTheDocument();
 });

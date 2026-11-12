@@ -8,7 +8,7 @@ const headings: Record<DashboardRole, string> = {
   admin: "School Admin Dashboard",
   teacher: "Teacher Dashboard",
   student: "Student Dashboard",
-  parent: "Parent Dashboard",
+  parent: "Guardian Dashboard",
   finance: "Finance Dashboard",
 };
 

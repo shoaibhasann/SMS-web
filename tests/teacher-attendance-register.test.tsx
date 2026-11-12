@@ -14,7 +14,7 @@ type EditorProps = {
   dateLimits?: { start: string; end: string };
 };
 
-const { client, getUser, from, rpc, editorBoundary, effectiveAssignments } = vi.hoisted(() => {
+const { client, getUser, from, rpc, editorBoundary, effectiveAssignments, editorMode } = vi.hoisted(() => {
   const getUser = vi.fn();
   const from = vi.fn();
   const rpc = vi.fn();
@@ -22,6 +22,8 @@ const { client, getUser, from, rpc, editorBoundary, effectiveAssignments } = vi.
     getUser,
     from,
     rpc,
+    // `silent` models an editor that has not reported its lock state yet.
+    editorMode: { silent: false },
     editorBoundary: vi.fn(),
     effectiveAssignments: vi.fn(),
     client: { auth: { getUser }, from, rpc },
@@ -39,6 +41,7 @@ vi.mock("@/components/academic/attendance-editor", () => ({
     const [locked, setLocked] = useState(true);
     const [date, setDate] = useState("2026-11-02");
     useEffect(() => {
+      if (editorMode.silent) return;
       onLockChange(locked);
       return () => onLockChange(false);
     }, [locked, onLockChange]);
@@ -80,6 +83,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   vi.resetAllMocks();
+  editorMode.silent = false;
   queries = [];
   results = {
     teachers: { data: { id: "teacher-a", school_id: "school-a", full_name: "Priya Sharma" }, error: null },
@@ -163,7 +167,7 @@ describe("TeacherAttendanceRegister wiring", () => {
     effectiveAssignments.mockResolvedValue([coverageAssignment]);
     render(<TeacherAttendanceRegister />);
     await screen.findByRole("region", { name: "Attendance editor boundary" });
-    expect(screen.getByText(/Temporary attendance coverage/)).toHaveTextContent("2026-11-05 through 2026-11-07 IST");
+    expect(screen.getByText(/Temporary attendance coverage/)).toHaveTextContent("5 Nov 2026 through 7 Nov 2026 IST");
     expect(editorBoundary).toHaveBeenLastCalledWith(expect.objectContaining({
       context: { ...expectedContext, classId: "class-covered", sectionId: "section-covered" },
       reviewOnlyHistory: true, dateLimits: { start: "2026-11-05", end: "2026-11-07" },
@@ -214,6 +218,70 @@ describe("TeacherAttendanceRegister wiring", () => {
     await act(async () => { vi.advanceTimersByTime(30_000); });
     expect(await screen.findByRole("alert")).toHaveTextContent("An assigned class teacher section is required.");
     expect(screen.queryByRole("region", { name: "Attendance editor boundary" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an unsaved draft and retries when one periodic access check fails", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    effectiveAssignments.mockResolvedValueOnce([permanentAssignment])
+      .mockRejectedValueOnce(new Error("Attendance access could not be verified."))
+      .mockResolvedValue([permanentAssignment]);
+    render(<TeacherAttendanceRegister />);
+    await screen.findByRole("region", { name: "Attendance editor boundary" });
+    fireEvent.change(screen.getByLabelText("Selected register date"), { target: { value: "2026-11-06" } });
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    await waitFor(() => expect(screen.queryByText(/unsaved marks are kept/)).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
+  });
+
+  it("still fails closed when a background check fails with no unsaved attendance", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
+    render(<TeacherAttendanceRegister />);
+    fireEvent.click(await screen.findByRole("button", { name: "Load saved register" }));
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
+    expect(screen.queryByRole("region", { name: "Attendance editor boundary" })).not.toBeInTheDocument();
+  });
+
+  it("fails closed when a periodic check fails before a clean editor reports its lock state", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    editorMode.silent = true;
+    effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
+    render(<TeacherAttendanceRegister />);
+    await screen.findByRole("region", { name: "Attendance editor boundary" });
+    expect(screen.getByRole("combobox", { name: "Attendance class" })).toBeDisabled();
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
+    expect(screen.queryByText(/unsaved marks are kept/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Attendance editor boundary" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the register when a periodic check fails while the editor is still loading", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
+    render(<TeacherAttendanceRegister />);
+    await screen.findByRole("region", { name: "Attendance editor boundary" });
+    await act(async () => {}); // let the loading editor report its lock
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Attendance editor boundary" })).toBeInTheDocument();
+  });
+
+  it("keeps the draft when an unrelated coverage is added while the selected register is unchanged", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockResolvedValue([permanentAssignment, coverageAssignment]);
+    render(<TeacherAttendanceRegister />);
+    await screen.findByRole("region", { name: "Attendance editor boundary" });
+    fireEvent.change(screen.getByLabelText("Selected register date"), { target: { value: "2026-11-06" } });
+    await act(async () => { vi.advanceTimersByTime(30_000); });
+    expect(await screen.findByRole("option", { name: "Class 7 / B · Temporary coverage" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
+    expect(getUser).toHaveBeenCalledTimes(1);
   });
 
   it("blocks registration input, cancel and submit while the editor has unsaved attendance", async () => {

@@ -307,6 +307,7 @@ export function notificationHref(value: FamilyNotification, view: FamilyNotifica
   return `/modules/${path}?${params}`;
 }
 
-export function notifyFamilyNotificationsChanged(userId: string, view: FamilyNotificationRole) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(familyNotificationsChangedEvent, { detail: { userId, role: role(view) } }));
+// keepCursor: the change left the open page's rows in place, so an open inbox refetches that page instead of the newest.
+export function notifyFamilyNotificationsChanged(userId: string, view: FamilyNotificationRole, options?: { keepCursor: true }) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(familyNotificationsChangedEvent, { detail: { userId, role: role(view), ...options } }));
 }

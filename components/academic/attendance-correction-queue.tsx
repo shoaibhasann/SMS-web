@@ -34,7 +34,13 @@ type Props = {
 };
 
 const pageSize = 20;
-const buttonClass = "rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50";
+const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const stateBadges: Record<Correction["state"], { label: string; tone: string }> = {
+  pending: { label: "Pending review", tone: "text-warning" },
+  approved: { label: "Approved", tone: "text-success" },
+  rejected: { label: "Rejected", tone: "text-danger" },
+};
+const buttonClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50";
 
 export function AttendanceCorrectionQueue({ client, schoolId, userId, own = false, disabled = false, revision = 0, onReviewed }: Props) {
   const [page, setPage] = useState(0);
@@ -122,17 +128,17 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
         </div>
         <button type="button" disabled={saving} className={buttonClass} onClick={() => { setMessage(undefined); setRequiresRefresh(""); setRefresh((value) => value + 1); }}>Refresh requests</button>
       </div>
-      {message && <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}`}>{message.text}</p>}
-      {!activeResult ? <LoadingState variant="table" className="text-sm muted">Loading correction requests…</LoadingState> : activeResult.error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{activeResult.error}</p> : !rows.length ? <p className="text-sm muted">No correction requests on this page.</p> : (
+      {message && <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-danger" : "text-success"}`}>{message.text}</p>}
+      {!activeResult ? <LoadingState variant="table" className="text-sm muted">Loading correction requests…</LoadingState> : activeResult.error ? <p role="alert" className="text-sm text-danger">{activeResult.error}</p> : !rows.length ? <p className="text-sm muted">No correction requests on this page.</p> : (
         <ul className="space-y-3">
           {rows.map((request) => (
             <li key={request.id} className="space-y-3 rounded-xl border border-[var(--border)] p-4">
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <h3 className="font-semibold">{request.student_name || "Student"}{request.admission_no && ` · ${request.admission_no}`}</h3>
-                  <p className="text-xs muted">{request.attendance_date} IST{request.section_name && ` · ${request.section_name}`}{request.requester_name && ` · ${request.requester_name}`}</p>
+                  <p className="text-xs muted"><time dateTime={request.attendance_date}>{dateFormat.format(new Date(`${request.attendance_date}T00:00:00Z`))}</time> IST{request.section_name && ` · ${request.section_name}`}{request.requester_name && ` · ${request.requester_name}`}</p>
                 </div>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${request.state === "pending" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-[var(--surface-2)]"}`}>{request.state}</span>
+                <span className={`badge ${stateBadges[request.state]?.tone ?? ""}`}>{stateBadges[request.state]?.label ?? request.state}</span>
               </div>
               <p className="text-sm"><strong>{request.before_record ? attendanceLabels[request.before_record.status] : "Unmarked"}</strong> → <strong>{attendanceLabels[request.requested_status]}</strong></p>
               <p className="break-words text-sm muted">Request reason · {request.request_reason}</p>
@@ -149,7 +155,7 @@ export function AttendanceCorrectionQueue({ client, schoolId, userId, own = fals
                       <textarea required rows={2} maxLength={500} value={reason} disabled={saving} onChange={(event) => setReason(event.target.value)} className="field" />
                     </label>
                     <div className="flex flex-wrap gap-2">
-                      <button type="submit" value="approved" disabled={disabled || saving || outdated.has(request.id) || requiresRefresh === request.id || !reason.trim()} className="rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Approve correction</button>
+                      <button type="submit" value="approved" disabled={disabled || saving || outdated.has(request.id) || requiresRefresh === request.id || !reason.trim()} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">Approve correction</button>
                       <button type="submit" value="rejected" disabled={disabled || saving || requiresRefresh === request.id || !reason.trim()} className={buttonClass}>Reject correction</button>
                       <button type="button" disabled={saving} className={buttonClass} onClick={() => { setSelected(""); setReason(""); }}>Cancel</button>
                     </div>

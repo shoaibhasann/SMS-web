@@ -8,7 +8,7 @@ import { fcmAccessToken, fcmConfiguration, sendFcmNotification } from "@/lib/not
 const privateKey=generateKeyPairSync("rsa",{modulusLength:2048}).privateKey.export({type:"pkcs8",format:"pem"}).toString();
 const config={projectId:"sms-fixture",email:"sender@sms-fixture.iam.gserviceaccount.com",privateKey};
 const fid="c"+"1".repeat(21);
-const job=()=>({device_fid:fid,platform:"android" as const,expires_at:new Date(Date.now()+24*3600000).toISOString()});
+const job=()=>({device_fid:fid,platform:"android" as const,kind:"leave_decision",expires_at:new Date(Date.now()+24*3600000).toISOString()});
 const fetchMock=vi.fn();
 beforeEach(()=>{vi.stubGlobal("fetch",fetchMock);fetchMock.mockReset();mock.JWT.mockImplementation(function(){return {getAccessToken:mock.getAccessToken};});mock.getAccessToken.mockResolvedValue({token:"google-oauth-access"});});
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
@@ -24,7 +24,7 @@ describe("FCM server-only provider boundary",()=>{
   fetchMock.mockResolvedValue(new Response(JSON.stringify({name:"projects/sms-fixture/messages/0:123%abc"})));
   expect(await sendFcmNotification(config,"google-oauth-access",job())).toEqual({outcome:"accepted",code:"FCM_ACCEPTED",providerId:"projects/sms-fixture/messages/0:123%abc"});
   const [url,options]=fetchMock.mock.calls[0];expect(url).toBe("https://fcm.googleapis.com/v1/projects/sms-fixture/messages:send");expect(options.headers.Authorization).toBe("Bearer google-oauth-access");expect(options.redirect).toBe("error");expect(options.signal).toBeInstanceOf(AbortSignal);
-  const body=JSON.parse(options.body);expect(body.message.fid).toBe(fid);expect(body.message).not.toHaveProperty("token");expect(body.message.data).toEqual({screen:"notifications"});expect(body.message.notification).toEqual({title:"SMS school update",body:"Open SMS to view your school updates."});expect(body.message.android.ttl).toBe("300s");expect(JSON.stringify(body)).not.toMatch(/student_id|recipient|assessment|leave|marks|reason/);
+  const body=JSON.parse(options.body);expect(body.message.fid).toBe(fid);expect(body.message).not.toHaveProperty("token");expect(body.message.data).toEqual({screen:"notifications"});expect(body.message.notification).toEqual({title:"SMS school update",body:"Open SMS to view your school updates."});expect(Math.abs(Number(body.message.android.ttl.slice(0,-1))-86400)).toBeLessThanOrEqual(2);expect(body.message.android.priority).toBe("high");expect(JSON.stringify(body)).not.toMatch(/student_id|recipient|assessment|leave|marks|reason/);
  });
  it("uses iOS alert expiry/collapse headers without adding private payloads",async()=>{fetchMock.mockResolvedValue(new Response('{"name":"projects/sms-fixture/messages/123"}'));await sendFcmNotification(config,"access",{...job(),platform:"ios"});const body=JSON.parse(fetchMock.mock.calls[0][1].body);expect(body.message.apns.headers["apns-push-type"]).toBe("alert");expect(body.message).not.toHaveProperty("android");});
  it("does not send expired or invalid device references",async()=>{expect(await sendFcmNotification(config,"access",{...job(),expires_at:"2020-01-01T00:00:00Z"})).toEqual({outcome:"failed",code:"EXPIRED"});await expect(sendFcmNotification(config,"access",{...job(),device_fid:"legacy:long-token"})).rejects.toThrow("Invalid");expect(fetchMock).not.toHaveBeenCalled();});
@@ -44,3 +44,20 @@ describe("FCM server-only provider boundary",()=>{
 });
 
 it("backs off provider permission/auth failures without disabling a device",async()=>{for(const status of [401,403]){fetchMock.mockResolvedValue(new Response("{}",{status}));expect(await sendFcmNotification(config,"access",job())).toEqual({outcome:"retry",code:"PROVIDER_AUTH",retryAfterSeconds:3600});}});
+
+it("keeps an offline phone's alert for the remaining job lifetime, capped at 24 hours",async()=>{
+ fetchMock.mockResolvedValue(new Response('{"name":"projects/sms-fixture/messages/1"}'));
+ await sendFcmNotification(config,"access",{...job(),expires_at:new Date(Date.now()+2*3600000).toISOString()});
+ expect(Math.abs(Number(JSON.parse(fetchMock.mock.calls[0][1].body).message.android.ttl.slice(0,-1))-7200)).toBeLessThanOrEqual(2);
+ await sendFcmNotification(config,"access",{...job(),platform:"ios",expires_at:new Date(Date.now()+48*3600000).toISOString()});
+ const expiry=Number(JSON.parse(fetchMock.mock.calls[1][1].body).message.apns.headers["apns-expiration"]);
+ expect(Math.abs(expiry-(Math.floor(Date.now()/1000)+86400))).toBeLessThanOrEqual(2);
+});
+it("sends due-today fee reminders at normal priority and keeps other kinds high priority",async()=>{
+ fetchMock.mockImplementation(async()=>new Response('{"name":"projects/sms-fixture/messages/1"}'));
+ for(const platform of ["android","ios"] as const)for(const kind of ["fee_due","leave_decision"])await sendFcmNotification(config,"access",{...job(),platform,kind});
+ const bodies=fetchMock.mock.calls.map(call=>JSON.parse(call[1].body).message);
+ expect(bodies.map(body=>body.android?.priority??body.apns.headers["apns-priority"])).toEqual(["normal","high","5","10"]);
+ // Reminders use the quieter Android channel and no APNs sound; other kinds keep the default channel and sound.
+ expect(bodies.map(body=>body.android?body.android.notification.channel_id:body.apns.payload?.aps.sound)).toEqual(["sms-reminders",undefined,undefined,"default"]);
+});

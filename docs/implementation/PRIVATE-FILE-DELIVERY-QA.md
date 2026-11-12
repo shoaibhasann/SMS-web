@@ -43,7 +43,7 @@ Those two observed browser paths establish the deployed buttons and browser CORS
 
 ## Function deployment note
 
-There is no project-wide function config scaffold in this repository. Deploy this handler with its explicit gateway setting from the repository root:
+`supabase/config.toml` pins `[functions.private-academic-file] verify_jwt = false` (it holds only Edge Function gateway settings; never run `supabase config push` with it). Deploy this handler with its explicit gateway setting from the repository root as well:
 
 ```sh
 npx supabase functions deploy private-academic-file --project-ref YOUR_PROJECT_REF --no-verify-jwt

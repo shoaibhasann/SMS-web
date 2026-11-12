@@ -118,7 +118,7 @@ describe("dedicated real admissions view", () => {
     await open();
     expect(screen.getByRole("heading", { name: "Admissions" })).toBeInTheDocument();
     expect(screen.getByText("Existing pupil")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /withdraw|change placement|approve|reject/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /withdraw|change placement|promote|approve|reject/i })).not.toBeInTheDocument();
     expect(api.placementHistory).not.toHaveBeenCalled(); expect(api.withdrawalHistory).not.toHaveBeenCalled();
     expect(api.import).toHaveBeenLastCalledWith(expect.objectContaining({ ownerUserId: userId, context: { schoolId, academicYearId: yearId, classId, sectionId } }));
     fireEvent.click(screen.getByRole("button", { name: "Admit student" }));
@@ -165,5 +165,27 @@ describe("dedicated real admissions view", () => {
     expect(await screen.findByRole("button", { name: "Change placement for Existing pupil" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Withdraw Existing pupil" })).toBeInTheDocument();
     expect(api.placementHistory).toHaveBeenCalled(); expect(api.withdrawalHistory).toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Promote this section" })).not.toBeInTheDocument();
+  });
+
+  it("offers a whole-section promotion in the Students view once a later academic year exists", async () => {
+    const year = { id: yearId, name: "Current year", start_date: "2026-04-01", end_date: "2027-03-31", is_current: true };
+    api.setup.mockResolvedValue({ year, years: [year, { id: id(7), name: "Next year", start_date: "2027-04-01", end_date: "2028-03-31", is_current: false }],
+      classes: [{ id: classId, name: "Grade 6" }], sections: [{ id: sectionId, name: "A", class_id: classId }] });
+    render(<StudentRosterWorkspace userId={userId} />);
+    expect(await screen.findByRole("button", { name: "Change placement for Existing pupil" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Promote this section" })).toBeEnabled();
+  });
+  it("retries failed access and class setup reads in place without a page reload", async () => {
+    api.access.mockRejectedValueOnce(new Error("Network offline"));
+    api.setup.mockRejectedValueOnce(new Error("Classes offline"));
+    render(<StudentRosterWorkspace userId={userId} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Network offline");
+    expect(screen.getByRole("alert")).toHaveClass("text-danger");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Classes offline");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: "Change placement for Existing pupil" })).toBeInTheDocument();
+    expect(api.access).toHaveBeenCalledTimes(2); expect(api.setup).toHaveBeenCalledTimes(2);
   });
 });

@@ -53,6 +53,7 @@ describe("dashboard presentation from verified records", () => {
     expect(screen.getByText(/No attendance records available/)).toBeInTheDocument(); expect(screen.queryByRole("img")).not.toBeInTheDocument();
     view.rerender(<AttendanceComposition rows={[{ status: "present" }]} unavailable href="/modules/attendance" />);
     expect(screen.getByText(/Attendance is unavailable/)).toBeInTheDocument(); expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    expect(screen.getByText(/Attendance is unavailable/)).toHaveClass("dashboard-unavailable"); expect(screen.getByText(/Attendance is unavailable/)).not.toHaveTextContent(/Refresh/);
   });
   it("aggregates actual log dates and labels a recent sample instead of inventing a monthly trend", () => {
     render(<RecentLogChart logs={[{ log_date: "2026-11-05" }, { log_date: "2026-11-05" }, { log_date: "2026-11-06" }]} />);

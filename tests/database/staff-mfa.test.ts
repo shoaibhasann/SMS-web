@@ -1,6 +1,5 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
-import { readFile } from "node:fs/promises";
 import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRecoveryDatabase } from "../../scripts/database-recovery/replay.mjs";
@@ -10,7 +9,7 @@ let db: PGlite;
 const principal=randomUUID(),accountant=randomUUID(),reception=randomUUID(),globalAdmin=randomUUID();
 const staff=[id.adminA,id.teacherA,principal,accountant,reception];
 type Status={user_id:string;profile_school_id:string|null;roles:{role:string;school_id:string|null}[];required:boolean;allowed:boolean;action:string;current_aal:string;verified_totp_count:number;staff:boolean;policy_required:boolean;dashboard_allowed:boolean};
-type Policy={school_id:string;required:boolean;revision:number;can_manage:boolean;staff_count:number;enrolled_staff_count:number;enrollment_required_count:number;history:unknown[]};
+type Policy={school_id:string;required:boolean;revision:number;can_manage:boolean;staff_count:number;enrolled_staff_count:number;enrollment_required_count:number;history:unknown[];pending:{profile_id:string;full_name:string|null;roles:string[];reason:string}[]};
 async function actor<T extends Record<string,unknown>=Record<string,unknown>>(user:string|null,sql:string,args:unknown[]=[],options:{aal?:unknown;session?:string|null;path?:string;http?:boolean;role?:"authenticated"|"anon"|"service_role"}={}){
   await db.exec("savepoint mfa_actor");
   try{
@@ -36,11 +35,8 @@ async function enroll(user:string,{elevate=true,verified=true,type="totp"}:{elev
 const deny=(promise:Promise<unknown>,code="42501")=>expect(promise).rejects.toMatchObject({code});
 async function enable(){for(const user of staff)await enroll(user);return save(true);}
 beforeAll(async()=>{
+  // 20261109112234 and 20261109133000 are now in the recovery manifest, so the replay already applies them.
   db=await createRecoveryDatabase();await seedRecoveryData(db);
-  const emailOtpMigration = new URL("../../supabase/migrations/20261109112234_admin_email_otp_eligibility.sql", import.meta.url);
-  await db.exec(await readFile(emailOtpMigration, "utf8"));
-  const dashboardMigration = new URL("../../supabase/migrations/20261109133000_school_admin_single_factor_dashboard.sql", import.meta.url);
-  await db.exec(await readFile(dashboardMigration, "utf8"));
   for(const[user,role]of[[principal,"principal"],[accountant,"accountant"],[reception,"reception_staff"],[globalAdmin,"super_admin"]]){
     await db.query("insert into auth.users(id,email,email_confirmed_at) values($1,$2,now())",[user,`${user}@mfa.invalid`]);
     await db.query("update public.profiles set school_id=$2 where id=$1",[user,role==="super_admin"?null:id.schoolA]);
@@ -333,6 +329,22 @@ describe("governed staff rollout, recovery boundaries and whole-account mixed ro
     await db.query("update auth.users set email_confirmed_at=null,phone_confirmed_at=null where id=$1",[accountant]);
     expect(await load(id.adminA,"aal2")).toMatchObject({staff_count:5,enrolled_staff_count:4,enrollment_required_count:1});
     await deny(save(true),"22023");
+  });
+  it("names each staff account still blocking enablement once, with its school staff roles and the reason",async()=>{
+    await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,'accountant'),($1,$3,'teacher')",[id.teacherA,id.schoolA,id.schoolB]);
+    for(const[user,name]of[[accountant,"Asha Accounts"],[reception,"Ravi Reception"],[principal,"  "]])await db.query("update public.profiles set full_name=$2 where id=$1",[user,name]);
+    await enroll(id.adminA);await enroll(principal);await enroll(accountant,{elevate:false});await enroll(reception,{elevate:false});
+    await db.query("update auth.users set email_confirmed_at=null,phone_confirmed_at=null where id=$1",[accountant]);
+    await db.query("update auth.users set banned_until=now()+interval '1 day' where id=$1",[reception]);
+    const pending=[{profile_id:accountant,full_name:"Asha Accounts",roles:["accountant"],reason:"unconfirmed"},
+      {profile_id:reception,full_name:"Ravi Reception",roles:["reception_staff"],reason:"banned"},
+      {profile_id:id.teacherA,full_name:"Synthetic teacher-a",roles:["accountant","teacher"],reason:"not_enrolled"}];
+    expect(await load(principal,"aal2")).toMatchObject({can_manage:false,enrollment_required_count:3,pending});
+    await db.query("update auth.users set deleted_at=now() where id=$1",[principal]);
+    expect(await load(id.adminA,"aal2")).toMatchObject({staff_count:5,enrolled_staff_count:1,enrollment_required_count:4,
+      pending:[...pending,{profile_id:principal,full_name:null,roles:["principal"],reason:"deleted"}]});
+    await enroll(id.teacherA);await db.query("update auth.users set email_confirmed_at=now() where id=$1",[accountant]);
+    expect((await load(id.adminA,"aal2")).pending.map(row=>row.profile_id)).toEqual([reception,principal]);
   });
   it("deduplicates multiple staff roles and ignores inactive profiles until governed reactivation",async()=>{
     await db.query("insert into public.user_roles(user_id,school_id,role) values($1,$2,'accountant')",[id.teacherA,id.schoolA]);

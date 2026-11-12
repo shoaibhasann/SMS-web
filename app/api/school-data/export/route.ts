@@ -18,19 +18,24 @@ export async function GET(request: Request) {
   if (!schoolId || !uuid.test(schoolId)) return failure("Select a school in School Settings.", 400);
 
   const client = await createClient();
-  const { data: { session } } = await client.auth.getSession();
+  let { data: { session } } = await client.auth.getSession();
+  // The stream pins one token for up to five minutes, so refresh one that could expire mid-export.
+  if (session?.access_token && (session.expires_at ?? 0) * 1000 - Date.now() < 300_000) {
+    const refreshed = await client.auth.refreshSession();
+    session = refreshed.error ? null : refreshed.data.session;
+  }
   if (!session?.access_token) return failure("Sign in to SMS again to export school data.", 401);
   const token = session.access_token;
   const { data: { user }, error: userError } = await client.auth.getUser(token);
   if (userError || !user || user.is_anonymous) return failure("Sign in to SMS again to export school data.", 401);
 
   const signal = AbortSignal.any([request.signal, AbortSignal.timeout(285_000)]);
-  const page = (dataset: string, offset: number) => client.rpc("export_school_dataset", {
-    p_school_id: schoolId, p_dataset: dataset, p_offset: offset,
+  const page = (dataset: string, after: Record<string, unknown> | null) => client.rpc("export_school_dataset", {
+    p_school_id: schoolId, p_dataset: dataset, p_after: after,
   }).setHeader("Authorization", `Bearer ${token}`).abortSignal(signal);
 
   try {
-    const { data, error } = await page("manifest", 0);
+    const { data, error } = await page("manifest", null);
     if (error?.code === "42501") return failure("This export requires School Admin access and a verified authenticator for the selected school.", 403);
     if (error) throw error;
     const datasets = exportDatasets(data);
@@ -38,8 +43,8 @@ export async function GET(request: Request) {
     const secret = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
     if (!origin || !/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(origin) || !secret) throw new Error("Storage export unavailable.");
 
-    const stream = schoolArchive(schoolId, datasets, async (dataset, offset) => {
-      const result = await page(dataset, offset);
+    const stream = schoolArchive(schoolId, datasets, async (dataset, after) => {
+      const result = await page(dataset, after);
       if (result.error) throw new Error("School export page unavailable.");
       return result.data;
     }, async (bucket, path) => {

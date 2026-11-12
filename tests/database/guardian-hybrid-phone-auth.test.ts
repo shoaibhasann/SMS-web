@@ -153,13 +153,15 @@ describe("governed mobile guardian invitations", () => {
     if (condition === "privileged") await denied(accept(user, invite)); else await unavailable(accept(user, invite));
     expect((await db.query("select id from public.parents where profile_id=$1", [user])).rows).toEqual([]);
   });
-  it("blocks ambiguous other-school invitations and account bindings", async () => {
+  // Issuance no longer reports other-school matches (web-guardian#3); acceptance still fails closed.
+  it("blocks ambiguous other-school invitations and account bindings at acceptance", async () => {
     await issue();
-    await invalid(issue(phone, id.pupilB, id.adminB, id.schoolB));
+    await issue(phone, id.pupilB, id.adminB, id.schoolB);
     await db.query("update app_private.guardian_invitations set revoked_at=now()");
     const user = await createUser();
     await db.query("update public.profiles set school_id=$2 where id=$1", [user, id.schoolB]);
-    await invalid(issue());
+    await denied(accept(user, await issue()));
+    expect((await db.query("select id from public.parents where profile_id=$1", [user])).rows).toEqual([]);
   });
   it("preserves sibling links/history during revoke and exact-account mobile re-invite", async () => {
     const first = await issue(), sibling = await issue(phone, id.unlinkedPupilA);
@@ -319,14 +321,14 @@ describe("CAPTCHA permits and private SMS spending", () => {
     expect((await db.query("select count(*)::int as count from app_private.guardian_sms_permits")).rows).toEqual([{ count: 1 }]);
     expect((await db.query("select count(*)::int as count from app_private.guardian_sms_reservations")).rows).toEqual([{ count: 1 }]);
   });
-  it("caps the CAPTCHA endpoint per IP and global day using an append-only history", async () => {
+  it("caps the CAPTCHA endpoint per IP with no shared platform-wide permit pool", async () => {
     for (let index = 0; index < 20; index++) expect(await permit(`+91987654${String(3200 + index)}`, "same-ip")).toBe(true);
     expect(await permit("+919876543299", "same-ip")).toBe(false);
     expect(await permit("+919876543299", "another-ip")).toBe(true);
     await db.exec(`insert into app_private.guardian_sms_permits(phone_hash,ip_hash,issued_at,expires_at)
       select sha256(convert_to('synthetic-'||n::text,'UTF8')),sha256(convert_to('synthetic-ip-'||n::text,'UTF8')),clock_timestamp(),clock_timestamp()+interval '90 seconds'
       from generate_series(1,979) n`);
-    expect(await permit("+919876543298", "fresh-ip")).toBe(false);
+    expect(await permit("+919876543298", "fresh-ip")).toBe(true);
   });
   it("validates server limits and provider identifiers before any reserve", async () => {
     await invalid(actor(null, "select public.authorize_guardian_sms_request($1,$2)", [phone, "raw-ip"], "service_role"));

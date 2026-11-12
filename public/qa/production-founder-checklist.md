@@ -36,7 +36,7 @@ Term report cards/ranks, stored result PDFs, publication withdrawal, automatic l
 ## Login, workspace and account retest · 9 November 2026
 
 - [ ] **LOGIN-03 / LOGIN-04.** Enter a wrong password and check for “Incorrect email or password. Please try again.” Sign in with an authorized QA role and refresh on a slow network. Desktop shows separate sidebar and content placeholders. At phone width, the closed sidebar leaves the content placeholder full width. The correct role navigation appears once access is verified.
-- [ ] **SHELL-01.** Hover over the avatar and move to Account settings, Appearance and Logout. Check the opening animation, pointer cursor and visible highlight. Repeat with a tap and with keyboard focus. Escape should close the menu.
+- [ ] **SHELL-01.** Hover over the avatar and move to Account settings, Appearance and Sign out. Check the opening animation, pointer cursor and visible highlight. Repeat with a tap and with keyboard focus. Escape should close the menu.
 - [ ] **SHELL-05 / SHELL-07 / MFA-01.** Check the label gap in Account settings, MFA and a dashboard form such as Timetable. Hover Generate setup code and Verify authenticator in Light and Dark and check that the text remains readable.
 - [ ] **SHELL-06.** Change the password on a disposable login. “Password changed” appears below the button, the password fields clear, and Account details and Authenticator security stay visible.
 - [ ] **MFA-02.** Try a wrong code and check for “Incorrect code. Try the latest six-digit code.” Submit a valid code and check that “Verifying…” leads directly to the authorized page.

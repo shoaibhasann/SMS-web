@@ -1,17 +1,28 @@
 "use client";
 
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, Suspense, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowRight, Eye, EyeOff, Loader2, LockKeyhole, Mail, ShieldCheck } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { AdminEmailOtpForm } from "@/components/auth/admin-email-otp-form";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { dashboardStepUpPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 const methods = [["email", "Email & password"], ["mobile", "Guardian mobile"], ["admin-code", "Admin email code"]] as const;
 const emailCodeEnabled = process.env.NEXT_PUBLIC_ADMIN_EMAIL_OTP_ENABLED === "true";
+
+const callbackErrors = new Set(["auth_callback_failed", "auth_callback_missing_code"]);
+
+// Allowlisted codes only: the URL value is never echoed.
+function CallbackNotice() {
+  const code = useSearchParams().get("error");
+  if (!code || !callbackErrors.has(code)) return null;
+  // /auth/callback serves OAuth and email-link callers alike, so the copy names no provider.
+  return <p role="alert" className="login-error">Sign-in couldn’t be completed. Try again or choose another sign-in option.</p>;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -24,10 +35,20 @@ export default function LoginPage() {
   const [method, setMethod] = useState<(typeof methods)[number][0]>("email");
   const [codeBusy, setCodeBusy] = useState(false);
   const [error, setError] = useState("");
+  const [callbackDismissed, setCallbackDismissed] = useState(false);
   const [resumeUserId, setResumeUserId] = useState<string>();
   const [resuming, setResuming] = useState(false);
   const resumeAttempt = useRef<{ userId: string; controller: AbortController }>(null);
   const busy = loading || googleLoading || codeBusy || resuming;
+
+  function dismissCallback() {
+    setCallbackDismissed(true);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("error")) return;
+    url.searchParams.delete("error");
+    // Drop the param so a reload does not resurface an already dismissed notice.
+    router.replace(`${url.pathname}${url.search}`, { scroll: false });
+  }
 
   useEffect(() => {
     let check: AbortController | undefined;
@@ -58,6 +79,7 @@ export default function LoginPage() {
     if (busy) return;
     setLoading(true);
     setError("");
+    dismissCallback();
 
     try {
       const current = await supabase.auth.getSession();
@@ -116,6 +138,7 @@ export default function LoginPage() {
     if (busy) return;
     setGoogleLoading(true);
     setError("");
+    dismissCallback();
 
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -137,6 +160,7 @@ export default function LoginPage() {
       <div className="login-frame">
         <section className="login-hero" aria-label="SMS school workspace">
           <div className="login-brand">
+            <BrandLogo size={48} />
             <div><p className="login-brand-name">SMS</p><p className="login-brand-caption">School Management System</p></div>
           </div>
 
@@ -153,7 +177,7 @@ export default function LoginPage() {
           </div>
 
           <div className="login-hero-copy">
-            <h2>Every school day,<br />in sync.</h2>
+            <p className="login-hero-title">Every school day,<br />in sync.</p>
             <p>One place for attendance, homework and school updates.</p>
           </div>
           <svg className="login-wave" viewBox="0 0 160 1000" preserveAspectRatio="none" aria-hidden="true">
@@ -164,6 +188,7 @@ export default function LoginPage() {
         <section className="login-form-panel" aria-labelledby="login-heading">
           <div className="login-form-content">
             <div className="login-brand login-mobile-brand">
+              <BrandLogo size={48} />
               <div><p className="login-brand-name">SMS</p><p className="login-brand-caption">School Management System</p></div>
             </div>
 
@@ -172,7 +197,7 @@ export default function LoginPage() {
 
             <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}>
               {(emailCodeEnabled ? methods : methods.slice(0, 2)).map(([value, title]) => <button key={value} type="button"
-                aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); }}
+                aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); dismissCallback(); }}
                 className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{title}</button>)}
             </div>
 
@@ -237,6 +262,7 @@ export default function LoginPage() {
               </div>
 
               {error && <p role="alert" className="login-error">{error}</p>}
+              {!error && !callbackDismissed && <Suspense fallback={null}><CallbackNotice /></Suspense>}
 
               <button type="submit" disabled={busy} className="login-submit">
                 {loading ? <><Loader2 className="animate-spin" size={18} aria-hidden="true" /> Signing in…</> : <>Sign in <ArrowRight size={18} aria-hidden="true" /></>}

@@ -12,6 +12,7 @@ const navigation = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({
   usePathname: () => navigation.path,
   useRouter: () => navigation.router,
+  useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: {
   onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }),

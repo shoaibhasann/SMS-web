@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AccountSettings } from "../components/account/account-settings";
 import { PasswordChangeError } from "../lib/account/password";
 
-const { authUser, profile, subscribe, change, signOut, eq, rpc } = vi.hoisted(() => ({
-  authUser: vi.fn(), profile: vi.fn(), subscribe: vi.fn(), change: vi.fn(), signOut: vi.fn(), eq: vi.fn(), rpc: vi.fn(),
+const { authUser, profile, subscribe, change, signOut, eq, rpc, providers } = vi.hoisted(() => ({
+  authUser: vi.fn(), profile: vi.fn(), subscribe: vi.fn(), change: vi.fn(), signOut: vi.fn(), eq: vi.fn(), rpc: vi.fn(), providers: vi.fn(),
 }));
+vi.mock("@/lib/guardian-invitations/contact", () => ({ readGuardianContactProviders: providers }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc, auth: { getUser: authUser, onAuthStateChange: subscribe, signOut },
   from: () => ({ select: () => ({ eq: (...args: unknown[]) => { eq(...args); return { maybeSingle: profile }; } }) }) }) }));
 vi.mock("@/lib/account/password", async (original) => ({ ...await original<typeof import("../lib/account/password")>(), changeOwnPassword: change }));
@@ -25,6 +26,7 @@ beforeEach(() => {
   subscribe.mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } });
   change.mockResolvedValue({ changed: true, temporarySessionClosed: true });
   signOut.mockResolvedValue({ error: null });
+  providers.mockResolvedValue({ email: true, sms: true, captchaSiteKey: "site" });
   rpc.mockImplementation(() => { const reply = Promise.resolve({ data: { preferences: { enabled: false, absence: true, result_published: true, leave_decision: true, version: 0 }, devices: [] }, error: null }); return Object.assign(reply, { abortSignal: () => reply }); });
 });
 
@@ -57,6 +59,68 @@ describe("own account settings", () => {
     expect(change).not.toHaveBeenCalled();
   });
 
+  it("tells a phone-only guardian how to sign in to the Android app instead of saying no password is needed", async () => {
+    authUser.mockResolvedValue({ data: { user: { ...owner, email: undefined, email_confirmed_at: undefined,
+      phone: "919876540001", phone_confirmed_at: "2026-11-06T12:00:00Z", identities: [{ provider: "phone" }] } }, error: null });
+    render(<AccountSettings userId="owner" role="parent" hasGuardianRole />);
+    expect(await screen.findByText(/To use the SMS Android app, set an app password/)).toBeVisible();
+    expect(screen.queryByText(/You do not need a password/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Set app password" })).toHaveAttribute("href", "/modules/profile?view=guardian");
+    expect(screen.queryByRole("link", { name: "Forgot your password?" })).not.toBeInTheDocument();
+  });
+
+  it("does not link a phone-only guardian to a missing app password card when SMS is disabled", async () => {
+    providers.mockResolvedValue({ email: true, sms: false, captchaSiteKey: null });
+    authUser.mockResolvedValue({ data: { user: { ...owner, email: undefined, email_confirmed_at: undefined,
+      phone: "919876540001", phone_confirmed_at: "2026-11-06T12:00:00Z", identities: [{ provider: "phone" }] } }, error: null });
+    render(<AccountSettings userId="owner" role="parent" hasGuardianRole />);
+    expect(await screen.findByText(/school office must enable mobile verification or add a verified email/)).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Set app password" })).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral retry, not the office copy, when SMS settings are only temporarily unavailable", async () => {
+    providers.mockRejectedValueOnce(new Error("Contact verification settings are temporarily unavailable."));
+    authUser.mockResolvedValue({ data: { user: { ...owner, email: undefined, email_confirmed_at: undefined,
+      phone: "919876540001", phone_confirmed_at: "2026-11-06T12:00:00Z", identities: [{ provider: "phone" }] } }, error: null });
+    render(<AccountSettings userId="owner" role="parent" hasGuardianRole />);
+    expect(await screen.findByText(/App password setup could not be checked right now/)).toBeVisible();
+    expect(screen.queryByText(/school office must enable mobile verification/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Set app password" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Retry app password check" }));
+    expect(await screen.findByRole("link", { name: "Set app password" })).toHaveAttribute("href", "/modules/profile?view=guardian");
+    expect(providers).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows account details while a hung SMS settings read is pending, then falls back after the timeout", async () => {
+    const actual = await vi.importActual<typeof import("../lib/guardian-invitations/contact")>("../lib/guardian-invitations/contact");
+    providers.mockImplementation(actual.readGuardianContactProviders);
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://demo.supabase.test");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "publishable");
+    const timeout = new AbortController();
+    const spy = vi.spyOn(AbortSignal, "timeout").mockReturnValue(timeout.signal);
+    vi.stubGlobal("fetch", vi.fn((_url: string | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+    })));
+    authUser.mockResolvedValue({ data: { user: { ...owner, email: undefined, email_confirmed_at: undefined,
+      phone: "919876540001", phone_confirmed_at: "2026-11-06T12:00:00Z", identities: [{ provider: "phone" }] } }, error: null });
+    try {
+      render(<AccountSettings userId="owner" role="parent" hasGuardianRole />);
+      expect(await screen.findByText("+919876540001")).toBeVisible();
+      expect(screen.getByText("QA Student")).toBeVisible();
+      expect(screen.getByText(/Checking app password availability/)).toBeVisible();
+      expect(screen.queryByRole("link", { name: "Set app password" })).not.toBeInTheDocument();
+      await act(async () => { timeout.abort(new DOMException("timed out", "TimeoutError")); });
+      expect(await screen.findByText(/App password setup could not be checked right now/)).toBeVisible();
+      expect(screen.queryByRole("link", { name: "Set app password" })).not.toBeInTheDocument();
+    } finally { spy.mockRestore(); vi.unstubAllGlobals(); vi.unstubAllEnvs(); }
+  });
+
+  it("does not read SMS settings for email accounts", async () => {
+    render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);
+    await screen.findByText(owner.email);
+    expect(providers).not.toHaveBeenCalled();
+  });
+
   it("keeps wrong-current-password feedback actionable without calling primary signout", async () => {
     change.mockRejectedValueOnce(new PasswordChangeError("Current password could not be verified. Check it and try again.", "verification_failed"));
     render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);
@@ -66,6 +130,25 @@ describe("own account settings", () => {
     expect(screen.getByLabelText("Current password")).toHaveValue("");
     expect(screen.getByLabelText("New password")).toHaveValue(newPassword);
     expect(signOut).not.toHaveBeenCalled();
+  });
+
+  it("says 8 characters, refuses 7 before Auth and accepts 8", async () => {
+    render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);
+    await screen.findByText(owner.email);
+    const form = within(screen.getByRole("form", { name: "Change your password" }));
+    expect(form.getByText(/Use at least 8 characters\./)).toBeVisible();
+    expect(form.queryByText(/12 characters/)).not.toBeInTheDocument();
+    const enter = (value: string) => { fill();
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value } });
+      fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value } });
+      fireEvent.click(screen.getByRole("button", { name: "Change password" })); };
+    enter("seven77");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Use at least 8 characters for your new password.");
+    expect(change).not.toHaveBeenCalled();
+    enter("eight888");
+    expect(await screen.findByRole("heading", { name: "Password changed" })).toBeInTheDocument();
+    expect(change).toHaveBeenCalledExactlyOnceWith(expect.anything(), "owner",
+      { currentPassword: "Original password1", newPassword: "eight888", confirmation: "eight888" }, expect.any(AbortSignal));
   });
 
   it("validates mismatch before Auth and prevents parallel submit clicks", async () => {
@@ -179,6 +262,7 @@ describe("own account settings", () => {
     authUser.mockResolvedValue({ data: { user: { ...owner, identities: [{ provider: "google" }] } }, error: null });
     render(<AccountSettings userId="owner" role="student" hasGuardianRole={false} />);
     expect(await screen.findByText(/If you have not set a school password/)).toBeInTheDocument();
+    expect(screen.getByText(/The SMS Android app signs in with this email and a password/)).toBeInTheDocument();
     expect(screen.queryByLabelText("Current password")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Forgot your password?" })).toHaveAttribute("href", "/forgot-password");
   });

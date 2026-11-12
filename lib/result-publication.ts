@@ -2,6 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const publicationPageSize = 50;
 export const publicationStatuses = ["pending", "published", "rejected", "cancelled"] as const;
+// Shared by the on-screen cards and the printout so school dates never drift: assessment dates are plain days, times are IST.
+export const resultDates = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+export const resultTimes = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
 export type PublicationStatus = (typeof publicationStatuses)[number];
 export type PublicationMetadata = {
   assessment_id: string; school_id: string; school_name: string; academic_year_id: string; academic_year_name: string;
@@ -22,6 +25,7 @@ export type PublicationSummary = {
 export type PublicationDetail = Omit<PublicationSummary, "metadata"> & {
   source_token: string; requested_by: string; reviewed_by: string | null; reviewer_name: string | null;
   review_note: string | null; source_matches: boolean | null; snapshot: { metadata: PublicationMetadata; pupils: PublicationPupil[] };
+  viewer_entered_marks: boolean;
 };
 export type FamilyAssessmentResult = {
   id: string; assessment_id: string; revision: number; published_at: string; publisher_name: string;
@@ -142,6 +146,7 @@ export async function getResultSubmission(client: SupabaseClient, submissionId: 
   if (row.id !== submissionId || !text(row.requested_by) || typeof row.source_token !== "string" || !token.test(row.source_token)
     || !nullableText(row.reviewed_by) || !nullableText(row.reviewer_name) || !nullableText(row.review_note)
     || !(row.source_matches === null || typeof row.source_matches === "boolean") || !roster.length
+    || !(row.viewer_entered_marks === undefined || typeof row.viewer_entered_marks === "boolean")
     || roster.some((pupil) => pupil.mark_id === null || pupil.marks_obtained === null)
     || base.status === "pending" && (row.reviewed_by !== null || row.review_note !== null || row.reviewed_at !== null)
     || base.status !== "pending" && (!text(row.reviewed_by) || !text(row.review_note) || !timestamp(row.reviewed_at))) throw invalid();
@@ -149,7 +154,7 @@ export async function getResultSubmission(client: SupabaseClient, submissionId: 
   void _metadata;
   return { ...detailBase, source_token: row.source_token, requested_by: row.requested_by, reviewed_by: row.reviewed_by,
     reviewer_name: row.reviewer_name, review_note: row.review_note, source_matches: row.source_matches,
-    snapshot: { metadata: source, pupils: roster } } as PublicationDetail;
+    viewer_entered_marks: row.viewer_entered_marks === true, snapshot: { metadata: source, pupils: roster } } as PublicationDetail;
 }
 export function validatePublicationReason(reason: string) {
   return reason.trim().length >= 3 && reason.trim().length <= 1000 ? null : "Enter a reason between 3 and 1,000 characters.";
@@ -213,9 +218,9 @@ export function printPublishedResult(result: FamilyAssessmentResult) {
   const details = doc.createElement("dl");
   for (const [name, value] of [["Student", result.student_name], ["Admission number", result.admission_no], ["Roll number", result.roll_no ?? "—"],
     ["Session", result.metadata.academic_year_name], ["Class", [result.metadata.class_name, result.metadata.section_name].filter(Boolean).join(" / ")],
-    ["Assessment", result.metadata.name], ["Subject", result.metadata.subject_name], ["Assessment date", result.metadata.assessment_date],
+    ["Assessment", result.metadata.name], ["Subject", result.metadata.subject_name], ["Assessment date", resultDates.format(new Date(`${result.metadata.assessment_date}T00:00:00Z`))],
     ["Marks", `${result.marks_obtained} / ${result.maximum_marks}`], ["Percentage", `${result.percentage.toFixed(2)}%`],
-    ["Revision", String(result.revision)], ["Published by", result.publisher_name], ["Published at", result.published_at]]) {
+    ["Revision", String(result.revision)], ["Published by", result.publisher_name], ["Published at", `${resultTimes.format(new Date(result.published_at))} IST`]]) {
     const term = doc.createElement("dt"), description = doc.createElement("dd"); term.textContent = name; description.textContent = value; details.append(term, description);
   }
   doc.body.append(details);

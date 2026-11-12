@@ -20,7 +20,7 @@ const pageSize = 30;
 const dateFormat = new Intl.DateTimeFormat("en-IN", {
   day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
 });
-const buttonClass = "rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50";
+const buttonClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50";
 type FamilyRole = "student" | "parent";
 type Client = ReturnType<typeof createClient>;
 type History = Awaited<ReturnType<typeof loadFamilyAttendance>>;
@@ -71,7 +71,7 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
       {role === "parent" && <GuardianAttendanceAlerts key={userId} userId={userId} summary />}
       {error ? (
         <section className="card space-y-3 p-4">
-          <p role="alert" className="text-sm text-red-600">{error}</p>
+          <p role="alert" className="text-sm text-danger">{error}</p>
           <button type="button" className={buttonClass} onClick={() => {
             setError("");
             setAttempt((value) => value + 1);
@@ -80,7 +80,7 @@ export function FamilyAttendanceRegister({ role, userId, initialChildId }: {
       ) : !students ? <LoadingState variant="form" className="text-sm muted">Checking attendance access…</LoadingState>
         : !student ? (
           <p className="card p-4 text-sm muted">{role === "parent"
-            ? "No child is linked to this parent account."
+            ? "No child is linked to this guardian account."
             : "No student profile is linked to this account."}</p>
         ) : (
           <>
@@ -127,7 +127,7 @@ function StudentHistory({ client, student }: { client: Client; student: FamilySt
       {!history ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance…</LoadingState>
         : history.error ? (
           <div className="space-y-3 p-4">
-            <p role="alert" className="text-sm text-red-600">Attendance could not be loaded.</p>
+            <p role="alert" className="text-sm text-danger">Attendance could not be loaded.</p>
             <button type="button" className={buttonClass} onClick={() => setAttempt((value) => value + 1)}>Retry history</button>
           </div>
         ) : history.rows.length ? (

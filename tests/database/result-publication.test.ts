@@ -30,6 +30,7 @@ type Submission = {
   requested_by: string; requester_name: string; requested_at: string; reviewed_by: string | null;
   reviewer_name: string | null; review_note: string | null; reviewed_at: string | null;
   revision: number | null; snapshot: { metadata: Metadata; pupils: Pupil[] }; source_matches: boolean | null;
+  viewer_entered_marks: boolean;
 };
 type Summary = Pick<Submission, "id" | "assessment_id" | "school_id" | "status" | "requested_at" | "requester_name" | "reviewed_at" | "revision"> & { metadata: Metadata };
 type FamilyResult = {
@@ -383,6 +384,35 @@ describe("independently published assessment results under the complete recovere
     expect((await family()).rows[0].marks_obtained).toBe(78);
   });
 
+  it("keeps the office score author blocked after a teacher's remark-only edit", async () => {
+    await saveMark(id.pupilA, 78, id.adminA);
+    await saveMark(id.pupilA, 78, id.teacherA, "Teacher remark only");
+    const submission = await request();
+    await denied(review(submission, id.adminA));
+    await denied(review(submission, id.adminA, "rejected", "My own scores are not independent"));
+    expect((await detail(submission, id.adminA)).viewer_entered_marks).toBe(true);
+    expect((await detail(submission, principal)).viewer_entered_marks).toBe(false);
+    await review(submission, principal);
+    expect((await family()).rows[0]).toMatchObject({ marks_obtained: 78, remarks: "Teacher remark only" });
+  });
+
+  it("releases the office reviewer once the teacher re-enters the score itself", async () => {
+    await saveMark(id.pupilA, 78, id.adminA);
+    await saveMark(id.pupilA, 80, id.teacherA, "Teacher re-marked");
+    const submission = await request();
+    expect((await detail(submission, id.adminA)).viewer_entered_marks).toBe(false);
+    await review(submission, id.adminA);
+    expect((await family()).rows[0].marks_obtained).toBe(80);
+  });
+
+  it("derives score authorship from the writer and ignores client-supplied authors", async () => {
+    const author = async () => (await db.query<{ marks_entered_by: string | null }>("select marks_entered_by from public.teacher_assessment_marks where id=$1", [id.markA])).rows[0].marks_entered_by;
+    await actor(id.teacherA, "update public.teacher_assessment_marks set marks_obtained=81,marks_entered_by=$2 where id=$1", [id.markA, id.adminA]);
+    expect(await author()).toBe(id.teacherA);
+    await actor(id.teacherA, "update public.teacher_assessment_marks set remarks='Forged author',marks_entered_by=$2 where id=$1", [id.markA, id.adminA]);
+    expect(await author()).toBe(id.teacherA);
+  });
+
   it("allows exactly one final independent decision and idempotent identical review retries", async () => {
     const submission = await request();
     expect(await review(submission)).toBe(submission);
@@ -435,11 +465,37 @@ describe("independently published assessment results under the complete recovere
     await db.query("delete from public.teacher_subject_assignments where id=$1", [id.assignmentA]);
     await denied(preview());
     await denied(detail(submission));
-    expect((await queue(id.teacherA, null)).rows).toEqual([]);
+    // RP-07: the requester still sees (metadata only) and can cancel their own pending request.
+    const pending = await queue(id.teacherA, null);
+    expect(pending).toMatchObject({ total_count: 1, rows: [{ id: submission, status: "pending" }] });
+    expect(pending.rows[0]).not.toHaveProperty("pupils");
+    expect(pending.rows[0]).not.toHaveProperty("snapshot");
+    expect((await queue(otherTeacher, null)).rows).toEqual([]);
     await denied(request(id.teacherA, id.assessmentA, (await detail(submission, principal)).source_token));
     await conflict(review(submission));
     expect((await family()).rows).toEqual([]);
     expect(await cancel(submission)).toBe(submission);
+    expect((await queue(id.teacherA, null)).rows).toEqual([]);
+  });
+
+  it("publishes the remaining class after a pupil with a saved mark is withdrawn, keeping that mark", async () => {
+    await db.query("update public.enrollments set status='withdrawn' where student_id=$1 and academic_year_id=$2", [id.unlinkedPupilA, id.yearA]);
+    const source = await preview();
+    expect(source).toMatchObject({ can_submit: true, issues: [] });
+    expect(source.pupils.map((pupil) => pupil.student_id)).toEqual([id.pupilA]);
+    const submission = await request(id.teacherA, id.assessmentA, source.source_token);
+    expect(await review(submission)).toBe(submission);
+    expect((await detail(submission, principal)).snapshot.pupils.map((pupil) => pupil.student_id)).toEqual([id.pupilA]);
+    expect((await db.query("select marks_obtained::text as score from public.teacher_assessment_marks where id=$1", [secondMark])).rows).toEqual([{ score: "88.00" }]);
+  });
+
+  it("still blocks a saved mark whose pupil is actively placed outside the assessment roster", async () => {
+    const section = uuid(73);
+    await db.query("insert into public.sections(id,school_id,class_id,name) values($1,$2,$3,'Other section')", [section, id.schoolA, id.classA]);
+    await db.query("update public.enrollments set section_id=$2 where student_id=$1", [id.unlinkedPupilA, section]);
+    const source = await preview();
+    expect(source.can_submit).toBe(false);
+    expect(source.issues).toContain("Saved marks exist outside the current class roster. Resolve placement before submitting.");
   });
 
   it("does not expose future/staged enrollment evidence or malformed school placement as a publishable roster", async () => {

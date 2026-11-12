@@ -157,7 +157,7 @@ function PeopleWorkspace({ mode }: { mode: Mode }) {
           const children = [...new Set(linkedChildren.get(parent.id) ?? [])];
           return {
             id: parent.id,
-            name: "Parent account",
+            name: "Guardian account",
             code: "",
             detail: `${children.length} linked ${children.length === 1 ? "student" : "students"}`,
             subdetail: children.join(", "),
@@ -195,7 +195,7 @@ function PeopleWorkspace({ mode }: { mode: Mode }) {
   const labels: Record<Mode, { title: string; description: string }> = {
     students: { title: "Students", description: "School-scoped student directory and enrollment identifiers." },
     teachers: { title: "Teachers & Staff", description: "School staff directory with current-year teaching responsibilities." },
-    parents: { title: "Parents", description: "Linked parent records and their associated students." },
+    parents: { title: "Guardians", description: "Linked guardian records and their associated students." },
   };
   const { title, description } = labels[mode];
 

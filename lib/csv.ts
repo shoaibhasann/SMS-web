@@ -13,7 +13,7 @@ export function readCsvRows(text: string) {
 
   function finishRow() {
     finishField();
-    if (row.length > 1 || row[0].trim()) rows.push(row);
+    if (row.some((cell) => cell.trim())) rows.push(row);
     row = [];
   }
 

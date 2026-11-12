@@ -11,17 +11,12 @@ export function toUiRole(role: string): UiRole | null {
   return null;
 }
 
-export function resolveUiRole(roleRows: readonly { role: string }[]): UiRole | null {
-  const roles = roleRows
-    .map((row) => toUiRole(row.role))
-    .filter((role): role is UiRole => role !== null);
+// Fixed priority so the landing role never depends on user_roles row order.
+const uiRolePriority: readonly UiRole[] = ["admin", "principal", "teacher", "finance", "reception", "student", "parent"];
 
-  return roles.find((role) => role === "admin")
-    ?? roles.find((role) => role === "principal")
-    ?? roles.find((role) => role === "teacher")
-    ?? roles.find((role) => role !== "parent")
-    ?? roles[0]
-    ?? null;
+export function resolveUiRole(roleRows: readonly { role: string }[]): UiRole | null {
+  const roles = new Set(roleRows.map((row) => toUiRole(row.role)));
+  return uiRolePriority.find((role) => roles.has(role)) ?? null;
 }
 
 export function roleLabel(role: UiRole) {
@@ -31,7 +26,7 @@ export function roleLabel(role: UiRole) {
     teacher: "Teacher",
     finance: "Finance",
     student: "Student",
-    parent: "Parent",
+    parent: "Guardian",
     reception: "Reception / Staff",
   }[role];
 }

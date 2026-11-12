@@ -158,7 +158,7 @@ export function GuardianInvitationImport({ client, schoolId, busy, onBusyChange,
             <div className="max-h-72 overflow-auto rounded-xl border border-[var(--border)]"
               tabIndex={0} role="region" aria-label="Guardian CSV preview">
               <table className="w-full min-w-[32rem] text-left text-sm">
-                <thead className="border-b border-[var(--border)]">
+                <thead className="sticky top-0 z-10 border-b border-[var(--border)] bg-[var(--surface-2)]">
                   <tr>
                     <th scope="col" className="px-3 py-2">Data row</th>
                     <th scope="col" className="px-3 py-2">Admission number</th>

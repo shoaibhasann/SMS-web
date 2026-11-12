@@ -17,8 +17,8 @@ type Result = { kind: "due"; record: Fee | null } | { kind: "payment"; record: P
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const detailCopy = {
-  due: { item: "fee", title: "Fee due", description: "Fee details", region: "Requested fee", refresh: "Refresh fee details" },
-  payment: { item: "payment receipt", title: "Fee payment", description: "Payment receipt", region: "Requested payment receipt", refresh: "Refresh payment receipt" },
+  due: { item: "fee", title: "Fee due", description: "Fee details", subtitle: "Details of the fee due for your child.", region: "Requested fee", refresh: "Refresh fee details" },
+  payment: { item: "payment receipt", title: "Fee payment", description: "Payment receipt", subtitle: "Receipt for a fee payment.", region: "Requested payment receipt", refresh: "Refresh payment receipt" },
 };
 const dateFormat = new Intl.DateTimeFormat("en-IN", {
   day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata",
@@ -46,7 +46,7 @@ function FeeDetail({ id, kind, studentId, role, userId }: TargetProps) {
   const [sessionChanged, setSessionChanged] = useState(false);
   const validTarget = uuid.test(id) && uuid.test(studentId);
   const result = response?.attempt === attempt ? response.result : undefined;
-  const { item, title, description, region, refresh } = detailCopy[kind];
+  const { item, title, description, subtitle, region, refresh } = detailCopy[kind];
   const unavailable = `This ${item} is no longer available.`;
 
   useEffect(() => {
@@ -98,7 +98,7 @@ function FeeDetail({ id, kind, studentId, role, userId }: TargetProps) {
             <ArrowLeft size={16} aria-hidden="true" /> Back to notifications
           </Link>
           <h1 className="text-3xl font-black">{title}</h1>
-          <p className="mt-2 text-sm muted">{description} from your notifications.</p>
+          <p className="mt-2 text-sm muted">{subtitle}</p>
         </div>
         {validTarget && !sessionChanged && (
           <button type="button" aria-label={refresh} disabled={!result}
@@ -112,7 +112,8 @@ function FeeDetail({ id, kind, studentId, role, userId }: TargetProps) {
         {sessionChanged ? <p role="alert" className="p-5 text-sm muted">Your sign-in changed. Reopen this {item} from Notifications.</p>
           : !validTarget ? <p className="p-5 text-sm muted">{unavailable}</p>
             : !result ? <LoadingState variant="form" label={`Loading ${description.toLowerCase()}…`} className="p-5" />
-              : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
+              : "error" in result ? <div className="space-y-3 p-5"><p role="alert" className="text-sm text-danger">{result.error}</p>
+                <button type="button" className="btn btn-secondary" onClick={() => setAttempt((value) => value + 1)}>Try again</button></div>
                 : !result.record ? <p className="p-5 text-sm muted">{unavailable}</p>
                   : result.kind === "due" ? <FeeSummary fee={result.record} /> : <PaymentSummary payment={result.record} />}
       </section>
@@ -142,7 +143,7 @@ function FeeSummary({ fee }: { fee: Fee }) {
   return (
     <article className="min-w-0 space-y-4 break-words p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-xl font-bold">{fee.fee_name}</h2>
           <p className="mt-1 text-sm muted">{fee.student_name}</p>
         </div>
@@ -155,7 +156,7 @@ function FeeSummary({ fee }: { fee: Fee }) {
         <div><dt className="font-semibold">Due date</dt><dd className="muted">
           <time dateTime={fee.due_date}>{dateFormat.format(new Date(`${fee.due_date}T00:00:00Z`))}</time>
         </dd></div>
-        <div><dt className="font-semibold">Current balance</dt><dd className="font-bold tabular-nums">{formatFeeMoney(fee.balance)}</dd></div>
+        <div><dt className="font-semibold">Balance due</dt><dd className="text-2xl font-bold tabular-nums">{formatFeeMoney(fee.balance)}</dd></div>
       </dl>
     </article>
   );

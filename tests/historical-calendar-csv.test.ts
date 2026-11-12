@@ -11,7 +11,7 @@ describe("historical school calendar CSV", () => {
   it.each(["2026-02-29", "2026-02-30", "2026-13-01", "0000-01-01", "2026-1-01", "07/11/2026"])("rejects non-civil date %s", day => {
     expect(parseHistoricalCalendarCsv(csv(`${day},working,School day`))[0].issue).toMatch(/real date/);
   });
-  it.each(["WORKING", "closed", "leave", "", "inherit"])("rejects unsupported decision %s", status => {
+  it.each(["closed", "leave", "", "inherit"])("rejects unsupported decision %s", status => {
     expect(parseHistoricalCalendarCsv(csv(`2026-10-01,${status},School day`))[0].issue).toMatch(/working or holiday/);
   });
   it("marks every repeated date rather than silently discarding one decision", () => {

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { StudentPlacementDialog, StudentPlacementHistory } from "@/components/admin/student-roster-placements";
+import { StudentDetailsDialog } from "@/components/admin/student-roster-details";
+import { SectionPromotionDialog } from "@/components/admin/student-roster-promotion";
 import { StudentRosterImport } from "@/components/admin/student-roster-import";
 import { StudentWithdrawalDialog, StudentWithdrawalHistory } from "@/components/admin/student-roster-withdrawals";
 import { loadAdminAttendanceSetup, loadEnrolledStudents, loadSchoolManagementAccess } from "@/lib/attendance/repository";
@@ -21,6 +23,15 @@ type SaveState = { message: string; error?: boolean };
 const label = "block space-y-2 text-sm font-semibold";
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-60";
 
+function ReadFailure({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <section className="card space-y-3 p-4">
+      <p role="alert" className="text-sm text-danger">{error}</p>
+      <button type="button" className="btn btn-secondary" onClick={onRetry}>Try again</button>
+    </section>
+  );
+}
+
 function readError(error: unknown) {
   return { error: error instanceof Error ? error.message : "The roster could not be loaded. Try again." };
 }
@@ -32,6 +43,7 @@ export function StudentRosterWorkspace({ userId, view = "students" }: { userId: 
 function RosterWorkspace({ userId, view }: { userId: string; view: "students" | "admissions" }) {
   const [client] = useState(createClient);
   const [access, setAccess] = useState<Load<Access>>();
+  const [attempt, setAttempt] = useState(0);
   const [selectedSchool, setSelectedSchool] = useState("");
   const [busy, setBusy] = useState(false);
   const [sessionChanged, setSessionChanged] = useState(false);
@@ -55,7 +67,7 @@ function RosterWorkspace({ userId, view }: { userId: string; view: "students" | 
       (error: unknown) => { if (active) setAccess(readError(error)); },
     );
     return () => { active = false; };
-  }, [client, userId, sessionChanged]);
+  }, [client, userId, sessionChanged, attempt]);
 
   const schools = access?.data?.schools ?? [];
   const schoolId = selectedSchool || (schools.length === 1 ? schools[0].id : "");
@@ -63,13 +75,13 @@ function RosterWorkspace({ userId, view }: { userId: string; view: "students" | 
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs font-bold uppercase tracking-widest text-blue-600">People</p>
-        <h1 className="mt-1 text-3xl font-black">{view === "admissions" ? "Admissions" : "Students"}</h1>
-        <p className="mt-2 text-sm muted">{view === "admissions" ? "Admit a student or import a reviewed CSV into the current academic year, then verify the saved class register." : "Admit students and manage their class, section and academic year."}</p>
+        <p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">People</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">{view === "admissions" ? "Admissions" : "Students"}</h1>
+        <p className="mt-2 text-sm leading-6 muted">{view === "admissions" ? "Admit a student or import a reviewed CSV into the current academic year, then verify the saved class register." : "Admit students and manage their class, section and academic year."}</p>
       </header>
-      {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload this page to check access again.</p>
+      {sessionChanged ? <p role="alert" className="card p-4 text-sm text-danger">Your account changed. Reload this page to check access again.</p>
         : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
-        : !access.data ? <p role="alert" className="card p-4 text-sm">{access.error}</p>
+        : !access.data ? <ReadFailure error={access.error} onRetry={() => { setAccess(undefined); setAttempt((count) => count + 1); }} />
         : <>
             <label className={`card p-4 ${label}`}>
               <span>School</span>
@@ -96,6 +108,7 @@ function SchoolRoster({ client, userId, schoolId, view, busy, onBusyChange }: {
   onBusyChange: (busy: boolean) => void;
 }) {
   const [setup, setSetup] = useState<Load<Setup>>();
+  const [attempt, setAttempt] = useState(0);
   const [selectedClass, setSelectedClass] = useState("");
   const [selectedSection, setSelectedSection] = useState("");
 
@@ -106,10 +119,10 @@ function SchoolRoster({ client, userId, schoolId, view, busy, onBusyChange }: {
       (error: unknown) => { if (active) setSetup(readError(error)); },
     );
     return () => { active = false; };
-  }, [client, schoolId]);
+  }, [client, schoolId, attempt]);
 
   if (!setup) return <LoadingState variant="form" className="text-sm muted">Loading the academic year and classes…</LoadingState>;
-  if (!setup.data) return <p role="alert" className="card p-4 text-sm">{setup.error}</p>;
+  if (!setup.data) return <ReadFailure error={setup.error} onRetry={() => { setSetup(undefined); setAttempt((count) => count + 1); }} />;
 
   const { year, classes } = setup.data;
   const classId = selectedClass || (classes.length === 1 ? classes[0].id : "");
@@ -163,10 +176,14 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
   const [admissionNumber, setAdmissionNumber] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
+  const [registeredMobile, setRegisteredMobile] = useState("");
+  const [detailsStudent, setDetailsStudent] = useState<RosterStudent>();
   const [status, setStatus] = useState<SaveState>();
   const [withdrawalStudent, setWithdrawalStudent] = useState<AttendanceStudent>();
   const [rosterNotice, setRosterNotice] = useState("");
   const [placementStudent, setPlacementStudent] = useState<RosterStudent>();
+  const [promoting, setPromoting] = useState(false);
   const [mustReconcile, setMustReconcile] = useState(false);
   const saveInFlight = useRef(false);
   const operation = useRef<AbortController | null>(null);
@@ -196,11 +213,16 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
     onBusyChange(true);
     setStatus(undefined);
     try {
-      await admitRosterStudent(client, { schoolId, academicYearId, classId, sectionId }, { admissionNumber, firstName, lastName }, { userId, signal: controller.signal });
+      await admitRosterStudent(client, { schoolId, academicYearId, classId, sectionId }, {
+        admissionNumber, firstName, lastName,
+        ...(dateOfBirth ? { dateOfBirth } : {}), ...(registeredMobile.trim() ? { registeredMobile } : {}),
+      }, { userId, signal: controller.signal });
       if (controller.signal.aborted) return;
       setAdmissionNumber("");
       setFirstName("");
       setLastName("");
+      setDateOfBirth("");
+      setRegisteredMobile("");
       setStatus({ message: "Student admitted and enrolled." });
       reloadRoster();
     } catch (error: unknown) {
@@ -233,13 +255,23 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
             <input className="field" value={lastName} maxLength={100}
               onChange={(event) => setLastName(event.target.value)} />
           </label>
+          <label className={label}>
+            <span>Date of birth (optional)</span>
+            <input className="field" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} />
+          </label>
+          <label className={label}>
+            <span>Registered mobile (optional)</span>
+            <input className="field" type="tel" inputMode="tel" value={registeredMobile} maxLength={20} placeholder="10 digit mobile number"
+              onChange={(event) => setRegisteredMobile(event.target.value)} />
+          </label>
         </fieldset>
-        <button type="submit" className={`${button} bg-blue-600 text-white`}
+        <p className="text-sm muted">The pupil needs a date of birth and registered mobile to activate a Student account. You can add them later with Edit details.</p>
+        <button type="submit" className="btn btn-primary"
           disabled={busy || mustReconcile || !roster?.data || !admissionNumber.trim() || !firstName.trim()}>
           {busy ? "Saving…" : "Admit student"}
         </button>
         {status && <p role={status.error ? "alert" : "status"}
-          className={status.error ? "text-sm text-red-700 dark:text-red-400" : "text-sm"}>
+          className={status.error ? "text-sm text-danger" : "text-sm"}>
           {status.message}
         </p>}
         {mustReconcile && <p className="text-sm leading-6 muted">Reload the roster before another admission. The previous request may already have saved; keep the same admission number while checking.</p>}
@@ -251,11 +283,16 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
       <section className="card space-y-4 p-4" aria-label="Current class roster">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-bold">Current class roster</h2>
-          <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
+          <div className="flex flex-wrap gap-2">
+            {view === "students" && setup.years.some((year) => !year.is_current && year.start_date > setup.year.end_date) &&
+              <button type="button" className={button} disabled={busy || !roster?.data?.length}
+                onClick={() => { setRosterNotice(""); setPromoting(true); }}>Promote this section</button>}
+            <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
+          </div>
         </div>
         {rosterNotice && <p role="status" className="text-sm">{rosterNotice}</p>}
         {!roster ? <LoadingState variant="table" className="text-sm muted">Loading roster…</LoadingState>
-          : !roster.data ? <p role="alert" className="text-sm">{roster.error}</p>
+          : !roster.data ? <p role="alert" className="text-sm text-danger">{roster.error}</p>
           : !roster.data.length ? <p className="text-sm muted">No active students are enrolled in this section.</p>
           : <ul className="divide-y divide-[var(--border)]">
               {roster.data.map((student) => <li key={student.id}
@@ -265,6 +302,9 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
                   <p className="muted">{student.admission_no}</p>
                 </div>
                 {view === "students" && <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={busy} aria-label={`Edit details for ${studentName(student)}`}
+                    onClick={() => { setRosterNotice(""); setDetailsStudent(student); }}
+                    className={button}>Edit details</button>
                   <button type="button" disabled={busy} aria-label={`Change placement for ${studentName(student)}`}
                     onClick={() => { setRosterNotice(""); setPlacementStudent(student); }}
                     className={button}>Change placement</button>
@@ -278,7 +318,10 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
           Open guardian invitations
         </Link>
       </section>
-      {view === "students" && <><StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }} revision={refresh} />
+      {view === "students" && <><StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
+        currentAcademicYearId={setup.year.id} revision={refresh}
+        busy={busy} onBusyChange={onBusyChange}
+        onReinstated={(record) => { setRosterNotice(`${record.student_name} was reinstated.`); reloadRoster(); }} />
         <StudentPlacementHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
           years={setup.years.filter((year) => year.start_date <= setup.year.start_date)} revision={refresh} /></>}
       {placementStudent && (
@@ -292,6 +335,21 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
               : `Promotion prepared for ${name}. Use Change placement to revise it before the destination year is activated.`);
             reloadRoster();
           }} />
+      )}
+      {promoting && roster?.data && (
+        <SectionPromotionDialog client={client} source={{ schoolId, academicYearId, classId, sectionId }}
+          currentYear={setup.year} years={setup.years} classes={setup.classes} sections={setup.sections} students={roster.data}
+          onClose={() => setPromoting(false)} onBusyChange={onBusyChange}
+          onStaged={({ staged, alreadyStaged }) => {
+            setRosterNotice(`Promotion prepared for ${staged} student${staged === 1 ? "" : "s"}.${alreadyStaged
+              ? ` ${alreadyStaged} already had a staged placement and kept it.` : ""} Use Change placement to revise one student before the destination year is activated.`);
+            reloadRoster();
+          }} />
+      )}
+      {detailsStudent && (
+        <StudentDetailsDialog client={client} userId={userId} schoolId={schoolId} student={detailsStudent}
+          onClose={() => setDetailsStudent(undefined)} onBusyChange={onBusyChange}
+          onSaved={() => { setRosterNotice(`Details saved for ${studentName(detailsStudent)}.`); reloadRoster(); }} />
       )}
       {withdrawalStudent && (
         <StudentWithdrawalDialog client={client} context={{ schoolId, academicYearId, classId, sectionId }} student={withdrawalStudent}

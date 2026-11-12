@@ -42,6 +42,6 @@ export function PhoneSecurityCheck({ siteKey, onToken }: { siteKey: string; onTo
     <Script id="guardian-phone-security" src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       onReady={() => setReady(true)} onError={() => { onTokenRef.current(""); setFailed(true); }} />
     <div ref={container} aria-label="Mobile sign-in security check" />
-    {failed && <p role="alert" className="text-sm muted">The security check could not load. Refresh and try again.</p>}
+    {failed && <p role="alert" className="login-error">The security check could not load. Refresh and try again.</p>}
   </div>;
 }

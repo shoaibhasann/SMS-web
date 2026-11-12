@@ -416,6 +416,46 @@ describe("student and parent attendance", () => {
   });
 });
 
+describe("teacher dashboard attendance draft", () => {
+  const classTeacher = { id: "own", teacher_id: "teacher", academic_year_id: "year", class_id: "class-a", section_id: "section-a",
+    subject_id: "subject", is_class_teacher: true, class_name: "Class 6", section_name: "A", subject_name: "Maths",
+    coverage_id: null, starts_on: null, ends_on: null };
+  const coverage = { ...classTeacher, id: "cover", class_id: "class-b", section_id: "section-b", class_name: "Class 7", section_name: "B",
+    coverage_id: "coverage", starts_on: "2026-11-05", ends_on: "2026-11-07" };
+  type EditorCall = { context: unknown; onLockChange: (locked: boolean) => void };
+  const lastEditor = () => attendanceEditor.mock.lastCall![0] as EditorCall;
+
+  async function openDirtyDraft() {
+    resolveQuery = (query) => {
+      if (query.table === "teachers") return result({ id: "teacher", school_id: "school", full_name: "Teacher" });
+      if (query.table === "academic_years") return result({ id: "year" });
+      return result([]);
+    };
+    render(<RoleDashboard role="teacher" schoolId="school" userId="teacher-user" />);
+    await screen.findByRole("option", { name: "Class 6 A · Class teacher" });
+    await waitFor(() => expect(lastEditor().context).not.toBeNull());
+    act(() => lastEditor().onLockChange(true));
+  }
+
+  it("keeps the editor context and warns when a background check fails during unsaved edits", async () => {
+    effectiveAssignments.mockResolvedValueOnce([classTeacher]).mockRejectedValueOnce(new Error("offline"));
+    await openDirtyDraft();
+    await act(async () => { fireEvent.focus(window); });
+    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(lastEditor().context).toMatchObject({ classId: "class-a", sectionId: "section-a" });
+  });
+
+  it("keeps the draft when a new coverage appears and the selected section is unchanged", async () => {
+    effectiveAssignments.mockResolvedValueOnce([classTeacher]).mockResolvedValue([classTeacher, coverage]);
+    await openDirtyDraft();
+    const teacherReads = queries.filter((query) => query.table === "teachers").length;
+    await act(async () => { fireEvent.focus(window); });
+    expect(await screen.findByRole("option", { name: "Class 7 B · Temporary attendance coverage" })).toBeInTheDocument();
+    expect(lastEditor().context).toMatchObject({ classId: "class-a", sectionId: "section-a" });
+    expect(queries.filter((query) => query.table === "teachers")).toHaveLength(teacherReads);
+  });
+});
+
 describe("role dashboard request lifetimes", () => {
   it.each([
     ["2026-11-04T21:30:00Z", "2026-11-05", "2026-11-12", "2026-11-13"],
@@ -635,7 +675,7 @@ describe("canonical dashboard finance", () => {
     render(<RoleDashboard role="student" schoolId="school" userId="student-user" />);
     await feeBalances().findByText(/Showing 4 of 81 retained demands/);
     expect(feeBalances().getAllByRole("listitem")).toHaveLength(4);
-    expect(within(screen.getByText("Fee Records", { exact: true }).parentElement!).getByText("81")).toBeInTheDocument();
+    expect(within(screen.getByText("Fee records", { exact: true }).parentElement!).getByText("81")).toBeInTheDocument();
   });
 
   it.each([
@@ -650,7 +690,8 @@ describe("canonical dashboard finance", () => {
     expect(feeBalances().getByRole("alert")).toHaveTextContent("Fee balances could not be loaded");
     expect(feeBalances().queryByText("No fee demands available.")).not.toBeInTheDocument();
     expect(feeBalances().queryByRole("list")).not.toBeInTheDocument();
-    expect(within(screen.getByText("Fee Records", { exact: true }).parentElement!).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByText("Fee records", { exact: true }).parentElement!).getByText("—")).toBeInTheDocument();
+    expect(within(screen.getByText("Fee records", { exact: true }).parentElement!).getByText("Currently unavailable")).toBeInTheDocument();
     expect(screen.getByText(role === "student" ? "Student current" : "Student a")).toBeInTheDocument();
   });
 
@@ -736,6 +777,12 @@ describe("canonical dashboard finance", () => {
     expect(officeFinance().queryByText("₹0.00")).not.toBeInTheDocument();
   });
 
+  it("dates a school notice by its IST day, so a late-evening UTC timestamp shows the next day", async () => {
+    resolveQuery = (query) => query.table === "notices" ? result([{ id: "n1", title: "Holiday notice", content: "Closed", created_at: "2026-11-12T20:00:00Z" }]) : result([]);
+    render(<RoleDashboard role="admin" schoolId="school" userId="admin" />);
+    expect(await screen.findByText("13 Nov 2026")).toBeInTheDocument();
+  });
+
   it("keeps the current school's canonical totals when a previous school's summary completes late", async () => {
     const previous = deferred<ReturnType<typeof financeSummary>>();
     officeFinanceSummary.mockImplementation((_client, school) => school === "old-school" ? previous.promise : Promise.resolve(financeSummary()));
@@ -748,5 +795,55 @@ describe("canonical dashboard finance", () => {
     await act(async () => { previous.resolve({ ...stale, collections: { ...stale.collections, today_net: "9999.00" } }); });
     expect(financeValue("Today's Collection").getByText("₹350.00")).toBeInTheDocument();
     expect(officeFinance().queryByText("₹9,999.00")).not.toBeInTheDocument();
+  });
+});
+
+describe("principal dashboard assessments", () => {
+  const publicationMetadata = { assessment_id: "assessment-p", school_id: "school", school_name: "School", academic_year_id: "year", academic_year_name: "2026–27",
+    class_id: "class", class_name: "Class 6", section_id: "section", section_name: "A", subject_id: "subject", subject_name: "Maths", teacher_id: "teacher",
+    teacher_name: "Teacher", name: "Unit test 1", assessment_date: "2026-11-01", maximum_marks: 50, assessment_updated_at: "2026-11-01T10:00:00Z", status: "completed" };
+  const originalRpc = client.rpc;
+  afterEach(() => { client.rpc = originalRpc; });
+
+  it("shows the real upcoming count and published results instead of empty raw-table reads, with working links", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-11-04T21:30:00Z"));
+    const rpc = vi.fn(async (name: string) => name === "list_principal_upcoming_assessments"
+      ? { data: { total_count: 3, rows: [{ id: "exam-1", name: "Science quiz", assessment_date: "2026-11-06", maximum_marks: 20, class_id: "class", section_id: "section", subject_id: "subject" }] }, error: null }
+      : { data: { offset: 0, total_count: 1, rows: [{ id: "submission-p", assessment_id: "assessment-p", school_id: "school", status: "published", requested_at: "2026-11-02T10:00:00Z",
+        requester_name: "Teacher", reviewed_at: "2026-11-03T10:00:00Z", revision: 1, metadata: publicationMetadata }] }, error: null });
+    client.rpc = rpc as unknown as typeof client.rpc;
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="principal" schoolId="school" userId="principal" />);
+    const upcoming = within(screen.getByRole("heading", { name: "Upcoming Tests" }).closest("section")!);
+    expect(await upcoming.findByText("Science quiz")).toBeInTheDocument();
+    expect(within(screen.getByText("Upcoming Exams").parentElement!).getByText("3")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("list_principal_upcoming_assessments", { p_school_id: "school", p_from: "2026-11-05", p_to: "2026-11-12" });
+    const results = within(screen.getByRole("heading", { name: "Recent Results" }).closest("section")!);
+    expect(await results.findByText("Unit test 1")).toBeInTheDocument();
+    expect(rpc).toHaveBeenCalledWith("list_assessment_result_submissions", { p_school_id: "school", p_status: "published", p_offset: 0 });
+    expect(results.queryByText("No marked assessment results available yet.")).not.toBeInTheDocument();
+    expect(results.getByRole("link")).toHaveAttribute("href", "/modules/published-results");
+    expect(upcoming.queryByRole("link")).not.toBeInTheDocument();
+    expect(queries.some((query) => query.table === "teacher_assessments" || query.table === "teacher_assessment_marks")).toBe(false);
+  });
+
+  it("links Upcoming Tests to the exams module for a principal who also teaches in the same school", async () => {
+    client.rpc = vi.fn(async () => ({ data: { offset: 0, total_count: 0, rows: [] }, error: null })) as unknown as typeof client.rpc;
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="principal" schoolId="school" userId="principal" schoolRoles={["principal", "teacher"]} />);
+    const upcoming = within(screen.getByRole("heading", { name: "Upcoming Tests" }).closest("section")!);
+    expect(await upcoming.findByRole("link")).toHaveAttribute("href", "/modules/exams");
+  });
+
+  it("shows unavailable, not zero, when the principal schedule cannot be read", async () => {
+    client.rpc = vi.fn(async (name: string) => name === "list_principal_upcoming_assessments" ? { data: null, error: { code: "42501", message: "denied" } }
+      : { data: { offset: 0, total_count: 0, rows: [] }, error: null }) as unknown as typeof client.rpc;
+    resolveQuery = () => result([]);
+    render(<RoleDashboard role="principal" schoolId="school" userId="principal" />);
+    expect(await screen.findByText("Some dashboard data could not be loaded. Please refresh or contact your administrator.")).toBeInTheDocument();
+    expect(within(screen.getByText("Upcoming Exams").parentElement!).getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("No tests are scheduled for the next seven days.")).not.toBeInTheDocument();
+    expect(screen.getByText("Upcoming tests are unavailable right now.")).toBeInTheDocument();
   });
 });

@@ -28,6 +28,28 @@ describe("MFA-aware password recovery form", () => {
     expect(fetch.mock.calls[2][0]).toBe("/auth/recovery/complete");
     expect(JSON.parse(fetch.mock.calls[2][1].body)).toEqual({ sessionId, password: "a-new-strong-pass123" });
   });
+  it("uses the shared 8-character rule: refuses 7 characters, 4 emoji, spaces and 73 bytes locally, then sends 8", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response("{}", { status: 200 })); vi.stubGlobal("fetch", fetch);
+    render(<UpdatePasswordForm sessionId={sessionId} factors={factors} />);
+    expect(screen.getByLabelText("New password")).toHaveAttribute("minlength", "8");
+    expect(screen.getByLabelText("Confirm password")).toHaveAttribute("minlength", "8");
+    for (const value of ["seven77", "😀".repeat(4), " ".repeat(8), "x".repeat(73)]) {
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value } });
+      fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value } });
+      fireEvent.submit(screen.getByLabelText("New password").closest("form")!);
+      expect(screen.getByRole("alert")).toHaveTextContent("Use at least 8 characters and at most 72 bytes.");
+      fireEvent.change(screen.getByLabelText("New password"), { target: { value: "resetting-alert" } });
+      fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "mismatch" } });
+      fireEvent.submit(screen.getByLabelText("New password").closest("form")!);
+      expect(screen.getByRole("alert")).toHaveTextContent("Passwords do not match.");
+    }
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.change(screen.getByLabelText("New password"), { target: { value: "eight888" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "eight888" } });
+    fireEvent.submit(screen.getByLabelText("New password").closest("form")!);
+    expect(await screen.findByRole("status")).toHaveTextContent("Password updated");
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({ sessionId, password: "eight888" });
+  });
   it("fails closed when the recovery session changes and does not expose a password form", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 403 })));
     render(<UpdatePasswordForm sessionId={sessionId} mfaRequired factors={factors} />); enterCode();

@@ -7,7 +7,7 @@ vi.mock("@/lib/auth/staff-mfa", () => ({ boundMfaSession: bound }));
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const uid = id(1), school = id(2), signal = () => new AbortController().signal;
 const empty = { user_id: uid, school_id: school, enabled: false, version: 0, history: [] };
-const history = { version: 1, enabled: true, reason: "Pilot Late alerts", actor_id: uid, created_at: "2026-11-07T15:00:00+00:00" };
+const history = { version: 1, enabled: true, reason: "Pilot Late alerts", actor_id: uid, actor_name: "Asha Admin", created_at: "2026-11-07T15:00:00+00:00" };
 const saved = { ...empty, enabled: true, version: 1, history: [history] };
 const intent: SchoolLateAlertSettingsIntent = { schoolId: school, expectedVersion: 0, enabled: true, reason: "Pilot Late alerts", requestId: id(3) };
 const ack = { user_id: uid, school_id: school, enabled: true, version: 1, request_id: id(3), replayed: false };
@@ -22,16 +22,22 @@ describe("school Late policy client boundary", () => {
   it("accepts default OFF and complete newest-first history", () => {
     expect(parseSchoolLateAlertSettings(empty, uid, school)).toEqual(empty);
     expect(parseSchoolLateAlertSettings(saved, uid, school)).toEqual(saved);
+    expect(parseSchoolLateAlertSettings({ ...saved, history: [{ ...history, actor_name: null }] }, uid, school).history[0].actor_name).toBeNull();
     const page = Array.from({ length: 20 }, (_, i) => ({ ...history, version: 30 - i }));
     expect(parseSchoolLateAlertSettings({ ...saved, version: 30, history: page }, uid, school).history).toHaveLength(20);
   });
   it.each([
     { user_id: id(9) }, { school_id: id(9) }, { version: "1" }, { version: -1 }, { version: Number.MAX_SAFE_INTEGER + 1 },
     { history: [] }, { history: [history, history] }, { history: [{ ...history, version: 2 }] },
-    { history: [{ ...history, enabled: false }] }, { history: [{ ...history, actor_id: "bad" }] },
+    { history: [{ ...history, enabled: false }] }, { history: [{ ...history, actor_id: "bad" }] }, { history: [{ ...history, actor_name: undefined }] }, { history: [{ ...history, actor_name: 7 }] }, { history: [{ ...history, actor_name: "x".repeat(161) }] },
     { history: [{ ...history, created_at: "2026-11-07T15:00:00" }] }, { history: [{ ...history, reason: "bad\u202e reason" }] },
   ])("rejects foreign, incomplete or malformed saved policy", patch => {
     expect(() => parseSchoolLateAlertSettings({ ...saved, ...patch }, uid, school)).toThrow("could not be verified");
+  });
+  it("counts actor names in code points like the server's 160-character trim", () => {
+    const name = "\u{1F600}".repeat(160); // 320 UTF-16 units
+    expect(parseSchoolLateAlertSettings({ ...saved, history: [{ ...history, actor_name: name }] }, uid, school).history[0].actor_name).toBe(name);
+    expect(() => parseSchoolLateAlertSettings({ ...saved, history: [{ ...history, actor_name: `${name}\u{1F600}` }] }, uid, school)).toThrow("could not be verified");
   });
   it("does not accept ON for an implicit no-policy state", () => {
     expect(() => parseSchoolLateAlertSettings({ ...empty, enabled: true }, uid, school)).toThrow();

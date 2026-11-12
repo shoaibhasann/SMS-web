@@ -905,6 +905,22 @@
       "provenance": "Forward source; exact hosted ledger SQL verified 7 November 2026."
     },
     {
+      "path": "supabase/migrations/20261109112234_admin_email_otp_eligibility.sql",
+      "sha256": "d237a09825e253122aab392765833667f06a8e9f10091d613ba3ff6ff7868640",
+      "kind": "pending",
+      "version": "20261109112234",
+      "name": "admin_email_otp_eligibility",
+      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; hosted ledger status to be confirmed by the owner."
+    },
+    {
+      "path": "supabase/migrations/20261109133000_school_admin_single_factor_dashboard.sql",
+      "sha256": "cdf72d5f17b406d6cf08cf149cb50d6a576624162194b9a0c3d0b06a8f309fce",
+      "kind": "pending",
+      "version": "20261109133000",
+      "name": "school_admin_single_factor_dashboard",
+      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; hosted ledger status to be confirmed by the owner."
+    },
+    {
       "path": "supabase/migrations/20261109142815_family_notice_notifications.sql",
       "sha256": "4b579042f26fbb41ad0182d8467e3e50b0d5d7725ca1125d81552f54c0aac5a1",
       "kind": "pending",
@@ -1031,6 +1047,342 @@
       "version": "20261110102216",
       "name": "family_class_teachers",
       "provenance": "Forward source. Hosted migration applied and ledger version verified 10 November 2026."
+    },
+    {
+      "path": "supabase/migrations/20261111180100_guard_student_records.sql",
+      "sha256": "0844e1e68c6dc5af711e42ed8f84544f9791fbcfd97995cf1f6c9739fd0f513a",
+      "kind": "pending",
+      "version": "20261111180100",
+      "name": "guard_student_records",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180101_reject_student_identity_format_marks.sql",
+      "sha256": "d522ffb537a3e3123c15c4c8eaad87b6dee67fdce19ded88fdff0250b4e22310",
+      "kind": "pending",
+      "version": "20261111180101",
+      "name": "reject_student_identity_format_marks",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180102_case_insensitive_admission_numbers.sql",
+      "sha256": "085136f3840521a94ca7adaf470846c511b897b1c5fc96379d599160bc4ad9ad",
+      "kind": "pending",
+      "version": "20261111180102",
+      "name": "case_insensitive_admission_numbers",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180200_assessment_result_students.sql",
+      "sha256": "7d3b8e3717fb8f6d882289a04857915e7aac37089d5ef410fb5cfec09082f917",
+      "kind": "pending",
+      "version": "20261111180200",
+      "name": "assessment_result_students",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180300_guard_office_fee_demand_periods.sql",
+      "sha256": "fe7b45efe5791b2276874d4ec6c649103399bec43963e0e52be8f94d453a2b40",
+      "kind": "pending",
+      "version": "20261111180300",
+      "name": "guard_office_fee_demand_periods",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180400_keep_homework_history_after_section_move.sql",
+      "sha256": "3e196efdd647c690f9bbf63d779efa61ae4674a09823a7ea44e031c99b0651af",
+      "kind": "pending",
+      "version": "20261111180400",
+      "name": "keep_homework_history_after_section_move",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180500_student_leave_placement_errors_and_family_reviewer.sql",
+      "sha256": "ce0553d875180283959745adff421daaa859b68532a5ca2bcb8991181f437966",
+      "kind": "pending",
+      "version": "20261111180500",
+      "name": "student_leave_placement_errors_and_family_reviewer",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180600_reject_pupil_holiday_on_working_day.sql",
+      "sha256": "1b7e8d777f1e168bdfb058113cdafa7f3adf908bdca62e2ed41303d379eee073",
+      "kind": "pending",
+      "version": "20261111180600",
+      "name": "reject_pupil_holiday_on_working_day",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180800_auth_endpoint_throttle.sql",
+      "sha256": "40753a49bf31068fa19fc6cf68fba836d4cc4d9ddeff5de89ea4fceb5e7512f8",
+      "kind": "pending",
+      "version": "20261111180800",
+      "name": "auth_endpoint_throttle",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111180900_require_live_family_raw_reads.sql",
+      "sha256": "403583dd811bf64033e1bced139b5d43bb7dfa69d01655e0c4a44b44b485bb0e",
+      "kind": "pending",
+      "version": "20261111180900",
+      "name": "require_live_family_raw_reads",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111181000_freeze_legacy_tenant_tables.sql",
+      "sha256": "a736e6a73f437afaf244889fe8f9c1259b5e20957b422d605d3b66771ef62424",
+      "kind": "pending",
+      "version": "20261111181000",
+      "name": "freeze_legacy_tenant_tables",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111181100_remove_shared_guardian_sms_permit_pool.sql",
+      "sha256": "464b7cd98ec74248d378909b425f07672e8e795139e22ac8b818074fcf20d45d",
+      "kind": "pending",
+      "version": "20261111181100",
+      "name": "remove_shared_guardian_sms_permit_pool",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111181200_track_assessment_score_author.sql",
+      "sha256": "72fa38d924b952c97abbf404ebc36dba476893ff238c7f64429ea309c11ecdcf",
+      "kind": "pending",
+      "version": "20261111181200",
+      "name": "track_assessment_score_author",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111181400_scope_payment_orders.sql",
+      "sha256": "36e30013d5881279e36b1f4330155a0bb831869758ce1370af3ba0944211cffa",
+      "kind": "pending",
+      "version": "20261111181400",
+      "name": "scope_payment_orders",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111181500_guard_cleared_homework_max_marks.sql",
+      "sha256": "80a4025f65cdf3631159bd834575fd9c07483ef5d984d2948b8ce148e0380f61",
+      "kind": "pending",
+      "version": "20261111181500",
+      "name": "guard_cleared_homework_max_marks",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190200_roster_import_history.sql",
+      "sha256": "052eb6474ecd24e445253b21bff1c3cce9d9ce780390c0a052f2a330f42883a1",
+      "kind": "pending",
+      "version": "20261111190200",
+      "name": "roster_import_history",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190201_reinstate_roster_enrollment.sql",
+      "sha256": "9e1567933314e7647824b1547830ff8ca26eca20e5b2162fef2d72868b33ec48",
+      "kind": "pending",
+      "version": "20261111190201",
+      "name": "reinstate_roster_enrollment",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190202_roster_audit_events.sql",
+      "sha256": "3577297ccebe335f672279b8042f75f87a98f5028e1c8b4aacb628fe1d57830f",
+      "kind": "pending",
+      "version": "20261111190202",
+      "name": "roster_audit_events",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190203_student_roster_identity.sql",
+      "sha256": "a13a2eee6442bab858ad81ae0f28c94661454b6fe99d1a578e13e88f7010a322",
+      "kind": "pending",
+      "version": "20261111190203",
+      "name": "student_roster_identity",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190204_block_withdrawal_with_pending_corrections.sql",
+      "sha256": "a700ad07c5ed0d46bde8023f36d76672455a716bbd43606ab805c50f64b4ab88",
+      "kind": "pending",
+      "version": "20261111190204",
+      "name": "block_withdrawal_with_pending_corrections",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111190300_page_office_fee_reads_before_projection.sql",
+      "sha256": "a8e8289ae237ef67a66c447cd6cc1b3a9687fd1ee6f02ec112bad56ac53bb9b3",
+      "kind": "pending",
+      "version": "20261111190300",
+      "name": "page_office_fee_reads_before_projection",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111191600_export_roster_history.sql",
+      "sha256": "b6679187d8239b5456d360878a5d1193dabe2b2a7b4f48369cdbc5a23bf36280",
+      "kind": "pending",
+      "version": "20261111191600",
+      "name": "export_roster_history",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111191800_activate_student_mobile_format.sql",
+      "sha256": "52de47146b8b8bce542aa1085f51dbcdfe21fe82ab2fe4d3ffe9bae2614ee0af",
+      "kind": "pending",
+      "version": "20261111191800",
+      "name": "activate_student_mobile_format",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200100_successor_teacher_homework_grading.sql",
+      "sha256": "620f23e81764bef4d67351f2d049157d81d1d723cad98cbd429ccc4ba46b6ef0",
+      "kind": "pending",
+      "version": "20261111200100",
+      "name": "successor_teacher_homework_grading",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200101_principal_upcoming_assessments.sql",
+      "sha256": "a0606f7282ad3bd865cde1e1378c213f9615fb7428f9389b94b171555067b17b",
+      "kind": "pending",
+      "version": "20261111200101",
+      "name": "principal_upcoming_assessments",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200200_list_requester_pending_results.sql",
+      "sha256": "a7fd7397bfbe71dcba20881eeaf104ff106378575c1d940cd06e39d9c0670f50",
+      "kind": "pending",
+      "version": "20261111200200",
+      "name": "list_requester_pending_results",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200201_exclude_withdrawn_result_marks.sql",
+      "sha256": "ca966163f2492ac86509d1447db4612cdce93ed43a8194d262bd65e6e1c1777a",
+      "kind": "pending",
+      "version": "20261111200201",
+      "name": "exclude_withdrawn_result_marks",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200300_native_push_dispatch_fairness_retention.sql",
+      "sha256": "bceb99b57f7eaf5080751edc5486a99c2b3f74888cf7d87b7cc4213e910f7bbc",
+      "kind": "pending",
+      "version": "20261111200300",
+      "name": "native_push_dispatch_fairness_retention",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200400_stage_section_promotions.sql",
+      "sha256": "77c0d599f84675bc6bf5f2f23d96fc81fc8efe3b7c56e8f30c6c1577c2b3d0df",
+      "kind": "pending",
+      "version": "20261111200400",
+      "name": "stage_section_promotions",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200500_export_keyset_pages.sql",
+      "sha256": "9999ef9cd96e0f65d185aa7c1a0505a487bcba4ce0a56e789c430e338d5773cd",
+      "kind": "pending",
+      "version": "20261111200500",
+      "name": "export_keyset_pages",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200600_retire_timetable_periods_with_assignment.sql",
+      "sha256": "67b10fd4f22e2086504067d44904ccbe748488d2f7d0db591c91f094a4a96ea4",
+      "kind": "pending",
+      "version": "20261111200600",
+      "name": "retire_timetable_periods_with_assignment",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200800_office_report_shared_calendar_fence.sql",
+      "sha256": "1057b11ad7176e0e85df4877401f26bb1ff8a35c1dcc61d12b14ed41e7b419e1",
+      "kind": "pending",
+      "version": "20261111200800",
+      "name": "office_report_shared_calendar_fence",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111200900_staff_mfa_pending_staff_list.sql",
+      "sha256": "0956c765d7e1295833c415530465f8b665274e14db02d61c1e655630da689a05",
+      "kind": "pending",
+      "version": "20261111200900",
+      "name": "staff_mfa_pending_staff_list",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111201000_notice_audience_year_snapshot.sql",
+      "sha256": "971c7ac01933f845a65d530890a859c1ac460622a377f51df8fe0619b4316022",
+      "kind": "pending",
+      "version": "20261111201000",
+      "name": "notice_audience_year_snapshot",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111201600_office_assessment_teacher_scope.sql",
+      "sha256": "02a740bec35cec22c119e670784f788beff78d0a1582971a05b7ab44497a01be",
+      "kind": "pending",
+      "version": "20261111201600",
+      "name": "office_assessment_teacher_scope",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111220200_history_actor_names.sql",
+      "sha256": "b08bf77a3d9f1503c48f5633f308a8363b0b171a8c862c67809b593fffa7a20d",
+      "kind": "pending",
+      "version": "20261111220200",
+      "name": "history_actor_names",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111220300_stamp_notice_publish_now.sql",
+      "sha256": "5799408b20fe0e95353c75d2303fc7f1d19c23843bf8d8ba11fd74d7fbbd0c0a",
+      "kind": "pending",
+      "version": "20261111220300",
+      "name": "stamp_notice_publish_now",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111220400_family_fee_due_sort_time.sql",
+      "sha256": "1fe14cca081920fbbedd4ba95e79474e65d867f6f95b273da4dc325743da9c81",
+      "kind": "pending",
+      "version": "20261111220400",
+      "name": "family_fee_due_sort_time",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111220700_teacher_assignment_current_year_guard.sql",
+      "sha256": "75696e1960fe970f4294919c67c4d049b210b9e21cae256f65c743fb16755ccc",
+      "kind": "pending",
+      "version": "20261111220700",
+      "name": "teacher_assignment_current_year_guard",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111221200_guardian_phone_invitation_cross_school_neutral.sql",
+      "sha256": "33c73d6eb719709bce071a58b70a07677020ad2c225208fda67db45a4eb0eb78",
+      "kind": "pending",
+      "version": "20261111221200",
+      "name": "guardian_phone_invitation_cross_school_neutral",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111221900_allow_leading_parenthesis_school_phone.sql",
+      "sha256": "264ac5c7a5c379a905a03e6bbd7dc118878301e8c6d803ba4e5223e8abb12d93",
+      "kind": "pending",
+      "version": "20261111221900",
+      "name": "allow_leading_parenthesis_school_phone",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+    },
+    {
+      "path": "supabase/migrations/20261111231700_revoke_family_push_installation.sql",
+      "sha256": "c543fd70e5170e3f1b0071e6388437d892bf5b50761c509c79d013331bf3951f",
+      "kind": "pending",
+      "version": "20261111231700",
+      "name": "revoke_family_push_installation",
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
     }
   ],
   "excluded": [
@@ -1069,5 +1421,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "3130986f02675aea42b78e95fd4ca7219fbe6eb785e14ded4960992776ae0eeb"
+  "order_sha256": "4fd725001be22f0c033db24d5f3c26559379b3b0c53d11c5e32d04c8eeeede96"
 }

@@ -2,15 +2,16 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import * as Icons from "lucide-react";
-import { getAdminNavigationModules, getTeacherNavigationModules, getVisibleModules, roleLabels } from "@/lib/modules";
+import { canAccessModule, getNavigationModules, type getVisibleModules, roleLabels } from "@/lib/modules";
 import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
 import { toUiRole, type UiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { WorkspaceSkeleton } from "@/components/ui/skeleton";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
 import { FamilyNotificationBell } from "@/components/notifications/family-notification-bell";
 
@@ -22,7 +23,7 @@ const quickLinks: Record<UiRole, readonly string[]> = {
   principal: ["students", "attendance", "notices"],
   teacher: ["attendance", "homework", "profile"],
   finance: ["fees", "invoices", "finance-reports"],
-  reception: ["students", "notices", "admissions"],
+  reception: ["notices"],
   student: ["attendance", "homework", "invoices"],
   parent: ["attendance", "invoices", "notices"],
 };
@@ -35,14 +36,15 @@ function moduleHref(role: UiRole, key: string) {
   if (key === "exams" && (role === "student" || role === "parent")) return `/modules/exams?view=${role === "parent" ? "guardian" : "student"}`;
   if (role === "parent" && key === "attendance") return guardianAttendancePath;
   if (role === "parent" && key === "notifications") return guardianNotificationsPath;
-  if (role === "parent" && (key === "advance-credit" || key === "invoices" || key === "student-leave" || key === "timetable" || key === "results" || key === "published-results" || key === "profile")) return `/modules/${key}?view=guardian`;
+  // Every guardian link keeps guardian scope, so a teacher who is also a guardian is not switched into the staff workspace.
+  if (role === "parent") return `/modules/${key}?view=guardian`;
   return `/modules/${key}`;
 }
 
 function Brand() {
   return (
     <div className="min-w-0">
-      <p className="text-[28px] font-extrabold leading-none tracking-[-0.055em]">SMS</p>
+      <p className="flex items-center gap-2 text-[28px] font-extrabold leading-none tracking-[-0.055em]"><BrandLogo size={28} />SMS</p>
       <p className="mt-1.5 text-[11px] leading-4 muted">School Management System</p>
     </div>
   );
@@ -54,7 +56,9 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
   currentKey?: string;
   onNavigate?: () => void;
 }) {
-  const navigationGroups = role === "teacher" ? ["Teaching"] : groups;
+  const teachingOnly = role === "teacher" && modules.every((item) => canAccessModule("teacher", item.key));
+  const navigationGroups = teachingOnly ? ["Teaching"] : groups;
+  const baseId = useId();
   return (
     <nav aria-label="Workspace pages" className="space-y-5 px-3 pb-5">
       <Link href="/dashboard" aria-current={currentKey === "dashboard" ? "page" : undefined} onClick={onNavigate}
@@ -63,11 +67,11 @@ function Navigation({ role, modules, currentKey, onNavigate }: {
         Dashboard
       </Link>
       {navigationGroups.map((group) => {
-        const items = modules.filter((item) => role === "teacher" || item.group === group);
+        const items = modules.filter((item) => teachingOnly || item.group === group);
         if (!items.length) return null;
         return (
-          <div key={group} className="space-y-0.5">
-            <p className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] muted">{group}</p>
+          <div key={group} role="group" aria-labelledby={`${baseId}-${group}`} className="space-y-0.5">
+            <p id={`${baseId}-${group}`} className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.09em] muted">{group}</p>
             {items.map((item) => {
               const Icon = Icons[item.icon];
               const selected = currentKey === item.key;
@@ -107,12 +111,14 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
   const [accountChanged, setAccountChanged] = useState(false);
   const [security, setSecurity] = useState<"checking" | "ready" | "error">("checking");
   const [verifiedOnce, setVerifiedOnce] = useState(false);
+  const [schoolRoles, setSchoolRoles] = useState<(UiRole | null)[]>([]);
   const accessFingerprint = useRef("");
   const accountOwner = useRef(userId ?? "");
   const [query, setQuery] = useState("");
   const logoutPending = useRef(false);
   const menuDialog = useRef<HTMLDialogElement>(null);
   const searchDialog = useRef<HTMLDialogElement>(null);
+  const shortcut = useSyncExternalStore(() => () => {}, () => /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ K" : "Ctrl K", () => "Ctrl K");
 
   useEffect(() => {
     let active = true, generation = 0;
@@ -143,6 +149,7 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
         const fingerprint = JSON.stringify([access.userId, access.profileSchoolId, [...access.roles].sort((a, b) => `${a.role}:${a.school_id}`.localeCompare(`${b.role}:${b.school_id}`))]);
         if (accessFingerprint.current && fingerprint !== accessFingerprint.current) { setAccountChanged(true); return; }
         accessFingerprint.current = fingerprint;
+        setSchoolRoles(access.roles.filter((row) => row.school_id === access.profileSchoolId).map((row) => toUiRole(row.role)));
         setVerifiedOnce(true);
         setSecurity("ready");
       } catch (failure) {
@@ -224,9 +231,7 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
     }
   }
 
-  const visibleModules = role === "teacher"
-    ? getTeacherNavigationModules()
-    : role === "admin" ? getAdminNavigationModules() : getVisibleModules(role);
+  const visibleModules = getNavigationModules(role, schoolRoles);
   const moduleKey = path?.split("/")[2];
   const currentKey = path === "/account/settings" ? "account-settings" : path === "/dashboard" ? "dashboard" : moduleKey === "result-report"
     || ((role === "parent" || role === "student") && moduleKey === "published-results") ? "results" : moduleKey;
@@ -256,12 +261,12 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
     <section className="card max-w-lg space-y-4 p-6">
       <h1 className="text-xl font-bold">Your sign-in changed</h1>
       <p role="status" className="text-sm muted">Reopen the workspace to verify the current account and school access.</p>
-      <a href="/dashboard" className={`inline-flex min-h-11 items-center rounded-xl bg-[var(--primary)] px-4 text-sm font-semibold text-white ${focus}`}>Reopen workspace</a>
+      <a href="/dashboard" className="account-primary inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold">Reopen workspace</a>
     </section>
   </main>;
 
   if (security === "checking" && !verifiedOnce) return <WorkspaceSkeleton />;
-  if (security === "error") return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><section className="card max-w-lg space-y-4 p-6"><h1 className="text-xl font-bold">Account security unavailable</h1><p role="alert" className="text-sm muted">Your current access could not be verified. Reopen the workspace before continuing.</p><a href="/dashboard" className="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--primary)]">Reopen workspace</a></section></main>;
+  if (security === "error") return <main className="grid min-h-screen place-items-center bg-[var(--bg)] p-6"><section className="card max-w-lg space-y-4 p-6"><h1 className="text-xl font-bold">Account security unavailable</h1><p role="alert" className="text-sm muted">Your current access could not be verified. Reopen the workspace before continuing.</p><a href="/dashboard" className="account-primary inline-flex min-h-11 items-center rounded-xl px-4 text-sm font-semibold">Reopen workspace</a></section></main>;
 
   const checking = security === "checking";
   return (
@@ -291,7 +296,7 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
               onClick={() => searchDialog.current?.showModal()}>
               <Icons.Search aria-hidden="true" size={18} />
               <span className="hidden sm:inline">Find a page</span>
-              <kbd aria-hidden="true" className="ml-auto hidden px-1.5 py-0.5 font-sans text-[11px] muted lg:inline">⌘ K</kbd>
+              <kbd aria-hidden="true" className="ml-auto hidden px-1.5 py-0.5 font-sans text-[11px] muted lg:inline">{shortcut}</kbd>
             </button>
             {notificationKey === "notifications" && (role === "parent" || role === "student") && identity.id
               ? <FamilyNotificationBell userId={identity.id} role={role} className={iconButton} />

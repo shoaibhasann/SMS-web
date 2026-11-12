@@ -122,9 +122,104 @@ describe("substitute attendance management", () => {
     expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeEnabled();
     expect(screen.queryByRole("form", { name: "Revoke substitute coverage" })).not.toBeInTheDocument();
   });
+  it("explains stale assignment and session-date rejections with the server's reason", async () => {
+    const user = userEvent.setup();
+    writeReply.mockResolvedValueOnce({ data: null, error: { code: "42501", message: "Choose a current class-teacher assignment in this school." } })
+      .mockResolvedValueOnce({ data: null, error: { code: "22023", message: "Coverage dates must be within the active academic year." } });
+    render(<SubstituteCoverageWorkspace userId="admin" />); await fill(user);
+    await user.click(screen.getByRole("button", { name: "Assign substitute" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Choose a current class-teacher assignment in this school.");
+    expect(alert).not.toHaveTextContent("school access changed");
+    await user.type(screen.getByLabelText("Coverage reason"), "x");
+    await user.click(screen.getByRole("button", { name: "Assign substitute" }));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Coverage dates must be within the active academic year."));
+  });
+  it("reloads coverage choices and statuses when the assignment panel reports a change", async () => {
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    expect(await screen.findByText("Active")).toHaveClass("badge", "text-success");
+    setupReply.mockResolvedValue({ data: { ...setup, coverages: [{ ...coverage, status: "invalid" }],
+      assignments: [{ ...setup.assignments[0], id: "new-source", teacher_name: "New Class Teacher" }] }, error: null });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    expect(await screen.findByText("Invalid")).not.toHaveClass("text-success");
+    expect(setupReply).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("option", { name: "Class 6 / A · New Class Teacher" })).toBeInTheDocument();
+  });
+  it.each([
+    ["a coverage draft", async (user: ReturnType<typeof userEvent.setup>) => { await fill(user); }],
+    ["a revoke confirmation", async (user: ReturnType<typeof userEvent.setup>) => { await user.click(await screen.findByRole("button", { name: "Revoke coverage" })); }],
+  ])("lets Refresh recover when an assignment-change reload fails while %s is open", async (_name, open) => {
+    const user = userEvent.setup();
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    await open(user);
+    expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeDisabled();
+    setupReply.mockResolvedValueOnce({ data: null, error: { code: "XX000" } });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Substitute coverage could not be loaded");
+    expect(alert).toHaveTextContent("Refreshing discards your unsaved coverage draft.");
+    const refresh = screen.getByRole("button", { name: "Refresh coverage" });
+    expect(refresh).toBeEnabled();
+    await user.click(refresh);
+    expect(await screen.findByRole("form", { name: "Assign substitute attendance coverage" })).toBeInTheDocument();
+    expect(setupReply).toHaveBeenCalledTimes(3);
+    expect(screen.getByRole("combobox", { name: "Class-teacher assignment" })).toHaveValue("");
+    expect(screen.queryByRole("form", { name: "Revoke substitute coverage" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeEnabled();
+  });
+  it("closes a revoke confirmation whose coverage disappeared after an assignment-change reload", async () => {
+    const user = userEvent.setup();
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: "Revoke coverage" }));
+    await user.type(screen.getByLabelText("Revoke reason"), "Teacher returned");
+    setupReply.mockResolvedValue({ data: { ...setup, coverages: [] }, error: null });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    expect(await screen.findByText("The coverage you were revoking changed or is no longer listed. Review the current coverage history.")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Revoke substitute coverage" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Class-teacher assignment" })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Cancel coverage draft" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeEnabled();
+  });
+  it("closes a revoke confirmation whose coverage was revoked elsewhere", async () => {
+    const user = userEvent.setup();
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    await user.click(await screen.findByRole("button", { name: "Revoke coverage" }));
+    setupReply.mockResolvedValue({ data: { ...setup, coverages: [{ ...coverage, status: "revoked", revoked_at: "2026-11-05T06:00:00Z" }] }, error: null });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    expect(await screen.findByText("Revoked")).toHaveClass("badge");
+    expect(screen.queryByRole("form", { name: "Revoke substitute coverage" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeEnabled();
+  });
+  it("clears a coverage draft's stale assignment and substitute after an assignment-change reload", async () => {
+    const user = userEvent.setup();
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    await fill(user);
+    setupReply.mockResolvedValue({ data: { ...setup, teachers: [{ id: "next", full_name: "Next Teacher", employee_id: "T3" }],
+      assignments: [{ ...setup.assignments[0], id: "new-source", teacher_name: "New Class Teacher" }] }, error: null });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    expect(await screen.findByText("The class-teacher assignment or substitute you chose changed. Choose them again.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Class-teacher assignment" })).toHaveValue("");
+    expect(screen.getByRole("combobox", { name: "Substitute teacher" })).toHaveValue("");
+    expect(screen.getByLabelText("Coverage reason")).toHaveValue("  Original teacher leave  ");
+    const cancel = screen.getByRole("button", { name: "Cancel coverage draft" });
+    expect(cancel).toBeEnabled();
+    await user.click(cancel);
+    expect(screen.getByRole("button", { name: "Refresh coverage" })).toBeEnabled();
+  });
+  it("clears only a stale substitute when the chosen assignment still exists", async () => {
+    const user = userEvent.setup();
+    const view = render(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={0} />);
+    await fill(user);
+    setupReply.mockResolvedValue({ data: { ...setup, teachers: [setup.teachers[0]] }, error: null });
+    view.rerender(<SubstituteCoverageWorkspace userId="admin" assignmentRevision={1} />);
+    expect(await screen.findByText("The class-teacher assignment or substitute you chose changed. Choose them again.")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Class-teacher assignment" })).toHaveValue("source");
+    expect(screen.getByRole("combobox", { name: "Substitute teacher" })).toHaveValue("");
+  });
   it("shows no form after a permission failure", async () => {
     loadAccess.mockRejectedValue(new Error("denied")); render(<SubstituteCoverageWorkspace userId="admin" />);
     expect(await screen.findByRole("alert")).toHaveTextContent("School access could not be loaded");
+    expect(screen.getByRole("alert")).toHaveClass("text-sm", "text-danger");
     expect(screen.queryByRole("form")).not.toBeInTheDocument(); expect(rpc).not.toHaveBeenCalled();
   });
   it("aborts and ignores a pending mutation after sign-in changes", async () => {

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BrandLogo } from "./brand-logo";
 import styles from "./skeleton.module.css";
 
 type SkeletonVariant = "list" | "table" | "form" | "cards" | "dashboard";
@@ -45,7 +46,7 @@ const sidebarRows = [
 /** Matches the workspace footprint while current account access is being checked. */
 export function WorkspaceSkeleton({ label = "Loading your workspace…", variant = "dashboard" }: { label?: string; variant?: "dashboard" | "form" }) {
   if (variant === "form") {
-    return <main className={styles.workspace}><div className={styles.workspaceHeader}><span className={styles.wordmark}>SMS</span><Skeleton className={styles.account} /></div>
+    return <main className={styles.workspace}><div className={styles.workspaceHeader}><span className={styles.wordmark}><BrandLogo size={28} />SMS</span><Skeleton className={styles.account} /></div>
       <div className={styles.workspaceBody}><LoadingState label={label} variant={variant} /></div></main>;
   }
 
@@ -53,8 +54,8 @@ export function WorkspaceSkeleton({ label = "Loading your workspace…", variant
     <div className={styles.workspace}>
       <aside aria-hidden="true" data-skeleton="sidebar"
         className="fixed inset-y-0 left-0 z-30 hidden w-[240px] flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
-        <div className="flex h-[72px] shrink-0 flex-col justify-center gap-2 border-b border-[var(--border)] px-6">
-          <span className="text-[28px] font-extrabold leading-none tracking-[-0.055em]">SMS</span>
+        <div className="flex h-[72px] shrink-0 flex-col justify-center gap-1.5 border-b border-[var(--border)] px-6">
+          <span className="flex items-center gap-2 text-[28px] font-extrabold leading-none tracking-[-0.055em]"><BrandLogo size={28} />SMS</span>
           <span className="text-[11px] leading-4 muted">School Management System</span>
         </div>
         <div className="min-h-0 flex-1 space-y-5 overflow-hidden px-3 pb-5 pt-5">

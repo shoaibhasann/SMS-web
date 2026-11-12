@@ -23,9 +23,10 @@ import { DashboardActions, DashboardGreeting, DashboardIdentity, DashboardMetric
 import { AppShell } from "@/components/layout/app-shell";
 import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
+import { getNavigationModules } from "@/lib/modules";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
-import { useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
+import { hasAttendanceScope, useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
 import { GuardianAttendanceAlerts } from "@/components/family/guardian-attendance-alerts";
 import { OfficialAttendanceSummary } from "@/components/family/official-attendance-summary";
@@ -45,6 +46,7 @@ import { upcomingAssessmentEndDate } from "@/lib/dashboard/dates";
 import { formatFeeBillingPeriod, formatFeeMoney, type FeeLedgerRow, type FeeMoney } from "@/lib/finance/fee-batches";
 import { getFamilyFeeLedger, getOfficeFinanceSummary } from "@/lib/finance/fee-changes";
 import { LoadingState, Skeleton } from "@/components/ui/skeleton";
+import { listResultSubmissions, type PublicationSummary } from "@/lib/result-publication";
 
 type Assignment = {
   id: string;
@@ -74,7 +76,7 @@ type StudentRow = {
 
 type TeacherRow = { id: string; school_id: string; full_name: string | null };
 type NamedRow = { id: string; name: string };
-type NoticeRow = { id: string; title: string; content: string; published_at: string | null; created_at: string | null };
+type NoticeRow = { id: string; title: string; content: string; published_at: string | null; created_at: string | null; version: string };
 type EnrollmentRow = {
   class_id: string;
   section_id: string | null;
@@ -89,13 +91,16 @@ type StudentDashboardData = {
   attendance: FamilyAttendanceRow[];
   attendanceError: boolean;
   logs: LogRow[];
+  logCount: number | null;
   activities: ActivityRow[];
+  enrollmentError: boolean;
+  learningError: boolean;
   fees: FeeLedgerRow[];
   feesError: boolean;
   feeCount: number | null;
 };
 const emptyStudentDashboard: StudentDashboardData = {
-  student: null, enrollment: null, attendance: [], attendanceError: false, logs: [], activities: [], fees: [], feesError: false, feeCount: null,
+  student: null, enrollment: null, attendance: [], attendanceError: false, logs: [], logCount: null, activities: [], enrollmentError: false, learningError: false, fees: [], feesError: false, feeCount: null,
 };
 
 type LogRow = {
@@ -180,6 +185,17 @@ type AdminOverviewAssessment = {
   subject_id: string;
 };
 
+type AssessmentRead = { data: AdminOverviewAssessment[] | null; error: unknown; count?: number | null };
+
+// Principals are denied raw teacher_assessments rows; their schedule comes from a read-only RPC.
+async function loadPrincipalUpcoming(supabase: ReturnType<typeof createClient>, schoolId: string, from: string, to: string): Promise<AssessmentRead> {
+  const { data, error } = await supabase.rpc("list_principal_upcoming_assessments", { p_school_id: schoolId, p_from: from, p_to: to });
+  if (error) return { data: null, error };
+  const page = data as { total_count?: unknown; rows?: unknown } | null;
+  if (!page || typeof page.total_count !== "number" || !Array.isArray(page.rows)) return { data: null, error: new Error("Upcoming assessments were unreadable.") };
+  return { data: page.rows as AdminOverviewAssessment[], error: null, count: page.total_count };
+}
+
 type AdminOverviewResult = {
   id: string;
   assessmentName: string;
@@ -247,19 +263,29 @@ function dateToday() {
   return schoolDate();
 }
 
+const dateOptions = { day: "numeric", month: "short", year: "numeric" } as const;
+const schoolDateFormat = new Intl.DateTimeFormat("en-IN", { ...dateOptions, timeZone: "UTC" });
+const istTimestampFormat = new Intl.DateTimeFormat("en-IN", { ...dateOptions, timeZone: "Asia/Kolkata" });
+
 function displayDate(value: string) {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? value : schoolDateFormat.format(date);
 }
+
+// Timestamps show their IST calendar day, not their UTC date.
+function displayTimestamp(iso: string) {
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? iso : istTimestampFormat.format(date);
+}
+
+const logStatusPill = (status?: string | null) => status === "draft" ? "badge text-warning" : "badge text-success";
 
 function Card({ title, icon, children, right, preview = true }: { title: string; icon?: React.ReactNode; children: React.ReactNode; right?: React.ReactNode; preview?: boolean }) {
   return <DashboardPanel title={title} icon={icon ?? <School size={18} />} right={right} preview={preview}>{children}</DashboardPanel>;
 }
-function Stat({ label, value, tone = "blue", loading = false }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple"; loading?: boolean }) {
+function Stat({ label, value, tone = "blue", loading = false, context }: { label: string; value: string | number; tone?: "blue" | "green" | "orange" | "purple"; loading?: boolean; context?: string }) {
   const icon = tone === "green" ? CalendarCheck : tone === "orange" ? IndianRupee : tone === "purple" ? ClipboardList : BookOpen;
-  return <DashboardMetric label={label} value={value} icon={icon} loading={loading} tone={tone === "purple" ? "violet" : tone === "orange" ? "amber" : tone} featured={tone === "green"} context={tone === "green" ? "Saved record sample (up to 60); not an official rate" : "Available school records"} />;
+  return <DashboardMetric label={label} value={value} icon={icon} loading={loading} tone={tone === "purple" ? "violet" : tone === "orange" ? "amber" : tone} featured={tone === "green"} context={context ?? (tone === "green" ? "Saved record sample (up to 60); not an official rate" : "Available school records")} />;
 }
 
 export function RoleDashboard({
@@ -267,11 +293,14 @@ export function RoleDashboard({
   schoolId,
   userId,
   hasGuardianRole,
+  schoolRoles,
 }: {
   role: UiRole;
   schoolId: string | null;
   userId: string;
   hasGuardianRole?: boolean;
+  /** The account's roles in its profile school, for the same module union the navigation shows. */
+  schoolRoles?: readonly (UiRole | null)[];
 }) {
   return (
     <AppShell key={userId} userId={userId} role={role}>
@@ -294,7 +323,7 @@ export function RoleDashboard({
       ) : role === "reception" ? (
         <ReceptionDashboard />
       ) : (
-        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} userId={userId} role={role} />
+        <AdminDashboard key={`${userId}:${schoolId}`} schoolId={schoolId} userId={userId} role={role} schoolRoles={schoolRoles} />
       )}
       </div>
     </AppShell>
@@ -303,17 +332,12 @@ export function RoleDashboard({
 
 function ReceptionDashboard() {
   const links = [
-    { href: "/modules/students", label: "Students", detail: "View student records" },
-    { href: "/modules/parents", label: "Parents", detail: "View parent contacts" },
-    { href: "/modules/admissions", label: "Admissions", detail: "Review admissions" },
     { href: "/modules/notices", label: "Notices", detail: "School notices" },
-    { href: "/modules/events", label: "Events", detail: "School calendar" },
-    { href: "/modules/documents", label: "Documents", detail: "School documents" },
   ];
 
   return (
     <div className="space-y-6 dashboard-role-flow">
-      <Header role="reception" subtitle="Quick access to the student, parent, admissions, and communication tools available to Reception." />
+      <Header role="reception" subtitle="Quick access to school notices available to Reception." />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {links.map((link) => (
           <Link key={link.href} href={link.href} className="card p-5 transition hover:-translate-y-0.5 hover:shadow-md">
@@ -327,10 +351,14 @@ function ReceptionDashboard() {
 }
 
 function Header({ role, subtitle }: { role: UiRole; subtitle: string }) {
-  const titles: Record<UiRole, string> = { teacher: "Teacher Dashboard", finance: "Finance Dashboard", student: "Student Dashboard", parent: "Parent Dashboard", reception: "School office", principal: "Principal Dashboard", admin: "School Dashboard" };
+  const titles: Record<UiRole, string> = { teacher: "Teacher Dashboard", finance: "Finance Dashboard", student: "Student Dashboard", parent: "Guardian Dashboard", reception: "School office", principal: "Principal Dashboard", admin: "School Dashboard" };
   return <DashboardGreeting eyebrow={`${roleLabel(role)} workspace`} title={titles[role]} description={subtitle}
-    href={role === "student" ? "/modules/homework" : role === "parent" ? guardianAttendancePath : "/modules/students"}
-    action={role === "student" ? "View homework" : role === "parent" ? "Attendance history" : "Student directory"} />;
+    href={role === "student" ? "/modules/homework" : role === "parent" ? guardianAttendancePath : role === "reception" ? "/modules/notices" : "/modules/students"}
+    action={role === "student" ? "View homework" : role === "parent" ? "Attendance history" : role === "reception" ? "School notices" : "Student directory"} />;
+}
+
+function toAttendanceChoice(item: EffectiveAttendanceAssignment): Assignment & EffectiveAttendanceAssignment {
+  return { ...item, className: item.class_name, sectionName: item.section_name, subjectName: item.subject_name };
 }
 
 function TeacherDashboard({ userId }: { userId: string }) {
@@ -338,6 +366,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
   const [reloadVersion, setReloadVersion] = useState(0);
   const [teacher, setTeacher] = useState<TeacherRow | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [assignmentsUnavailable, setAssignmentsUnavailable] = useState(false);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [activities, setActivities] = useState<ActivityRow[]>([]);
   const [displayNames, setDisplayNames] = useState<TeacherDisplayNames>({ classes: {}, sections: {}, subjects: {} });
@@ -345,9 +374,11 @@ function TeacherDashboard({ userId }: { userId: string }) {
   const [attendanceOverviewUnavailable, setAttendanceOverviewUnavailable] = useState(false);
   const [monthlyLogCount, setMonthlyLogCount] = useState<number | null>(null);
   const [monthlyHomeworkCount, setMonthlyHomeworkCount] = useState<number | null>(null);
-  const [upcomingAssessments, setUpcomingAssessments] = useState<TeacherAssessmentRow[]>([]);
+  const [upcomingAssessments, setUpcomingAssessments] = useState<TeacherAssessmentRow[] | null>([]);
+  const [recentActivityUnavailable, setRecentActivityUnavailable] = useState(false);
   const [recentMarks, setRecentMarks] = useState<TeacherMarkActivity[]>([]);
-  const [teacherNotices, setTeacherNotices] = useState<NoticeRow[]>([]);
+  const [teacherNotices, setTeacherNotices] = useState<NoticeRow[] | null>([]);
+  const [editingNotice, setEditingNotice] = useState<NoticeRow | null>(null);
   const [classTeacherAssignments, setClassTeacherAssignments] = useState<(Assignment & EffectiveAttendanceAssignment)[]>([]);
   const [selectedAssignment, setSelectedAssignment] = useState("");
   const [attendanceLocked, setAttendanceLocked] = useState(false);
@@ -367,8 +398,16 @@ function TeacherDashboard({ userId }: { userId: string }) {
     setReloadVersion((version) => version + 1);
   }
 
-  useAttendanceAccessRevalidation({ client: supabase, enabled: !busy && Boolean(teacher), assignments: classTeacherAssignments,
-    onChanged: () => { setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false); refresh(); },
+  const attendanceUnverified = useAttendanceAccessRevalidation({ client: supabase, enabled: !busy && Boolean(teacher), assignments: classTeacherAssignments,
+    locked: attendanceLocked,
+    onChanged: (current) => {
+      // Keep the open register (and its draft) when only other scopes changed.
+      if (currentAssignment && hasAttendanceScope(current, currentAssignment)) {
+        setClassTeacherAssignments(current.filter((item) => item.academic_year_id === currentAssignment.academic_year_id).map(toAttendanceChoice));
+        return;
+      }
+      setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false); refresh();
+    },
     onUnavailable: () => {
       setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false);
       setTodayAttendanceRows([]); setAttendanceOverviewUnavailable(true);
@@ -380,9 +419,16 @@ function TeacherDashboard({ userId }: { userId: string }) {
     const controller = new AbortController();
     async function load() {
       const today = schoolDate();
-      const { data: t } = await supabase.from("teachers").select("*").eq("profile_id", userId).returns<TeacherRow[]>().maybeSingle();
+      const { data: t, error: teacherError } = await supabase.from("teachers").select("*").eq("profile_id", userId).returns<TeacherRow[]>().maybeSingle();
       if (controller.signal.aborted) return;
+      if (teacherError) {
+        setTeacher(null);
+        setMessage("Your teacher profile could not be loaded. Refresh to try again.");
+        setBusy(false);
+        return;
+      }
       if (!t) {
+        setTeacher(null);
         setMessage("Teacher profile is not linked to this Google account. Ask the school admin to create/link the teacher record.");
         setBusy(false);
         return;
@@ -401,6 +447,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         : { data: [], error: null };
       if (controller.signal.aborted) return;
       if (assignmentError) setMessage("Teacher assignments could not be loaded. Reload before recording attendance.");
+      setAssignmentsUnavailable(Boolean(currentYearError || assignmentError));
       const rows = (a ?? []) as Assignment[];
       const classIds = [...new Set(rows.map((x) => x.class_id))];
       const sectionIds = [...new Set(rows.map((x) => x.section_id).filter(Boolean))] as string[];
@@ -428,9 +475,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         try {
           const effective = await loadEffectiveAttendanceAssignments(supabase);
           if (controller.signal.aborted) return;
-          eligibleAssignments = effective.filter((item) => item.academic_year_id === currentYear.id).map((item) => ({
-            ...item, className: item.class_name, sectionName: item.section_name, subjectName: item.subject_name,
-          }));
+          eligibleAssignments = effective.filter((item) => item.academic_year_id === currentYear.id).map(toAttendanceChoice);
         } catch {
           if (controller.signal.aborted) return;
           setMessage("Attendance assignments could not be verified. Refresh before recording attendance.");
@@ -440,7 +485,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
       setSelectedAssignment((selected) => eligibleAssignments.some((assignment) => assignment.id === selected)
         ? selected : eligibleAssignments[0]?.id ?? "");
 
-      const { data: recentLogs } = await supabase
+      const { data: recentLogs, error: recentLogsError } = await supabase
         .from("class_logs")
         .select("id,log_date,topic,summary,teacher_remark,class_id,section_id,subject_id,academic_year_id,status")
         .eq("teacher_id", t.id)
@@ -449,19 +494,22 @@ function TeacherDashboard({ userId }: { userId: string }) {
       if (controller.signal.aborted) return;
       const recentLogRows = (recentLogs ?? []) as LogRow[];
       setLogs(recentLogRows);
+      let activitiesError: unknown = null;
 
       const logIds = recentLogRows.map((x) => x.id);
       if (logIds.length) {
-        const { data: acts } = await supabase
+        const { data: acts, error: actsError } = await supabase
           .from("class_activities")
           .select("id,class_log_id,activity_type,title,description,due_date")
           .in("class_log_id", logIds)
           .limit(500);
         if (controller.signal.aborted) return;
+        activitiesError = actsError;
         setActivities((acts ?? []) as ActivityRow[]);
       } else {
         setActivities([]);
       }
+      setRecentActivityUnavailable(Boolean(recentLogsError || activitiesError));
 
       const logClassIds = [...new Set(recentLogRows.map((log) => log.class_id))];
       const logSectionIds = [...new Set(recentLogRows.map((log) => log.section_id).filter(Boolean))] as string[];
@@ -545,7 +593,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
       if (controller.signal.aborted) return;
       if (assessmentError) {
         setMessage(`Assessment data could not be loaded: ${assessmentError.message}`);
-        setUpcomingAssessments([]);
+        setUpcomingAssessments(null);
         setRecentMarks([]);
       } else {
         const teacherAssessments = (assessmentData ?? []) as TeacherAssessmentRow[];
@@ -561,7 +609,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
         if (controller.signal.aborted) return;
         if (upcomingError) {
           console.error("Teacher dashboard upcoming tests could not be loaded", upcomingError);
-          setUpcomingAssessments([]);
+          setUpcomingAssessments(null);
         } else {
           setUpcomingAssessments((upcomingData ?? []) as TeacherAssessmentRow[]);
         }
@@ -607,14 +655,14 @@ function TeacherDashboard({ userId }: { userId: string }) {
         }
       }
 
-      const { data: notices } = await supabase
+      const { data: notices, error: noticesError } = await supabase
         .from("notices")
-        .select("id,title,content,published_at,created_at")
+        .select("id,title,content,published_at,created_at,version")
         .eq("created_by", userId)
         .order("created_at", { ascending: false })
         .limit(20).returns<NoticeRow[]>();
       if (controller.signal.aborted) return;
-      setTeacherNotices(notices ?? []);
+      setTeacherNotices(noticesError ? null : notices ?? []);
 
       setBusy(false);
     }
@@ -624,6 +672,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
 
   async function saveNotice() {
     if (!teacher || !noticeTitle.trim() || !noticeContent.trim()) return;
+    if (editingNotice) return updateOwnNotice(editingNotice, { title: noticeTitle.trim(), content: noticeContent.trim() }, "Notice updated.");
     setBusy(true);
     const { error } = await supabase.from("notices").insert({
       school_id: teacher.school_id,
@@ -642,6 +691,36 @@ function TeacherDashboard({ userId }: { userId: string }) {
     setBusy(false);
   }
 
+  // RLS notices_teacher_own limits this to the teacher's own notices; the version guard rejects a stale tab.
+  async function updateOwnNotice(notice: NoticeRow, changes: { title: string; content: string } | { published_at: null }, success: string) {
+    setBusy(true);
+    const { data, error } = await supabase.from("notices").update(changes)
+      .eq("id", notice.id).eq("created_by", userId).eq("version", notice.version).select("id").maybeSingle();
+    setMessage(error ? `Notice could not be saved: ${error.message}`
+      : data ? success : "This notice changed since it was loaded and could not be saved. Refresh and try again.");
+    if (!error && data) {
+      // Withdrawing another notice keeps the edit in progress.
+      if (editingNotice?.id === notice.id) {
+        setEditingNotice(null);
+        setNoticeTitle("");
+        setNoticeContent("");
+      }
+      setReloadVersion((version) => version + 1);
+    }
+    setBusy(false);
+  }
+
+  function withdrawNotice(notice: NoticeRow) {
+    if (!window.confirm(`Withdraw "${notice.title}"? It will be removed from family inboxes. Push alerts already delivered to phones cannot be recalled.`)) return;
+    void updateOwnNotice(notice, { published_at: null }, "Notice withdrawn. It no longer appears in family inboxes; push alerts already delivered to phones cannot be recalled.");
+  }
+
+  function editNotice(notice: NoticeRow) {
+    setEditingNotice(notice);
+    setNoticeTitle(notice.title);
+    setNoticeContent(notice.content);
+  }
+
   const today = schoolDate();
   const todayLogRows = logs.filter((log) => log.log_date === today);
   const myClassCount = new Set(assignments.map((assignment) => `${assignment.class_id}:${assignment.section_id ?? ""}`)).size;
@@ -656,9 +735,9 @@ function TeacherDashboard({ userId }: { userId: string }) {
     return count + Math.max(logActivities.length, 1);
   }, 0);
   const weekEnd = upcomingAssessmentEndDate(today);
-  const upcomingTestsThisWeek = upcomingAssessments.filter((assessment) =>
+  const upcomingTestsThisWeek = upcomingAssessments?.filter((assessment) =>
     assessment.assessment_date >= today && assessment.assessment_date <= weekEnd,
-  ).length;
+  ).length ?? null;
   const nameForClass = (id: string) => displayNames.classes[id] ?? assignments.find((assignment) => assignment.class_id === id)?.className ?? "Class";
   const nameForSection = (id: string | null | undefined) => id ? displayNames.sections[id] ?? assignments.find((assignment) => assignment.section_id === id)?.sectionName ?? "Section" : "Section";
   const nameForSubject = (id: string) => displayNames.subjects[id] ?? assignments.find((assignment) => assignment.subject_id === id)?.subjectName ?? "Subject";
@@ -667,8 +746,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
 
   if (busy) return <LoadingState variant="dashboard" label="Loading your teaching dashboard…" />;
 
-  return (
-    <div className="space-y-6 dashboard-role-flow">
+  const header = <>
       <DashboardGreeting eyebrow="Teacher Dashboard" title={`Welcome back, ${teacher?.full_name || "Teacher"}`} description="Your classes, school work and attendance in one place." href="/modules/attendance" action="Open attendance">
         <button type="button" onClick={refresh} disabled={busy || attendanceLocked} className="dashboard-refresh"><RefreshCw size={15} className={busy ? "animate-spin" : ""} aria-hidden="true" />Refresh</button>
       </DashboardGreeting>
@@ -678,6 +756,13 @@ function TeacherDashboard({ userId }: { userId: string }) {
           {message}
         </div>
       )}
+  </>;
+  // No teacher record (failed lookup or not linked): show only the message, never 0/"none" metrics or a dead notice form.
+  if (!teacher) return <div className="space-y-6 dashboard-role-flow">{header}</div>;
+
+  return (
+    <div className="space-y-6 dashboard-role-flow">
+      {header}
 
       <section aria-labelledby="teacher-overview-title">
         <div className="mb-3">
@@ -686,10 +771,10 @@ function TeacherDashboard({ userId }: { userId: string }) {
         </div>
         <div className="dashboard-metrics">
           {[
-            { label: "My Classes", value: myClassCount, context: "Active teaching assignments", icon: <GraduationCap size={19} />, color: "text-blue-600 bg-blue-50 dark:bg-blue-950" },
+            { label: "My Classes", value: assignmentsUnavailable ? "—" : myClassCount, context: assignmentsUnavailable ? "Currently unavailable" : "Active teaching assignments", icon: <GraduationCap size={19} />, color: "text-blue-600 bg-blue-50 dark:bg-blue-950" },
             { label: "Academic Logs", value: monthlyLogCount ?? "—", context: monthlyLogCount === null ? "Currently unavailable" : "This month", icon: <BookOpen size={19} />, color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950" },
             { label: "Homework Given", value: monthlyHomeworkCount ?? "—", context: monthlyHomeworkCount === null ? "Currently unavailable" : "This month", icon: <NotebookPen size={19} />, color: "text-purple-600 bg-purple-50 dark:bg-purple-950" },
-            { label: "Upcoming Tests", value: upcomingTestsThisWeek, context: "Next 7 days", icon: <ClipboardList size={19} />, color: "text-orange-600 bg-orange-50 dark:bg-orange-950" },
+            { label: "Upcoming Tests", value: upcomingTestsThisWeek ?? "—", context: upcomingTestsThisWeek === null ? "Currently unavailable" : "Next 7 days", icon: <ClipboardList size={19} />, color: "text-orange-600 bg-orange-50 dark:bg-orange-950" },
           ].map((item) => (
             <DashboardMetric key={item.label} label={item.label} value={busy ? "—" : item.value} context={item.context}
               icon={item.label === "My Classes" ? GraduationCap : item.label === "Academic Logs" ? BookOpen : item.label === "Homework Given" ? NotebookPen : ClipboardList}
@@ -699,7 +784,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
       </section>
 
       <div className="dashboard-bento">
-        <RecentLogChart logs={logs} loading={busy} />
+        <RecentLogChart logs={logs} loading={busy} unavailable={recentActivityUnavailable} />
         <AttendanceComposition rows={todayAttendanceRows} loading={busy} unavailable={attendanceOverviewUnavailable} title="Today’s attendance" detail="Saved by you across permitted classes" href="/modules/attendance" />
       </div>
       <nav className="dashboard-quick-wide" aria-label="Quick Actions"><DashboardActions actions={[
@@ -710,7 +795,9 @@ function TeacherDashboard({ userId }: { userId: string }) {
       ]} /></nav>
       <div className="dashboard-bento-even">
       <Card title="Today’s Teaching Activity" icon={<BookOpen size={18} />}>
-        {todayLogRows.length ? (
+        {recentActivityUnavailable ? (
+          <p role="alert" className="text-sm text-danger">Today&apos;s teaching activity could not be loaded.</p>
+        ) : todayLogRows.length ? (
           <div className="space-y-3">
             {todayLogRows.slice(0, 3).map((log) => {
               const logActivities = activities.filter((activity) => activity.class_log_id === log.id);
@@ -718,7 +805,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
                 <article key={log.id} className="rounded-xl border border-[var(--border)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-semibold">{nameForClass(log.class_id)} {nameForSection(log.section_id)} · {nameForSubject(log.subject_id)}</p>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${log.status === "draft" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"}`}>{log.status === "draft" ? "Draft" : "Published"}</span>
+                    <span className={logStatusPill(log.status)}>{log.status === "draft" ? "Draft" : "Published"}</span>
                   </div>
                   <p className="mt-2 text-sm">{log.topic}</p>
                   {logActivities.length > 0 && (
@@ -737,21 +824,23 @@ function TeacherDashboard({ userId }: { userId: string }) {
       </Card>
 
       <Card title="Recent Academic Activity" icon={<Clock3 size={18} />} right={<DashboardViewAll href="/modules/class-logs" />}>
-        {recentLogs.length ? (
+        {recentActivityUnavailable ? (
+          <p role="alert" className="text-sm text-danger">Recent academic activity could not be loaded. Refresh to try again.</p>
+        ) : recentLogs.length ? (
           <div className="divide-y divide-[var(--border)]">
             {recentLogs.slice(0, 4).map((log) => {
               const logActivities = activities.filter((activity) => activity.class_log_id === log.id);
               return (
-                <article key={log.id} className="grid gap-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[130px_1fr_auto] sm:items-start">
+                <article key={log.id} className="grid gap-2 py-4 first:pt-0 last:pb-0">
                   <time className="text-sm muted">{displayDate(log.log_date)}</time>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold">{nameForClass(log.class_id)} {nameForSection(log.section_id)} · {nameForSubject(log.subject_id)}</p>
                     <p className="mt-1 text-sm">{log.topic}</p>
                     {logActivities.length > 0 && <p className="mt-1 text-xs muted">{logActivities.map((activity) => `${formatActivityType(activity.activity_type)}: ${activity.title}`).join(" · ")}</p>}
                   </div>
-                  <div className="flex flex-wrap gap-2 sm:justify-end">
+                  <div className="flex flex-wrap gap-2">
                     {logActivities.length ? logActivities.slice(0, 2).map((activity) => <span key={activity.id} className="rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:text-blue-300">{formatActivityType(activity.activity_type)}</span>) : <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-semibold">Academic Log</span>}
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${log.status === "draft" ? "bg-amber-500/10 text-amber-700 dark:text-amber-300" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"}`}>{log.status === "draft" ? "Draft" : "Published"}</span>
+                    <span className={logStatusPill(log.status)}>{log.status === "draft" ? "Draft" : "Published"}</span>
                   </div>
                 </article>
               );
@@ -820,6 +909,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
             </div>
             <div>
               <h3 className="mb-3 font-semibold">Record attendance</h3>
+              {attendanceUnverified && <p role="status" className="mb-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your unsaved marks are kept and the check will retry. Save once the connection returns.</p>}
               {currentAssignment?.coverage_id && <p className="mb-3 text-sm muted">Temporary attendance coverage · {currentAssignment.starts_on} through {currentAssignment.ends_on} IST. Previous days are read-only.</p>}
               <fieldset disabled={busy}>
               <AttendanceEditor
@@ -847,7 +937,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
             <div>
               <h3 className="text-sm font-semibold">Upcoming tests</h3>
               <div className="mt-3 space-y-2">
-                {upcomingAssessments.slice(0, 3).map((assessment) => {
+                {(upcomingAssessments ?? []).slice(0, 3).map((assessment) => {
                   const assignment = assignments.find((item) => item.class_id === assessment.class_id && item.section_id === assessment.section_id && item.subject_id === assessment.subject_id);
                   return (
                     <div key={assessment.id} className="rounded-xl bg-[var(--surface-2)] p-3 text-sm">
@@ -856,7 +946,8 @@ function TeacherDashboard({ userId }: { userId: string }) {
                     </div>
                   );
                 })}
-                {!upcomingAssessments.length && <p className="text-sm muted">No upcoming tests scheduled.</p>}
+                {!upcomingAssessments ? <p role="alert" className="text-sm text-danger">Upcoming tests could not be loaded.</p>
+                  : !upcomingAssessments.length && <p className="text-sm muted">No upcoming tests scheduled.</p>}
               </div>
             </div>
             <div>
@@ -874,23 +965,33 @@ function TeacherDashboard({ userId }: { userId: string }) {
           </div>
         </Card>
         <Card title="Share a Notice" icon={<FileText size={18} />} preview={false}>
-          <p className="text-sm muted">Publish an update for students and guardians in your assigned classes.</p>
+          <p className="text-sm muted">Notices go live immediately for students and guardians in your assigned classes. You can edit or withdraw your own notices: edits update family inboxes and withdrawing removes the notice, but a push alert already delivered to a phone cannot be recalled.</p>
           <div className="mt-4 space-y-3">
-            <input value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} placeholder="Notice title" className="field" />
-            <textarea value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="Notice content" className="field min-h-24" />
-            <button disabled={busy || !noticeTitle.trim() || !noticeContent.trim()} onClick={saveNotice} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50"><Plus size={17} /> Publish Notice</button>
+            <input value={noticeTitle} onChange={(e) => setNoticeTitle(e.target.value)} placeholder="Notice title" aria-label="Notice title" className="field" />
+            <textarea value={noticeContent} onChange={(e) => setNoticeContent(e.target.value)} placeholder="Notice content" aria-label="Notice content" className="field min-h-24" />
+            <div className="flex flex-wrap gap-2">
+              <button disabled={busy || attendanceLocked || !noticeTitle.trim() || !noticeContent.trim()} onClick={saveNotice} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50"><Plus size={17} aria-hidden="true" /> {editingNotice ? "Save changes" : "Publish Notice"}</button>
+              {editingNotice && <button type="button" disabled={busy || attendanceLocked} onClick={() => { setEditingNotice(null); setNoticeTitle(""); setNoticeContent(""); }} className="rounded-xl border border-[var(--border)] px-5 py-3 text-sm font-semibold">Cancel edit</button>}
+            </div>
+            {attendanceLocked && <p role="status" className="text-sm text-amber-800 dark:text-amber-200">Notice actions are paused while the attendance register is loading, saving or has unsaved marks. Save the attendance first.</p>}
           </div>
           <div className="mt-5 border-t border-[var(--border)] pt-4">
-            <h3 className="text-sm font-semibold">Recently published</h3>
-            <div className="mt-2 space-y-2">
+            <h3 className="text-sm font-semibold">Your recent notices</h3>
+            {!teacherNotices ? <p role="alert" className="mt-2 text-sm text-danger">Your notices could not be loaded. Refresh to try again.</p> : <ul className="mt-2 space-y-2">
               {teacherNotices.slice(0, 4).map((notice) => (
-                <div key={notice.id} className="rounded-xl bg-[var(--surface-2)] p-3">
-                  <div className="text-sm font-semibold">{notice.title}</div>
-                  <div className="mt-1 text-xs muted">{displayDate((notice.published_at ?? notice.created_at ?? "").slice(0, 10))}</div>
-                </div>
+                <li key={notice.id} className="flex flex-wrap items-start justify-between gap-2 rounded-xl bg-[var(--surface-2)] p-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{notice.title}</div>
+                    <div className="mt-1 text-xs muted">{notice.published_at ? displayTimestamp(notice.published_at) : "Withdrawn"}</div>
+                  </div>
+                  {notice.published_at && <div className="flex gap-2">
+                    <button type="button" disabled={busy || attendanceLocked} aria-label={`Edit ${notice.title}`} onClick={() => editNotice(notice)} className="rounded-lg border border-[var(--border)] inline-flex min-h-10 items-center px-3 py-1.5 text-xs font-semibold">Edit</button>
+                    <button type="button" disabled={busy || attendanceLocked} aria-label={`Withdraw ${notice.title}`} onClick={() => withdrawNotice(notice)} className="rounded-lg border border-[var(--border)] inline-flex min-h-10 items-center px-3 py-1.5 text-xs font-semibold">Withdraw</button>
+                  </div>}
+                </li>
               ))}
-              {!teacherNotices.length && <p className="text-sm muted">No notices published yet.</p>}
-            </div>
+              {!teacherNotices.length && <li className="text-sm muted">No notices published yet.</li>}
+            </ul>}
           </div>
         </Card>
     </div>
@@ -902,7 +1003,7 @@ async function loadStudentDashboardData(
   student: FamilyStudent,
   signal: AbortSignal,
 ): Promise<StudentDashboardData | null> {
-  const [{ data: enrollment }, attendanceResult, feeResult] = await Promise.all([
+  const [{ data: enrollment, error: enrollmentReadError }, attendanceResult, feeResult] = await Promise.all([
     supabase.from("enrollments").select("class_id,section_id,academic_year_id,roll_no,classes(name),sections(name),academic_years!inner(is_current)")
       .eq("student_id", student.id).eq("status", "active")
       .eq("academic_years.school_id", student.school_id).eq("academic_years.is_current", true)
@@ -917,27 +1018,34 @@ async function loadStudentDashboardData(
 
   let logs: LogRow[] = [];
   let activities: ActivityRow[] = [];
+  const enrollmentError = Boolean(enrollmentReadError);
+  let learningError = enrollmentError;
+  let logCount: number | null = enrollmentError ? null : 0;
   if (enrollment) {
     let logQuery = supabase.from("class_logs")
-      .select("id,log_date,topic,summary,subject_id,class_id,section_id,academic_year_id,teacher_remark,status")
+      .select("id,log_date,topic,summary,subject_id,class_id,section_id,academic_year_id,teacher_remark,status", { count: "exact" })
       .eq("class_id", enrollment.class_id)
       .eq("status", "published");
     if (enrollment.academic_year_id) logQuery = logQuery.eq("academic_year_id", enrollment.academic_year_id);
     logQuery = enrollment.section_id
       ? logQuery.or(`section_id.is.null,section_id.eq.${enrollment.section_id}`)
       : logQuery.is("section_id", null);
-    const { data } = await logQuery.order("log_date", { ascending: false }).limit(30).returns<LogRow[]>();
+    // The exact count covers every published log; the 30 rows only feed the previews.
+    const { data, count, error } = await logQuery.order("log_date", { ascending: false }).limit(30).returns<LogRow[]>();
     if (signal.aborted) return null;
     logs = data ?? [];
+    logCount = error ? null : count ?? null;
+    learningError ||= Boolean(error);
     const ids = logs.map((log) => log.id);
     if (ids.length) {
-      const { data } = await supabase.from("class_activities").select("id,activity_type,title,description,due_date,class_log_id").in("class_log_id", ids).order("created_at", { ascending: false }).returns<ActivityRow[]>();
+      const { data, error } = await supabase.from("class_activities").select("id,activity_type,title,description,due_date,class_log_id").in("class_log_id", ids).order("created_at", { ascending: false }).returns<ActivityRow[]>();
       if (signal.aborted) return null;
       activities = data ?? [];
+      learningError ||= Boolean(error);
     }
   }
   return {
-    student, enrollment, attendance: attendanceResult.rows,
+    student, enrollment, enrollmentError, learningError, logCount, attendance: attendanceResult.rows,
     attendanceError: attendanceResult.error, fees: feeResult.data?.rows ?? [], feesError: feeResult.error,
     feeCount: feeResult.data?.summary.demand_count ?? null, logs, activities,
   };
@@ -948,9 +1056,9 @@ function FamilyFeeBalances({ rows, total, error, loading }: {
 }) {
   return <Card title="Fee balances" icon={<IndianRupee size={18} />}>
     {loading ? <LoadingState variant="list" className="text-sm muted">Loading fee balances…</LoadingState>
-      : error ? <p role="alert" className="text-sm text-red-600 dark:text-red-300">Fee balances could not be loaded. Refresh to check the saved records.</p>
+      : error ? <p role="alert" className="text-sm text-danger">Fee balances could not be loaded. Refresh to check the saved records.</p>
         : !rows.length ? <p className="text-sm muted">No fee demands available.</p> : <>
-          <p className="mb-3 text-xs muted">Showing {rows.length} of {total} retained demands. Balances include approved fee changes and recorded-payment reversals.</p>
+          <p className="mb-3 text-xs muted">Showing {rows.length} of {total} retained demands, outstanding first. Balances include approved fee changes and recorded-payment reversals.</p>
           <ul aria-label="Fee balance preview" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {rows.map((fee) => <li key={fee.demand_id} className="min-w-0 space-y-3 rounded-xl bg-[var(--surface-2)] p-4">
               <div><h3 className="break-words text-sm font-semibold">{fee.fee_name}</h3>
@@ -983,13 +1091,13 @@ function AttendanceHistory({ title, rows, error, loading }: {
   return (
     <Card title={title} icon={<CalendarCheck size={18} />} right={<DashboardViewAll href={title === "Attendance by Date" ? guardianAttendancePath : "/modules/attendance"} />}>
       {loading ? <LoadingState variant="list" className="text-sm muted">Loading attendance…</LoadingState>
-        : error ? <p role="alert" className="text-sm text-red-600">Attendance could not be loaded. Refresh to try again.</p>
+        : error ? <p role="alert" className="text-sm text-danger">Attendance could not be loaded. Refresh to try again.</p>
         : rows.length ? (
           <ul className="space-y-2">
             {rows.map((row) => (
               <li key={row.attendance_date} className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] p-3 text-sm">
                 <time dateTime={row.attendance_date}>{displayDate(row.attendance_date)}</time>
-                <span className={row.status === "absent" ? "font-semibold text-red-600" : "font-semibold"}>
+                <span className={row.status === "absent" ? "font-semibold text-danger" : "font-semibold"}>
                   {attendanceLabels[row.status] ?? row.status}
                 </span>
               </li>
@@ -1000,19 +1108,21 @@ function AttendanceHistory({ title, rows, error, loading }: {
   );
 }
 
-function FamilyLearningPreview({ logs, activities, loading = false }: { logs: LogRow[]; activities: ActivityRow[]; loading?: boolean }) {
+const classWorkUnavailable = <p role="alert" className="dashboard-empty text-danger">Class work could not be loaded. Refresh to try again.</p>;
+
+function FamilyLearningPreview({ logs, activities, loading = false, unavailable = false }: { logs: LogRow[]; activities: ActivityRow[]; loading?: boolean; unavailable?: boolean }) {
   return <Card title="Recent learning & work" icon={<BookOpen size={17} />} right={<DashboardViewAll href="/modules/homework">Homework</DashboardViewAll>}>
-    {loading ? <LoadingState variant="list" label="Loading learning and class work…" /> : <>
+    {loading ? <LoadingState variant="list" label="Loading learning and class work…" /> : unavailable ? classWorkUnavailable : <>
     <div className="dashboard-learning-list">{activities.slice(0, 4).map((activity) => <article key={activity.id}><p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">{activity.activity_type.replaceAll("_", " ")}</p><h3 className="mt-1">{activity.title}</h3>{activity.due_date && <p>Due {displayDate(activity.due_date)}</p>}</article>)}</div>
     {!activities.length && <p className="dashboard-empty">No homework or activities have been shared for this class yet.</p>}
     {logs.length > 0 && <div className="mt-4 border-t border-[var(--border)] pt-4"><p className="dashboard-caption">Latest class lesson</p><h3 className="mt-1 text-sm font-semibold">{logs[0].topic}</h3>{logs[0].summary && <p className="mt-1 text-xs leading-relaxed muted">{logs[0].summary}</p>}<p className="mt-2 text-xs muted">{displayDate(logs[0].log_date)} · {logs.length} recently loaded academic logs</p></div>}
     </>}
   </Card>;
 }
-function FamilyMissedWork({ logs, activities, attendance, loading = false }: { logs: LogRow[]; activities: ActivityRow[]; attendance: FamilyAttendanceRow[]; loading?: boolean }) {
+function FamilyMissedWork({ logs, activities, attendance, loading = false, unavailable = false }: { logs: LogRow[]; activities: ActivityRow[]; attendance: FamilyAttendanceRow[]; loading?: boolean; unavailable?: boolean }) {
   const missed = logs.filter((log) => attendance.some((record) => record.attendance_date === log.log_date && record.status === "absent" && record.academic_year_id === log.academic_year_id));
   return <Card title="What You Missed" icon={<AlertCircle size={17} />} right={<DashboardViewAll href="/modules/missed-activities" />}>
-    {loading ? <LoadingState variant="list" label="Loading missed school work…" /> : missed.length ? <div className="dashboard-list">{missed.slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><p>{displayDate(log.log_date)}</p><h3>{log.topic}</h3>{log.summary && <p>{log.summary}</p>}{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id}><strong>{activity.activity_type.replaceAll("_", " ")}:</strong> {activity.title}</p>)}{log.teacher_remark && <p><strong>Teacher Remark:</strong> {log.teacher_remark}</p>}</article>)}</div> : <p className="dashboard-empty">No missed academic work found.</p>}
+    {loading ? <LoadingState variant="list" label="Loading missed school work…" /> : unavailable ? classWorkUnavailable : missed.length ? <div className="dashboard-list">{missed.slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><p>{displayDate(log.log_date)}</p><h3>{log.topic}</h3>{log.summary && <p>{log.summary}</p>}{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id}><strong>{activity.activity_type.replaceAll("_", " ")}:</strong> {activity.title}</p>)}{log.teacher_remark && <p><strong>Teacher Remark:</strong> {log.teacher_remark}</p>}</article>)}</div> : <p className="dashboard-empty">No missed academic work found.</p>}
   </Card>;
 }
 
@@ -1020,7 +1130,7 @@ function StudentDashboard({ userId }: { userId: string }) {
   const [supabase] = useState(createClient);
   const [summaryStudent, setSummaryStudent] = useState<FamilyStudent | null>(null);
   const [data, setData] = useState<StudentDashboardData>(emptyStudentDashboard);
-  const { student, enrollment, attendance, attendanceError, logs, activities, fees, feesError, feeCount } = data;
+  const { student, enrollment, enrollmentError, learningError, attendance, attendanceError, logs, logCount, activities, fees, feesError, feeCount } = data;
   const [message, setMessage] = useState("");
 
   useEffect(() => {
@@ -1051,18 +1161,18 @@ function StudentDashboard({ userId }: { userId: string }) {
       <Header role="student" subtitle="Your learning, attendance and school tasks, ready for today." />
       {message && <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{message}</div>}
       <DashboardIdentity label="My Profile & Class" loading={!student && !message} name={student ? nameOf(student) : "Student profile"} subtitle={student ? "Your verified school profile" : "Checking your school profile…"}
-        details={[{ label: "Admission", value: student?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
-          { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
+        details={[{ label: "Admission", value: student?.admission_no ?? "—" }, { label: "Roll No.", value: enrollmentError ? "Unavailable" : enrollment?.roll_no ?? "—" },
+          { label: "Class", value: enrollmentError ? "Unavailable" : enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollmentError ? "Unavailable" : enrollment?.sections?.name ?? "—" }]}
         />
       <OfficialAttendanceSummary client={supabase} userId={userId} student={summaryStudent} role="student" loading={!summaryStudent && !message} />
       <div className="dashboard-metrics">
         <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!student && !message} />
-        <Stat label="Class Logs" value={logs.length} loading={!student && !message} />
-        <Stat label="Homework / Work" value={activities.length} tone="purple" loading={!student && !message} />
-        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!student && !message} />
+        <Stat label="Academic logs" value={logCount ?? "—"} context={logCount === null ? "Currently unavailable" : "Published this academic year"} loading={!student && !message} />
+        <Stat label="Homework & projects" value={learningError ? "—" : activities.length} context={learningError ? "Currently unavailable" : "From the latest 30 class logs"} tone="purple" loading={!student && !message} />
+        <Stat label="Fee records" value={feeCount ?? "—"} context={feesError ? "Currently unavailable" : "Fee demands on record"} tone="orange" loading={!student && !message} />
       </div>
       <div className="dashboard-bento">
-        <FamilyLearningPreview logs={logs} activities={activities} loading={!student && !message} />
+        <FamilyLearningPreview logs={logs} activities={activities} loading={!student && !message} unavailable={learningError} />
         <AttendanceComposition rows={attendance} loading={!student && !message} unavailable={attendanceError} detail="Recent retained attendance records" href="/modules/attendance" />
       </div>
       <nav className="dashboard-quick-wide" aria-label="Student quick actions"><DashboardActions actions={[
@@ -1073,7 +1183,7 @@ function StudentDashboard({ userId }: { userId: string }) {
       ]} /></nav>
       <div className="dashboard-bento-even">
         <AttendanceHistory title="Attendance History" rows={attendance.slice(0, 5)} error={attendanceError} loading={!student && !message} />
-        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!student && !message} />
+        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!student && !message} unavailable={learningError} />
       </div>
       <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !student)} loading={!student && !message} />
     </div>
@@ -1086,7 +1196,7 @@ function ParentDashboard({ userId }: { userId: string }) {
   const [selected, setSelected] = useState("");
   const [childData, setChildData] = useState<{ studentId: string; data: StudentDashboardData } | null>(null);
   // A newly selected child starts with empty data until that child's request finishes.
-  const { student: child, attendance, attendanceError, enrollment, logs, activities, fees, feesError, feeCount } =
+  const { student: child, attendance, attendanceError, enrollment, enrollmentError, learningError, logs, logCount, activities, fees, feesError, feeCount } =
     childData?.studentId === selected ? childData.data : emptyStudentDashboard;
   const [message, setMessage] = useState("");
   const summaryStudent = children.find(student => student.id === selected) ?? null;
@@ -1098,14 +1208,14 @@ function ParentDashboard({ userId }: { userId: string }) {
         const students = await loadFamilyStudents(supabase, "parent", userId);
         if (controller.signal.aborted) return;
         if (!students.length) {
-          setMessage("No child is linked to this parent account yet.");
+          setMessage("No child is linked to this guardian account yet.");
           return;
         }
         setChildren(students);
         setSelected(restoreFamilyChild(userId, students));
       } catch (error) {
         if (!controller.signal.aborted) {
-          setMessage(error instanceof Error ? error.message : "Your parent profile could not be loaded. Refresh to try again.");
+          setMessage(error instanceof Error ? error.message : "Your guardian profile could not be loaded. Refresh to try again.");
         }
       }
     }
@@ -1141,18 +1251,18 @@ function ParentDashboard({ userId }: { userId: string }) {
         </select></div>
       </section>
       <DashboardIdentity label="Child Details" loading={!child && !message} name={child ? nameOf(child) : "Child profile"} subtitle={child ? "Verified linked student" : "Checking the selected child…"}
-        details={[{ label: "Admission", value: child?.admission_no ?? "—" }, { label: "Roll No.", value: enrollment?.roll_no ?? "—" },
-          { label: "Class", value: enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollment?.sections?.name ?? "—" }]}
+        details={[{ label: "Admission", value: child?.admission_no ?? "—" }, { label: "Roll No.", value: enrollmentError ? "Unavailable" : enrollment?.roll_no ?? "—" },
+          { label: "Class", value: enrollmentError ? "Unavailable" : enrollment?.classes?.name ?? "—" }, { label: "Section", value: enrollmentError ? "Unavailable" : enrollment?.sections?.name ?? "—" }]}
         />
       <OfficialAttendanceSummary client={supabase} userId={userId} student={summaryStudent} role="parent" loading={!summaryStudent && !message} />
       <div className="dashboard-metrics">
         <Stat label="Present or late" value={attendanceSavedCount(attendance)} tone="green" loading={!child && !message} />
-        <Stat label="Academic Logs" value={logs.length} loading={!child && !message} />
-        <Stat label="Homework / Projects" value={activities.length} tone="purple" loading={!child && !message} />
-        <Stat label="Fee Records" value={feeCount ?? "—"} tone="orange" loading={!child && !message} />
+        <Stat label="Academic logs" value={logCount ?? "—"} context={logCount === null ? "Currently unavailable" : "Published this academic year"} loading={!child && !message} />
+        <Stat label="Homework & projects" value={learningError ? "—" : activities.length} context={learningError ? "Currently unavailable" : "From the latest 30 class logs"} tone="purple" loading={!child && !message} />
+        <Stat label="Fee records" value={feeCount ?? "—"} context={feesError ? "Currently unavailable" : "Fee demands on record"} tone="orange" loading={!child && !message} />
       </div>
       <div className="dashboard-bento">
-        <FamilyLearningPreview logs={logs} activities={activities} loading={!child && !message} />
+        <FamilyLearningPreview logs={logs} activities={activities} loading={!child && !message} unavailable={learningError} />
         <AttendanceComposition rows={attendance} loading={!child && !message} unavailable={attendanceError} detail="Selected child · retained records" href={guardianAttendancePath} />
       </div>
       <GuardianAttendanceAlerts key={userId} userId={userId} summary />
@@ -1164,14 +1274,14 @@ function ParentDashboard({ userId }: { userId: string }) {
       ]} /></nav>
       <div className="dashboard-bento-even">
         <AttendanceHistory title="Attendance by Date" rows={attendance.slice(0, 5)} error={attendanceError} loading={!child && !message} />
-        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!child && !message} />
+        <FamilyMissedWork logs={logs} activities={activities} attendance={attendance} loading={!child && !message} unavailable={learningError} />
       </div>
       <FamilyFeeBalances rows={fees} total={feeCount} error={feesError || Boolean(message && !child)} loading={!child && !message} />
     </div>
   );
 }
 
-function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; userId: string; role: "admin" | "principal" }) {
+function AdminDashboard({ schoolId, userId, role, schoolRoles }: { schoolId: string | null; userId: string; role: "admin" | "principal"; schoolRoles?: readonly (UiRole | null)[] }) {
   const [supabase] = useState(createClient);
   const [reloadVersion, setReloadVersion] = useState(0);
   const [overview, setOverview] = useState<AdminOverview>(emptyAdminOverview);
@@ -1180,6 +1290,10 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
   const [recentSchoolActivities, setRecentSchoolActivities] = useState<AdminOverviewActivity[]>([]);
   const [upcomingSchoolAssessments, setUpcomingSchoolAssessments] = useState<AdminOverviewAssessment[]>([]);
   const [recentSchoolResults, setRecentSchoolResults] = useState<AdminOverviewResult[]>([]);
+  const [publishedResults, setPublishedResults] = useState<PublicationSummary[]>([]);
+  const principal = role === "principal";
+  const [logsUnavailable, setLogsUnavailable] = useState(false);
+  const [noticesUnavailable, setNoticesUnavailable] = useState(false);
   const [schoolNotices, setSchoolNotices] = useState<{ id: string; title: string; content: string; created_at: string | null }[]>([]);
   const [schoolNames, setSchoolNames] = useState<TeacherDisplayNames>({ classes: {}, sections: {}, subjects: {} });
   const [dashboardError, setDashboardError] = useState(schoolId ? "" : "This admin account is not linked to a school.");
@@ -1193,7 +1307,10 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
     setRecentSchoolActivities([]);
     setUpcomingSchoolAssessments([]);
     setRecentSchoolResults([]);
+    setPublishedResults([]);
     setSchoolNotices([]);
+    setLogsUnavailable(false);
+    setNoticesUnavailable(false);
     setSchoolNames({ classes: {}, sections: {}, subjects: {} });
     setReloadVersion((version) => version + 1);
   }
@@ -1233,8 +1350,10 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
           (error: unknown) => ({ data: null, error }),
         ),
         supabase.from("class_logs").select("id,teacher_id,class_id,section_id").eq("school_id", schoolId).eq("log_date", today),
-        supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
-        supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
+        principal ? loadPrincipalUpcoming(supabase, activeSchoolId, today, weekEnd)
+          : supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id", { count: "exact" }).eq("school_id", schoolId).gte("assessment_date", today).lte("assessment_date", weekEnd).order("assessment_date", { ascending: true }).limit(10),
+        principal ? Promise.resolve<AssessmentRead>({ data: [], error: null })
+          : supabase.from("teacher_assessments").select("id,name,assessment_date,maximum_marks,class_id,section_id,subject_id").eq("school_id", schoolId).lt("assessment_date", today).order("assessment_date", { ascending: false }).limit(20),
         supabase.from("class_logs").select("id,log_date,topic,class_id,section_id,subject_id,status").eq("school_id", schoolId).order("log_date", { ascending: false }).limit(10),
         supabase.from("notices").select("id,title,content,created_at").eq("school_id", schoolId).order("created_at", { ascending: false }).limit(5),
         getOfficeFinanceSummary(supabase, activeSchoolId).then(
@@ -1291,11 +1410,24 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         overdueFees: financeResult.data?.overdue_count ?? null,
       });
       setRecentSchoolLogs(logs);
+      setLogsUnavailable(Boolean(recentLogsResult.error));
       setUpcomingSchoolAssessments(upcoming);
       setSchoolNotices(noticesResult.error ? [] : noticesResult.data ?? []);
+      setNoticesUnavailable(Boolean(noticesResult.error));
 
       const completedAssessmentIds = completedAssessments.map((assessment) => assessment.id);
-      if (completedAssessmentIds.length) {
+      if (principal) {
+        // Principals see reviewed (published) results, never raw marks.
+        try {
+          const page = await listResultSubmissions(supabase, activeSchoolId, "published");
+          if (controller.signal.aborted) return;
+          setPublishedResults(page.rows);
+        } catch (error) {
+          if (controller.signal.aborted) return;
+          console.error("Principal dashboard published results could not be loaded", error);
+          setDashboardError("Recent results could not be loaded.");
+        }
+      } else if (completedAssessmentIds.length) {
         const { data: marks, error: marksError } = await supabase
           .from("teacher_assessment_marks")
           .select("id,assessment_id,student_id,marks_obtained,updated_at")
@@ -1366,7 +1498,7 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
     }
     void load();
     return () => controller.abort();
-  }, [schoolId, supabase, reloadVersion]);
+  }, [schoolId, supabase, reloadVersion, principal]);
 
   const classLabel = (log: AdminOverviewLog) =>
     `${schoolNames.classes[log.class_id] ?? "Class"} ${schoolNames.sections[log.section_id ?? ""] ?? ""}`.trim();
@@ -1401,7 +1533,7 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
         <DashboardMetric label="This Month Collection" value={dashboardLoading ? "—" : overview.monthCollection === null ? "Unavailable" : formatFeeMoney(overview.monthCollection)} context="Net recorded collections" icon={IndianRupee} tone="amber" loading={dashboardLoading} />
       </section>
       <div className="dashboard-bento">
-        <RecentLogChart logs={recentSchoolLogs} loading={dashboardLoading} />
+        <RecentLogChart logs={recentSchoolLogs} loading={dashboardLoading} unavailable={logsUnavailable} />
         <AttendanceSegments title="Today’s attendance" detail="Breakdown of saved attendance records" href="/modules/attendance" loading={dashboardLoading} unavailable={attendanceUnavailable}
           segments={attendanceStatusStyles.map(({ key, color }) => ({ label: attendanceLabels[key as AttendanceStatus], count: overview.attendanceStatuses?.[key as AttendanceStatus] ?? 0, color }))} />
       </div>
@@ -1414,15 +1546,16 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
       <div className="dashboard-operational-grid">
         <Card title="Recent Academic Logs" icon={<BookOpen size={17} />} right={<DashboardViewAll href="/modules/class-logs" />}>
           {dashboardLoading && <LoadingState label="Loading recent academic logs…" />}
-          <div className="dashboard-list">{(!dashboardLoading ? recentSchoolLogs : []).slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><div className="flex flex-wrap items-center justify-between gap-2"><p>{displayDate(log.log_date)} · {classLabel(log)} · {schoolNames.subjects[log.subject_id] ?? "Subject"}</p><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${log.status === "draft" ? "bg-amber-500/10 text-amber-800 dark:text-amber-200" : "bg-blue-500/10 text-blue-700 dark:text-blue-300"}`}>{log.status === "draft" ? "Draft" : "Published"}</span></div><h3 className="mt-1">{log.topic}</h3>
+          <div className="dashboard-list">{(!dashboardLoading ? recentSchoolLogs : []).slice(0, 4).map((log) => <article key={log.id} className="dashboard-list-item"><div className="flex flex-wrap items-center justify-between gap-2"><p>{displayDate(log.log_date)} · {classLabel(log)} · {schoolNames.subjects[log.subject_id] ?? "Subject"}</p><span className={logStatusPill(log.status)}>{log.status === "draft" ? "Draft" : "Published"}</span></div><h3 className="mt-1">{log.topic}</h3>
             {(activityByLog.get(log.id) ?? []).length > 0 && <p>{(activityByLog.get(log.id) ?? []).slice(0, 2).map((activity) => `${activity.activity_type.replaceAll("_", " ")}: ${activity.title}`).join(" · ")}</p>}
           </article>)}</div>
-          {!dashboardLoading && recentSchoolLogs.length === 0 && <p className="dashboard-empty">No academic activity has been recorded yet.</p>}
+          {!dashboardLoading && (logsUnavailable ? <p role="alert" className="dashboard-empty">Recent academic logs could not be loaded. Refresh to try again.</p>
+            : recentSchoolLogs.length === 0 && <p className="dashboard-empty">No academic activity has been recorded yet.</p>)}
         </Card>
         <Card title="School Overview" icon={<School size={17} />}><dl className="dashboard-mini-facts">
-          {[["Total Parents", overview.parents], ["Total Classes", overview.classes], ["Total Sections", overview.sections], ["Teachers Active", overview.activeTeachers], ["Upcoming Exams", overview.upcomingExams]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{dashboardLoading ? <Skeleton className="h-6 w-12" /> : value ?? "—"}</dd></div>)}
+          {[["Total Guardians", overview.parents], ["Total Classes", overview.classes], ["Total Sections", overview.sections], ["Teachers Active", overview.activeTeachers], ["Upcoming Exams", overview.upcomingExams]].map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{dashboardLoading ? <Skeleton className="h-6 w-12" /> : value ?? "—"}</dd></div>)}
         </dl><p className="mt-4 text-xs leading-relaxed muted">Teachers active = teachers with an academic log today. Upcoming exams cover today through the next seven days.</p></Card>
-        <Card title="Upcoming Tests" icon={<ClipboardList size={17} />} right={<DashboardViewAll href="/modules/exams" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading upcoming assessments…" />}{(!dashboardLoading ? upcomingSchoolAssessments : []).slice(0, 4).map((assessment) => <article key={assessment.id} className="dashboard-list-item"><h3>{assessment.name}</h3><p>{displayDate(assessment.assessment_date)} · {resultsLabel(assessment)}</p></article>)}</div>{!dashboardLoading && !upcomingSchoolAssessments.length && <p className="dashboard-empty">No tests are scheduled for the next seven days.</p>}</Card>
+        <Card title="Upcoming Tests" icon={<ClipboardList size={17} />} right={getNavigationModules(role, schoolRoles).some((item) => item.key === "exams") ? <DashboardViewAll href="/modules/exams" /> : undefined}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading upcoming assessments…" />}{(!dashboardLoading ? upcomingSchoolAssessments : []).slice(0, 4).map((assessment) => <article key={assessment.id} className="dashboard-list-item"><h3>{assessment.name}</h3><p>{displayDate(assessment.assessment_date)} · {resultsLabel(assessment)}</p></article>)}</div>{!dashboardLoading && !upcomingSchoolAssessments.length && <p className="dashboard-empty">{overview.upcomingExams === null ? "Upcoming tests are unavailable right now." : "No tests are scheduled for the next seven days."}</p>}</Card>
         <Card title="Finance" icon={<IndianRupee size={17} />} right={<DashboardViewAll href="/modules/finance-reports">Reports</DashboardViewAll>}><div className="dashboard-mini-facts">
           {[["Today's Collection", overview.todayCollection === null ? "Unavailable" : formatFeeMoney(overview.todayCollection)], ["This Month Collection", overview.monthCollection === null ? "Unavailable" : formatFeeMoney(overview.monthCollection)], ["Pending Fees", overview.pendingFees ?? "Unavailable"], ["Overdue Fees", overview.overdueFees ?? "Unavailable"]].map(([label, value]) => <article key={label}><h3>{label}</h3><p className="break-words">{dashboardLoading ? <Skeleton className="h-6 w-16" /> : value}</p></article>)}
         </div><p className="mt-4 text-xs leading-relaxed muted">Net recorded collections and retained fee demands. Reversals use their approval date.</p></Card>
@@ -1430,9 +1563,10 @@ function AdminDashboard({ schoolId, userId, role }: { schoolId: string | null; u
           const log = recentSchoolLogs.find((item) => item.id === activity.class_log_id);
           return <article key={activity.id} className="dashboard-list-item"><h3>{activity.title}</h3><p>{activity.due_date ? `Due ${displayDate(activity.due_date)}` : "No due date recorded"}{log && ` · ${classLabel(log)}`}</p></article>;
         })}</div>{!dashboardLoading && !recentHomework.length && <p className="dashboard-empty">No homework records available yet.</p>}</Card>
-        <Card title="School updates" icon={<FileText size={17} />} right={<DashboardViewAll href="/modules/notices" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading school notices…" />}{(!dashboardLoading ? schoolNotices : []).slice(0, 3).map((notice) => <article key={notice.id} className="dashboard-list-item"><div className="dashboard-notice-heading"><span className="dashboard-avatar" aria-hidden="true">S</span><div><h3>{notice.title}</h3><p>{notice.created_at ? displayDate(notice.created_at.slice(0, 10)) : "Date not recorded"}</p></div></div></article>)}</div>{!dashboardLoading && !schoolNotices.length && <p className="dashboard-empty">No school notices available yet.</p>}</Card>
+        <Card title="School updates" icon={<FileText size={17} />} right={<DashboardViewAll href="/modules/notices" />}><div className="dashboard-list">{dashboardLoading && <LoadingState label="Loading school notices…" />}{(!dashboardLoading ? schoolNotices : []).slice(0, 3).map((notice) => <article key={notice.id} className="dashboard-list-item"><div className="dashboard-notice-heading"><span className="dashboard-avatar" aria-hidden="true">S</span><div><h3>{notice.title}</h3><p>{notice.created_at ? displayTimestamp(notice.created_at) : "Date not recorded"}</p></div></div></article>)}</div>{!dashboardLoading && (noticesUnavailable ? <p role="alert" className="dashboard-empty">School notices could not be loaded. Refresh to try again.</p> : !schoolNotices.length && <p className="dashboard-empty">No school notices available yet.</p>)}</Card>
       </div>
-      <Card title="Recent Results" icon={<GraduationCap size={17} />} right={<DashboardViewAll href="/modules/results" />}><div className="dashboard-learning-list">{dashboardLoading && <LoadingState label="Loading recent assessment results…" />}{(!dashboardLoading ? recentSchoolResults : []).slice(0, 4).map((result) => <article key={result.id}><div className="flex items-center gap-3"><span className="dashboard-avatar" aria-hidden="true">{result.studentName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><div><h3>{result.studentName}</h3><p>{result.assessmentName} · {schoolNames.subjects[result.subjectId] ?? "Subject"}</p></div></div><p className="mt-3 text-lg font-bold">{result.marks} / {result.maximum}</p></article>)}</div>{!dashboardLoading && !recentSchoolResults.length && <p className="dashboard-empty">No marked assessment results available yet.</p>}</Card>
+      {principal ? <Card title="Recent Results" icon={<GraduationCap size={17} />} right={<DashboardViewAll href="/modules/published-results" />}><div className="dashboard-learning-list">{dashboardLoading && <LoadingState label="Loading published results…" />}{(!dashboardLoading ? publishedResults : []).slice(0, 4).map((item) => <article key={item.id}><h3>{item.metadata.name}</h3><p>{[item.metadata.class_name, item.metadata.section_name].filter(Boolean).join(" ")} · {item.metadata.subject_name}</p><p className="mt-2 text-xs muted">Published {item.reviewed_at ? displayTimestamp(item.reviewed_at) : ""}</p></article>)}</div>{!dashboardLoading && !publishedResults.length && <p className="dashboard-empty">No results have been published yet.</p>}</Card>
+      : <Card title="Recent Results" icon={<GraduationCap size={17} />} right={<DashboardViewAll href="/modules/results" />}><div className="dashboard-learning-list">{dashboardLoading && <LoadingState label="Loading recent assessment results…" />}{(!dashboardLoading ? recentSchoolResults : []).slice(0, 4).map((result) => <article key={result.id}><div className="flex items-center gap-3"><span className="dashboard-avatar" aria-hidden="true">{result.studentName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("")}</span><div><h3>{result.studentName}</h3><p>{result.assessmentName} · {schoolNames.subjects[result.subjectId] ?? "Subject"}</p></div></div><p className="mt-3 text-lg font-bold">{result.marks} / {result.maximum}</p></article>)}</div>{!dashboardLoading && !recentSchoolResults.length && <p className="dashboard-empty">No marked assessment results available yet.</p>}</Card>}
       {schoolId && <details className="dashboard-panel dashboard-attendance-monitor"><summary>Attendance submissions &amp; school cutoff <span className="text-xs muted">Open monitor</span></summary><AttendanceSubmissionMonitor key={schoolId} schoolId={schoolId} userId={userId} refreshVersion={reloadVersion} /></details>}
     </div>
   );

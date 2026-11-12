@@ -6,11 +6,11 @@ beforeEach(() => { vi.clearAllMocks(); vi.stubGlobal("fetch", fetchMock); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe("guardian phone authentication client", () => {
-  it.each(["9876540001", "98765 40001", "+91 (98765) 40001", "919876540001"])("canonicalizes Indian mobile %s", (input) => {
+  it.each(["9876540001", "98765 40001", "+91 (98765) 40001", "919876540001", "09876540001", "098765-40001", "98765.40001", "(+91) 98765 40001", "(+91)9876540001", "+ 91 98765 40001", "+(91) 98765-40001"])("canonicalizes Indian mobile %s", (input) => {
     expect(normalizeIndianMobile(input)).toBe("+919876540001");
   });
 
-  it.each(["", "1234567890", "987654000", "+12025550100", "+9198765400010", "91-98765-letter"])("rejects unsupported number %s", (input) => {
+  it.each(["", "1234567890", "987654000", "+12025550100", "+65 9123 4567", "+9876543210", "98765+43210", "+91+9876543210", "+9198765400010", "91-98765-letter"])("rejects unsupported number %s", (input) => {
     expect(normalizeIndianMobile(input)).toBeNull();
   });
 

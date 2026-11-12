@@ -74,7 +74,7 @@ function OwnGateAlertPreferences({ userId }: { userId: string }) {
             ? { ...row, arrival: local.arrival, exit: local.exit } : row;
         });
       });
-      notifyFamilyNotificationsChanged(userId, "parent");
+      notifyFamilyNotificationsChanged(userId, "parent", { keepCursor: true });
       const confirmed = !!saved && saved.preference_id === next.preference_id && same(saved, next);
       setNotice({ error: !confirmed, text: confirmed
         ? `Gate preferences saved for ${saved.student_name}. Absence alerts are unchanged.`
@@ -93,7 +93,7 @@ function OwnGateAlertPreferences({ userId }: { userId: string }) {
   return <section className="card overflow-hidden" aria-labelledby={`${id}-title`} aria-busy={!result && !sessionChanged}>
     <header className="flex flex-wrap items-start justify-between gap-3 border-b border-[var(--border)] p-4 sm:p-5">
       <div className="min-w-0 flex-1"><h2 id={`${id}-title`} className="flex items-center gap-2 font-bold"><LogIn size={18} aria-hidden="true" />Gate alerts</h2>
-        <p className="mt-1 text-sm leading-6 muted">Choose arrival and exit updates for each child. Both start off; these choices are yours alone. Turning one off hides its saved gate alerts.</p></div>
+        <p className="mt-1 text-sm leading-6 muted">Get an alert when your child enters or leaves the school gate. Both are off until you turn them on, and only affect your account. Turning one off also hides its past gate alerts.</p></div>
       <button type="button" className={control} aria-label="Refresh gate preferences" disabled={!!saving || sessionChanged}
         onClick={() => {
           if (dirty && !window.confirm("Reload saved gate preferences? Your unsaved selections will be replaced.")) return;
@@ -101,7 +101,7 @@ function OwnGateAlertPreferences({ userId }: { userId: string }) {
         }}><RefreshCw size={15} aria-hidden="true" />Refresh</button>
     </header>
     <div className="space-y-3 p-4 sm:p-5">
-      <p className="flex items-start gap-2 rounded-xl bg-[var(--surface-2)] px-3 py-2.5 text-xs leading-5 muted"><ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Absence alerts continue independently. Gate preferences do not turn them off. School gate setup is required; this does not enable SMS or phone push delivery.</p>
+      <p className="flex items-start gap-2 rounded-xl bg-[var(--surface-2)] px-3 py-2.5 text-xs leading-5 muted"><ShieldCheck size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Absence alerts always stay on. Gate alerts show here in Notifications only (not SMS or phone push) and start once the school sets up gate scanning.</p>
       {sessionChanged ? <p role="alert" className="text-sm muted">Your sign-in changed. Reopen Notifications to manage gate alerts.</p>
         : !result ? <LoadingState variant="list">Loading gate preferences…</LoadingState>
           : "error" in result ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{result.error}</p>

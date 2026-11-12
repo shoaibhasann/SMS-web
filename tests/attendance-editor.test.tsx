@@ -357,6 +357,17 @@ describe("AttendanceEditor", () => {
     expect(repository.save).not.toHaveBeenCalled();
   });
 
+  it("offers a retry next to a load failure", async () => {
+    const user = userEvent.setup();
+    const { repository } = persistedRepository();
+    repository.load.mockRejectedValueOnce(new Error("Register unavailable."));
+    render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
+    expect(await screen.findByRole("alert")).toHaveClass("notice-error");
+    await user.click(screen.getByRole("button", { name: "Retry loading register" }));
+    await loaded();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("stages a holiday explicitly and can correct a persisted holiday without changing the other pupils", async () => {
     const user = userEvent.setup();
     const { repository, read } = persistedRepository();
@@ -393,7 +404,12 @@ describe("AttendanceEditor", () => {
     await user.selectOptions(attendance("Aarav"), "late");
     await user.selectOptions(attendance("Anaya"), "absent");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
-    await screen.findByText(/1 saved; 1 could not be saved.*Your remaining edits are kept/);
+    const failure = await screen.findByText(/1 saved; 1 could not be saved.*Your remaining edits are kept/);
+    expect(failure).toHaveAttribute("role", "alert");
+    expect(failure).toHaveClass("notice-error");
+    // The result shows inside the pinned Save bar, next to the button that was tapped.
+    expect(failure.parentElement).toContainElement(screen.getByRole("button", { name: "Save Attendance" }));
+    expect(failure.parentElement).toHaveClass("sticky", "lg:bottom-0");
     expect(read(context, schoolDate()).entries.a.status).toBe("late");
     expect(read(context, schoolDate()).entries.b.status).toBe("holiday");
     expect(attendance("Anaya")).toHaveValue("absent");

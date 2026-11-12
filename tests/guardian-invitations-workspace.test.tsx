@@ -142,6 +142,8 @@ describe("guardian invitation administration", () => {
       `${window.location.origin}/guardian-mobile-invite#token=${token}`,
     );
     await user.click(await screen.findByRole("button", { name: `Revoke invitation for ${guardianPhone}` }));
+    expect(screen.getByRole("button", { name: "Keep invitation" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Confirm revoke" })).toHaveClass("btn-danger-solid");
     await user.click(screen.getByRole("button", { name: "Confirm revoke" }));
     expect(await screen.findByText(/Revoked · Expires/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Invitation link" })).not.toBeInTheDocument();
@@ -250,6 +252,9 @@ describe("guardian invitation administration", () => {
     await user.click(screen.getByRole("button", { name: `Remove access for ${guardianEmail}` }));
     const confirmation = screen.getByRole("button", { name: "Confirm removal" });
     expect(confirmation).toBeDisabled();
+    expect(confirmation).toHaveClass("btn-danger-solid");
+    expect(screen.getByRole("textbox", { name: "Reason for removal" })).toHaveFocus();
+    expect(screen.getByRole("textbox", { name: "Reason for removal" })).toHaveAccessibleDescription("At least 5 characters.");
     await user.type(screen.getByRole("textbox", { name: "Reason for removal" }), reason);
     await user.click(confirmation);
     expect(rpc).toHaveBeenCalledWith("revoke_guardian_access", {
@@ -260,6 +265,7 @@ describe("guardian invitation administration", () => {
     expect(await screen.findByText("This student has no linked guardians.")).toBeInTheDocument();
     await user.click(screen.getByText("Recent access history"));
     expect(screen.getByText("Access removed · QA Guardian")).toBeVisible();
+    expect(screen.getByText("Access removed · QA Guardian").nextElementSibling).toHaveTextContent(/ IST/);
     expect(screen.getByText(reason)).toBeVisible();
 
     await user.selectOptions(school, "north");

@@ -96,4 +96,24 @@ describe("cashier day close business conflicts", () => {
     expect(closeCalls).toBe(2);
     expect(snapshot.cash_variance).toBe(-30);
   });
+
+  it("names a cash shortage or overage in text, not only with the minus sign", async () => {
+    const user = userEvent.setup();
+    const snapshot = { business_date: schoolDate(), revision: 1, receipt_count: 1, recorded_total: "250.00", recorded_cash: "250.00", invalid_count: 0,
+      methods: [{ method: "bank_transfer", receipt_count: 1, total: "250.00" }], closed_at: null, closed_by_name: null, counted_cash: null, cash_variance: null, variance_note: null };
+    const rpc = vi.fn(async () => ({ data: snapshot, error: null }));
+    render(<CashierDayClose schoolId="school-a" client={{ rpc } as unknown as SupabaseClient} />);
+    const counted = await screen.findByRole("spinbutton", { name: "Counted cash" });
+    expect(screen.getByText("Bank transfer")).toBeInTheDocument();
+    await user.type(counted, "0");
+    expect(screen.getByText(/^Cash variance/)).toHaveTextContent("Cash variance −₹250.00 · cash short");
+    expect(screen.getByText("· cash short", { exact: false })).toHaveClass("text-danger");
+    await user.clear(counted);
+    await user.type(counted, "300");
+    expect(screen.getByText(/^Cash variance/)).toHaveTextContent("Cash variance ₹50.00 · cash over");
+    expect(screen.getByText("· cash over", { exact: false })).toHaveClass("text-warning");
+    await user.clear(counted);
+    await user.type(counted, "250");
+    expect(screen.getByText(/^Cash variance/)).toHaveTextContent(/^Cash variance ₹0\.00$/);
+  });
 });

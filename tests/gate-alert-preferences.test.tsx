@@ -24,7 +24,7 @@ describe("linked-child gate preference card", () => {
     for (const name of ["Arrival alerts for First pupil", "Exit alerts for First pupil", "Arrival alerts for Second pupil", "Exit alerts for Second pupil"]) {
       expect(await screen.findByRole("checkbox", { name })).not.toBeChecked();
     }
-    expect(screen.getByText(/Absence alerts continue independently/)).toBeInTheDocument();
+    expect(screen.getByText(/Absence alerts always stay on/)).toBeInTheDocument();
     for (const button of screen.getAllByRole("button", { name: "Save" })) expect(button).toBeDisabled();
     expect(load.mock.calls[0][1]).toBe(uid);
   });
@@ -38,7 +38,7 @@ describe("linked-child gate preference card", () => {
       expect(await screen.findByRole("status")).toHaveTextContent("Gate preferences saved for First pupil");
       expect(save.mock.calls[0][1]).toBe(uid); expect(save.mock.calls[0][2]).toEqual({ ...first, arrival: true });
       expect(screen.getByRole("checkbox", { name: "Arrival alerts for Second pupil" })).not.toBeChecked();
-      expect(hint.mock.calls[0][0].detail).toEqual({ userId: uid, role: "parent" });
+      expect(hint.mock.calls[0][0].detail).toEqual({ userId: uid, role: "parent", keepCursor: true });
     } finally { window.removeEventListener(familyNotificationsChangedEvent, hint); }
   });
   it("preserves another child's unsaved choices only while its saved epoch and version are unchanged", async () => {

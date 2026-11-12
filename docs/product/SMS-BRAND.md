@@ -7,6 +7,7 @@ The dashboard uses a compact SaaS workspace: a 240 px desktop sidebar, restraine
 ## Identity and tokens
 
 - **Wordmark:** SMS, uppercase, bold, no graduation-cap emblem.
+- **Logo:** the blue ribbon S on its light rounded tile, `public/brand/sms-logo.png`, shown through `BrandLogo` (`components/ui/brand-logo.tsx`) and always beside the wordmark. The tab icon is `app/icon.png` and the Apple touch icon `app/apple-icon.png`.
 - **Accent:** existing cobalt `#3867ff` in light mode and `#6d8cff` in dark mode. Use it for primary actions, selected navigation and a focused data highlight. Avoid a large decorative purple gradient across the dashboard.
 - **Surfaces:** white cards over the existing soft gray-blue background; dark navy surfaces for system dark mode. Keep subtle borders and quiet shadows instead of many nested tinted boxes.
 - **Typography:** self-hosted **Sora** across headings, navigation, body text, charts and controls; the same family is mapped to Tailwind’s sans utility. Use 400 body, 500 labels and 600–700 emphasis; 800 is reserved for the SMS wordmark. The variable font and its OFL notice ship with the app. Clear 26–30 px page titles, 13–14 px body/navigation and 12 px secondary labels. Use tabular numerals for comparable measures and currency; keep long student/class names readable.

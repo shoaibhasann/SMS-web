@@ -6,6 +6,8 @@ import { CalendarCheck, RefreshCw } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 
+const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
+
 type SectionProgress = {
   section_id: string;
   class_name: string;
@@ -117,7 +119,7 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
     <section className="card overflow-hidden" aria-labelledby={headingId} aria-busy={!sessionChanged && !record && !error}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-4">
         <div className="flex items-start gap-3">
-          <CalendarCheck size={21} className="mt-1 shrink-0 text-blue-600" aria-hidden="true" />
+          <CalendarCheck size={21} className="mt-1 shrink-0 text-[var(--primary)]" aria-hidden="true" />
           <div>
             <h2 id={headingId} className="font-bold">Today’s attendance progress</h2>
             <p className="mt-1 text-sm muted">Daily registers across enrolled sections.</p>
@@ -131,7 +133,7 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
           : !record ? <LoadingState variant="list" className="p-4 text-sm muted">Loading attendance progress…</LoadingState>
             : <>
               <div className="space-y-2 p-4">
-                <p className="text-sm muted">{record.day} · IST · {record.cutoff_time ? `Daily cutoff ${record.cutoff_time}` : "Cutoff not configured"}</p>
+                <p className="text-sm muted">{formatDate(record.day)} · IST · {record.cutoff_time ? `Daily cutoff ${record.cutoff_time}` : "Cutoff not configured"}</p>
                 {record.roster_issue_count > 0 && <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">
                   {record.roster_issue_count} roster {record.roster_issue_count === 1 ? "record needs" : "records need"} a valid active class and section. Review the student placements to complete the school register.
                 </p>}
@@ -188,6 +190,7 @@ function CutoffEditor({ client, schoolId, record, disabled, onSaved, onBusyChang
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
+  const reasonHint = useId();
   const request = useRef<AbortController | null>(null);
   useEffect(() => () => request.current?.abort(), []);
 
@@ -231,14 +234,17 @@ function CutoffEditor({ client, schoolId, record, disabled, onSaved, onBusyChang
       }}>Configure attendance cutoff</button>
         : <form onSubmit={save} className="space-y-3" aria-label="Attendance cutoff settings">
           <h3 className="font-bold">Attendance cutoff</h3>
-          <p className="text-sm muted">Choose the daily submission time in IST. Leave the time empty to disable cutoff reminders.</p>
+          <p className="text-sm muted">Choose the daily submission time in IST. Sections still incomplete after this time show as Pending here; no reminders are sent. Leave the time empty to turn off the Pending status after cutoff.</p>
           <label className="block max-w-xs space-y-2 text-sm font-semibold">Daily cutoff (IST)
             <input type="time" className="field" value={time} disabled={disabled || saving} onChange={(event) => setTime(event.target.value)} />
           </label>
-          <label className="block space-y-2 text-sm font-semibold">Change reason
-            <textarea className="field min-h-20" required minLength={5} maxLength={300} value={reason}
-              disabled={disabled || saving} onChange={(event) => setReason(event.target.value)} />
-          </label>
+          <div className="space-y-1">
+            <label className="block space-y-2 text-sm font-semibold">Change reason
+              <textarea className="field min-h-20" required minLength={5} maxLength={300} value={reason} aria-describedby={reasonHint}
+                disabled={disabled || saving} onChange={(event) => setReason(event.target.value)} />
+            </label>
+            <p id={reasonHint} className="text-xs muted">At least 5 characters.</p>
+          </div>
           {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
           <div className="flex flex-wrap gap-2">
             <button type="submit" className={`${button} bg-blue-700 text-white`} disabled={disabled || saving || reason.trim().length < 5}>{saving ? "Saving cutoff…" : "Save attendance cutoff"}</button>

@@ -68,4 +68,9 @@ describe("Guardian Late attendance inbox", () => {
     render(<FamilyNotificationInbox userId={userId} role="parent" summary />); const region = within(screen.getByRole("region", { name: "School updates" })); await region.findByText("Late attendance"); expect(load.mock.calls[0][1]).toMatchObject({ userId, role: "parent", limit: 5 }); expect(region.getByText("37 unread")).toBeInTheDocument();
     expect(region.getByRole("link", { name: "Marked Late Late QA pupil" })).toHaveAttribute("href", `/modules/attendance?child=${id(3)}&view=guardian`); expect(region.queryByRole("button", { name: /Mark.*read/ })).not.toBeInTheDocument(); expect(screen.queryByRole("complementary", { name: "Existing gate preferences" })).not.toBeInTheDocument();
   });
+  it("retries a failed inbox load from a Try again button under the error", async () => {
+    load.mockRejectedValueOnce(new Error("offline")); render(<FamilyNotificationInbox userId={userId} role="parent" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Notifications could not be loaded."); fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("37 unread")).toBeInTheDocument(); expect(load).toHaveBeenCalledTimes(2); expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

@@ -39,7 +39,7 @@ describe("attendance submission monitor", () => {
     render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" />);
     expect(await screen.findByText("Partial")).toBeInTheDocument();
     expect(screen.getByText("1 of 2 marked · 1 unmarked")).toBeInTheDocument();
-    expect(screen.getByText(/Cutoff not configured/)).toBeInTheDocument();
+    expect(screen.getByText(/Cutoff not configured/)).toHaveTextContent("5 Nov 2026 · IST");
     expect(screen.queryByRole("button", { name: "Configure attendance cutoff" })).not.toBeInTheDocument();
     expect(rpc).toHaveBeenCalledExactlyOnceWith("get_attendance_submission_monitor", { p_school_id: "school" });
     await user.click(screen.getByRole("button", { name: "Refresh attendance progress" }));
@@ -63,6 +63,7 @@ describe("attendance submission monitor", () => {
     render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" settings onBusyChange={busy} />);
     await user.click(await screen.findByRole("button", { name: "Configure attendance cutoff" }));
     fireEvent.change(screen.getByLabelText("Daily cutoff (IST)"), { target: { value: "10:00" } });
+    expect(screen.getByLabelText("Change reason")).toHaveAccessibleDescription("At least 5 characters.");
     await user.type(screen.getByLabelText("Change reason"), "School approved the morning deadline.");
     await user.click(screen.getByRole("button", { name: "Save attendance cutoff" }));
     expect(rpc).toHaveBeenCalledWith("update_attendance_submission_cutoff", {
@@ -88,6 +89,17 @@ describe("attendance submission monitor", () => {
     expect(rpc).toHaveBeenCalledWith("update_attendance_submission_cutoff", {
       p_school_id: "school", p_cutoff_time: null, p_expected_revision: 3, p_reason: "Disable for the revised school policy.",
     });
+  });
+
+  it("describes the cutoff as the monitor's Pending status, not reminders", async () => {
+    read.mockResolvedValue(monitor({ cutoff_time: "10:00", revision: 3 }));
+    const user = userEvent.setup();
+    render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" settings />);
+    await user.click(await screen.findByRole("button", { name: "Configure attendance cutoff" }));
+    const form = screen.getByRole("form", { name: "Attendance cutoff settings" });
+    expect(form).toHaveTextContent("Sections still incomplete after this time show as Pending here; no reminders are sent.");
+    expect(form).toHaveTextContent("Leave the time empty to turn off the Pending status after cutoff.");
+    expect(within(form).queryByText(/cutoff reminders/i)).not.toBeInTheDocument();
   });
 
   it("accepts an unchanged cutoff without expecting a new revision", async () => {

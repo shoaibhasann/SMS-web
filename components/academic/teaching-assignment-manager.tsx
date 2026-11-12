@@ -3,19 +3,20 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  createTeachingAssignmentRepository, type AssignmentAccess, type AssignmentData,
+  createTeachingAssignmentRepository, type AssignmentAccess, type AssignmentData, type AssignmentPeriod,
   type TeachingAssignmentDraft, type TeachingAssignmentRepository, type TeachingAssignmentRow,
 } from "@/lib/assignments/repository";
 import { TeachingAssignmentImport } from "./teaching-assignment-import";
 import { LoadingState } from "@/components/ui/skeleton";
+import { formatTimetableTime, timetableDays } from "@/lib/timetable";
 
 const emptyDraft: TeachingAssignmentDraft = { teacher_id: "", class_id: "", section_id: "", subject_id: "", is_class_teacher: false };
-const panel = "rounded-2xl border border-slate-800 bg-[#0f172a] p-6 text-slate-200";
-const field = "mt-2 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-white disabled:opacity-50";
-const action = "min-h-11 rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold disabled:opacity-50";
+const panel = "card p-6";
+const field = "field";
+const action = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50";
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Teaching assignments could not be loaded. Please refresh.";
 
-export function TeachingAssignmentManager({ repository: suppliedRepository }: { repository?: TeachingAssignmentRepository }) {
+export function TeachingAssignmentManager({ repository: suppliedRepository, onChanged }: { repository?: TeachingAssignmentRepository; onChanged?: () => void }) {
   const [repository] = useState(() => suppliedRepository ?? createTeachingAssignmentRepository(createClient()));
   const [accessVersion, setAccessVersion] = useState(0);
   const [accessState, setAccessState] = useState<{ version: number; value?: AssignmentAccess; error?: string } | null>(null);
@@ -25,6 +26,7 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
   const [draft, setDraft] = useState<TeachingAssignmentDraft>(emptyDraft);
   const [editing, setEditing] = useState<TeachingAssignmentRow | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<TeachingAssignmentRow | null>(null);
+  const [periods, setPeriods] = useState<{ id: string; rows?: AssignmentPeriod[]; error?: boolean } | null>(null);
   const [search, setSearch] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,9 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
   const currentView = view?.key === key ? view : null;
   const data = currentView?.data;
   const dirty = editing !== null || Object.values(draft).some(Boolean);
+  // Only a scope change retires the assignment's periods; a class-teacher toggle keeps them.
+  const retiresPeriods = editing !== null && (draft.teacher_id !== editing.teacher_id || draft.class_id !== editing.class_id
+    || draft.section_id !== (editing.section_id ?? "") || draft.subject_id !== editing.subject_id);
 
   useEffect(() => {
     alive.current = true;
@@ -79,6 +84,23 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
       row.is_class_teacher ? "class teacher" : "subject teacher"].join(" ").toLowerCase().includes(search.toLowerCase())),
   [data, teacherFilter, names, search]);
 
+  function checkPeriods(row: TeachingAssignmentRow) {
+    if (!school) return;
+    setPeriods({ id: row.id });
+    const settle = (value: { rows?: AssignmentPeriod[]; error?: boolean }) => {
+      if (alive.current) setPeriods((current) => current?.id === row.id ? { id: row.id, ...value } : current);
+    };
+    repository.timetablePeriods(school.id, row.id).then((rows) => settle({ rows }), () => settle({ error: true }));
+  }
+  // Removing or re-pointing an assignment retires its periods, so the admin sees them first.
+  function affectedPeriods(row: TeachingAssignmentRow, intro: string, quiet = false) {
+    if (periods?.id !== row.id) return null;
+    if (periods.error) return <p className="mt-2 text-xs text-amber-800 dark:text-amber-200">Timetable periods for this assignment could not be checked. Any period scheduled with it is removed from the timetable by this change.</p>;
+    if (!periods.rows) return quiet ? null : <p className="mt-2 text-xs muted">Checking timetable periods…</p>;
+    if (!periods.rows.length) return quiet ? null : <p className="mt-2 text-xs muted">No timetable periods use this assignment.</p>;
+    return <div className="mt-2 text-xs text-amber-800 dark:text-amber-200"><p>{intro}</p><ul className="mt-1 list-disc pl-5">{periods.rows.map((period) =>
+      <li key={period.id}>{timetableDays[period.day_of_week - 1]} · Period {period.period_no} · {formatTimetableTime(period.start_time)}–{formatTimetableTime(period.end_time)} · {period.class_name}{period.section_name ? ` / ${period.section_name}` : " (whole class)"}</li>)}</ul></div>;
+  }
   function cancel() { setDraft(emptyDraft); setEditing(null); setPendingRemoval(null); setMessage(null); }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -94,7 +116,7 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
       if (!alive.current) return;
       setDraft(emptyDraft); setEditing(null);
       setMessage({ error: false, text: editing ? "Teaching assignment updated." : "Teaching assignment added." });
-      setDataVersion((value) => value + 1);
+      setDataVersion((value) => value + 1); onChanged?.();
     } catch (error: unknown) {
       if (alive.current) setMessage({ error: true, text: errorText(error) });
     } finally { inFlight.current = false; if (alive.current) setBusy(false); }
@@ -106,7 +128,7 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
       await repository.remove(school.id, pendingRemoval);
       if (!alive.current) return;
       setPendingRemoval(null); setEditing(null); setDraft(emptyDraft);
-      setMessage({ error: false, text: "Teaching assignment removed." }); setDataVersion((value) => value + 1);
+      setMessage({ error: false, text: "Teaching assignment removed." }); setDataVersion((value) => value + 1); onChanged?.();
     } catch (error: unknown) {
       if (alive.current) setMessage({ error: true, text: errorText(error) });
     } finally { inFlight.current = false; if (alive.current) setBusy(false); }
@@ -114,16 +136,16 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
 
   const accessError = accessState?.version === accessVersion ? accessState.error : null;
   if (!access) return <section className={panel}>
-    {accessError ? <><p role="alert">{accessError}</p><button type="button" onClick={() => setAccessVersion((value) => value + 1)} className={`${action} mt-4`}>Retry access check</button></>
+    {accessError ? <><p role="alert" className="text-sm text-danger">{accessError}</p><button type="button" onClick={() => setAccessVersion((value) => value + 1)} className={`${action} mt-4`}>Retry access check</button></>
       : <LoadingState variant="form">Checking teaching assignment access…</LoadingState>}
   </section>;
 
   return <div className="space-y-6">
     <section className={panel}>
       <div className="flex flex-wrap items-start justify-between gap-5">
-        <div><h1 className="text-2xl font-bold text-white">{school && !school.canManage ? "My Teaching Assignments" : "Teaching Assignments"}</h1>
-          <p className="mt-2 text-sm text-slate-400">{school?.canManage ? "Administrators and principals assign teachers to classes and subjects." : "Your school administrator or principal manages these assignments."}</p>
-          {data && <p className="mt-2 text-sm text-blue-300">Academic year: {data.year.name}</p>}</div>
+        <div><h1 className="text-2xl font-black sm:text-3xl">{school && !school.canManage ? "My Teaching Assignments" : "Teaching Assignments"}</h1>
+          <p className="mt-2 text-sm muted">{school?.canManage ? "Administrators and principals assign teachers to classes and subjects." : "Your school administrator or principal manages these assignments."}</p>
+          {data && <p className="mt-2 text-sm text-[var(--primary)]">Academic year: {data.year.name}</p>}</div>
         <button type="button" className={action} disabled={busy || dirty || pendingRemoval !== null} onClick={() => {
           setMessage(null); setAccessVersion((value) => value + 1); setDataVersion((value) => value + 1);
         }}>Refresh assignments</button>
@@ -131,18 +153,18 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
       <label className="mt-5 block text-sm font-semibold">School<select className={field} value={schoolId} disabled={busy || dirty || pendingRemoval !== null} onChange={(event) => {
         setSchoolId(event.target.value); setSearch(""); setTeacherFilter(""); cancel();
       }}><option value="">Select school</option>{access.schools.map((item) => <option key={item.id} value={item.id}>{item.name}{item.canManage ? "" : " — my assignments"}</option>)}</select></label>
-      {dirty && <p className="mt-2 text-xs text-slate-400">Save or cancel this assignment before changing school or refreshing.</p>}
+      {dirty && <p className="mt-2 text-xs muted">Save or cancel this assignment before changing school or refreshing.</p>}
     </section>
     {message && <div ref={messageElement} tabIndex={-1} role={message.error ? "alert" : "status"}
-      className={`rounded-xl border p-4 text-sm ${message.error ? "border-red-500/40 text-red-500" : "border-emerald-500/30 text-emerald-600"}`}>{message.text}</div>}
+      className={`notice p-4 ${message.error ? "notice-error" : "notice-success"}`}>{message.text}</div>}
     {!school ? <p className="text-sm muted">Select an authorized school to continue.</p>
-      : currentView?.error ? <section className={panel}><p role="alert">{currentView.error}</p></section>
+      : currentView?.error ? <section className={panel}><p role="alert" className="text-sm text-danger">{currentView.error}</p></section>
       : !data ? <section className={panel}><LoadingState variant="table">Loading teaching assignments…</LoadingState></section>
       : <>
         {school.canManage && <section className={panel}>
-          <h2 className="text-lg font-semibold text-white">{editing ? "Edit Assignment" : "Add Teaching Assignment"}</h2>
+          <h2 className="text-lg font-semibold">{editing ? "Edit Assignment" : "Add Teaching Assignment"}</h2>
           {(!data.teachers.length || !data.classes.length || !data.sections.length || !data.subjects.length)
-            ? <p role="status" className="mt-3 text-sm text-slate-400">School setup is incomplete. Add teachers, classes, sections and subjects before creating an assignment.</p>
+            ? <p role="status" className="mt-3 text-sm muted">School setup is incomplete. Add teachers, classes, sections and subjects before creating an assignment.</p>
             : <form aria-label="Teaching assignment" onSubmit={(event) => void save(event)} className="mt-5 space-y-5">
               <fieldset disabled={busy || pendingRemoval !== null} className="space-y-5">
                 <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
@@ -155,10 +177,11 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
                   <label className="text-sm font-semibold">Subject<select required className={field} value={draft.subject_id} onChange={(event) => setDraft((value) => ({ ...value, subject_id: event.target.value }))}>
                     <option value="">Select subject</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
                 </div>
-                <label className="flex min-h-11 items-center gap-3 rounded-xl border border-slate-700 p-4 text-sm"><input type="checkbox" checked={draft.is_class_teacher} onChange={(event) => setDraft((value) => ({ ...value, is_class_teacher: event.target.checked }))} />Mark as class teacher</label>
-                <p className="text-xs text-slate-400">Review existing class-teacher duties before assigning a new duty.</p>
+                <label className="flex min-h-11 items-center gap-3 rounded-xl border border-[var(--border)] p-4 text-sm"><input type="checkbox" checked={draft.is_class_teacher} onChange={(event) => setDraft((value) => ({ ...value, is_class_teacher: event.target.checked }))} />Mark as class teacher</label>
+                <p className="text-xs muted">Review existing class-teacher duties before assigning a new duty.</p>
+                {editing && retiresPeriods && affectedPeriods(editing, "Changing the teacher, class, section or subject removes these timetable periods of this assignment:", true)}
                 <div className="flex flex-wrap justify-end gap-3">{dirty && <button type="button" onClick={cancel} className={action}>Cancel assignment</button>}
-                  <button className={`${action} bg-blue-600 text-white`} type="submit">{busy ? "Saving…" : editing ? "Update Assignment" : "Add Assignment"}</button></div>
+                  <button className="btn btn-primary" type="submit">{busy ? "Saving…" : editing ? "Update Assignment" : "Add Assignment"}</button></div>
               </fieldset>
             </form>}
         </section>}
@@ -170,28 +193,29 @@ export function TeachingAssignmentManager({ repository: suppliedRepository }: { 
               setSearch("");
               setTeacherFilter("");
               setMessage({ error: false, text: `${count} teaching assignment${count === 1 ? "" : "s"} imported.` });
-              setDataVersion((value) => value + 1);
+              setDataVersion((value) => value + 1); onChanged?.();
             }} />
         )}
         <section className={panel}>
-          <h2 className="text-lg font-semibold text-white">{school.canManage ? "All Teaching Assignments" : "My Teaching Assignments"}</h2>
+          <h2 className="text-lg font-semibold">{school.canManage ? "All Teaching Assignments" : "My Teaching Assignments"}</h2>
           <div className="mt-4 flex flex-wrap gap-4">
             <label className="flex-1 text-sm">Search assignments<input type="search" className={field} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Teacher, class or subject" /></label>
             {school.canManage && <label className="text-sm">Teacher filter<select className={field} value={teacherFilter} onChange={(event) => setTeacherFilter(event.target.value)}><option value="">All teachers</option>{data.teachers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
           </div>
-          <p className="mt-3 text-xs text-slate-400">Showing {rows.length} of {data.rows.length} assignments.</p>
-          {pendingRemoval && <div role="group" aria-label="Confirm assignment removal" className="mt-4 rounded-xl border border-red-500/40 p-4">
+          <p className="mt-3 text-xs muted">Showing {rows.length} of {data.rows.length} assignments.</p>
+          {pendingRemoval && <div role="group" aria-label="Confirm assignment removal" className="mt-4 rounded-xl border border-danger/30 p-4">
             <p className="text-sm">Remove this assignment? The teacher will lose the access provided by this assignment.</p>
-            <div className="mt-3 flex gap-3"><button type="button" disabled={busy} onClick={() => void remove()} className={`${action} text-red-400`}>Confirm remove</button><button type="button" disabled={busy} onClick={() => setPendingRemoval(null)} className={action}>Keep assignment</button></div>
+            {affectedPeriods(pendingRemoval, "These timetable periods use this assignment and are removed with it:")}
+            <div className="mt-3 flex gap-3"><button type="button" disabled={busy} onClick={() => void remove()} className={`${action} text-danger`}>Confirm remove</button><button type="button" disabled={busy} onClick={() => setPendingRemoval(null)} className={action}>Keep assignment</button></div>
           </div>}
-          {!rows.length ? <p className="py-6 text-sm text-slate-400">{data.rows.length ? "No assignments match these filters." : school.canManage ? "No teaching assignments found for this academic year." : "No teaching assignments found. Contact your school administrator or principal."}</p>
+          {!rows.length ? <p className="py-6 text-sm muted">{data.rows.length ? "No assignments match these filters." : school.canManage ? "No teaching assignments found for this academic year." : "No teaching assignments found. Contact your school administrator or principal."}</p>
             : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[680px] text-left text-sm">
-              <thead><tr className="border-b border-slate-700">{["Teacher", "Class", "Section", "Subject", "Role", ...(school.canManage ? ["Actions"] : [])].map((title) => <th key={title} scope="col" className="p-3 text-xs uppercase text-blue-300">{title}</th>)}</tr></thead>
-              <tbody>{rows.map((row) => <tr key={row.id} className="border-b border-slate-800">
+              <thead><tr className="border-b border-[var(--border)]">{["Teacher", "Class", "Section", "Subject", "Role", ...(school.canManage ? ["Actions"] : [])].map((title) => <th key={title} scope="col" className="p-3 text-xs uppercase text-[var(--primary)]">{title}</th>)}</tr></thead>
+              <tbody>{rows.map((row) => <tr key={row.id} className="border-b border-[var(--border)]">
                 <td className="p-3">{names.teachers.get(row.teacher_id)}</td><td className="p-3">{names.classes.get(row.class_id)}</td><td className="p-3">{row.section_id ? names.sections.get(row.section_id) : "All sections"}</td><td className="p-3">{names.subjects.get(row.subject_id)}</td><td className="p-3">{row.is_class_teacher ? "Class teacher" : "Subject teacher"}</td>
                 {school.canManage && <td className="p-3"><div className="flex gap-2">
-                  <button type="button" className={action} disabled={busy || pendingRemoval !== null || dirty} onClick={() => { setEditing(row); setDraft({ teacher_id: row.teacher_id, class_id: row.class_id, section_id: row.section_id ?? "", subject_id: row.subject_id, is_class_teacher: row.is_class_teacher }); setMessage(null); }}>Edit</button>
-                  <button type="button" className={`${action} text-red-400`} disabled={busy || pendingRemoval !== null || dirty} onClick={() => setPendingRemoval(row)}>Remove</button>
+                  <button type="button" className={action} disabled={busy || pendingRemoval !== null || dirty} onClick={() => { setEditing(row); setDraft({ teacher_id: row.teacher_id, class_id: row.class_id, section_id: row.section_id ?? "", subject_id: row.subject_id, is_class_teacher: row.is_class_teacher }); setMessage(null); checkPeriods(row); }}>Edit</button>
+                  <button type="button" className={`${action} text-danger`} disabled={busy || pendingRemoval !== null || dirty} onClick={() => { setPendingRemoval(row); checkPeriods(row); }}>Remove</button>
                 </div></td>}
               </tr>)}</tbody>
             </table></div>}

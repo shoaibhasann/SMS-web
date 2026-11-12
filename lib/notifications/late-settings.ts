@@ -3,7 +3,7 @@ import { boundMfaSession } from "@/lib/auth/staff-mfa";
 
 export type SchoolLateAlertSettings = {
   user_id: string; school_id: string; enabled: boolean; version: number;
-  history: { version: number; enabled: boolean; reason: string; actor_id: string; created_at: string }[];
+  history: { version: number; enabled: boolean; reason: string; actor_id: string; actor_name: string | null; created_at: string }[];
 };
 export type SchoolLateAlertSettingsIntent = { schoolId: string; expectedVersion: number; enabled: boolean; reason: string; requestId: string };
 export class LateAlertSettingsError extends Error {
@@ -14,6 +14,7 @@ const uuid = (value: unknown): value is string => typeof value === "string" && /
 const version = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
 const reason = (value: unknown): value is string => typeof value === "string" && value === value.trim() && value.length >= 5 && value.length <= 300 && !/[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/u.test(value);
 const timestamp = (value: unknown): value is string => typeof value === "string" && /T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
+const actorName = (value: unknown) => value === null || typeof value === "string" && value.length >= 1 && [...value].length <= 160; // SQL trims to 160 code points
 const invalid = () => new LateAlertSettingsError("Late alert settings could not be verified completely. Reload before changing them.");
 export function parseSchoolLateAlertSettings(value: unknown, userId: string, schoolId: string): SchoolLateAlertSettings {
   const row = record(value);
@@ -21,7 +22,7 @@ export function parseSchoolLateAlertSettings(value: unknown, userId: string, sch
     || !Array.isArray(row.history) || row.history.length !== Math.min(row.version, 20) || row.version === 0 && row.enabled) throw invalid();
   for (let index = 0; index < row.history.length; index++) {
     const entry = record(row.history[index]);
-    if (entry.version !== row.version - index || typeof entry.enabled !== "boolean" || !reason(entry.reason) || !uuid(entry.actor_id) || !timestamp(entry.created_at)
+    if (entry.version !== row.version - index || typeof entry.enabled !== "boolean" || !reason(entry.reason) || !uuid(entry.actor_id) || !actorName(entry.actor_name) || !timestamp(entry.created_at)
       || index === 0 && entry.enabled !== row.enabled) throw invalid();
   }
   return value as SchoolLateAlertSettings;

@@ -37,7 +37,8 @@ describe("native app push settings",()=>{
  it("shows opt-out defaults and honest empty devices without browser/native registration controls",async()=>{
   store();render(<NativePushSettings userId="guardian-a" roles={["parent"]}/>);
   expect(await screen.findByText(/No mobile devices linked/)).toBeInTheDocument();expect(allow()).not.toBeChecked();
-  expect(screen.getByText(/mobile push includes new and updated exam schedules/)).toBeInTheDocument();
+  expect(screen.getByText(/sign in to the SMS Android app with your email or verified mobile number and a password/)).toBeInTheDocument();
+  expect(screen.getByText(/When enabled, mobile push also includes exam schedules, new homework, announcements, fees due today and payment confirmations\./)).toBeInTheDocument();
   expect(screen.getByRole("button",{name:"Save push preferences"})).toBeDisabled();
   expect(mocks.rpc.mock.calls.every(([name])=>name==="get_my_family_push_settings")).toBe(true);
   expect(screen.queryByRole("button",{name:/enable notifications|register|test push/i})).not.toBeInTheDocument();
@@ -83,7 +84,7 @@ describe("native app push settings",()=>{
   store();const user=userEvent.setup();render(<NativePushSettings userId="mixed-a" roles={["parent","student"]}/>);
   expect(await screen.findByRole("checkbox",{name:"Absent attendance"})).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("Notification account view"),"student");
-  expect(await screen.findByText("Student app alerts cover exam schedules, published results and leave decisions.")).toBeInTheDocument();
+  expect(await screen.findByText("Student app alerts cover exam schedules, homework, announcements, fees, published results and leave decisions.")).toBeInTheDocument();
   expect(screen.queryByRole("checkbox",{name:"Absent attendance"})).not.toBeInTheDocument();
   expect(screen.getByRole("checkbox",{name:"Published results"})).toBeInTheDocument();expect(screen.getByRole("checkbox",{name:"Leave decisions"})).toBeInTheDocument();
   await user.selectOptions(screen.getByLabelText("Notification account view"),"parent");expect(await screen.findByRole("checkbox",{name:"Absent attendance"})).toBeInTheDocument();
@@ -106,6 +107,14 @@ describe("native app push settings",()=>{
   expect(mocks.rpc.mock.calls.filter(([name])=>name==="set_my_family_push_preferences")).toHaveLength(1);
   expect(screen.getByLabelText("Notification account view")).toBeDisabled();expect(screen.getByRole("button",{name:"Refresh push settings"})).toBeDisabled();
   await act(async()=>pending.resolve());expect(await screen.findByRole("status")).toHaveTextContent("preferences saved");
+ });
+ it("marks a phone unseen for 90 days as stale instead of registered",async()=>{
+  const old=new Date(Date.now()-91*86_400_000).toISOString(),fresh=new Date().toISOString();
+  store({preferences:{...initial},devices:[{...device,label:"Old phone",last_seen_at:old},{...device,id:"31000000-0000-4000-8000-000000000002",label:"Fresh phone",last_seen_at:fresh}]});
+  render(<NativePushSettings userId="guardian-a" roles={["parent"]}/>);
+  const stale=(await screen.findByText("Old phone")).closest("li")!,current=screen.getByText("Fresh phone").closest("li")!;
+  expect(stale).toHaveTextContent("Android · Stale — open the SMS app on this phone to reconnect");expect(stale).not.toHaveTextContent("Registered");
+  expect(current).toHaveTextContent("Android · Registered");
  });
  it("renders nothing for an account with no actual family roles",()=>{
   store();const view=render(<NativePushSettings userId="teacher-a" roles={[]}/>);expect(view.container).toBeEmptyDOMElement();expect(mocks.rpc).not.toHaveBeenCalled();

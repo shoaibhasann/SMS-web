@@ -1,0 +1,13 @@
+# Gateway settings for this repo's Edge Functions only; every other CLI setting stays at its default.
+# Never run `supabase config push` with this file: it would overwrite hosted Auth/MFA settings with defaults.
+# project_id names the local CLI stack only; it is not the hosted project ref.
+project_id = "sms-web"
+
+# Both handlers authenticate callers themselves, so the gateway JWT precheck must stay off on every deploy.
+# gate-attendance-events: opaque `Bearer <device-uuid>.<secret>` device credential (not a JWT).
+[functions.gate-attendance-events]
+verify_jwt = false
+
+# private-academic-file: requires a Bearer JWT and forwards it to PostgREST for validation.
+[functions.private-academic-file]
+verify_jwt = false

@@ -18,20 +18,24 @@ type Setup = {
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-50";
 const label = "block min-w-0 space-y-2 text-sm font-semibold";
+const statusLabels = { active: "Active", scheduled: "Scheduled", expired: "Expired", revoked: "Revoked", invalid: "Invalid" } as const;
 const dateFormat = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" });
 function displayDate(day: string) {
   const date = new Date(`${day}T00:00:00Z`);
   return Number.isNaN(date.getTime()) ? day : dateFormat.format(date);
 }
 function errorText(error: unknown) {
-  const code = (error as { code?: string })?.code;
+  const { code, message } = (error ?? {}) as { code?: string; message?: string };
+  // The RPC's stale-choice checks also use 42501; only actor-permission failures mean access changed.
+  if (code === "42501" && message?.startsWith("Choose a ")) return `${message} Refresh coverage to see current choices.`;
   if (code === "42501") return "Your school access changed. Refresh before trying again.";
   if (code === "23505" || code === "23P01") return "Coverage overlaps an existing assignment. Refresh and check the dates.";
+  if ((code === "22023" || code === "55000") && message) return message;
   if (code === "22023" || code === "55000") return "Check the current assignment, substitute and dates, then refresh before trying again.";
   return "Coverage could not be saved. Refresh and check its status before retrying.";
 }
 
-export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
+export function SubstituteCoverageWorkspace({ userId, assignmentRevision = 0 }: { userId: string; assignmentRevision?: number }) {
   const [client] = useState(createClient);
   const [access, setAccess] = useState<Access>();
   const [accessError, setAccessError] = useState("");
@@ -52,12 +56,29 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
   const createRequest = useRef<{ payload: string; id: string } | undefined>(undefined);
   const mutationRequest = useRef<AbortController | undefined>(undefined);
   const headingId = useId();
-  const key = `${schoolId}:${revision}`;
+  const key = `${schoolId}:${revision}:${assignmentRevision}`;
   const setup = result?.key === key ? result.setup : undefined;
   const loadError = result?.key === key ? result.error : undefined;
   const assignment = setup?.assignments.find((item) => item.id === assignmentId);
   const selectedRemoval = setup?.coverages.find((item) => item.id === removal);
   const dirty = Boolean(assignmentId || substituteId || start || end || reason || removal);
+  const [checkedSetup, setCheckedSetup] = useState<Setup>();
+  if (setup && setup !== checkedSetup) {
+    // A reload (e.g. after an assignment change) can drop what the draft or revoke confirmation points at.
+    setCheckedSetup(setup);
+    if (removal && (!selectedRemoval || selectedRemoval.revoked_at || selectedRemoval.status === "revoked")) {
+      setRemoval(undefined); setRevokeReason("");
+      setMessage({ text: "The coverage you were revoking changed or is no longer listed. Review the current coverage history." });
+    }
+    const staleAssignment = Boolean(assignmentId && !assignment);
+    const staleSubstitute = Boolean(substituteId && (staleAssignment || substituteId === assignment?.teacher_id
+      || !setup.teachers.some((item) => item.id === substituteId)));
+    if (staleAssignment || staleSubstitute) {
+      if (staleAssignment) setAssignmentId("");
+      setSubstituteId("");
+      setMessage({ text: "The class-teacher assignment or substitute you chose changed. Choose them again." });
+    }
+  }
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
@@ -146,12 +167,15 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
 
   return <section className="card space-y-4 p-4 sm:p-5" aria-labelledby={headingId}>
     <header className="flex flex-wrap items-start justify-between gap-3">
-      <div><h2 id={headingId} className="text-xl font-bold">Substitute attendance coverage</h2>
+      <div><h2 id={headingId} className="text-lg font-bold">Substitute attendance coverage</h2>
         <p className="mt-1 text-sm muted">Assign temporary class-teacher attendance duties for a date range in IST.</p></div>
-      <button type="button" className={button} disabled={busy || dirty || sessionChanged} onClick={() => { setMessage(undefined); setRevision((value) => value + 1); }}>Refresh coverage</button>
+      <button type="button" className={button} disabled={busy || (dirty && !loadError) || sessionChanged} onClick={() => {
+        // A failed reload hides the draft controls, so Refresh is the way out and drops the draft.
+        clear(); setMessage(undefined); setRevision((value) => value + 1);
+      }}>Refresh coverage</button>
     </header>
-    {sessionChanged ? <p role="alert">Your sign-in changed. Reopen this page to check coverage access.</p>
-      : accessError ? <p role="alert">{accessError}</p>
+    {sessionChanged ? <p role="alert" className="text-sm text-danger">Your sign-in changed. Reopen this page to check coverage access.</p>
+      : accessError ? <p role="alert" className="text-sm text-danger">{accessError}</p>
         : !access ? <LoadingState variant="form" className="text-sm muted">Checking coverage access…</LoadingState>
           : <>
             <label className={`${label} max-w-md`}>Coverage school
@@ -160,21 +184,22 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
               }}><option value="">Select school</option>{access.schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}</select>
             </label>
             {message && <p role={message.error ? "alert" : "status"} className={`text-sm ${message.error ? "text-red-700 dark:text-red-300" : "muted"}`}>{message.text}
-              {message.error && dirty && <span className="mt-1 block muted">{removal
+              {message.error && dirty && !loadError && <span className="mt-1 block muted">{removal
                 ? "Choose Keep coverage to close this confirmation and enable Refresh coverage."
                 : "Your draft is kept. Choose Cancel coverage draft to enable Refresh coverage."}</span>}
             </p>}
             {!schoolId ? <p className="text-sm muted">Select a school to manage coverage.</p>
-              : loadError ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{loadError}</p>
+              : loadError ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">{loadError}
+                {dirty && <span className="mt-1 block muted">Refreshing discards your unsaved coverage draft.</span>}</p>
                 : !setup ? <LoadingState variant="list" className="text-sm muted">Loading substitute coverage…</LoadingState>
                   : <>
                     <form aria-label="Assign substitute attendance coverage" onSubmit={create} className="space-y-4 rounded-xl border border-[var(--border)] p-4">
                       <p className="text-sm muted">{setup.year.name} · Coverage starts from today or a later date in this session.</p>
-                      <fieldset disabled={busy || Boolean(removal)} className="grid gap-4 sm:grid-cols-2">
+                      <fieldset disabled={busy || Boolean(selectedRemoval)} className="grid gap-4 sm:grid-cols-2">
                         <label className={label}>Class-teacher assignment<select required className="field" value={assignmentId} onChange={(event) => { setAssignmentId(event.target.value); setSubstituteId(""); }}>
                           <option value="">Select class-teacher assignment</option>{setup.assignments.map((item) => <option key={item.id} value={item.id}>{item.class_name} / {item.section_name} · {item.teacher_name}</option>)}
                         </select></label>
-                        <label className={label}>Substitute teacher<select required className="field" value={substituteId} disabled={!assignment || busy || Boolean(removal)} onChange={(event) => setSubstituteId(event.target.value)}>
+                        <label className={label}>Substitute teacher<select required className="field" value={substituteId} disabled={!assignment || busy || Boolean(selectedRemoval)} onChange={(event) => setSubstituteId(event.target.value)}>
                           <option value="">Select substitute teacher</option>{setup.teachers.filter((item) => item.id !== assignment?.teacher_id).map((item) => <option key={item.id} value={item.id}>{item.full_name || item.employee_id || "Teacher"}</option>)}
                         </select></label>
                         <label className={label}>Coverage start date<input type="date" required className="field" min={setup.today} max={setup.year.end_date} value={start} onChange={(event) => setStart(event.target.value)} /></label>
@@ -189,7 +214,7 @@ export function SubstituteCoverageWorkspace({ userId }: { userId: string }) {
                         : <ul className="divide-y divide-[var(--border)]">{setup.coverages.map((item) => <li key={item.id} className="space-y-2 py-3">
                           <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><p className="break-words font-semibold">{item.class_name} / {item.section_name} · {item.substitute_teacher_name}</p>
                             <p className="mt-1 text-sm muted">{displayDate(item.starts_on)} – {displayDate(item.ends_on)} IST · Covering {item.source_teacher_name}</p></div>
-                            <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-bold capitalize">{item.status}</span></div>
+                            <span className={`badge${item.status === "active" ? " text-success" : ""}`}>{statusLabels[item.status]}</span></div>
                           <p className="break-words text-sm muted">{item.reason}</p>
                           {item.revoke_reason && <p className="break-words text-sm muted">Revoke reason · {item.revoke_reason}</p>}
                           {!item.revoked_at && item.status !== "revoked" && <button type="button" className={button} disabled={busy || dirty} onClick={() => { setRemoval(item.id); setRevokeReason(""); setMessage(undefined); }}>Revoke coverage</button>}

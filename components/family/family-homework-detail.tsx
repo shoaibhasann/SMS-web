@@ -77,13 +77,14 @@ function HomeworkDetail({ activityId, role, userId }: Props) {
             <ArrowLeft size={16} aria-hidden="true" /> Back to notifications
           </Link>
           <h1 className="text-3xl font-black">Homework</h1>
-          <p className="mt-2 text-sm muted">Assignment from your notifications.</p>
+          <p className="mt-2 text-sm muted">Homework set by your child’s teacher.</p>
         </div>
         {validId && !sessionChanged && (
           <button type="button" aria-label="Refresh homework" disabled={refreshing}
             onClick={() => setAttempt((value) => value + 1)}
             className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[var(--border)] px-3 text-sm font-semibold disabled:opacity-50">
-            <RefreshCw size={15} aria-hidden="true" /> Refresh
+            <RefreshCw size={15} aria-hidden="true" className={refreshing ? "motion-safe:animate-spin" : undefined} />
+            {refreshing && result ? "Refreshing…" : "Refresh"}
           </button>
         )}
       </header>
@@ -91,7 +92,8 @@ function HomeworkDetail({ activityId, role, userId }: Props) {
         {sessionChanged ? <p role="alert" className="p-5 text-sm muted">Your sign-in changed. Reopen this homework from Notifications.</p>
           : !validId ? <p className="p-5 text-sm muted">{unavailable}</p>
             : !result ? <LoadingState variant="form" label="Loading homework…" className="p-5" />
-              : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
+              : "error" in result ? <div className="space-y-3 p-5"><p role="alert" className="text-sm text-danger">{result.error}</p>
+                <button type="button" className="btn btn-secondary" disabled={refreshing} onClick={() => setAttempt((value) => value + 1)}>Try again</button></div>
                 : result.homework ? <HomeworkArticle homework={result.homework} role={role} userId={userId} />
                   : <p className="p-5 text-sm muted">{unavailable}</p>}
       </section>

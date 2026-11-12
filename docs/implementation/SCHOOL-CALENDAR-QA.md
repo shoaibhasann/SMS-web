@@ -13,6 +13,7 @@ This slice governs working weekdays, dated holiday/extra-working-day exceptions 
 - Teacher historical correction requests follow the policy active on the request date. Existing pending/exact requests and independently reviewed office exceptions retain the established reason, scope and review controls.
 - Family dashboard summaries identify their loaded saved-record sample. Present/Late counts are not presented as an official rate based on incomplete records or assumed Leave/Holiday/Half Day weights.
 - Teacher raw legacy-holiday writes and direct/correction changes to or from pupil Holiday status are blocked. The existing Office controls require actual same-school School Admin/Principal authority and a native verified authenticator session; an already-pending Holiday request can still be independently reviewed under those controls.
+- On a configured working day the register offers no **Mark holiday** button or Holiday option, and the database rejects new or changed pupil Holiday marks (`22023`, migration `20261111180600_reject_pupil_holiday_on_working_day.sql`); the register points the office to a calendar holiday exception instead. Office can still move an existing legacy Holiday mark to a real status. Holiday marks on unconfigured dates are unchanged.
 
 ## Verification record
 

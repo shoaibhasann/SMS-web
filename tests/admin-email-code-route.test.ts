@@ -6,12 +6,13 @@ import { POST } from "@/app/(auth)/auth/admin-email-code/route";
 const mocks = vi.hoisted(() => ({
   after: vi.fn(), createAuth: vi.fn(), createBrowser: vi.fn(), readSecurity: vi.fn(), rpc: vi.fn(),
   sendCode: vi.fn(), verifyCode: vi.fn(), getClaims: vi.fn(), revokeIsolated: vi.fn(),
-  readBrowser: vi.fn(), clearBrowser: vi.fn(), installBrowser: vi.fn(),
+  readBrowser: vi.fn(), clearBrowser: vi.fn(), installBrowser: vi.fn(), allowAttempt: vi.fn(),
 }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createAuth }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createBrowser }));
 vi.mock("@/lib/auth/staff-mfa", () => ({ readStaffMfaStatus: mocks.readSecurity }));
+vi.mock("@/lib/auth/attempt-throttle", () => ({ allowAuthAttempt: mocks.allowAttempt }));
 
 const origin = "https://school.example";
 const email = "admin@school.example";
@@ -49,6 +50,7 @@ beforeEach(() => {
   mocks.revokeIsolated.mockResolvedValue({ error: null });
   mocks.installBrowser.mockResolvedValue({ data: { user }, error: null });
   mocks.readSecurity.mockResolvedValue(challenge);
+  mocks.allowAttempt.mockResolvedValue(true);
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -135,5 +137,25 @@ describe("admin email code route", () => {
     expect((await POST(request(verifyCode))).status).toBe(200);
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("find_admin_email_otp_user", { p_email: email });
     expect(mocks.installBrowser).toHaveBeenCalledExactlyOnceWith(tokens);
+  });
+
+  it("throttles code requests per client and target before scheduling any Auth work", async () => {
+    mocks.allowAttempt.mockResolvedValue(false);
+    const response = await POST(request(requestCode));
+    expect(response.status).toBe(429);
+    expect(mocks.allowAttempt).toHaveBeenCalledExactlyOnceWith(expect.any(Request), "admin_email_request", email);
+    expect(mocks.after).not.toHaveBeenCalled();
+    expect(mocks.createAuth).not.toHaveBeenCalled();
+  });
+
+  it("throttles code verification per client and target before calling verifyOtp", async () => {
+    mocks.allowAttempt.mockResolvedValue(false);
+    expect((await POST(request(verifyCode))).status).toBe(429);
+    expect(mocks.allowAttempt).toHaveBeenCalledExactlyOnceWith(expect.any(Request), "admin_email_verify", email);
+    expect(mocks.verifyCode).not.toHaveBeenCalled();
+    expect(mocks.createBrowser).not.toHaveBeenCalled();
+    mocks.allowAttempt.mockClear();
+    expect((await POST(request({ ...verifyCode, code: "12" }))).status).toBe(400);
+    expect(mocks.allowAttempt).not.toHaveBeenCalled();
   });
 });

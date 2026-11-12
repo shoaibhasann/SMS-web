@@ -36,21 +36,40 @@ describe("verified own password changes", () => {
     expect(securedUpdate).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
     expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
+  it("mutates an AAL1 account without MFA through the browser's own session so Auth keeps it signed in", async () => {
+    security.mockResolvedValue({ allowed: true, required: false, current_aal: "aal1" });
+    await changeOwnPassword(primary, "owner", input);
+    expect(boundClient).toHaveBeenCalledWith(primary, "owner", undefined);
+    expect(securedUpdate).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
+    expect(update).not.toHaveBeenCalled();
+  });
   it("rejects a newly required MFA challenge before password mutation", async () => {
     security.mockResolvedValueOnce({ allowed: true, required: false, current_aal: "aal1" }).mockResolvedValueOnce({ allowed: false, required: true, current_aal: "aal1" });
     await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/Verify your authenticator/);
     expect(update).not.toHaveBeenCalled(); expect(securedUpdate).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
-  it("enforces twelve characters, bounded UTF-8 bytes, a new value and matching confirmation", () => {
+  it("enforces eight characters, bounded UTF-8 bytes, a new value and matching confirmation", () => {
     for (const patch of [{ currentPassword: "" }, { newPassword: "short", confirmation: "short" },
-      { newPassword: " ".repeat(12), confirmation: " ".repeat(12) },
+      { newPassword: "seven77", confirmation: "seven77" }, { newPassword: "😀".repeat(7), confirmation: "😀".repeat(7) },
+      { newPassword: " ".repeat(8), confirmation: " ".repeat(8) }, { newPassword: " ".repeat(12), confirmation: " ".repeat(12) },
+      { newPassword: "x".repeat(73), confirmation: "x".repeat(73) },
       { newPassword: "😀".repeat(19), confirmation: "😀".repeat(19) },
       { newPassword: input.currentPassword, confirmation: input.currentPassword }, { confirmation: "Different value" }]) {
       expect(validatePasswordChange({ ...input, ...patch })).not.toBeNull();
     }
-    expect(validatePasswordChange({ ...input, newPassword: "😀".repeat(12), confirmation: "😀".repeat(12) })).toBeNull();
+    expect(validatePasswordChange({ ...input, newPassword: "seven77", confirmation: "seven77" })).toBe("Use at least 8 characters for your new password.");
+    expect(validatePasswordChange({ ...input, newPassword: "x".repeat(73), confirmation: "x".repeat(73) })).toBe("That password is too long. Try a shorter password.");
+    expect(validatePasswordChange({ ...input, newPassword: "eight888", confirmation: "eight888" })).toBeNull();
+    expect(validatePasswordChange({ ...input, newPassword: "😀".repeat(8), confirmation: "😀".repeat(8) })).toBeNull();
     expect(validatePasswordChange({ ...input, newPassword: "x".repeat(72), confirmation: "x".repeat(72) })).toBeNull();
+  });
+
+  it("changes to an 8-character password and refuses a 7-character one before any Auth request", async () => {
+    await expect(changeOwnPassword(primary, "owner", { ...input, newPassword: "seven77", confirmation: "seven77" })).rejects.toThrow(/at least 8 characters/);
+    expect(getUser).not.toHaveBeenCalled(); expect(create).not.toHaveBeenCalled();
+    expect(await changeOwnPassword(primary, "owner", { ...input, newPassword: "eight888", confirmation: "eight888" })).toEqual({ changed: true, temporarySessionClosed: true });
+    expect(securedUpdate).toHaveBeenCalledExactlyOnceWith({ password: "eight888", current_password: input.currentPassword });
   });
 
   it("rejects invalid form values before any Auth request", async () => {
@@ -65,14 +84,15 @@ describe("verified own password changes", () => {
     });
     expect(verify).toHaveBeenCalledWith({ email: owner.email, password: input.currentPassword });
     expect(getUser).toHaveBeenCalledTimes(2);
-    expect(update).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
+    expect(securedUpdate).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
+    expect(update).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it.each([null, { ...owner, id: "other" }, { ...owner, is_anonymous: true }, { ...owner, email: undefined }])("does not verify another or invalid identity %j", async (user) => {
     getUser.mockResolvedValue({ data: { user }, error: null });
     await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/account changed/);
-    expect(create).not.toHaveBeenCalled(); expect(update).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled(); expect(securedUpdate).not.toHaveBeenCalled();
   });
 
   it("requires a verified account email before creating temporary Auth", async () => {
@@ -84,20 +104,20 @@ describe("verified own password changes", () => {
   it("cannot use a valid password for a different returned user", async () => {
     verify.mockResolvedValue({ data: { user: { ...owner, id: "another" }, session: {} }, error: null });
     await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/account changed/);
-    expect(update).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
+    expect(securedUpdate).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it.each([{ ...owner, id: "another" }, { ...owner, email: "changed@example.test" }, null])("rechecks original browser identity immediately before writing %j", async (user) => {
     getUser.mockResolvedValueOnce({ data: { user: owner }, error: null }).mockResolvedValueOnce({ data: { user }, error: null });
     await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/account changed/);
-    expect(update).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
+    expect(securedUpdate).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it("aborts account changes before sending an update while still closing temporary Auth", async () => {
     const controller = new AbortController();
     verify.mockImplementationOnce(async () => { controller.abort(); return { data: { user: owner, session: {} }, error: null }; });
     await expect(changeOwnPassword(primary, "owner", input, controller.signal)).rejects.toThrow(/account changed/);
-    expect(update).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
+    expect(securedUpdate).not.toHaveBeenCalled(); expect(close).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it.each([
@@ -107,12 +127,12 @@ describe("verified own password changes", () => {
     { phase: "update", code: "reauthentication_needed", expected: /Additional account verification/ },
     { phase: "update", code: "unexpected", expected: /could not be confirmed/ },
   ])("returns bounded feedback for $phase/$code without exposing server details", async ({ phase, code, expected }) => {
-    (phase === "verify" ? verify : update).mockResolvedValueOnce({ data: { user: null, session: null }, error: { code, message: "SECRET PROVIDER DETAIL" } });
+    (phase === "verify" ? verify : securedUpdate).mockResolvedValueOnce({ data: { user: null, session: null }, error: { code, message: "SECRET PROVIDER DETAIL" } });
     const call = changeOwnPassword(primary, "owner", input);
     await expect(call).rejects.toThrow(expected);
     await expect(call).rejects.not.toThrow(/SECRET/);
     expect(close).toHaveBeenCalledWith({ scope: "local" });
-    if (phase === "verify") expect(update).not.toHaveBeenCalled();
+    if (phase === "verify") expect(securedUpdate).not.toHaveBeenCalled();
   });
 
   it("does not let local cleanup failure turn a confirmed password change into a failure", async () => {
@@ -129,7 +149,7 @@ describe("verified own password changes", () => {
     const shared = { auth: { getUser: vi.fn(async () => ({ data: { user: activeUser }, error: null })), signOut: sharedSignOut } } as unknown as SupabaseClient;
     const change = changeOwnPassword(shared, "owner", input);
     await vi.waitFor(() => expect(close).toHaveBeenCalledWith({ scope: "local" }));
-    expect(update).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
+    expect(securedUpdate).toHaveBeenCalledWith({ password: input.newPassword, current_password: input.currentPassword });
     activeUser = { ...owner, id: "account-b", email: "b@example.test" };
     resolveCleanup({ error: null });
     expect(await change).toEqual({ changed: true, temporarySessionClosed: true });
@@ -138,7 +158,7 @@ describe("verified own password changes", () => {
   });
 
   it("does not acknowledge an update without the correct returned owner", async () => {
-    update.mockResolvedValueOnce({ data: { user: null }, error: null });
+    securedUpdate.mockResolvedValueOnce({ data: { user: null }, error: null });
     await expect(changeOwnPassword(primary, "owner", input)).rejects.toThrow(/could not be confirmed/);
     expect(close).toHaveBeenCalledWith({ scope: "local" });
   });

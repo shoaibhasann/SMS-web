@@ -160,7 +160,11 @@ begin
     perform set_config('role','none',true);
     delete from public.student_parents where parent_id=guardian_record and student_id=sibling;
     perform set_config('role','service_role',true);
-    if public.finish_family_push_job(guardian_job,lease,'retry','QA_NO_SEND')
+    -- null confirms the retry and reports it cancelled as no longer eligible.
+    if public.finish_family_push_job(guardian_job,lease,'retry','QA_NO_SEND') is not null
+    then raise exception 'A retry on the unlinked Guardian job was not recorded.'; end if;
+    perform set_config('role','none',true);
+    if (select status||'/'||result_code from app_private.family_push_jobs where id=guardian_job) is distinct from 'cancelled/no_longer_eligible'
     then raise exception 'Losing the final link left a Guardian job retryable.'; end if;
 
     perform pg_temp.notice_push_qa_actor(admin_user,admin_session,'aal2','/notices');

@@ -54,7 +54,7 @@ describe("historical calendar CSV manager", () => {
   });
   it("blocks every duplicate and malformed local row without a server preview", async () => {
     const user = userEvent.setup(); render(element()); await draft(user, "date,status,label\n2026-11-01,working,Approved day\n2026-11-01,holiday,Duplicated day\n2026-02-30,holiday,Invalid day");
-    expect(screen.getAllByText("Date repeats in this file.")).toHaveLength(2); expect(screen.getByText("Use a real date in YYYY-MM-DD format.")).toBeInTheDocument();
+    expect(screen.getAllByText("Date repeats in this file.")).toHaveLength(2); expect(screen.getByText("Use a real date in YYYY-MM-DD or DD-MM-YYYY format.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review on server" })).toBeDisabled(); expect(preview).not.toHaveBeenCalled();
   });
   it("shows configured-date server conflicts and never imports a partial valid batch", async () => {
@@ -98,10 +98,13 @@ describe("historical calendar CSV manager", () => {
     expect(screen.getByRole("button", { name: "Retry same frozen import" })).toBeEnabled(); expect(onLock).toHaveBeenLastCalledWith(true);
   });
   it("explains unsupported years and displays actor, reason and time in retained history", async () => {
-    load.mockResolvedValue({ ...historicalContext(), years: [], history: [{ request_id: id(7), academic_year_id: yearId, revision: 2, imported_rows: 2, working_rows: 1, holiday_rows: 1, reason: "School approved archived calendar", actor_id: uid, created_at: "2026-11-07T10:00:00Z" }] });
+    load.mockResolvedValue({ ...historicalContext(), revision: 3, years: [], history: [{ request_id: id(7), academic_year_id: yearId, revision: 2, imported_rows: 2, working_rows: 1, holiday_rows: 1, reason: "School approved archived calendar", actor_id: uid, actor_name: "Asha Admin", created_at: "2026-11-07T10:00:00Z" },
+      { request_id: id(8), academic_year_id: yearId, revision: 1, imported_rows: 1, working_rows: 1, holiday_rows: 0, reason: "Principal approved register", actor_id: id(9), actor_name: "Priya Principal", created_at: "2026-11-06T10:00:00Z" },
+      { request_id: id(10), academic_year_id: yearId, revision: 3, imported_rows: 1, working_rows: 0, holiday_rows: 1, reason: "Former office record", actor_id: id(11), actor_name: null, created_at: "2026-11-05T10:00:00Z" }] });
     const user = userEvent.setup(); render(element()); await user.click(screen.getByRole("button", { name: "Import historical CSV" }));
     expect(await screen.findByText(/No supported historical academic years/)).toBeInTheDocument(); expect(screen.getByLabelText("Calendar CSV file")).toBeDisabled();
-    expect(screen.getByText("Imported by you")).toBeInTheDocument(); expect(screen.getByText("School approved archived calendar")).toBeInTheDocument();
+    expect(screen.getByText("Imported by you")).toBeInTheDocument(); expect(screen.getByText("Imported by Priya Principal")).toBeInTheDocument(); expect(screen.getByText("Imported by Unknown user")).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`${id(9)}|${id(11)}`))).not.toBeInTheDocument(); expect(screen.getByText("School approved archived calendar")).toBeInTheDocument();
     expect(screen.getByText(/7 Nov 2026,/)).toHaveAttribute("dateTime", "2026-11-07T10:00:00Z");
   });
   it("drops draft data and aborts late preview when the native account changes", async () => {

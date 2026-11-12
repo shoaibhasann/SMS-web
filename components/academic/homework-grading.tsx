@@ -149,7 +149,7 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
             const name = [row.first_name, row.middle_name, row.last_name].filter(Boolean).join(" ");
             const submission = row.submission;
             return <li key={row.student_id} className="min-w-0 space-y-3 rounded-xl border border-[var(--border)] p-3 sm:p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="break-words font-semibold">{name || "Student"}</p><p className="text-xs muted">{row.admission_no ?? "Admission number unavailable"}</p></div><p className="text-sm font-semibold">{submission ? submission.status === "graded" ? "Graded" : "Submitted" : "Not submitted"}</p></div>
+              <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0"><p className="break-words font-semibold">{name || "Student"}</p><p className="text-xs muted">{row.admission_no ?? "Admission number unavailable"}</p></div>{submission ? submission.status === "graded" ? <span className="badge text-success">Graded</span> : <span className="badge text-warning">Submitted</span> : <span className="badge muted">Not submitted</span>}</div>
               {submission && <>
                 <p className="whitespace-pre-wrap break-words text-sm">{submission.text_response || "Attachment submitted without a text response."}</p>
                 {submission.file_path && <button type="button" className={`${action} max-w-full break-all text-left`} disabled={Boolean(downloadingId)} onClick={() => void download(submission)}>{downloadingId === submission.id ? "Downloading attachment…" : `Download attachment${submission.file_name ? ` · ${submission.file_name}` : ""}`}</button>}

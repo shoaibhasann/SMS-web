@@ -113,6 +113,32 @@ describe("guardian invitation", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  // Every value passes the input's own minlength=8, so only the shared rule can stop it.
+  it.each([["spaces only", " ".repeat(8)], ["73 bytes", "x".repeat(73)], ["7 emoji", "😀".repeat(7)]])(
+    "rejects a sign-up password that is %s before creating the account", async (_name, value) => {
+      render(<GuardianInvitePage />);
+      await userEvent.click(await screen.findByRole("button", { name: "Create a guardian account" }));
+      const user = userEvent.setup();
+      await user.type(await screen.findByLabelText("Email address"), guardian.email);
+      await user.type(screen.getByLabelText("Password"), value);
+      await user.click(screen.getByRole("button", { name: "Create account" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Use at least 8 characters and at most 72 bytes.");
+      expect(signUp).not.toHaveBeenCalled();
+    });
+
+  it("does not apply the sign-up rule to sign-in", async () => {
+    signInWithPassword.mockResolvedValue({ data: { user: guardian, session }, error: null });
+    render(<GuardianInvitePage />);
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText("Email address"), guardian.email);
+    await user.type(screen.getByLabelText("Password"), "old");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("button", { name: "Accept invitation" })).toBeInTheDocument();
+    expect(signInWithPassword).toHaveBeenCalledWith({ email: guardian.email, password: "old" });
+  });
+
   it("does not proceed when sign-up skips email confirmation", async () => {
     signUp.mockResolvedValue({ data: { user: guardian, session }, error: null });
     render(<GuardianInvitePage />);

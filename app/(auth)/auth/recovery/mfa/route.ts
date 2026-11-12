@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { allowAuthAttempt } from "@/lib/auth/attempt-throttle";
 import { createRecoveryClient, sameOriginRecoveryPost, verifiedRecoverySession } from "@/lib/auth/recovery";
 import { listAuthenticators, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     if (security.action !== "challenge") return denied();
     const factors = await listAuthenticators(supabase);
     if (!factors.some(factor => factor.id === body.factorId)) return denied();
+    if (!await allowAuthAttempt(request, "recovery_mfa", recovery.userId)) return NextResponse.json({ error: "rate_limited" }, { status: 429, headers });
     const verified = await supabase.auth.mfa.challengeAndVerify({ factorId: body.factorId, code: body.code });
     if (verified.error) {
       if (verified.error.status === 429) return NextResponse.json({ error: "rate_limited" }, { status: 429, headers });

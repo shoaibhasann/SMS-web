@@ -10,7 +10,7 @@ Open **School settings → Late attendance alerts**. This is one school policy f
 
 - [ ] **LATE-01 — Authority and MFA:** An actual School Admin and an actual Principal can manage their own school's policy after authenticator verification. A Principal's read-only school-profile fields must not prevent this separate policy change.
 - [ ] **LATE-02 — Default and explicit choice:** A fresh, unconfigured school shows **Saved policy: Off**, Version 0 and no saved history. Nothing enables itself. Do not reset an existing school's policy just to reproduce the fresh-school case.
-- [ ] **LATE-03 — Save and reload:** Select the checkbox, enter a 5–300 character reason and choose **Save Late alert policy**. Reload: the saved choice, new version, reason, actor and IST timestamp persist. Blank/short reasons and unchanged choices cannot save. History clearly shows at most the latest 20 versions.
+- [ ] **LATE-03 — Save and reload:** Select the checkbox, enter a 5–300 character reason and choose **Save Late alert policy**. Reload: the saved choice, new version, reason, actor name ("Changed by <name>", never a raw ID; "Unknown user" if the profile is gone) and IST timestamp persist. Blank/short reasons and unchanged choices cannot save. History clearly shows at most the latest 20 versions.
 - [ ] **LATE-04 — Conflicts and uncertain saves:** Try two authorized sessions. A stale save requires reloading; it must not overwrite a newer decision automatically. An unknown save keeps its exact request under **Retry same Late policy save**. Retrying must not append a duplicate version. Check the current policy after confirmation.
 
 ## New events and Guardian inbox

@@ -1,12 +1,14 @@
 import { Readable } from "node:stream";
 import { createGzip } from "node:zlib";
 
-export const schoolExportPageSize = 250;
+export const schoolExportPageSize = 1000;
+const filePrefetch = 4;
 const fileBuckets = new Set(["homework-submissions", "study-materials", "school-assets", "student-documents", "report-cards"]);
 const datasetName = /^[a-z][a-z0-9_]{0,62}$/;
 type Row = Record<string, unknown>;
-type ReadPage = (dataset: string, offset: number) => Promise<unknown>;
+type ReadPage = (dataset: string, after: Row | null) => Promise<unknown>;
 type ReadFile = (bucket: string, path: string) => Promise<ReadableStream<Uint8Array> | null>;
+type ExportDataset = { name: string; keys: string[] };
 type ArchiveEntry = { name: string; size: number; bytes: Uint8Array | ReadableStream<Uint8Array> };
 
 function rows(value: unknown): Row[] {
@@ -16,13 +18,15 @@ function rows(value: unknown): Row[] {
   return value;
 }
 
-export function exportDatasets(value: unknown): string[] {
-  const names = rows(value).map(({ name }) => name);
+export function exportDatasets(value: unknown): ExportDataset[] {
+  const datasets = rows(value).map(({ name, order_key: key }) => ({ name, keys: typeof key === "string" ? key.split(",") : [""] }));
+  const names = datasets.map(({ name }) => name);
   if (names.some((name) => typeof name !== "string" || !datasetName.test(name) || name === "manifest")
+      || datasets.some(({ keys }) => keys.some((key) => !datasetName.test(key)))
       || new Set(names).size !== names.length || !names.includes("schools") || !names.includes("files")) {
     throw new Error("Unexpected school export manifest.");
   }
-  return names as string[];
+  return datasets as ExportDataset[];
 }
 
 function entry(name: string, text: string): ArchiveEntry {
@@ -41,7 +45,7 @@ function fileReference(row: Row, schoolId: string) {
   return { bucket, path, size };
 }
 
-async function* exportEntries(schoolId: string, datasets: string[], readPage: ReadPage, readFile: ReadFile, signal: AbortSignal): AsyncGenerator<ArchiveEntry> {
+async function* exportEntries(schoolId: string, datasets: ExportDataset[], readPage: ReadPage, readFile: ReadFile, signal: AbortSignal): AsyncGenerator<ArchiveEntry> {
   const startedAt = new Date().toISOString();
   const counts: Record<string, number> = Object.create(null);
   let copiedFiles = 0;
@@ -51,41 +55,63 @@ async function* exportEntries(schoolId: string, datasets: string[], readPage: Re
     "data/ contains UTF-8 JSON Lines. Join datasets using the exported record IDs.",
     "data/files/ maps records to the binary entries under files/. A missing path is recorded with a reason.",
     "Review manifest.json after extraction. If it is missing or complete is false, the export has gaps.",
-    "This is a live export. Run it while staff have paused changes for an offboarding handover.",
+    "This is a live export. Records added or removed while it runs (for example automatic gate scans) may be absent; run it outside school hours with staff changes paused.",
     "This archive contains private school data. Store and transfer it securely.",
     "",
   ].join("\n"));
-  for (const dataset of datasets) {
-    let offset = 0;
+  for (const { name: dataset, keys } of datasets) {
+    let after: Row | null = null;
+    let batch = 0;
+    let count = 0;
     while (true) {
       signal.throwIfAborted();
-      const page = rows(await readPage(dataset, offset));
+      const page = rows(await readPage(dataset, after));
       const exported: Row[] = [];
       if (dataset === "files") {
-        for (const row of page) {
-          signal.throwIfAborted();
-          const { bucket, path, size } = fileReference(row, schoolId);
-          const bytes = size === null ? null : await readFile(bucket, path);
-          if (!bytes || size === null) {
-            missingFiles++;
-            exported.push({ ...row, archive_path: null, reason: "Storage object unavailable" });
-            continue;
+        const refs = page.map((row) => fileReference(row, schoolId));
+        // Bounded prefetch: up to four attachment fetches in flight, written to the tar in order.
+        const pending: Promise<ReadableStream<Uint8Array> | null>[] = [];
+        const start = (index: number) => {
+          if (index >= refs.length || index < pending.length) return;
+          const { bucket, path, size } = refs[index];
+          pending[index] = size === null ? Promise.resolve(null) : readFile(bucket, path);
+          pending[index].catch(() => undefined);
+        };
+        let index = 0;
+        let handedOff = 0;
+        try {
+          for (; index < page.length; index++) {
+            signal.throwIfAborted();
+            for (let next = index; next < index + filePrefetch; next++) start(next);
+            const { path, size } = refs[index];
+            const bytes = await pending[index];
+            if (!bytes || size === null) {
+              missingFiles++;
+              exported.push({ ...page[index], archive_path: null, reason: "Storage object unavailable" });
+              continue;
+            }
+            const suffix = /\.[a-z0-9]{1,10}$/i.exec(path)?.[0] ?? "";
+            const name = `files/${++copiedFiles}${suffix}`;
+            handedOff = index + 1; // the tar writer owns (and cancels) bodies it has received
+            yield { name, size, bytes };
+            exported.push({ ...page[index], archive_path: name });
           }
-          const suffix = /\.[a-z0-9]{1,10}$/i.exec(path)?.[0] ?? "";
-          const name = `files/${++copiedFiles}${suffix}`;
-          yield { name, size, bytes };
-          exported.push({ ...row, archive_path: name });
+        } finally {
+          // Release prefetched bodies the tar never read (abort or an earlier failure).
+          for (const body of pending.slice(handedOff)) body?.then((stream) => stream?.cancel(), () => undefined);
         }
       }
       const contents = dataset === "files" ? exported : page;
-      if (contents.length || offset === 0) {
-        const batch = String(1 + offset / schoolExportPageSize).padStart(6, "0");
-        yield entry(`data/${dataset}/${batch}.jsonl`, contents.map((row) => JSON.stringify(row) + "\n").join(""));
+      if (contents.length || batch === 0) {
+        yield entry(`data/${dataset}/${String(++batch).padStart(6, "0")}.jsonl`, contents.map((row) => JSON.stringify(row) + "\n").join(""));
       }
-      offset += page.length;
+      count += page.length;
       if (page.length < schoolExportPageSize) break;
+      // The SQL reads only the order-key fields, so wide rows are not posted back.
+      const last = page[page.length - 1];
+      after = Object.fromEntries(keys.map((key) => [key, last[key]]));
     }
-    counts[dataset] = offset;
+    counts[dataset] = count;
   }
   signal.throwIfAborted();
   const unavailableFiles = counts.unavailable_files ?? 0;
@@ -115,13 +141,14 @@ function tarHeader(name: string, size: number) {
 
 async function* tar(entries: AsyncIterable<ArchiveEntry>, signal: AbortSignal) {
   for await (const { name, size, bytes } of entries) {
-    signal.throwIfAborted();
-    yield tarHeader(name, size);
-    if (bytes instanceof Uint8Array) yield bytes;
-    else {
-      const reader = bytes.getReader();
-      let written = 0;
-      try {
+    // Take the body before any check or yield so an abort at either still cancels it.
+    const reader = bytes instanceof Uint8Array ? null : bytes.getReader();
+    try {
+      signal.throwIfAborted();
+      yield tarHeader(name, size);
+      if (!reader) yield bytes as Uint8Array;
+      else {
+        let written = 0;
         while (true) {
           signal.throwIfAborted();
           const { value, done } = await reader.read();
@@ -130,11 +157,13 @@ async function* tar(entries: AsyncIterable<ArchiveEntry>, signal: AbortSignal) {
           if (written > size) throw new Error("School file size changed during export.");
           yield value;
         }
-      } finally {
+        if (written !== size) throw new Error("School file size changed during export.");
+      }
+    } finally {
+      if (reader) {
         await reader.cancel().catch(() => undefined);
         reader.releaseLock();
       }
-      if (written !== size) throw new Error("School file size changed during export.");
     }
     const padding = (512 - size % 512) % 512;
     if (padding) yield Buffer.alloc(padding);
@@ -142,7 +171,7 @@ async function* tar(entries: AsyncIterable<ArchiveEntry>, signal: AbortSignal) {
   yield Buffer.alloc(1024);
 }
 
-export function schoolArchive(schoolId: string, datasets: string[], readPage: ReadPage, readFile: ReadFile, signal: AbortSignal) {
+export function schoolArchive(schoolId: string, datasets: ExportDataset[], readPage: ReadPage, readFile: ReadFile, signal: AbortSignal) {
   const input = Readable.from(tar(exportEntries(schoolId, datasets, readPage, readFile, signal), signal), { objectMode: false, signal });
   const gzip = createGzip();
   input.on("error", (error) => gzip.destroy(error));

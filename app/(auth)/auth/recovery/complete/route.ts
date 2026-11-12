@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createRecoveryClient, sameOriginRecoveryPost, verifiedRecoverySession } from "@/lib/auth/recovery";
 import { readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { passwordProblem } from "@/lib/account/password-rule";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -10,7 +11,7 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => null);
   const password = typeof body?.password === "string" ? body.password : "";
-  if (password.length < 8 || new TextEncoder().encode(password).length > 72) {
+  if (passwordProblem(password)) {
     return NextResponse.json({ error: "invalid_password" }, { status: 400, headers });
   }
 

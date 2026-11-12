@@ -84,6 +84,12 @@ describe("governed financial client boundary", () => {
     expect(rpc).toHaveBeenCalledWith("list_family_fee_receipts", { p_student_id: "pupil-a", p_limit: 30, p_offset: 0 });
   });
 
+  it("decodes the fee head and billing month on a receipt and still accepts receipts without them", async () => {
+    const labelled = await listFamilyFeeReceipts(provider({ rows: [{ ...receipt, fee_name: "Tuition", billing_period: "2026-04" }, receipt], count: 2 }).client, "pupil-a");
+    expect(labelled.rows[0]).toMatchObject({ fee_name: "Tuition", billing_period: "2026-04" });
+    expect(labelled.rows[1]).not.toHaveProperty("fee_name");
+  });
+
   it("rejects another pupil or internal financial metadata in a family response", async () => {
     await expect(listFamilyFeeReceipts(provider({ rows: [{ ...receipt, student_id: "pupil-b" }], count: 1 }).client, "pupil-a")).rejects.toBeInstanceOf(FeeChangeError);
     await expect(listFamilyFeeReceipts(provider({ rows: [{ ...receipt, review_reason: "Internal review" }], count: 1 }).client, "pupil-a")).rejects.toBeInstanceOf(FeeChangeError);

@@ -315,7 +315,7 @@ export function createAttendanceRepository(client: SupabaseClient, expectedUserI
           .range(from, to), "Student school access could not be verified");
         for (const student of students) eligible.add(student.id);
       }
-      const results: ({ saved: AttendanceEntry } | { studentId: string; message: string })[] = new Array(changes.length);
+      const results: ({ saved: AttendanceEntry } | AttendanceSaveResult["failures"][number])[] = new Array(changes.length);
       let nextIndex = 0;
 
       async function saveOne(change: AttendanceChange): Promise<AttendanceEntry> {
@@ -381,7 +381,7 @@ export function createAttendanceRepository(client: SupabaseClient, expectedUserI
           try {
             results[index] = { saved: await saveOne(change) };
           } catch (error) {
-            results[index] = { studentId: change.studentId, message: messageOf(error) };
+            results[index] = { studentId: change.studentId, message: messageOf(error), code: (error as { code?: string } | null)?.code };
           }
         }
       }

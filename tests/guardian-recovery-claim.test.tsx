@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import GuardianRecoveryPage from "../app/(auth)/guardian-recover/page";
 import { GuardianRecoveryError } from "@/lib/guardian-invitations/recovery";
@@ -29,8 +30,13 @@ function credentials() {
 describe("public guardian account recovery claim", () => {
   it.each(["", "#token=bad", `#token=${token}&token=${token}`])("does not access Auth or recovery for malformed fragment %j", hash => {
     window.history.replaceState(null, "", `/guardian-recover${hash}`); render(<GuardianRecoveryPage />);
-    expect(screen.getByText(/Open the original invitation/)).toBeInTheDocument();
+    expect(screen.getByText(/Open the private recovery link your school shared with you/)).toBeInTheDocument();
+    expect(screen.queryByText(/original invitation/)).not.toBeInTheDocument();
     expect(mocks.getUser).not.toHaveBeenCalled(); expect(mocks.claim).not.toHaveBeenCalled(); expect(mocks.accept).not.toHaveBeenCalled();
+  });
+  it("uses recovery wording while the server-rendered page waits for the link fragment", () => {
+    const html = renderToString(<GuardianRecoveryPage />);
+    expect(html).toContain("Opening recovery link…"); expect(html).not.toMatch(/invitation/i);
   });
   it("loads only a preview and preserves existing child state until explicit acceptance", async () => {
     sessionStorage.setItem("erp:parent-child:guardian", "existing-child-id"); render(<GuardianRecoveryPage />);
@@ -102,11 +108,22 @@ describe("public guardian account recovery claim", () => {
     expect(screen.getByText("Phone flow: recovery")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: "Verify QA phone" }));
     await screen.findByText(/QA School · 2 linked children/); expect(mocks.accept).not.toHaveBeenCalled(); expect(mocks.replace).not.toHaveBeenCalled();
   });
+  it("marks the active replacement method and uses a singular child count", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null }); render(<GuardianRecoveryPage />);
+    const phone = await screen.findByRole("button", { name: "Mobile OTP" });
+    expect(screen.getByRole("button", { name: "Email and password" })).toHaveAttribute("aria-pressed", "true"); expect(phone).toHaveAttribute("aria-pressed", "false");
+    mocks.claim.mockResolvedValue({ school_name: "QA School", requires_mfa: false, linked_children: 1, expires_at: date });
+    fireEvent.click(phone); expect(phone).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Verify QA phone" }));
+    expect(await screen.findByText("QA School · 1 linked child.")).toBeInTheDocument();
+  });
   it("keeps signup email callback free of the recovery token and requires confirmation plus reopening the original link", async () => {
     mocks.getUser.mockResolvedValue({ data: { user: null }, error: null }); mocks.signUp.mockResolvedValue({ data: { user: guardian, session: null }, error: null });
     render(<GuardianRecoveryPage />); fireEvent.click(await screen.findByRole("button", { name: "Create the replacement account" })); credentials();
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("reopen the original school invitation");
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("reopen the private recovery link your school shared");
+    expect(status).not.toHaveTextContent(/invitation/i);
     expect(mocks.signUp).toHaveBeenCalledExactlyOnceWith({ email: guardian.email, password: "qa-password-123", options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=%2Fguardian-recover` } });
     expect(mocks.claim).not.toHaveBeenCalled(); expect(mocks.accept).not.toHaveBeenCalled(); expect(mocks.replace).not.toHaveBeenCalled();
     expect(sessionStorage.length).toBe(0); expect(localStorage.length).toBe(0);

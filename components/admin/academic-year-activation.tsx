@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { AcademicSetup } from "@/lib/admin/academic-setup";
 import { LoadingState } from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ type Readiness = {
   can_start_today: boolean;
 };
 
+const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 const secondary = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-60";
 
 export function AcademicYearActivation({ client, schoolId, current, years, saving, setSaving, onActivated }: {
@@ -35,6 +36,7 @@ export function AcademicYearActivation({ client, schoolId, current, years, savin
   const [confirmed, setConfirmed] = useState(false);
   const [activationError, setActivationError] = useState("");
   const pending = useRef(false);
+  const reasonHint = useId();
   const currentId = current.id;
 
   useEffect(() => {
@@ -130,16 +132,19 @@ export function AcademicYearActivation({ client, schoolId, current, years, savin
               </div>
             ))}
           </dl>
-          {!readiness.can_start_today && <p className="text-sm muted">Activation is available during the destination session ({target.start_date} to {target.end_date}, IST).</p>}
+          {!readiness.can_start_today && <p className="text-sm muted">Activation is available during the destination session ({formatDate(target.start_date)} to {formatDate(target.end_date)}, IST).</p>}
           {(readiness.unplaced > 0 || readiness.invalid_placements > 0) && <p className="text-sm muted">Resolve missing or invalid placements in Students before switching the school.</p>}
           {readiness.pending_corrections > 0 && <p className="text-sm muted">Resolve the previous session’s pending corrections in Attendance.</p>}
           {ready && (
             <form onSubmit={(event) => void activate(event)} className="max-w-xl space-y-3">
-              <label className="block space-y-1 text-sm font-semibold">
-                <span>Session activation reason</span>
-                <textarea className="field min-h-20" required minLength={5} maxLength={300} disabled={saving}
-                  value={reason} onChange={(event) => setReason(event.target.value)} />
-              </label>
+              <div className="space-y-1">
+                <label className="block space-y-1 text-sm font-semibold">
+                  <span>Session activation reason</span>
+                  <textarea className="field min-h-20" required minLength={5} maxLength={300} disabled={saving} aria-describedby={reasonHint}
+                    value={reason} onChange={(event) => setReason(event.target.value)} />
+                </label>
+                <p id={reasonHint} className="text-xs muted">At least 5 characters.</p>
+              </div>
               <label className="flex min-h-11 items-center gap-3 text-sm font-semibold">
                 <input type="checkbox" className="size-5 shrink-0" checked={confirmed} disabled={saving}
                   onChange={(event) => setConfirmed(event.target.checked)} />

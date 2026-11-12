@@ -23,7 +23,7 @@ type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 type BusyProps = { onBusyChange: (busy: boolean) => void };
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50";
-const primary = `${button} border-transparent bg-[var(--primary)] text-white dark:text-slate-950`;
+const primary = "btn btn-primary";
 const label = "block space-y-2 text-sm font-semibold";
 const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const timeFormat = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
@@ -63,7 +63,7 @@ function LeaveSession({ role, userId, mode, ...link }: { role: Role; userId: str
         ? "Request time away from school and follow the saved decision for each child."
         : "Review student leave with a recorded decision and reason. Historical requests stay with their original class and session."}</p>
     </header>
-    {sessionChanged ? <p role="alert" className="card p-5 text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reload this page to verify leave access.</p>
+    {sessionChanged ? <p role="alert" className="card p-5 text-sm muted">Your sign-in changed. Reload this page to verify leave access.</p>
       : family !== (mode === "family") ? <p role="alert" className="card p-5 text-sm">This account cannot open this leave view.</p>
         : family ? <FamilyLeaveAccess client={client} role={role} userId={userId} {...link} />
           : <ReviewLeaveAccess client={client} userId={userId} />}
@@ -154,13 +154,20 @@ function FamilyStudentLeave({ client, student, role, requestId, onBusyChange, on
     inFlight.current = true;
     setSaving(true); onBusyChange(true); setNotice(undefined);
     try {
-      if (attempt.current?.payload !== payload) attempt.current = { payload, key: crypto.randomUUID() };
-      await submitStudentLeave(client, { studentId: student.id, startDate, endDate, reason, idempotencyKey: attempt.current.key });
+      const retried = attempt.current?.payload === payload;
+      if (!retried || !attempt.current) attempt.current = { payload, key: crypto.randomUUID() };
+      const savedId = await submitStudentLeave(client, { studentId: student.id, startDate, endDate, reason, idempotencyKey: attempt.current.key });
+      // A replayed key returns the existing request, which the office may have decided meanwhile (null = still pending).
+      const decided = retried ? await getFamilyNotificationLeave(client, role, student.id, student.school_id, savedId).catch(() => undefined) : null;
       if (!alive.current) return;
       attempt.current = null;
       onDraftChange(false);
       setReason(""); setPage(0); setRefresh((value) => value + 1);
-      setNotice({ error: false, text: requestId !== undefined ? "Leave request saved. Open All leave history to follow the new request; this page shows the decision from your notification." : "Leave request saved. The school will review it; refresh history to follow its decision." });
+      // The notification view shows only the linked decision, so point replays to All leave history there.
+      const see = (what: string) => requestId !== undefined ? `Open All leave history to see its ${what}.` : `See its ${what} in the leave history.`;
+      setNotice({ error: false, text: decided ? `This leave request was already ${decided.status} by the school. ${see("decision")}`
+        : decided === undefined ? `Leave request saved. ${see("current status")}`
+        : requestId !== undefined ? "Leave request saved. Open All leave history to follow the new request; this page shows the decision from your notification." : "Leave request saved. The school will review it; refresh history to follow its decision." });
     } catch (error) {
       if (alive.current) setNotice({ error: true, text: errorText(error, "The submission could not be confirmed. Your dates and reason are kept. Retry the same request or refresh its saved history.") });
     } finally {
@@ -171,7 +178,7 @@ function FamilyStudentLeave({ client, student, role, requestId, onBusyChange, on
 
   return <div className="grid items-start gap-5 xl:grid-cols-[minmax(280px,0.8fr)_minmax(0,1.5fr)]">
     <section className="card space-y-4 p-5" aria-labelledby="leave-request-heading">
-      <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-500/10 text-blue-700 dark:text-blue-300"><Send size={20} aria-hidden="true" /></div>
+      <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-[color-mix(in_srgb,var(--primary)_10%,var(--surface))] text-[var(--primary)]"><Send size={19} aria-hidden="true" /></div>
       <div><h2 id="leave-request-heading" className="text-lg font-bold">Request student leave</h2><p className="mt-1 text-sm leading-relaxed muted">Use dates within the student’s current academic year. Pending and approved requests cannot overlap.</p></div>
       {notice && <Message notice={notice} />}
       {student.status !== "active" ? <p className="rounded-xl bg-[var(--surface-2)] p-4 text-sm muted">New requests are available only for an active student. The saved leave history remains below.</p> : <form className="space-y-4" onSubmit={(event) => void submit(event)}>
@@ -252,7 +259,7 @@ function StudentLeaveReview({ client, schoolId, userId, onBusyChange }: { client
   async function decide(event: FormEvent<HTMLFormElement>, request: StudentLeaveRequest) {
     event.preventDefault();
     const decision = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value");
-    if (inFlight.current || request.status !== "pending" || request.requester_id === userId || !["approved", "rejected"].includes(decision ?? "")) return;
+    if (inFlight.current || request.status !== "pending" || request.requester_id === userId || request.is_family_reviewer || !["approved", "rejected"].includes(decision ?? "")) return;
     if (reason.trim().length < 3 || reason.trim().length > 1000) { setNotice({ error: true, text: "Enter a review reason between 3 and 1,000 characters." }); return; }
     inFlight.current = true;
     setSaving(true); onBusyChange(true); setNotice(undefined);
@@ -280,6 +287,7 @@ function StudentLeaveReview({ client, schoolId, userId, onBusyChange }: { client
       : history.error ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{history.error}</p>
         : <><RequestList rows={history.data ?? []} review={(request) => request.status !== "pending" ? null
           : request.requester_id === userId ? <p className="text-sm muted">Another administrator or principal must review your own request.</p>
+          : request.is_family_reviewer ? <p className="text-sm muted">You are this pupil or their guardian; another reviewer must decide.</p>
             : selected !== request.id ? <button type="button" className={button} disabled={saving} onClick={() => { setSelected(request.id); setReason(""); setNotice(undefined); }}>Review request</button>
               : <form className="space-y-3 rounded-xl bg-[var(--surface-2)] p-4" onSubmit={(event) => void decide(event, request)}>
                 <div className={label}><label htmlFor="student-leave-review-reason">Review reason</label><textarea id="student-leave-review-reason" className="field" required rows={3} minLength={3} maxLength={1000} value={reason} disabled={saving} onChange={(event) => setReason(event.target.value)} /></div>
@@ -299,7 +307,7 @@ function Message({ notice }: { notice: Notice }) {
 function RequestList({ rows, review }: { rows: StudentLeaveRequest[]; review?: (request: StudentLeaveRequest) => React.ReactNode }) {
   if (!rows.length) return <p className="p-5 text-sm muted">No leave requests on this page.</p>;
   return <ul className="divide-y divide-[var(--border)]" aria-label="Saved leave requests">{rows.map((request) => <li key={request.id} className="space-y-4 p-5">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">{request.student_name}</h3><p className="mt-1 text-xs muted">{request.admission_no} · {[request.academic_year_name, request.class_name, request.section_name].filter(Boolean).join(" / ")}</p></div><span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${request.status === "pending" ? "bg-amber-500/10 text-amber-800 dark:text-amber-200" : request.status === "approved" ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : "bg-red-500/10 text-red-700 dark:text-red-300"}`}><Clock3 size={13} aria-hidden="true" />{statusLabels[request.status]}</span></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">{request.student_name}</h3><p className="mt-1 text-xs muted">{request.admission_no} · {[request.academic_year_name, request.class_name, request.section_name].filter(Boolean).join(" / ")}</p></div><span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${request.status === "pending" ? "bg-amber-500/10 text-amber-800 dark:text-amber-200" : request.status === "approved" ? "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300" : "bg-red-500/10 text-red-700 dark:text-red-300"}`}>{request.status === "approved" ? <Check size={13} aria-hidden="true" /> : request.status === "rejected" ? <X size={13} aria-hidden="true" /> : <Clock3 size={13} aria-hidden="true" />}{statusLabels[request.status]}</span></div>
     <p className="text-sm font-semibold"><time dateTime={request.start_date}>{dateFormat.format(new Date(`${request.start_date}T00:00:00Z`))}</time>{request.end_date !== request.start_date && <> – <time dateTime={request.end_date}>{dateFormat.format(new Date(`${request.end_date}T00:00:00Z`))}</time></>}</p>
     <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{request.reason}</p>
     <p className="text-xs muted">Requested{request.requester_name && ` by ${request.requester_name}`} · {timeFormat.format(new Date(request.created_at))} IST</p>

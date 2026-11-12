@@ -5,14 +5,17 @@ import { CheckCircle2, KeyRound, LockKeyhole, RefreshCw, UserRound } from "lucid
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { LoadingState } from "@/components/ui/skeleton";
 import { changeOwnPassword, PasswordChangeError, validatePasswordChange, type PasswordChange } from "@/lib/account/password";
+import { MIN_PASSWORD_LENGTH } from "@/lib/account/password-rule";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeIndianMobile } from "@/lib/auth/phone";
 import { NativePushSettings } from "@/components/notifications/native-push-settings";
 import type { NativePushRole } from "@/lib/notifications/native-push";
 import { AccountAuthenticator } from "@/components/account/account-authenticator";
+import { readGuardianContactProviders } from "@/lib/guardian-invitations/contact";
 
 type Details = { name: string; email: string | null; verified: boolean; phone: string | null; providers: string[]; oauthOnly: boolean };
+type SmsState = "enabled" | "disabled" | "unavailable";
 type Result = { details: Details } | { error: string };
 const emptyPassword = { currentPassword: "", newPassword: "", confirmation: "" };
 const buttonBase = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition disabled:opacity-50";
@@ -38,6 +41,10 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
   const request = useRef<AbortController | null>(null);
   const current = result?.version === version ? result.result : undefined;
   const details = current && "details" in current ? current.details : undefined;
+  const [sms, setSms] = useState<{ attempt: number; state: SmsState }>();
+  const [smsAttempt, setSmsAttempt] = useState(0);
+  const smsState = sms?.attempt === smsAttempt ? sms.state : undefined;
+  const phoneOnly = details && !details.email ? details.phone : null;
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
@@ -65,11 +72,12 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
         }
         if (profile.error || profile.data?.is_active !== true) throw new Error();
         const user = auth.data.user;
+        const phone = user.phone_confirmed_at ? normalizeIndianMobile(user.phone ?? "") : null;
         const providers = [...new Set((user.identities ?? []).map((identity) => identity.provider).filter((provider) => typeof provider === "string"))];
         setResult({ version, result: { details: {
           name: typeof profile.data.full_name === "string" && profile.data.full_name.trim() ? profile.data.full_name : "School account",
           email: user.email || null, verified: !!user.email_confirmed_at,
-          phone: user.phone_confirmed_at ? normalizeIndianMobile(user.phone ?? "") : null, providers,
+          phone, providers,
           oauthOnly: providers.length > 0 && !providers.includes("email"),
         } } });
       } catch {
@@ -79,6 +87,15 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
     void load();
     return () => { active = false; };
   }, [client, userId, version, sessionChanged]);
+
+  // Phone-only guardians need SMS to set an app password; the details render first and the link waits for this read.
+  useEffect(() => {
+    if (!phoneOnly) return;
+    let active = true;
+    readGuardianContactProviders().then((value): SmsState => value.sms ? "enabled" : "disabled", (): SmsState => "unavailable")
+      .then((state) => { if (active) setSms({ attempt: smsAttempt, state }); });
+    return () => { active = false; };
+  }, [phoneOnly, smsAttempt]);
 
   function editPassword(field: keyof PasswordChange, value: string) {
     if (completed?.temporarySessionClosed === false) return;
@@ -132,11 +149,17 @@ function OwnAccountSettings({ userId, role, hasGuardianRole, hasStudentRole = ro
         <NativePushSettings userId={userId} roles={pushRoles} />
         <section className="card space-y-4 p-5 sm:p-6" aria-labelledby="password-heading">
           <div className="flex items-center gap-2"><KeyRound size={19} aria-hidden="true" /><h2 id="password-heading" className="font-semibold">Change password</h2></div>
-          {!current.details.email && current.details.phone ? <p className="text-sm leading-6 muted">This guardian account uses mobile OTP. You do not need a password. Manage your verified number in guardian contact settings. If you lose that number, contact the school office to verify your identity.</p>
-            : current.details.oauthOnly ? <p className="text-sm leading-6 muted">This account uses {current.details.providers.join(" / ")}. If you have not set a school password, use password recovery first or continue with your existing sign-in method.</p>
+          {!current.details.email && current.details.phone ? smsState === "disabled" ? <p className="text-sm leading-6 muted">This guardian account signs in to the website with mobile OTP. The SMS Android app needs an app password, which needs mobile verification: the school office must enable mobile verification or add a verified email to your account before you can use the app.</p>
+            : <>
+            <p className="text-sm leading-6 muted">This guardian account signs in to the website with mobile OTP. To use the SMS Android app, set an app password in verified guardian contact settings, then sign in to the app with your mobile number and that password. If you lose that number, contact the school office to verify your identity.</p>
+            {smsState === "enabled" ? <Link href="/modules/profile?view=guardian" className={`${button} text-blue-700 dark:text-blue-300`}>Set app password</Link>
+              : smsState === "unavailable" ? <div className="space-y-3"><p role="alert" className="text-sm">App password setup could not be checked right now. Try again in a moment.</p>
+                <button type="button" className={button} onClick={() => setSmsAttempt((value) => value + 1)}><RefreshCw size={16} aria-hidden="true" /> Retry app password check</button></div>
+              : <p role="status" className="text-sm muted">Checking app password availability…</p>}</>
+            : current.details.oauthOnly ? <p className="text-sm leading-6 muted">This account uses {current.details.providers.join(" / ")}. If you have not set a school password, use password recovery first or continue with your existing sign-in method. The SMS Android app signs in with this email and a password.</p>
             : !current.details.email || !current.details.verified ? <p className="text-sm leading-6 muted">A verified sign-in email is required to change a password. Contact your school to verify your account.</p>
             : <form aria-label="Change your password" onSubmit={save} className="space-y-4">
-              <p className="text-sm leading-6 muted">Use at least 12 characters. If your password is too long, choose a shorter one. Use your new password the next time you sign in.</p>
+              <p className="text-sm leading-6 muted">Use at least {MIN_PASSWORD_LENGTH} characters. If your password is too long, choose a shorter one. Use your new password the next time you sign in.</p>
               <fieldset disabled={saving || completed?.temporarySessionClosed === false} className="min-w-0 space-y-4">
                 <label className={label}><span>Current password</span><input required className="field" type="password" autoComplete="current-password" value={password.currentPassword}
                   onChange={(event) => editPassword("currentPassword", event.target.value)} /></label>

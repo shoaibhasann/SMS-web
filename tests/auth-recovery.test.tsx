@@ -1,7 +1,8 @@
 import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createRecoveryClient, createOrdinaryClient, auth, clearSession, mfaStatus, factors } = vi.hoisted(() => ({
+const { createRecoveryClient, createOrdinaryClient, auth, clearSession, mfaStatus, factors, allowAttempt } = vi.hoisted(() => ({
+  allowAttempt: vi.fn(),
   createRecoveryClient: vi.fn(),
   createOrdinaryClient: vi.fn(),
   clearSession: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/auth/recovery", async (importOriginal) => ({
   createRecoveryClient,
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: createOrdinaryClient }));
+vi.mock("@/lib/auth/attempt-throttle", () => ({ allowAuthAttempt: allowAttempt }));
 vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: mfaStatus, listAuthenticators: factors }));
 
 import { GET } from "../app/(auth)/auth/callback/route";
@@ -68,6 +70,7 @@ beforeEach(() => {
   mfaStatus.mockResolvedValue({ allowed: true, current_aal: "aal1", action: "none" });
   factors.mockResolvedValue([{ id: "00000000-0000-4000-8000-000000000001", friendly_name: "Recovery phone" }]);
   auth.mfa.challengeAndVerify.mockResolvedValue({ error: null });
+  allowAttempt.mockResolvedValue(true);
   setClaims();
 });
 
@@ -92,6 +95,16 @@ describe("requesting a password reset", () => {
   it("rejects cross-origin requests before contacting the provider", async () => {
     expect((await requestRecovery(post("request", { email: "present@school.example" }, "https://attacker.example"))).status).toBe(403);
     expect((await requestRecovery(post("request", { email: "invalid" }))).status).toBe(400);
+    expect(createRecoveryClient).not.toHaveBeenCalled();
+  });
+
+  it("returns the generic response without contacting the provider when the client or address is throttled", async () => {
+    allowAttempt.mockResolvedValue(false);
+    const response = await requestRecovery(post("request", { email: " Staff@School.example " }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(allowAttempt).toHaveBeenCalledExactlyOnceWith(expect.any(Request), "recovery_request", "staff@school.example");
+    expect(auth.resetPasswordForEmail).not.toHaveBeenCalled();
     expect(createRecoveryClient).not.toHaveBeenCalled();
   });
 });
@@ -165,6 +178,20 @@ describe("completing a password reset", () => {
     expect(auth.updateUser).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["7 characters", "seven77"], ["4 emoji (8 UTF-16 units, 4 characters)", "😀".repeat(4)],
+    ["whitespace only", " ".repeat(8)], ["73 bytes", "x".repeat(73)], ["a non-string", 12345678],
+  ])("refuses %s on the server before touching the recovery session", async (_name, value) => {
+    const response = await completeRecovery(post("complete", { password: value, sessionId }));
+    expect(response.status).toBe(400); expect(await response.json()).toEqual({ error: "invalid_password" });
+    expect(createRecoveryClient).not.toHaveBeenCalled(); expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it.each([["8 characters", "eight888"], ["8 emoji", "😀".repeat(8)], ["72 bytes", "x".repeat(72)]])("accepts %s on the server", async (_name, value) => {
+    expect((await completeRecovery(post("complete", { password: value, sessionId }))).status).toBe(200);
+    expect(auth.updateUser).toHaveBeenCalledExactlyOnceWith({ password: value });
+  });
+
   it("allows retry after password validation and returns success if signout fails after the update", async () => {
     expect((await completeRecovery(post("complete", { password: "short", sessionId }))).status).toBe(400);
     auth.updateUser.mockResolvedValueOnce({ error: { code: "same_password", message: "Internal provider message" } });
@@ -189,6 +216,13 @@ describe("isolated recovery authenticator verification", () => {
     expect(auth.mfa.challengeAndVerify).toHaveBeenCalledExactlyOnceWith({ factorId, code: "123456" });
     expect(mfaStatus).toHaveBeenCalledTimes(2); expect(createOrdinaryClient).not.toHaveBeenCalled();
     expect(auth.updateUser).not.toHaveBeenCalled(); expect(auth.signOut).not.toHaveBeenCalled();
+  });
+  it("throttles authenticator attempts per client and recovery account before verification", async () => {
+    allowAttempt.mockResolvedValue(false);
+    const response = await verifyRecoveryMfa(post("mfa", input));
+    expect(response.status).toBe(429); expect(await response.json()).toEqual({ error: "rate_limited" });
+    expect(allowAttempt).toHaveBeenCalledExactlyOnceWith(expect.any(Request), "recovery_mfa", userId);
+    expect(auth.mfa.challengeAndVerify).not.toHaveBeenCalled();
   });
   it("rejects a different recovery tab, CSRF, malformed code and foreign factor before verification", async () => {
     expect((await verifyRecoveryMfa(post("mfa", input, "https://attacker.example"))).status).toBe(403);

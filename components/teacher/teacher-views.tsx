@@ -12,11 +12,12 @@ import { createClient } from "@/lib/supabase/client";
 import { boundMfaSession, StaffMfaError } from "@/lib/auth/staff-mfa";
 import { readCompletePages } from "@/lib/complete-pages";
 import {
-  loadAssessments, loadAssessmentRoster, loadAssessmentMarks, loadAssessmentStudents,
+  loadAssessments, loadAssessmentRoster, loadAssessmentMarks, loadAssessmentResultStudents,
   markDraftHasChanges, markChanges, saveChangedMarks, rankAssessmentMarks,
   type AssessmentRecord, type AssessmentMark as AssessmentMarkRecord,
   type AssessmentStudent, type MarkDraft,
 } from "@/lib/assessments";
+import { schoolDate } from "@/lib/attendance/types";
 import { LoadingState } from "@/components/ui/skeleton";
 
 type ViewError = { message?: string; details?: unknown; hint?: unknown; code?: unknown };
@@ -58,13 +59,16 @@ function userFacingError(error: unknown, fallback: string) {
   return fallback;
 }
 
+function assessmentDate(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function AssessmentStatus({ status }: { status: AssessmentRecord["status"] }) {
+  return <span className={`badge ${status === "completed" ? "text-success" : "text-warning"}`}>{status === "completed" ? "Completed" : "Scheduled"}</span>;
+}
+
 function assessmentLabel(assessment: AssessmentRecord, assignments: TeachingAssignment[]) {
-  const date = new Date(`${assessment.assessment_date}T00:00:00`).toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-  return `${assessment.name} · ${assessmentScopeLabel(assessment, assignments)} · ${date}`;
+  return `${assessment.name} · ${assessmentScopeLabel(assessment, assignments)} · ${assessmentDate(assessment.assessment_date)}`;
 }
 
 function assessmentScopeLabel(assessment: AssessmentRecord, assignments: TeachingAssignment[]) {
@@ -106,7 +110,7 @@ function ExamScheduleView() {
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [selectedAcademicYearId, setSelectedAcademicYearId] = useState("");
   const [currentAcademicYearId, setCurrentAcademicYearId] = useState("");
-  const [examDate, setExamDate] = useState(new Date().toISOString().slice(0, 10));
+  const [examDate, setExamDate] = useState(schoolDate);
   const [maximumMarks, setMaximumMarks] = useState("");
   const [description, setDescription] = useState("");
   const [assessmentStatus, setAssessmentStatus] = useState<AssessmentRecord["status"]>("scheduled");
@@ -288,7 +292,7 @@ function ExamScheduleView() {
     setSelectedSectionId("");
     setSelectedSubjectId("");
     setSelectedAcademicYearId(currentAcademicYearId || assignments[0]?.academic_year_id || "");
-    setExamDate(new Date().toISOString().slice(0, 10));
+    setExamDate(schoolDate());
     setMaximumMarks("");
     setDescription("");
     setAssessmentStatus("scheduled");
@@ -506,24 +510,33 @@ function ExamScheduleView() {
     }
   };
 
+  // Marks entry renders as a table (md+) and a stacked list (phones); both share these inputs.
+  const marksReadOnly = saving || selectedAssessment?.teacher_id !== teacherId;
+  const marksInput = (student: AssessmentStudent, className: string) => (
+    <input aria-label={`Marks for ${student.first_name} ${student.admission_no ?? student.id}`} type="number" inputMode="decimal" min="0" max={selectedAssessment?.maximum_marks} step="0.01" disabled={marksReadOnly} value={marks[student.id]?.value ?? ""} onChange={(event) => setMarks((current) => ({ ...current, [student.id]: { value: event.target.value, remarks: current[student.id]?.remarks ?? "" } }))} className={className} />
+  );
+  const remarksInput = (student: AssessmentStudent) => (
+    <input aria-label={`Remarks for ${student.first_name} ${student.admission_no ?? student.id}`} disabled={marksReadOnly} value={marks[student.id]?.remarks ?? ""} onChange={(event) => setMarks((current) => ({ ...current, [student.id]: { value: current[student.id]?.value ?? "", remarks: event.target.value } }))} className="field w-full" />
+  );
+
   return (
     <section className="space-y-5">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Assessment</p>
-        <h1 className="mt-1 text-3xl font-black">Exam / Test / Marks</h1>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">Assessment</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">Exam / Test / Marks</h1>
         <p className="mt-2 text-sm muted">Assessments are limited to your teaching assignments. Mark entry is restricted to assessments you created.</p>
       </header>
-      {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">{message}</div>}
-      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
+      {message && <div role="status" className="notice notice-success p-4">{message}</div>}
+      {error && <div role="alert" className="notice notice-error p-4">{error}</div>}
       {unavailableDraft && <section role="alert" className="rounded-xl border border-amber-500/40 p-4 text-sm">
         <p className="font-semibold">The selected assessment is no longer available. Your unsaved marks are retained below; copy them before discarding.</p>
         <ul className="mt-3 space-y-1">{unavailableDraft.students.map((student) => <li key={student.id}>{student.first_name} · {student.admission_no ?? student.id}: {unavailableDraft.marks[student.id]?.value || "Unmarked"} · {unavailableDraft.marks[student.id]?.remarks || "No remarks"}</li>)}</ul>
-        <button type="button" disabled={saving} onClick={() => { setRoster(null); setError(""); }} className="mt-3 rounded-lg border border-[var(--border)] px-3 py-2 font-semibold">Discard unavailable assessment draft</button>
+        <button type="button" disabled={saving} onClick={() => { setRoster(null); setError(""); }} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--border)] px-3 py-2 font-semibold">Discard unavailable assessment draft</button>
       </section>}
       <form onSubmit={saveAssessment} className="card max-w-5xl space-y-5 p-5 sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold">{editingAssessmentId ? "Edit Exam / Test" : "Create Exam / Test"}</h2>
-          {editingAssessmentId && <button type="button" onClick={resetAssessmentForm} className="text-sm font-semibold text-blue-600">Cancel</button>}
+          {editingAssessmentId && <button type="button" onClick={resetAssessmentForm} className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 dark:text-blue-300">Cancel</button>}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-semibold"><span className="mb-2 block leading-5">Exam / Test Name</span>
@@ -564,7 +577,7 @@ function ExamScheduleView() {
             }} className="field" disabled={!selectedClassId || sectionsLoading}>
               <option value="">{!selectedClassId ? "Select class first" : sectionsLoading ? "Loading sections..." : sectionsError ? "Error loading sections" : sections.length ? "Select section" : "No sections found for this class"}</option>{sections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            {sectionsError && <span role="alert" className="mt-2 block text-xs font-medium text-red-600">{sectionsError}</span>}
+            {sectionsError && <span role="alert" className="mt-2 block text-xs font-medium text-danger">{sectionsError}</span>}
           </label>
           <label className="block text-sm font-semibold"><span className="mb-2 block leading-5">Subject</span>
             <select required value={selectedSubjectId} onChange={(event) => {
@@ -637,7 +650,7 @@ function ExamScheduleView() {
                       <span className="block font-semibold">{assessment.name}</span>
                       <span className="mt-1 block text-xs muted">{assessmentLabel(assessment, assignments)} · Maximum {assessment.maximum_marks}</span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-blue-600">
+                    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
                       {expandedAssessmentId === assessment.id ? "Close" : "Open"}
                       {expandedAssessmentId === assessment.id ? <ChevronUp size={19} className="muted" /> : <ChevronDown size={19} className="muted" />}
                     </span>
@@ -646,20 +659,20 @@ function ExamScheduleView() {
                     <div className="mt-2 rounded-xl bg-[var(--surface-2)] p-4">
                       <dl className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
                         <div><dt className="text-xs muted">Exam / Test Name</dt><dd className="mt-1 font-medium">{assessment.name}</dd></div>
-                        <div><dt className="text-xs muted">Date</dt><dd className="mt-1 font-medium">{new Date(`${assessment.assessment_date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</dd></div>
+                        <div><dt className="text-xs muted">Date</dt><dd className="mt-1 font-medium">{assessmentDate(assessment.assessment_date)}</dd></div>
                         <div><dt className="text-xs muted">Class / Section / Subject</dt><dd className="mt-1 font-medium">{assessmentScopeLabel(assessment, assignments)}</dd></div>
                         <div><dt className="text-xs muted">Maximum Marks</dt><dd className="mt-1 font-medium">{assessment.maximum_marks}</dd></div>
-                        <div><dt className="text-xs muted">Status</dt><dd className="mt-1 font-medium">{assessment.status}</dd></div>
+                        <div><dt className="text-xs muted">Status</dt><dd className="mt-1 font-medium"><AssessmentStatus status={assessment.status} /></dd></div>
                         <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs muted">Instructions</dt><dd className="mt-1 whitespace-pre-wrap font-medium">{assessment.description || "—"}</dd></div>
                       </dl>
                       <div className="mt-4 flex flex-wrap gap-2">
                         <button type="button" onClick={() => {
                           setSelectedAssessmentId(assessment.id);
                           setExpandedAssessmentId(assessment.id);
-                        }} disabled={saving || (marksDirty && assessment.id !== assessmentId)} className="rounded-lg gradient px-4 py-2 text-sm font-semibold disabled:opacity-50">Enter Marks</button>
+                        }} disabled={saving || (marksDirty && assessment.id !== assessmentId)} className="inline-flex min-h-11 items-center justify-center rounded-lg gradient px-4 py-2 text-sm font-semibold disabled:opacity-50">Enter Marks</button>
                         {assessment.teacher_id === teacherId && <>
-                          <button type="button" onClick={() => editAssessment(assessment)} className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold">Edit</button>
-                          <button type="button" disabled={saving} onClick={() => setPendingDeleteAssessment(assessment)} className="rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600 disabled:opacity-50">Delete</button>
+                          <button type="button" onClick={() => editAssessment(assessment)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold">Edit</button>
+                          <button type="button" disabled={saving} onClick={() => setPendingDeleteAssessment(assessment)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-danger/30 px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50">Delete</button>
                         </>}
                       </div>
                     </div>
@@ -670,30 +683,46 @@ function ExamScheduleView() {
             {selectedAssessment && expandedAssessmentId === selectedAssessment.id && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] p-4 text-sm">
-                  <div><b>{selectedAssessment.name}</b> · {selectedAssessment.assessment_date} · Maximum {selectedAssessment.maximum_marks}</div>
-                  <span>{selectedAssessment.status}</span>
+                  <div><b>{selectedAssessment.name}</b> · {assessmentDate(selectedAssessment.assessment_date)} · Maximum {selectedAssessment.maximum_marks}</div>
+                  <AssessmentStatus status={selectedAssessment.status} />
                 </div>
                 {selectedAssessment.description && <p className="text-sm muted">{selectedAssessment.description}</p>}
                 {selectedAssessment.teacher_id !== teacherId && <p className="text-sm muted">This assessment belongs to another teacher. Marks are view-only.</p>}
-                {marksScopeChanged && <p role="alert" className="text-sm text-red-600">The assessment context changed. Your draft is retained; discard and reload before saving.</p>}
+                {marksScopeChanged && <p role="alert" className="text-sm text-danger">The assessment context changed. Your draft is retained; discard and reload before saving.</p>}
                 {marksDirty && <p className="text-sm muted">Unsaved marks are retained until you save or explicitly discard them. Saved scores cannot be cleared here.</p>}
                 {rosterLoading ? <LoadingState variant="table" className="text-sm muted">Loading students and marks...</LoadingState> : students.length === 0 ? <p className="text-sm muted">No enrolled students found for this class and section.</p> : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-left text-sm">
-                      <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Marks", "Remarks"].map((heading) => <th key={heading} className="p-3">{heading}</th>)}</tr></thead>
-                      <tbody className="divide-y divide-[var(--border)]">
-                        {students.map((student) => (
-                          <tr key={student.id}>
-                            <td className="p-3 font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</td>
-                            <td className="p-3">{student.roll_no ?? "—"}</td>
-                            <td className="p-3">{student.admission_no ?? "—"}</td>
-                            <td className="p-3"><input aria-label={`Marks for ${student.first_name} ${student.admission_no ?? student.id}`} type="number" min="0" max={selectedAssessment.maximum_marks} step="0.01" disabled={saving || selectedAssessment.teacher_id !== teacherId} value={marks[student.id]?.value ?? ""} onChange={(event) => setMarks((current) => ({ ...current, [student.id]: { value: event.target.value, remarks: current[student.id]?.remarks ?? "" } }))} className="field w-32" /></td>
-                            <td className="p-3"><input aria-label={`Remarks for ${student.first_name} ${student.admission_no ?? student.id}`} disabled={saving || selectedAssessment.teacher_id !== teacherId} value={marks[student.id]?.remarks ?? ""} onChange={(event) => setMarks((current) => ({ ...current, [student.id]: { value: current[student.id]?.value ?? "", remarks: event.target.value } }))} className="field" /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <div className="hidden overflow-x-auto md:block">
+                      <table className="w-full min-w-[760px] text-left text-sm">
+                        <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Marks", "Remarks"].map((heading) => <th key={heading} scope="col" className="p-3">{heading}</th>)}</tr></thead>
+                        <tbody className="divide-y divide-[var(--border)]">
+                          {students.map((student) => (
+                            <tr key={student.id}>
+                              <td className="p-3 font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</td>
+                              <td className="p-3">{student.roll_no ?? "—"}</td>
+                              <td className="p-3">{student.admission_no ?? "—"}</td>
+                              <td className="p-3">{marksInput(student, "field w-32")}</td>
+                              <td className="p-3">{remarksInput(student)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <ul aria-label="Student marks" className="divide-y divide-[var(--border)] md:hidden">
+                      {students.map((student) => (
+                        <li key={student.id} className="space-y-3 py-4">
+                          <div>
+                            <p className="font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</p>
+                            <p className="mt-1 text-xs muted">Roll {student.roll_no ?? "—"} · Admission {student.admission_no ?? "—"}</p>
+                          </div>
+                          <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-3">
+                            <label className="block text-xs font-semibold"><span className="block muted">Marks (max {selectedAssessment.maximum_marks})</span>{marksInput(student, "field w-full")}</label>
+                            <label className="block text-xs font-semibold"><span className="block muted">Remarks</span>{remarksInput(student)}</label>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 )}
                 <div className="flex flex-wrap gap-3">
                   {selectedAssessment.teacher_id === teacherId && <button type="button" disabled={saving || !students.length || !marksDirty || marksScopeChanged || currentRoster?.requiresReload} onClick={() => void saveMarks()} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">{saving ? "Saving..." : "Save Marks"}</button>}
@@ -706,12 +735,12 @@ function ExamScheduleView() {
       </section>
       {pendingDeleteAssessment && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-assessment-title" className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-assessment-title" aria-describedby="delete-assessment-body" onKeyDown={(event) => { if (event.key === "Escape" && !saving) setPendingDeleteAssessment(null); }} className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
             <h2 id="delete-assessment-title" className="text-lg font-bold">Delete Exam / Test?</h2>
-            <p className="mt-2 text-sm muted">“{pendingDeleteAssessment.name}” and its marks will be permanently removed.</p>
+            <p id="delete-assessment-body" className="mt-2 text-sm muted">“{pendingDeleteAssessment.name}” and its marks will be permanently removed.</p>
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setPendingDeleteAssessment(null)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={() => void deleteAssessment(pendingDeleteAssessment)} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Delete</button>
+              <button type="button" autoFocus onClick={() => setPendingDeleteAssessment(null)} className="btn btn-secondary">Cancel</button>
+              <button type="button" disabled={saving} onClick={() => void deleteAssessment(pendingDeleteAssessment)} className="btn btn-danger-solid">Delete</button>
             </div>
           </section>
         </div>
@@ -803,7 +832,7 @@ function ResultReportView() {
         const client = createClient();
         const filtered = await loadAssessments(client, context.schoolId, { academicYear, classId, sectionId, subjectId, assessmentId });
         const marks = await loadAssessmentMarks(client, filtered.map((row) => row.id));
-        const students = await loadAssessmentStudents(client, context.schoolId, marks.map((row) => row.student_id));
+        const students = await loadAssessmentResultStudents(client, context.schoolId, filtered.map((row) => row.id), marks.map((row) => row.student_id));
         const key = (row: { class_id: string; section_id: string | null; subject_id: string; academic_year_id: string }) => JSON.stringify([row.class_id, row.section_id, row.subject_id, row.academic_year_id]);
         const assignments = new Map(context.assignments.map((row) => [key(row), row]));
         const rows = rankAssessmentMarks(filtered, marks, students).map((row) => ({ ...row, assignment: assignments.get(key(row.assessment)) }));
@@ -832,11 +861,11 @@ function ResultReportView() {
   return (
     <section className="space-y-5">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Assessment</p>
-        <h1 className="mt-1 text-3xl font-black">Result Report</h1>
-        <button type="button" disabled={loading || reportLoading || !context} onClick={() => setReportReload((value) => value + 1)} className="mt-3 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Reload results</button>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">Assessment</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">Result Report</h1>
+        <button type="button" disabled={loading || reportLoading || !context} onClick={() => setReportReload((value) => value + 1)} className="mt-3 inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Reload results</button>
       </header>
-      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
+      {error && <div role="alert" className="notice notice-error p-4">{error}</div>}
       <div className="grid gap-4 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:grid-cols-2 lg:grid-cols-5">
         {filterOptions.map((filter) => <ResultFilter key={filter.label} {...filter} />)}
       </div>
@@ -852,7 +881,7 @@ function ResultReportView() {
           <>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[1100px] text-left text-sm">
-                <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Class", "Section", "Subject", "Exam", "Marks", "Maximum", "Percentage", "Rank"].map((heading) => <th key={heading} className="p-3">{heading}</th>)}</tr></thead>
+                <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Class", "Section", "Subject", "Exam", "Marks", "Maximum", "Percentage", "Rank"].map((heading) => <th key={heading} scope="col" className="p-3">{heading}</th>)}</tr></thead>
                 <tbody className="divide-y divide-[var(--border)]">
                   {visibleRows.map(({ assessment, mark, student, assignment, rank, percentage }) => (
                     <tr key={mark.id}>
@@ -891,170 +920,6 @@ function ResultReportView() {
               ))}
             </div>
           </>
-        )}
-      </section>
-    </section>
-  );
-}
-
-type EnrollmentRow = {
-  student_id: string;
-  class_id: string;
-  section_id: string | null;
-  academic_year_id: string;
-};
-
-type StudentRecord = {
-  id: string;
-  admission_no: string | null;
-  first_name: string;
-  middle_name: string | null;
-  last_name: string | null;
-  roll_no: string | null;
-};
-
-type FeeRecord = {
-  id: string;
-  student_id: string;
-  amount: number;
-  discount: number | null;
-  late_fee: number | null;
-  status: string;
-  billing_period: string | null;
-  due_date: string | null;
-};
-
-type PaymentRecord = {
-  student_fee_id: string;
-  amount: number;
-  status: string;
-};
-
-type TeacherFeeRow = {
-  fee: FeeRecord;
-  student: StudentRecord;
-  assignment: TeachingAssignment;
-  paid: number;
-};
-
-function FeeView() {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [rows, setRows] = useState<TeacherFeeRow[]>([]);
-
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      try {
-        const assignments = await getCurrentTeacherAssignments({ currentYearOnly: true });
-        if (!assignments.length) {
-          if (active) setRows([]);
-          return;
-        }
-        const supabase = createClient();
-        const classIds = [...new Set(assignments.map((assignment) => assignment.class_id))];
-        const yearIds = [...new Set(assignments.map((assignment) => assignment.academic_year_id))];
-        const { data: enrollments, error: enrollmentError } = await supabase
-          .from("enrollments")
-          .select("student_id,class_id,section_id,academic_year_id")
-          .in("class_id", classIds)
-          .in("academic_year_id", yearIds)
-          .eq("status", "active");
-        if (enrollmentError) throw enrollmentError;
-
-        const eligibleEnrollments = ((enrollments ?? []) as EnrollmentRow[]).flatMap((enrollment) => {
-          const assignment = assignments.find((item) =>
-            item.class_id === enrollment.class_id &&
-            item.academic_year_id === enrollment.academic_year_id &&
-            (!item.section_id || item.section_id === enrollment.section_id),
-          );
-          return assignment ? [{ enrollment, assignment }] : [];
-        });
-        const studentIds = [...new Set(eligibleEnrollments.map(({ enrollment }) => enrollment.student_id))];
-        if (!studentIds.length) {
-          if (active) setRows([]);
-          return;
-        }
-
-        const [{ data: students, error: studentsError }, { data: fees, error: feesError }] = await Promise.all([
-          supabase.from("students").select("id,admission_no,first_name,middle_name,last_name,roll_no").in("id", studentIds),
-          supabase.from("student_fees").select("id,student_id,amount,discount,late_fee,status,billing_period,due_date").in("student_id", studentIds).order("created_at", { ascending: false }).limit(500),
-        ]);
-        if (studentsError) throw studentsError;
-        if (feesError) throw feesError;
-
-        const feeRows = (fees ?? []) as FeeRecord[];
-        const feeIds = feeRows.map((fee) => fee.id);
-        const { data: payments, error: paymentsError } = feeIds.length
-          ? await supabase.from("fee_payments").select("student_fee_id,amount,status").in("student_fee_id", feeIds)
-          : { data: [], error: null };
-        if (paymentsError) throw paymentsError;
-
-        const paymentTotals = new Map<string, number>();
-        for (const payment of (payments ?? []) as PaymentRecord[]) {
-          if (payment.status !== "paid") continue;
-          paymentTotals.set(payment.student_fee_id, (paymentTotals.get(payment.student_fee_id) ?? 0) + Number(payment.amount));
-        }
-        const studentById = new Map(((students ?? []) as StudentRecord[]).map((student) => [student.id, student]));
-        const result = feeRows.flatMap((fee) => {
-          const student = studentById.get(fee.student_id);
-          const match = eligibleEnrollments.find(({ enrollment }) => enrollment.student_id === fee.student_id);
-          const assignment = match?.assignment;
-          return student && assignment ? [{
-            fee,
-            student,
-            assignment,
-            paid: paymentTotals.get(fee.id) ?? 0,
-          }] : [];
-        });
-        if (active) setRows(result);
-      } catch (loadError) {
-        if (active) setError(errorText(loadError, "Fee information could not be loaded."));
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void load();
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return (
-    <section className="space-y-5">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Read-only</p>
-        <h1 className="mt-1 text-3xl font-black">Fee</h1>
-        <p className="mt-2 text-sm muted">Fee records are limited to students in your assigned classes and sections. Payments cannot be posted here.</p>
-      </header>
-      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
-      <section className="card overflow-x-auto">
-        {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading assigned students&apos; fee status...</LoadingState> : rows.length === 0 ? (
-          <p className="p-5 text-sm muted">No records found.</p>
-        ) : (
-          <table className="w-full min-w-[850px] text-left text-sm">
-            <thead className="border-b border-[var(--border)] text-xs muted">
-              <tr>{["Student", "Class / Section", "Month", "Fee amount", "Paid", "Pending", "Status"].map((heading) => <th key={heading} className="p-4 font-semibold">{heading}</th>)}</tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--border)]">
-              {rows.map(({ fee, student, assignment, paid }) => {
-                const amount = Number(fee.amount) - Number(fee.discount ?? 0) + Number(fee.late_fee ?? 0);
-                const pending = Math.max(0, amount - paid);
-                const status = pending === 0 ? "Paid" : paid > 0 ? "Partial" : fee.status;
-                return (
-                  <tr key={fee.id}>
-                    <td className="p-4"><div className="font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</div><div className="text-xs muted">{student.admission_no ?? "No admission number"} · Roll {student.roll_no ?? "—"}</div></td>
-                    <td className="p-4">{assignment.class_name} · {assignment.section_name}</td>
-                    <td className="p-4">{fee.billing_period ?? fee.due_date ?? "—"}</td>
-                    <td className="p-4">{amount.toFixed(2)}</td>
-                    <td className="p-4">{paid.toFixed(2)}</td>
-                    <td className="p-4">{pending.toFixed(2)}</td>
-                    <td className="p-4">{status}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
         )}
       </section>
     </section>
@@ -1184,11 +1049,11 @@ function ProfileView() {
   return (
     <section className="space-y-5">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Personal workspace</p>
-        <h1 className="mt-1 text-3xl font-black">My Profile</h1>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">Personal workspace</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">My Profile</h1>
       </header>
-      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
-      {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">{message}</div>}
+      {error && <div role="alert" className="notice notice-error p-4">{error}</div>}
+      {message && <div role="status" className="notice notice-success p-4">{message}</div>}
       {!sessionChanged && <section className="card p-5 sm:p-6">
         {loading ? <LoadingState variant="form" className="text-sm muted">Loading your profile...</LoadingState> : !profile ? (
           <p className="text-sm muted">No teacher profile is linked to this login.</p>
@@ -1221,7 +1086,7 @@ function ProfileView() {
             </form>
             <p className="mt-3 text-xs muted">This updates your school contact only. Verified sign-in details are managed in account settings. Other profile fields require school administration.</p>
             <div className="mt-6 space-y-3 border-t border-[var(--border)] pt-5">
-              <div className="flex items-center gap-2"><KeyRound size={18} aria-hidden="true" className="text-blue-600" /><h2 className="font-bold">Account &amp; Security</h2></div>
+              <div className="flex items-center gap-2"><KeyRound size={18} aria-hidden="true" className="text-blue-700 dark:text-blue-300" /><h2 className="font-bold">Account &amp; Security</h2></div>
               <p className="text-sm muted">Review your verified account details and change your password in account settings.</p>
               <Link href="/account/settings" className="inline-flex min-h-11 items-center rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-[var(--surface-2)] dark:text-blue-300">Open account settings</Link>
             </div>
@@ -1232,9 +1097,8 @@ function ProfileView() {
   );
 }
 
-export function TeacherModuleView({ module }: { module: "exams" | "results" | "fees" | "profile" }) {
+export function TeacherModuleView({ module }: { module: "exams" | "results" | "profile" }) {
   if (module === "exams") return <ExamScheduleView />;
   if (module === "results") return <ResultReportView />;
-  if (module === "fees") return <FeeView />;
   return <ProfileView />;
 }

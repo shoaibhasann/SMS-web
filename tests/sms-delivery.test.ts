@@ -261,6 +261,24 @@ describe("guardian SMS CAPTCHA permit", () => {
     expect(JSON.stringify(rpc.mock.calls)).not.toContain("203.0.113.7");
   });
 
+  it("rate-limits IPv6 clients per /64 and IPv4-mapped addresses as IPv4", async () => {
+    fetchMock.mockImplementation(async () => captcha());
+    const ipHash = async (address: string) => {
+      rpc.mockClear();
+      expect((await permitSms(permit(undefined, { "x-vercel-forwarded-for": address }))).status).toBe(200);
+      return rpc.mock.calls[0][1].p_ip_hash;
+    };
+    const bucket = (value: string) => createHmac("sha256", key).update(`guardian-sms-ip:${value}`).digest("hex");
+    expect(await ipHash("2001:db8:1:1::1")).toBe(bucket("2001:db8:1:1::/64"));
+    expect(await ipHash("2001:0DB8:0001:0001:ffff:aaaa:1.2.3.4")).toBe(bucket("2001:db8:1:1::/64"));
+    expect(await ipHash("2001:db8:1:2::1")).toBe(bucket("2001:db8:1:2::/64"));
+    expect(await ipHash("::1")).toBe(bucket("0:0:0:0::/64"));
+    expect(await ipHash("2001:db8::")).toBe(bucket("2001:db8:0:0::/64"));
+    expect(await ipHash("::ffff:cb00:7107")).toBe(bucket("203.0.113.7"));
+    expect(await ipHash("::ffff:203.0.113.7")).toBe(bucket("203.0.113.7"));
+    expect(JSON.parse(fetchMock.mock.calls.at(-1)?.[1].body).remoteip).toBe("::ffff:203.0.113.7");
+  });
+
   it.each<Record<string, string>>([
     { origin: "https://attacker.example" }, { origin: "" },
     { "content-type": "text/plain" }, { "x-vercel-forwarded-for": "203.0.113.7, 192.0.2.1" },
