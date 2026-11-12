@@ -1407,6 +1407,14 @@
       "version": "20261112130100",
       "name": "fee_due_push_scan_bound",
       "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112154234; exact hosted ledger SQL verified."
+    },
+    {
+      "path": "supabase/migrations/20261112140000_staff_policy_initplans.sql",
+      "sha256": "26e59fe053105553a60be7e39f312be1f56b2e82c0c7d10d54e3c32a7d25d515",
+      "kind": "pending",
+      "version": "20261112140000",
+      "name": "staff_policy_initplans",
+      "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112155837; exact hosted ledger SQL verified."
     }
   ],
   "excluded": [
@@ -1445,5 +1453,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "456ca703d05e06d4a21558d597647f1791458527ab1b56008fe9e94c885b0be3"
+  "order_sha256": "4272098368c8b673964d6455fef3cb791a2318f82c0b01b8ca0a546c65e60dc5"
 }

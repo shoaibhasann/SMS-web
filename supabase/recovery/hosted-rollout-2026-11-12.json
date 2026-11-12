@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-12T11:16:06.149Z",
-  "allMigrationsVerifiedAt": "2026-11-12T15:44:08.957Z",
+  "allMigrationsVerifiedAt": "2026-11-12T16:00:06.646Z",
   "method": "Supabase CLI `db query` (Management API): each file sent whole as one statement with its own begin/commit, then one ledger row with a server-allocated UTC version. Verified by reading the ledger back: one statement per row, SHA-256 equal to the source file.",
   "backupScope": "No backup was taken: the project is on the free plan, which has no managed backups. The 42 files change schema only; their one row change is a one-off delete of push dispatch batch rows that had expired more than a day earlier (app_private.family_push_batches; 1,662 of 3,106 rows were eligible at the pre-check).",
   "preflight": {
@@ -478,11 +478,22 @@
       "recorded_sql_sha256": "b7e1fe144e4034e3afb6620e1ab99d89259917ce13de61becfb8ce4d8743eea9",
       "verifiedAt": "2026-11-12T15:44:08.957Z",
       "reason": "The once-a-minute due-today fee scan made one ledger check (about 13 ms) for every waiting device-linked fee, so a bulk due date with many families on the app would have pushed each claim past the dispatcher's 2 second limit. The scan now checks a random sample of at most 60 fees, and guardians and their links are indexed by sign-in and guardian."
+    },
+    {
+      "sourceVersion": "20261112140000",
+      "sourcePath": "supabase/migrations/20261112140000_staff_policy_initplans.sql",
+      "sourceSha256": "26e59fe053105553a60be7e39f312be1f56b2e82c0c7d10d54e3c32a7d25d515",
+      "version": "20261112155837",
+      "name": "staff_policy_initplans",
+      "statement_count": 1,
+      "recorded_sql_sha256": "26e59fe053105553a60be7e39f312be1f56b2e82c0c7d10d54e3c32a7d25d515",
+      "verifiedAt": "2026-11-12T16:00:06.646Z",
+      "reason": "Staff row-level-security policies called role functions once per row (has_school_roles, is_school_admin_for_school, has_school_roles_for_student and others), so a whole-school read took seconds: students 2.7 s, enrollments 3.7 s, one attendance day 4.9 s, measured as a caller with no access. 23 policies on seven tables now check the caller's roles once per statement through three caller-only helpers, with a once-per-statement gate in front of the row-dependent checks that stay. For 17 caller types and every row, the new expressions admit exactly what the previous ones admitted."
     }
   ],
   "requested_migrations": 42,
-  "followup_fixes": 3,
-  "total_applied": 45,
+  "followup_fixes": 4,
+  "total_applied": 46,
   "postchecks": {
     "run": 41,
     "verdicts": {
@@ -563,41 +574,90 @@
     },
     "engines": "Local replay: PostgreSQL 18 (PGlite, the engine the test suites use). Hosted: PostgreSQL 17."
   },
-  "followupCatalogParity": {
-    "after": [
-      "office_fee_positions_custom_plan",
-      "fee_due_push_scan_bound"
-    ],
-    "hostedRows": 3756,
-    "identicalToLocalReplay": 3720,
-    "unexplainedDifferences": 0,
-    "explainedPlatformDifferences": {
-      "default privileges of a hosted platform schema": 18,
-      "range type constructor owned by supabase_admin on hosted": 5,
-      "same function body, CRLF line endings on hosted": 2,
-      "hosted platform trigger on storage tables": 11,
-      "not-null constraint row listed only by the local engine": 965
+  "followupCatalogParity": [
+    {
+      "after": [
+        "office_fee_positions_custom_plan",
+        "fee_due_push_scan_bound"
+      ],
+      "hostedRows": 3756,
+      "identicalToLocalReplay": 3720,
+      "unexplainedDifferences": 0,
+      "explainedPlatformDifferences": {
+        "default privileges of a hosted platform schema": 18,
+        "range type constructor owned by supabase_admin on hosted": 5,
+        "same function body, CRLF line endings on hosted": 2,
+        "hosted platform trigger on storage tables": 11,
+        "not-null constraint row listed only by the local engine": 965
+      },
+      "measuredOnHosted": {
+        "largestSchoolDemands": 4003,
+        "note": "read-only transaction, the office kernels called directly; after = second run",
+        "financeSummaryLedgerPartMs": {
+          "before": 3600,
+          "after": 81
+        },
+        "ledgerPageOf50Ms": {
+          "before": 2689,
+          "after": 258
+        },
+        "receiptsPageOf50Ms": {
+          "before": 284,
+          "after": 217
+        },
+        "allFeePositionsMs": {
+          "before": 2412,
+          "after": 48
+        }
+      },
+      "postgresErrorsInSixMinutesAfterApply": 0
     },
-    "measuredOnHosted": {
-      "largestSchoolDemands": 4003,
-      "note": "read-only transaction, the office kernels called directly; after = second run",
-      "financeSummaryLedgerPartMs": {
-        "before": 3600,
-        "after": 81
+    {
+      "after": [
+        "staff_policy_initplans"
+      ],
+      "hostedRows": 3759,
+      "identicalToLocalReplay": 3723,
+      "unexplainedDifferences": 0,
+      "explainedPlatformDifferences": {
+        "default privileges of a hosted platform schema": 18,
+        "range type constructor owned by supabase_admin on hosted": 5,
+        "same function body, CRLF line endings on hosted": 2,
+        "hosted platform trigger on storage tables": 11,
+        "not-null constraint row listed only by the local engine": 965
       },
-      "ledgerPageOf50Ms": {
-        "before": 2689,
-        "after": 258
+      "measuredOnHosted": {
+        "note": "read-only transaction as the API role with a made-up user that matches no policy, so every permissive branch runs; after = second run",
+        "studentsMs": {
+          "before": 2731,
+          "after": 18
+        },
+        "enrollmentsMs": {
+          "before": 3747,
+          "after": 11
+        },
+        "attendanceOneDayMs": {
+          "before": 4887,
+          "after": 9
+        },
+        "studentFeesMs": {
+          "before": 2072,
+          "after": 9
+        },
+        "classLogsMs": {
+          "before": 540,
+          "after": 10
+        },
+        "classActivitiesMs": {
+          "before": 835,
+          "after": 16
+        },
+        "feePaymentsMs": {
+          "before": 149,
+          "after": 10
+        }
       },
-      "receiptsPageOf50Ms": {
-        "before": 284,
-        "after": 217
-      },
-      "allFeePositionsMs": {
-        "before": 2412,
-        "after": 48
-      }
-    },
-    "postgresErrorsInSixMinutesAfterApply": 0
-  }
+      "postgresErrorsInFourMinutesAfterApply": 0
+    }
+  ]
 }
