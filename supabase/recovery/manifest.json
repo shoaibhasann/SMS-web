@@ -910,7 +910,7 @@
       "kind": "pending",
       "version": "20261109112234",
       "name": "admin_email_otp_eligibility",
-      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; hosted ledger status to be confirmed by the owner."
+      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; found in the hosted ledger as version 20261109123752 with exact SQL, verified 12 November 2026."
     },
     {
       "path": "supabase/migrations/20261109133000_school_admin_single_factor_dashboard.sql",
@@ -918,7 +918,7 @@
       "kind": "pending",
       "version": "20261109133000",
       "name": "school_admin_single_factor_dashboard",
-      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; hosted ledger status to be confirmed by the owner."
+      "provenance": "Existing forward source that was omitted from the recovery plan and re-added by the 11 Nov 2026 audit fix branch; found in the hosted ledger as version 20261109133124 with exact SQL, verified 12 November 2026."
     },
     {
       "path": "supabase/migrations/20261109142815_family_notice_notifications.sql",
@@ -1054,7 +1054,7 @@
       "kind": "pending",
       "version": "20261111180100",
       "name": "guard_student_records",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105455; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180101_reject_student_identity_format_marks.sql",
@@ -1062,7 +1062,7 @@
       "kind": "pending",
       "version": "20261111180101",
       "name": "reject_student_identity_format_marks",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105553; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180102_case_insensitive_admission_numbers.sql",
@@ -1070,7 +1070,7 @@
       "kind": "pending",
       "version": "20261111180102",
       "name": "case_insensitive_admission_numbers",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105605; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180200_assessment_result_students.sql",
@@ -1078,7 +1078,7 @@
       "kind": "pending",
       "version": "20261111180200",
       "name": "assessment_result_students",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105613; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180300_guard_office_fee_demand_periods.sql",
@@ -1086,7 +1086,7 @@
       "kind": "pending",
       "version": "20261111180300",
       "name": "guard_office_fee_demand_periods",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105623; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180400_keep_homework_history_after_section_move.sql",
@@ -1094,7 +1094,7 @@
       "kind": "pending",
       "version": "20261111180400",
       "name": "keep_homework_history_after_section_move",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105631; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180500_student_leave_placement_errors_and_family_reviewer.sql",
@@ -1102,7 +1102,7 @@
       "kind": "pending",
       "version": "20261111180500",
       "name": "student_leave_placement_errors_and_family_reviewer",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105638; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180600_reject_pupil_holiday_on_working_day.sql",
@@ -1110,7 +1110,7 @@
       "kind": "pending",
       "version": "20261111180600",
       "name": "reject_pupil_holiday_on_working_day",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105645; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180800_auth_endpoint_throttle.sql",
@@ -1118,7 +1118,7 @@
       "kind": "pending",
       "version": "20261111180800",
       "name": "auth_endpoint_throttle",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105652; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111180900_require_live_family_raw_reads.sql",
@@ -1126,7 +1126,7 @@
       "kind": "pending",
       "version": "20261111180900",
       "name": "require_live_family_raw_reads",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105702; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111181000_freeze_legacy_tenant_tables.sql",
@@ -1134,7 +1134,7 @@
       "kind": "pending",
       "version": "20261111181000",
       "name": "freeze_legacy_tenant_tables",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105713; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111181100_remove_shared_guardian_sms_permit_pool.sql",
@@ -1142,7 +1142,7 @@
       "kind": "pending",
       "version": "20261111181100",
       "name": "remove_shared_guardian_sms_permit_pool",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105720; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111181200_track_assessment_score_author.sql",
@@ -1150,7 +1150,7 @@
       "kind": "pending",
       "version": "20261111181200",
       "name": "track_assessment_score_author",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105739; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111181400_scope_payment_orders.sql",
@@ -1158,7 +1158,7 @@
       "kind": "pending",
       "version": "20261111181400",
       "name": "scope_payment_orders",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112105747; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111181500_guard_cleared_homework_max_marks.sql",
@@ -1166,7 +1166,7 @@
       "kind": "pending",
       "version": "20261111181500",
       "name": "guard_cleared_homework_max_marks",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110351; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190200_roster_import_history.sql",
@@ -1174,7 +1174,7 @@
       "kind": "pending",
       "version": "20261111190200",
       "name": "roster_import_history",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110406; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190201_reinstate_roster_enrollment.sql",
@@ -1182,7 +1182,7 @@
       "kind": "pending",
       "version": "20261111190201",
       "name": "reinstate_roster_enrollment",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110415; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190202_roster_audit_events.sql",
@@ -1190,7 +1190,7 @@
       "kind": "pending",
       "version": "20261111190202",
       "name": "roster_audit_events",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110426; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190203_student_roster_identity.sql",
@@ -1198,7 +1198,7 @@
       "kind": "pending",
       "version": "20261111190203",
       "name": "student_roster_identity",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110434; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190204_block_withdrawal_with_pending_corrections.sql",
@@ -1206,7 +1206,7 @@
       "kind": "pending",
       "version": "20261111190204",
       "name": "block_withdrawal_with_pending_corrections",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110446; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111190300_page_office_fee_reads_before_projection.sql",
@@ -1214,7 +1214,7 @@
       "kind": "pending",
       "version": "20261111190300",
       "name": "page_office_fee_reads_before_projection",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110454; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111191600_export_roster_history.sql",
@@ -1222,7 +1222,7 @@
       "kind": "pending",
       "version": "20261111191600",
       "name": "export_roster_history",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110508; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111191800_activate_student_mobile_format.sql",
@@ -1230,7 +1230,7 @@
       "kind": "pending",
       "version": "20261111191800",
       "name": "activate_student_mobile_format",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110521; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200100_successor_teacher_homework_grading.sql",
@@ -1238,7 +1238,7 @@
       "kind": "pending",
       "version": "20261111200100",
       "name": "successor_teacher_homework_grading",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110540; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200101_principal_upcoming_assessments.sql",
@@ -1246,7 +1246,7 @@
       "kind": "pending",
       "version": "20261111200101",
       "name": "principal_upcoming_assessments",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112110645; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200200_list_requester_pending_results.sql",
@@ -1254,7 +1254,7 @@
       "kind": "pending",
       "version": "20261111200200",
       "name": "list_requester_pending_results",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111434; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200201_exclude_withdrawn_result_marks.sql",
@@ -1262,7 +1262,7 @@
       "kind": "pending",
       "version": "20261111200201",
       "name": "exclude_withdrawn_result_marks",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111440; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200300_native_push_dispatch_fairness_retention.sql",
@@ -1270,7 +1270,7 @@
       "kind": "pending",
       "version": "20261111200300",
       "name": "native_push_dispatch_fairness_retention",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111446; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200400_stage_section_promotions.sql",
@@ -1278,7 +1278,7 @@
       "kind": "pending",
       "version": "20261111200400",
       "name": "stage_section_promotions",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111451; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200500_export_keyset_pages.sql",
@@ -1286,7 +1286,7 @@
       "kind": "pending",
       "version": "20261111200500",
       "name": "export_keyset_pages",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111457; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200600_retire_timetable_periods_with_assignment.sql",
@@ -1294,7 +1294,7 @@
       "kind": "pending",
       "version": "20261111200600",
       "name": "retire_timetable_periods_with_assignment",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111503; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200800_office_report_shared_calendar_fence.sql",
@@ -1302,7 +1302,7 @@
       "kind": "pending",
       "version": "20261111200800",
       "name": "office_report_shared_calendar_fence",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111508; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111200900_staff_mfa_pending_staff_list.sql",
@@ -1310,7 +1310,7 @@
       "kind": "pending",
       "version": "20261111200900",
       "name": "staff_mfa_pending_staff_list",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111514; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111201000_notice_audience_year_snapshot.sql",
@@ -1318,7 +1318,7 @@
       "kind": "pending",
       "version": "20261111201000",
       "name": "notice_audience_year_snapshot",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111520; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111201600_office_assessment_teacher_scope.sql",
@@ -1326,7 +1326,7 @@
       "kind": "pending",
       "version": "20261111201600",
       "name": "office_assessment_teacher_scope",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111526; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111220200_history_actor_names.sql",
@@ -1334,7 +1334,7 @@
       "kind": "pending",
       "version": "20261111220200",
       "name": "history_actor_names",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111531; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111220300_stamp_notice_publish_now.sql",
@@ -1342,7 +1342,7 @@
       "kind": "pending",
       "version": "20261111220300",
       "name": "stamp_notice_publish_now",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111537; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111220400_family_fee_due_sort_time.sql",
@@ -1350,7 +1350,7 @@
       "kind": "pending",
       "version": "20261111220400",
       "name": "family_fee_due_sort_time",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111542; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111220700_teacher_assignment_current_year_guard.sql",
@@ -1358,7 +1358,7 @@
       "kind": "pending",
       "version": "20261111220700",
       "name": "teacher_assignment_current_year_guard",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111548; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111221200_guardian_phone_invitation_cross_school_neutral.sql",
@@ -1366,7 +1366,7 @@
       "kind": "pending",
       "version": "20261111221200",
       "name": "guardian_phone_invitation_cross_school_neutral",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111554; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111221900_allow_leading_parenthesis_school_phone.sql",
@@ -1374,7 +1374,7 @@
       "kind": "pending",
       "version": "20261111221900",
       "name": "allow_leading_parenthesis_school_phone",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111559; exact hosted ledger SQL verified."
     },
     {
       "path": "supabase/migrations/20261111231700_revoke_family_push_installation.sql",
@@ -1382,7 +1382,15 @@
       "kind": "pending",
       "version": "20261111231700",
       "name": "revoke_family_push_installation",
-      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; not yet applied to the hosted project."
+      "provenance": "Forward source added by the 11 Nov 2026 audit fix branch; applied to hosted 12 November 2026 as ledger version 20261112111605; exact hosted ledger SQL verified."
+    },
+    {
+      "path": "supabase/migrations/20261112120000_fee_due_push_scan_devices_first.sql",
+      "sha256": "efaeb7e03998f420584546564f850cf6f658c94d5b13f33fbc269ada8bc225a9",
+      "kind": "pending",
+      "version": "20261112120000",
+      "name": "fee_due_push_scan_devices_first",
+      "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112115350; exact hosted ledger SQL verified."
     }
   ],
   "excluded": [
@@ -1421,5 +1429,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "4fd725001be22f0c033db24d5f3c26559379b3b0c53d11c5e32d04c8eeeede96"
+  "order_sha256": "b29474f0a9e900d3f26d130662ec9be47643b50f3cd15528369ddb83b84c03e3"
 }
