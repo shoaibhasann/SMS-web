@@ -13,16 +13,26 @@ const definedFunctions = (sql: string) => [...sql.matchAll(/create\s+(?:or\s+rep
 // The fixtures stage named migrations (legacy rows are created under the old bodies), so afterwards apply,
 // in replay order, every later migration that redefines a function they created: the deep cases then run
 // on the current bodies. Advance credit is the last migration either fixture applies by name.
-export async function applyLaterFeeRedefinitions(db: GovernedFeeFixture["db"], appliedSuffixes: string[]) {
+export async function laterFeeRedefinitionFiles(appliedSuffixes: readonly string[]) {
   const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
   const created = new Set<string>();
   for (const file of files.filter((name) => appliedSuffixes.some((suffix) => name.endsWith(suffix)))) {
     for (const name of definedFunctions(await readFile(new URL(file, directory), "utf8"))) created.add(name);
   }
-  for (const file of files.filter((name) => name > "20261105170615_office_student_advance_credit.sql")) {
-    const sql = await readFile(new URL(file, directory), "utf8");
-    if (definedFunctions(sql).some((name) => created.has(name))) await db.exec(sql);
+  const credit = "20261105170615_office_student_advance_credit.sql";
+  // A later body that reads a table or calls a function advance credit introduced only fits a database that has them.
+  const creditOnly = appliedSuffixes.some((suffix) => credit.endsWith(suffix)) ? []
+    : [...(await readFile(new URL(credit, directory), "utf8")).matchAll(/create\s+(?:table|function)\s+([a-z_]+\.[a-z_0-9]+)/gi)].map((match) => match[1].toLowerCase());
+  const later: string[] = [];
+  for (const file of files.filter((name) => name > credit)) {
+    const sql = (await readFile(new URL(file, directory), "utf8")).toLowerCase();
+    if (definedFunctions(sql).some((name) => created.has(name)) && !creditOnly.some((object) => sql.includes(object))) later.push(file);
   }
+  return later;
+}
+
+export async function applyLaterFeeRedefinitions(db: GovernedFeeFixture["db"], appliedSuffixes: readonly string[]) {
+  for (const file of await laterFeeRedefinitionFiles(appliedSuffixes)) await db.exec(await readFile(new URL(file, directory), "utf8"));
 }
 
 export async function createGovernedFeeDatabase({ previousMonth = false }: { previousMonth?: boolean } = {}) {

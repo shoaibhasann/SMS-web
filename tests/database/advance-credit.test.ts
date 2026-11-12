@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCreditDatabase, type CreditFixture, type Credit, type Change } from "./advance-credit-fixture";
 import { STAFF_IDS, STAFF_ROWS } from "./staff-scope-fixture";
+import { comparePositionsWithSqlDefinition } from "./fee-positions-reference";
 
 describe("office pupil advance credit and reviewed refunds", () => {
   let f: CreditFixture;
@@ -94,5 +95,13 @@ describe("office pupil advance credit and reviewed refunds", () => {
   });
   it("cannot reverse an allocated receipt unless all of its original value is available", async () => {
     await expect(f.request("receipt_reversal", null, receiptId)).rejects.toMatchObject({ code: "22023" });
+  });
+
+  it("fee positions match the SQL definition after receipts, allocations, returns and refunds", async () => {
+    const result = await comparePositionsWithSqlDefinition(f.db, [
+      [STAFF_IDS.schoolA, null, null], [STAFF_IDS.schoolA, STAFF_ROWS.A.fee, null], [STAFF_IDS.schoolA, null, STAFF_ROWS.A.student],
+    ]);
+    expect(result.differing).toBe(0);
+    expect(result.rows).toBeGreaterThan(0);
   });
 });
