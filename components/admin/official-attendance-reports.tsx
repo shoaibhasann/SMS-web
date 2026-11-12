@@ -42,7 +42,9 @@ function PeriodCard({ title, period }: { title: string; period: OfficeAttendance
   </article>;
 }
 function preference(userId: string, role: Props["role"], context: OfficeAttendanceContext): Filters {
-  const defaults: Filters = { yearId: context.years.find(year => year.id === context.current_year_id)?.id ?? "", month: null, classId: null, sectionId: null };
+  // The whole-school report is a per-pupil, per-day pass that grows through the year: open on the first class, and
+  // keep the whole school one choice away.
+  const defaults: Filters = { yearId: context.years.find(year => year.id === context.current_year_id)?.id ?? "", month: null, classId: context.classes[0]?.id ?? null, sectionId: null };
   try {
     const saved: unknown = JSON.parse(sessionStorage.getItem(`erp:office-attendance:${userId}:${role}:${context.school_id}`) ?? "null");
     if (!saved || typeof saved !== "object" || Array.isArray(saved)) return defaults;

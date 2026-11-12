@@ -1415,6 +1415,14 @@
       "version": "20261112140000",
       "name": "staff_policy_initplans",
       "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112155837; exact hosted ledger SQL verified."
+    },
+    {
+      "path": "supabase/migrations/20261112150000_teacher_attendance_register_prefilter.sql",
+      "sha256": "f4150565eae1e62df8c2aaf7ce6494ec1c71524b4d06630814ce29180326216b",
+      "kind": "pending",
+      "version": "20261112150000",
+      "name": "teacher_attendance_register_prefilter",
+      "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112162435; exact hosted ledger SQL verified."
     }
   ],
   "excluded": [
@@ -1453,5 +1461,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "4272098368c8b673964d6455fef3cb791a2318f82c0b01b8ca0a546c65e60dc5"
+  "order_sha256": "310918f14d47965c747245f2003dccc9936dbe14dd237d0f17f66c0645299ab2"
 }
