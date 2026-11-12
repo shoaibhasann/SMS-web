@@ -875,6 +875,50 @@ describe("native push dispatch timing, fairness, retention and provider outcomes
     expect(await job(lease.id)).toMatchObject({ kind: "fee_due", event_id: own, device_id: guardian.device_id });
     const { rows: asked } = await db.query<{ fee_id: string }>("select distinct fee_id from app_private.fee_due_ledger_calls");
     expect(asked.map(row => row.fee_id)).toEqual([own]);
+    // Once the reminder is queued for every device of the pupil, the next scan leaves that fee alone.
+    await db.exec("delete from app_private.fee_due_ledger_calls");
+    await nextFeeDueScan();
+    expect(await claim()).toEqual([]);
+    expect((await db.query("select fee_id from app_private.fee_due_ledger_calls")).rows).toEqual([]);
+  });
+
+  it("indexes guardians by sign-in and their links by guardian for the scan and family requests", async () => {
+    const { rows } = await db.query<{ indexname: string }>(`select indexname from pg_indexes where schemaname='public'
+      and indexname in ('parents_profile_id_idx','student_parents_parent_id_idx') order by 1`);
+    expect(rows.map(row => row.indexname)).toEqual(["parents_profile_id_idx", "student_parents_parent_id_idx"]);
+  });
+
+  it("asks the ledger about at most 40 fees per scan and still reaches every open fee", async () => {
+    await preferences();
+    await register();
+    // 70 open demands and 70 settled ones (nothing to pay, so they never get a reminder) for the same pupil, all due today.
+    await db.query(`insert into public.student_fees(school_id,student_id,fee_structure_id,due_date,amount,status)
+      select $1,$2,$3,(statement_timestamp() at time zone 'Asia/Kolkata')::date,case when n<=70 then 1000 else 0 end,'pending'
+      from generate_series(1,140) n`, [id.schoolA, id.pupilA, id.structureA]);
+    await db.exec(`alter function app_private.family_fee_due_push_position(uuid,uuid,uuid) rename to family_fee_due_push_position_checked;
+      create table app_private.fee_due_ledger_calls(fee_id uuid);
+      create function app_private.family_fee_due_push_position(p_school_id uuid,p_fee_id uuid,p_student_id uuid)
+      returns boolean language plpgsql volatile set search_path='' as $$
+      begin
+        insert into app_private.fee_due_ledger_calls values(p_fee_id);
+        return app_private.family_fee_due_push_position_checked(p_school_id,p_fee_id,p_student_id);
+      end $$`);
+    await feeDueWindow(true);
+    const queued = async () => Number((await db.query<{ n: number }>("select count(*)::int as n from app_private.family_push_jobs where kind='fee_due'")).rows[0].n);
+    let mostAsked = 0, scans = 0;
+    while (await queued() < 70 && scans < 40) {
+      await db.exec("delete from app_private.fee_due_ledger_calls");
+      await db.exec("select app_private.enqueue_family_fee_due_push(500)");
+      mostAsked = Math.max(mostAsked, Number((await db.query<{ n: number }>("select count(*)::int as n from app_private.fee_due_ledger_calls")).rows[0].n));
+      await nextFeeDueScan();
+      scans += 1;
+    }
+    expect(mostAsked).toBeGreaterThan(0);
+    expect(mostAsked).toBeLessThanOrEqual(40);
+    expect(await queued()).toBe(70);
+    const { rows: [{ settled }] } = await db.query<{ settled: number }>(`select count(*)::int as settled from app_private.family_push_jobs job
+      join public.student_fees fee on fee.id=job.event_id where job.kind='fee_due' and fee.amount=0`);
+    expect(settled).toBe(0);
   });
 
   it("takes turns across schools so one school's backlog does not hold back another", async () => {

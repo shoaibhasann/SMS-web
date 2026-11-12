@@ -2,7 +2,7 @@
   "format": "sms-hosted-migration-rollout/v1",
   "projectRef": "bjecfuixgqgyohttrdfr",
   "requestedMigrationsAppliedAt": "2026-11-12T11:16:06.149Z",
-  "allMigrationsVerifiedAt": "2026-11-12T11:17:24.953Z",
+  "allMigrationsVerifiedAt": "2026-11-12T15:44:08.957Z",
   "method": "Supabase CLI `db query` (Management API): each file sent whole as one statement with its own begin/commit, then one ledger row with a server-allocated UTC version. Verified by reading the ledger back: one statement per row, SHA-256 equal to the source file.",
   "backupScope": "No backup was taken: the project is on the free plan, which has no managed backups. The 42 files change schema only; their one row change is a one-off delete of push dispatch batch rows that had expired more than a day earlier (app_private.family_push_batches; 1,662 of 3,106 rows were eligible at the pre-check).",
   "preflight": {
@@ -456,11 +456,33 @@
       "recorded_sql_sha256": "efaeb7e03998f420584546564f850cf6f658c94d5b13f33fbc269ada8bc225a9",
       "verifiedAt": "2026-11-12T11:54:10.449Z",
       "reason": "After 20261111200300 every once-a-minute push claim ran past the dispatcher and API timeouts: the due-today fee scan ran the ledger check for every fee due that day (2,006) before filtering by device, so no push was dispatched from 11:15Z until this fix. The device filter now runs first."
+    },
+    {
+      "sourceVersion": "20261112130000",
+      "sourcePath": "supabase/migrations/20261112130000_office_fee_positions_custom_plan.sql",
+      "sourceSha256": "b65b2ba1a8464051056b08f4ca324dbc3c1ef597d271a5394f382492b6390e86",
+      "version": "20261112154223",
+      "name": "office_fee_positions_custom_plan",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b65b2ba1a8464051056b08f4ca324dbc3c1ef597d271a5394f382492b6390e86",
+      "verifiedAt": "2026-11-12T15:44:08.957Z",
+      "reason": "On Postgres 17 a non-inlined SQL function is planned without its parameter values; for the largest school that generic plan re-ran the payment aggregates once per demand (3,037 ms for 4,003 demands against 49 ms planned with the values), so the finance summary and the fee ledger page took about 3 seconds and grew with every month of demands. The function is now plpgsql with plan_cache_mode=force_custom_plan around the unchanged statement."
+    },
+    {
+      "sourceVersion": "20261112130100",
+      "sourcePath": "supabase/migrations/20261112130100_fee_due_push_scan_bound.sql",
+      "sourceSha256": "b7e1fe144e4034e3afb6620e1ab99d89259917ce13de61becfb8ce4d8743eea9",
+      "version": "20261112154234",
+      "name": "fee_due_push_scan_bound",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b7e1fe144e4034e3afb6620e1ab99d89259917ce13de61becfb8ce4d8743eea9",
+      "verifiedAt": "2026-11-12T15:44:08.957Z",
+      "reason": "The once-a-minute due-today fee scan made one ledger check (about 13 ms) for every waiting device-linked fee, so a bulk due date with many families on the app would have pushed each claim past the dispatcher's 2 second limit. The scan now checks a random sample of at most 60 fees, and guardians and their links are indexed by sign-in and guardian."
     }
   ],
   "requested_migrations": 42,
-  "followup_fixes": 1,
-  "total_applied": 43,
+  "followup_fixes": 3,
+  "total_applied": 45,
   "postchecks": {
     "run": 41,
     "verdicts": {
@@ -540,5 +562,42 @@
       }
     },
     "engines": "Local replay: PostgreSQL 18 (PGlite, the engine the test suites use). Hosted: PostgreSQL 17."
+  },
+  "followupCatalogParity": {
+    "after": [
+      "office_fee_positions_custom_plan",
+      "fee_due_push_scan_bound"
+    ],
+    "hostedRows": 3756,
+    "identicalToLocalReplay": 3720,
+    "unexplainedDifferences": 0,
+    "explainedPlatformDifferences": {
+      "default privileges of a hosted platform schema": 18,
+      "range type constructor owned by supabase_admin on hosted": 5,
+      "same function body, CRLF line endings on hosted": 2,
+      "hosted platform trigger on storage tables": 11,
+      "not-null constraint row listed only by the local engine": 965
+    },
+    "measuredOnHosted": {
+      "largestSchoolDemands": 4003,
+      "note": "read-only transaction, the office kernels called directly; after = second run",
+      "financeSummaryLedgerPartMs": {
+        "before": 3600,
+        "after": 81
+      },
+      "ledgerPageOf50Ms": {
+        "before": 2689,
+        "after": 258
+      },
+      "receiptsPageOf50Ms": {
+        "before": 284,
+        "after": 217
+      },
+      "allFeePositionsMs": {
+        "before": 2412,
+        "after": 48
+      }
+    },
+    "postgresErrorsInSixMinutesAfterApply": 0
   }
 }

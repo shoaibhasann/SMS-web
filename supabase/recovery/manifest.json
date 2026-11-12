@@ -1391,6 +1391,22 @@
       "version": "20261112120000",
       "name": "fee_due_push_scan_devices_first",
       "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112115350; exact hosted ledger SQL verified."
+    },
+    {
+      "path": "supabase/migrations/20261112130000_office_fee_positions_custom_plan.sql",
+      "sha256": "b65b2ba1a8464051056b08f4ca324dbc3c1ef597d271a5394f382492b6390e86",
+      "kind": "pending",
+      "version": "20261112130000",
+      "name": "office_fee_positions_custom_plan",
+      "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112154223; exact hosted ledger SQL verified."
+    },
+    {
+      "path": "supabase/migrations/20261112130100_fee_due_push_scan_bound.sql",
+      "sha256": "b7e1fe144e4034e3afb6620e1ab99d89259917ce13de61becfb8ce4d8743eea9",
+      "kind": "pending",
+      "version": "20261112130100",
+      "name": "fee_due_push_scan_bound",
+      "provenance": "Follow-up fix added 12 Nov 2026 after the hosted rollout; applied to hosted 12 November 2026 as ledger version 20261112154234; exact hosted ledger SQL verified."
     }
   ],
   "excluded": [
@@ -1429,5 +1445,5 @@
     "sha256": "a83536d73026177787fe6c08018914d658c5aef1cb3b4db8bfa985dd4d6a1ca9",
     "scope": "Synthetic local managed-service contract; not real Supabase Auth/Storage."
   },
-  "order_sha256": "b29474f0a9e900d3f26d130662ec9be47643b50f3cd15528369ddb83b84c03e3"
+  "order_sha256": "456ca703d05e06d4a21558d597647f1791458527ab1b56008fe9e94c885b0be3"
 }

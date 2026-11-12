@@ -4,6 +4,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createRecoveryDatabase } from "../../scripts/database-recovery/replay.mjs";
 import { recoveryIds as id, seedRecoveryData } from "../../scripts/database-recovery/synthetic-seed.mjs";
+import { comparePositionsWithSqlDefinition } from "./fee-positions-reference";
 
 type Row = Record<string, unknown>;
 type Ledger = { rows: Row[]; summary: Row };
@@ -116,6 +117,25 @@ describe("office fee readers page before projecting (web-finance#1)", () => {
     expect(await pagesOf((limit, offset) => familyLedger(id.guardianA, limit, offset), 30)).toEqual(family.rows);
     expect(await pagesOf((limit, offset) => familyReceipts(id.guardianA, limit, offset), 30)).toEqual(familyPaid.rows);
     expect(receipts.rows.map((row) => row.paid_at)).toEqual([...receipts.rows.map((row) => row.paid_at)].sort().reverse());
+  });
+});
+
+describe("fee positions are planned with each call's own values", () => {
+  it("runs as plpgsql with a custom plan forced, because a SQL function gets one generic plan", async () => {
+    const { rows: [fn] } = await db.query<{ lang: string; config: string[] }>(`select l.lanname as lang, p.proconfig as config
+      from pg_proc p join pg_language l on l.oid = p.prolang
+      where p.oid = 'app_private.office_fee_positions(uuid,uuid,uuid)'::regprocedure`);
+    expect(fn.lang).toBe("plpgsql");
+    expect(fn.config).toEqual(expect.arrayContaining(['search_path=""', "plan_cache_mode=force_custom_plan"]));
+  });
+
+  it("returns what the SQL definition returned for a school, a pupil and a single demand", async () => {
+    const result = await comparePositionsWithSqlDefinition(db, [
+      [id.schoolA, null, null], [id.schoolB, null, null], [id.schoolA, null, id.pupilA],
+      [id.schoolA, id.feeA, null], [id.schoolA, id.feeA, id.pupilA], [id.schoolB, id.feeA, null],
+    ]);
+    expect(result.differing).toBe(0);
+    expect(result.rows).toBeGreaterThan(60);
   });
 });
 
