@@ -1,0 +1,544 @@
+{
+  "format": "sms-hosted-migration-rollout/v1",
+  "projectRef": "bjecfuixgqgyohttrdfr",
+  "requestedMigrationsAppliedAt": "2026-11-12T11:16:06.149Z",
+  "allMigrationsVerifiedAt": "2026-11-12T11:17:24.953Z",
+  "method": "Supabase CLI `db query` (Management API): each file sent whole as one statement with its own begin/commit, then one ledger row with a server-allocated UTC version. Verified by reading the ledger back: one statement per row, SHA-256 equal to the source file.",
+  "backupScope": "No backup was taken: the project is on the free plan, which has no managed backups. The 42 files change schema only; their one row change is a one-off delete of push dispatch batch rows that had expired more than a day earlier (app_private.family_push_batches; 1,662 of 3,106 rows were eligible at the pre-check).",
+  "preflight": {
+    "ledgerReconcile": {
+      "ok-present-exact": 116,
+      "ok-manual-not-ledgered": 7,
+      "note-version-differs": 2,
+      "ok-not-applied": 42
+    },
+    "prechecks": {
+      "run": 43,
+      "verdicts": {
+        "same as rehearsal": 35,
+        "differs (live data, expected)": 8
+      }
+    },
+    "longTransactionsBeforeApply": {
+      "olderThan3Seconds": 0,
+      "checkedAt": "2026-11-12T10:52:07Z",
+      "source": "pg_stat_activity, read just before the first file (console output only)"
+    }
+  },
+  "migrations": [
+    {
+      "sourceVersion": "20261111180100",
+      "sourcePath": "supabase/migrations/20261111180100_guard_student_records.sql",
+      "sourceSha256": "0844e1e68c6dc5af711e42ed8f84544f9791fbcfd97995cf1f6c9739fd0f513a",
+      "version": "20261112105455",
+      "name": "guard_student_records",
+      "statement_count": 1,
+      "recorded_sql_sha256": "0844e1e68c6dc5af711e42ed8f84544f9791fbcfd97995cf1f6c9739fd0f513a",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180101",
+      "sourcePath": "supabase/migrations/20261111180101_reject_student_identity_format_marks.sql",
+      "sourceSha256": "d522ffb537a3e3123c15c4c8eaad87b6dee67fdce19ded88fdff0250b4e22310",
+      "version": "20261112105553",
+      "name": "reject_student_identity_format_marks",
+      "statement_count": 1,
+      "recorded_sql_sha256": "d522ffb537a3e3123c15c4c8eaad87b6dee67fdce19ded88fdff0250b4e22310",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180102",
+      "sourcePath": "supabase/migrations/20261111180102_case_insensitive_admission_numbers.sql",
+      "sourceSha256": "085136f3840521a94ca7adaf470846c511b897b1c5fc96379d599160bc4ad9ad",
+      "version": "20261112105605",
+      "name": "case_insensitive_admission_numbers",
+      "statement_count": 1,
+      "recorded_sql_sha256": "085136f3840521a94ca7adaf470846c511b897b1c5fc96379d599160bc4ad9ad",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180200",
+      "sourcePath": "supabase/migrations/20261111180200_assessment_result_students.sql",
+      "sourceSha256": "7d3b8e3717fb8f6d882289a04857915e7aac37089d5ef410fb5cfec09082f917",
+      "version": "20261112105613",
+      "name": "assessment_result_students",
+      "statement_count": 1,
+      "recorded_sql_sha256": "7d3b8e3717fb8f6d882289a04857915e7aac37089d5ef410fb5cfec09082f917",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180300",
+      "sourcePath": "supabase/migrations/20261111180300_guard_office_fee_demand_periods.sql",
+      "sourceSha256": "fe7b45efe5791b2276874d4ec6c649103399bec43963e0e52be8f94d453a2b40",
+      "version": "20261112105623",
+      "name": "guard_office_fee_demand_periods",
+      "statement_count": 1,
+      "recorded_sql_sha256": "fe7b45efe5791b2276874d4ec6c649103399bec43963e0e52be8f94d453a2b40",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180400",
+      "sourcePath": "supabase/migrations/20261111180400_keep_homework_history_after_section_move.sql",
+      "sourceSha256": "3e196efdd647c690f9bbf63d779efa61ae4674a09823a7ea44e031c99b0651af",
+      "version": "20261112105631",
+      "name": "keep_homework_history_after_section_move",
+      "statement_count": 1,
+      "recorded_sql_sha256": "3e196efdd647c690f9bbf63d779efa61ae4674a09823a7ea44e031c99b0651af",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180500",
+      "sourcePath": "supabase/migrations/20261111180500_student_leave_placement_errors_and_family_reviewer.sql",
+      "sourceSha256": "ce0553d875180283959745adff421daaa859b68532a5ca2bcb8991181f437966",
+      "version": "20261112105638",
+      "name": "student_leave_placement_errors_and_family_reviewer",
+      "statement_count": 1,
+      "recorded_sql_sha256": "ce0553d875180283959745adff421daaa859b68532a5ca2bcb8991181f437966",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180600",
+      "sourcePath": "supabase/migrations/20261111180600_reject_pupil_holiday_on_working_day.sql",
+      "sourceSha256": "1b7e8d777f1e168bdfb058113cdafa7f3adf908bdca62e2ed41303d379eee073",
+      "version": "20261112105645",
+      "name": "reject_pupil_holiday_on_working_day",
+      "statement_count": 1,
+      "recorded_sql_sha256": "1b7e8d777f1e168bdfb058113cdafa7f3adf908bdca62e2ed41303d379eee073",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180800",
+      "sourcePath": "supabase/migrations/20261111180800_auth_endpoint_throttle.sql",
+      "sourceSha256": "40753a49bf31068fa19fc6cf68fba836d4cc4d9ddeff5de89ea4fceb5e7512f8",
+      "version": "20261112105652",
+      "name": "auth_endpoint_throttle",
+      "statement_count": 1,
+      "recorded_sql_sha256": "40753a49bf31068fa19fc6cf68fba836d4cc4d9ddeff5de89ea4fceb5e7512f8",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111180900",
+      "sourcePath": "supabase/migrations/20261111180900_require_live_family_raw_reads.sql",
+      "sourceSha256": "403583dd811bf64033e1bced139b5d43bb7dfa69d01655e0c4a44b44b485bb0e",
+      "version": "20261112105702",
+      "name": "require_live_family_raw_reads",
+      "statement_count": 1,
+      "recorded_sql_sha256": "403583dd811bf64033e1bced139b5d43bb7dfa69d01655e0c4a44b44b485bb0e",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111181000",
+      "sourcePath": "supabase/migrations/20261111181000_freeze_legacy_tenant_tables.sql",
+      "sourceSha256": "a736e6a73f437afaf244889fe8f9c1259b5e20957b422d605d3b66771ef62424",
+      "version": "20261112105713",
+      "name": "freeze_legacy_tenant_tables",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a736e6a73f437afaf244889fe8f9c1259b5e20957b422d605d3b66771ef62424",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111181100",
+      "sourcePath": "supabase/migrations/20261111181100_remove_shared_guardian_sms_permit_pool.sql",
+      "sourceSha256": "464b7cd98ec74248d378909b425f07672e8e795139e22ac8b818074fcf20d45d",
+      "version": "20261112105720",
+      "name": "remove_shared_guardian_sms_permit_pool",
+      "statement_count": 1,
+      "recorded_sql_sha256": "464b7cd98ec74248d378909b425f07672e8e795139e22ac8b818074fcf20d45d",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111181200",
+      "sourcePath": "supabase/migrations/20261111181200_track_assessment_score_author.sql",
+      "sourceSha256": "72fa38d924b952c97abbf404ebc36dba476893ff238c7f64429ea309c11ecdcf",
+      "version": "20261112105739",
+      "name": "track_assessment_score_author",
+      "statement_count": 1,
+      "recorded_sql_sha256": "72fa38d924b952c97abbf404ebc36dba476893ff238c7f64429ea309c11ecdcf",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111181400",
+      "sourcePath": "supabase/migrations/20261111181400_scope_payment_orders.sql",
+      "sourceSha256": "36e30013d5881279e36b1f4330155a0bb831869758ce1370af3ba0944211cffa",
+      "version": "20261112105747",
+      "name": "scope_payment_orders",
+      "statement_count": 1,
+      "recorded_sql_sha256": "36e30013d5881279e36b1f4330155a0bb831869758ce1370af3ba0944211cffa",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111181500",
+      "sourcePath": "supabase/migrations/20261111181500_guard_cleared_homework_max_marks.sql",
+      "sourceSha256": "80a4025f65cdf3631159bd834575fd9c07483ef5d984d2948b8ce148e0380f61",
+      "version": "20261112110351",
+      "name": "guard_cleared_homework_max_marks",
+      "statement_count": 1,
+      "recorded_sql_sha256": "80a4025f65cdf3631159bd834575fd9c07483ef5d984d2948b8ce148e0380f61",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190200",
+      "sourcePath": "supabase/migrations/20261111190200_roster_import_history.sql",
+      "sourceSha256": "052eb6474ecd24e445253b21bff1c3cce9d9ce780390c0a052f2a330f42883a1",
+      "version": "20261112110406",
+      "name": "roster_import_history",
+      "statement_count": 1,
+      "recorded_sql_sha256": "052eb6474ecd24e445253b21bff1c3cce9d9ce780390c0a052f2a330f42883a1",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190201",
+      "sourcePath": "supabase/migrations/20261111190201_reinstate_roster_enrollment.sql",
+      "sourceSha256": "9e1567933314e7647824b1547830ff8ca26eca20e5b2162fef2d72868b33ec48",
+      "version": "20261112110415",
+      "name": "reinstate_roster_enrollment",
+      "statement_count": 1,
+      "recorded_sql_sha256": "9e1567933314e7647824b1547830ff8ca26eca20e5b2162fef2d72868b33ec48",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190202",
+      "sourcePath": "supabase/migrations/20261111190202_roster_audit_events.sql",
+      "sourceSha256": "3577297ccebe335f672279b8042f75f87a98f5028e1c8b4aacb628fe1d57830f",
+      "version": "20261112110426",
+      "name": "roster_audit_events",
+      "statement_count": 1,
+      "recorded_sql_sha256": "3577297ccebe335f672279b8042f75f87a98f5028e1c8b4aacb628fe1d57830f",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190203",
+      "sourcePath": "supabase/migrations/20261111190203_student_roster_identity.sql",
+      "sourceSha256": "a13a2eee6442bab858ad81ae0f28c94661454b6fe99d1a578e13e88f7010a322",
+      "version": "20261112110434",
+      "name": "student_roster_identity",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a13a2eee6442bab858ad81ae0f28c94661454b6fe99d1a578e13e88f7010a322",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190204",
+      "sourcePath": "supabase/migrations/20261111190204_block_withdrawal_with_pending_corrections.sql",
+      "sourceSha256": "a700ad07c5ed0d46bde8023f36d76672455a716bbd43606ab805c50f64b4ab88",
+      "version": "20261112110446",
+      "name": "block_withdrawal_with_pending_corrections",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a700ad07c5ed0d46bde8023f36d76672455a716bbd43606ab805c50f64b4ab88",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111190300",
+      "sourcePath": "supabase/migrations/20261111190300_page_office_fee_reads_before_projection.sql",
+      "sourceSha256": "a8e8289ae237ef67a66c447cd6cc1b3a9687fd1ee6f02ec112bad56ac53bb9b3",
+      "version": "20261112110454",
+      "name": "page_office_fee_reads_before_projection",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a8e8289ae237ef67a66c447cd6cc1b3a9687fd1ee6f02ec112bad56ac53bb9b3",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111191600",
+      "sourcePath": "supabase/migrations/20261111191600_export_roster_history.sql",
+      "sourceSha256": "b6679187d8239b5456d360878a5d1193dabe2b2a7b4f48369cdbc5a23bf36280",
+      "version": "20261112110508",
+      "name": "export_roster_history",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b6679187d8239b5456d360878a5d1193dabe2b2a7b4f48369cdbc5a23bf36280",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111191800",
+      "sourcePath": "supabase/migrations/20261111191800_activate_student_mobile_format.sql",
+      "sourceSha256": "52de47146b8b8bce542aa1085f51dbcdfe21fe82ab2fe4d3ffe9bae2614ee0af",
+      "version": "20261112110521",
+      "name": "activate_student_mobile_format",
+      "statement_count": 1,
+      "recorded_sql_sha256": "52de47146b8b8bce542aa1085f51dbcdfe21fe82ab2fe4d3ffe9bae2614ee0af",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200100",
+      "sourcePath": "supabase/migrations/20261111200100_successor_teacher_homework_grading.sql",
+      "sourceSha256": "620f23e81764bef4d67351f2d049157d81d1d723cad98cbd429ccc4ba46b6ef0",
+      "version": "20261112110540",
+      "name": "successor_teacher_homework_grading",
+      "statement_count": 1,
+      "recorded_sql_sha256": "620f23e81764bef4d67351f2d049157d81d1d723cad98cbd429ccc4ba46b6ef0",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200101",
+      "sourcePath": "supabase/migrations/20261111200101_principal_upcoming_assessments.sql",
+      "sourceSha256": "a0606f7282ad3bd865cde1e1378c213f9615fb7428f9389b94b171555067b17b",
+      "version": "20261112110645",
+      "name": "principal_upcoming_assessments",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a0606f7282ad3bd865cde1e1378c213f9615fb7428f9389b94b171555067b17b",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200200",
+      "sourcePath": "supabase/migrations/20261111200200_list_requester_pending_results.sql",
+      "sourceSha256": "a7fd7397bfbe71dcba20881eeaf104ff106378575c1d940cd06e39d9c0670f50",
+      "version": "20261112111434",
+      "name": "list_requester_pending_results",
+      "statement_count": 1,
+      "recorded_sql_sha256": "a7fd7397bfbe71dcba20881eeaf104ff106378575c1d940cd06e39d9c0670f50",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200201",
+      "sourcePath": "supabase/migrations/20261111200201_exclude_withdrawn_result_marks.sql",
+      "sourceSha256": "ca966163f2492ac86509d1447db4612cdce93ed43a8194d262bd65e6e1c1777a",
+      "version": "20261112111440",
+      "name": "exclude_withdrawn_result_marks",
+      "statement_count": 1,
+      "recorded_sql_sha256": "ca966163f2492ac86509d1447db4612cdce93ed43a8194d262bd65e6e1c1777a",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200300",
+      "sourcePath": "supabase/migrations/20261111200300_native_push_dispatch_fairness_retention.sql",
+      "sourceSha256": "bceb99b57f7eaf5080751edc5486a99c2b3f74888cf7d87b7cc4213e910f7bbc",
+      "version": "20261112111446",
+      "name": "native_push_dispatch_fairness_retention",
+      "statement_count": 1,
+      "recorded_sql_sha256": "bceb99b57f7eaf5080751edc5486a99c2b3f74888cf7d87b7cc4213e910f7bbc",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200400",
+      "sourcePath": "supabase/migrations/20261111200400_stage_section_promotions.sql",
+      "sourceSha256": "77c0d599f84675bc6bf5f2f23d96fc81fc8efe3b7c56e8f30c6c1577c2b3d0df",
+      "version": "20261112111451",
+      "name": "stage_section_promotions",
+      "statement_count": 1,
+      "recorded_sql_sha256": "77c0d599f84675bc6bf5f2f23d96fc81fc8efe3b7c56e8f30c6c1577c2b3d0df",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200500",
+      "sourcePath": "supabase/migrations/20261111200500_export_keyset_pages.sql",
+      "sourceSha256": "9999ef9cd96e0f65d185aa7c1a0505a487bcba4ce0a56e789c430e338d5773cd",
+      "version": "20261112111457",
+      "name": "export_keyset_pages",
+      "statement_count": 1,
+      "recorded_sql_sha256": "9999ef9cd96e0f65d185aa7c1a0505a487bcba4ce0a56e789c430e338d5773cd",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200600",
+      "sourcePath": "supabase/migrations/20261111200600_retire_timetable_periods_with_assignment.sql",
+      "sourceSha256": "67b10fd4f22e2086504067d44904ccbe748488d2f7d0db591c91f094a4a96ea4",
+      "version": "20261112111503",
+      "name": "retire_timetable_periods_with_assignment",
+      "statement_count": 1,
+      "recorded_sql_sha256": "67b10fd4f22e2086504067d44904ccbe748488d2f7d0db591c91f094a4a96ea4",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200800",
+      "sourcePath": "supabase/migrations/20261111200800_office_report_shared_calendar_fence.sql",
+      "sourceSha256": "1057b11ad7176e0e85df4877401f26bb1ff8a35c1dcc61d12b14ed41e7b419e1",
+      "version": "20261112111508",
+      "name": "office_report_shared_calendar_fence",
+      "statement_count": 1,
+      "recorded_sql_sha256": "1057b11ad7176e0e85df4877401f26bb1ff8a35c1dcc61d12b14ed41e7b419e1",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111200900",
+      "sourcePath": "supabase/migrations/20261111200900_staff_mfa_pending_staff_list.sql",
+      "sourceSha256": "0956c765d7e1295833c415530465f8b665274e14db02d61c1e655630da689a05",
+      "version": "20261112111514",
+      "name": "staff_mfa_pending_staff_list",
+      "statement_count": 1,
+      "recorded_sql_sha256": "0956c765d7e1295833c415530465f8b665274e14db02d61c1e655630da689a05",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111201000",
+      "sourcePath": "supabase/migrations/20261111201000_notice_audience_year_snapshot.sql",
+      "sourceSha256": "971c7ac01933f845a65d530890a859c1ac460622a377f51df8fe0619b4316022",
+      "version": "20261112111520",
+      "name": "notice_audience_year_snapshot",
+      "statement_count": 1,
+      "recorded_sql_sha256": "971c7ac01933f845a65d530890a859c1ac460622a377f51df8fe0619b4316022",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111201600",
+      "sourcePath": "supabase/migrations/20261111201600_office_assessment_teacher_scope.sql",
+      "sourceSha256": "02a740bec35cec22c119e670784f788beff78d0a1582971a05b7ab44497a01be",
+      "version": "20261112111526",
+      "name": "office_assessment_teacher_scope",
+      "statement_count": 1,
+      "recorded_sql_sha256": "02a740bec35cec22c119e670784f788beff78d0a1582971a05b7ab44497a01be",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111220200",
+      "sourcePath": "supabase/migrations/20261111220200_history_actor_names.sql",
+      "sourceSha256": "b08bf77a3d9f1503c48f5633f308a8363b0b171a8c862c67809b593fffa7a20d",
+      "version": "20261112111531",
+      "name": "history_actor_names",
+      "statement_count": 1,
+      "recorded_sql_sha256": "b08bf77a3d9f1503c48f5633f308a8363b0b171a8c862c67809b593fffa7a20d",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111220300",
+      "sourcePath": "supabase/migrations/20261111220300_stamp_notice_publish_now.sql",
+      "sourceSha256": "5799408b20fe0e95353c75d2303fc7f1d19c23843bf8d8ba11fd74d7fbbd0c0a",
+      "version": "20261112111537",
+      "name": "stamp_notice_publish_now",
+      "statement_count": 1,
+      "recorded_sql_sha256": "5799408b20fe0e95353c75d2303fc7f1d19c23843bf8d8ba11fd74d7fbbd0c0a",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111220400",
+      "sourcePath": "supabase/migrations/20261111220400_family_fee_due_sort_time.sql",
+      "sourceSha256": "1fe14cca081920fbbedd4ba95e79474e65d867f6f95b273da4dc325743da9c81",
+      "version": "20261112111542",
+      "name": "family_fee_due_sort_time",
+      "statement_count": 1,
+      "recorded_sql_sha256": "1fe14cca081920fbbedd4ba95e79474e65d867f6f95b273da4dc325743da9c81",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111220700",
+      "sourcePath": "supabase/migrations/20261111220700_teacher_assignment_current_year_guard.sql",
+      "sourceSha256": "75696e1960fe970f4294919c67c4d049b210b9e21cae256f65c743fb16755ccc",
+      "version": "20261112111548",
+      "name": "teacher_assignment_current_year_guard",
+      "statement_count": 1,
+      "recorded_sql_sha256": "75696e1960fe970f4294919c67c4d049b210b9e21cae256f65c743fb16755ccc",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111221200",
+      "sourcePath": "supabase/migrations/20261111221200_guardian_phone_invitation_cross_school_neutral.sql",
+      "sourceSha256": "33c73d6eb719709bce071a58b70a07677020ad2c225208fda67db45a4eb0eb78",
+      "version": "20261112111554",
+      "name": "guardian_phone_invitation_cross_school_neutral",
+      "statement_count": 1,
+      "recorded_sql_sha256": "33c73d6eb719709bce071a58b70a07677020ad2c225208fda67db45a4eb0eb78",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111221900",
+      "sourcePath": "supabase/migrations/20261111221900_allow_leading_parenthesis_school_phone.sql",
+      "sourceSha256": "264ac5c7a5c379a905a03e6bbd7dc118878301e8c6d803ba4e5223e8abb12d93",
+      "version": "20261112111559",
+      "name": "allow_leading_parenthesis_school_phone",
+      "statement_count": 1,
+      "recorded_sql_sha256": "264ac5c7a5c379a905a03e6bbd7dc118878301e8c6d803ba4e5223e8abb12d93",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261111231700",
+      "sourcePath": "supabase/migrations/20261111231700_revoke_family_push_installation.sql",
+      "sourceSha256": "c543fd70e5170e3f1b0071e6388437d892bf5b50761c509c79d013331bf3951f",
+      "version": "20261112111605",
+      "name": "revoke_family_push_installation",
+      "statement_count": 1,
+      "recorded_sql_sha256": "c543fd70e5170e3f1b0071e6388437d892bf5b50761c509c79d013331bf3951f",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261112120000",
+      "sourcePath": "supabase/migrations/20261112120000_fee_due_push_scan_devices_first.sql",
+      "sourceSha256": "efaeb7e03998f420584546564f850cf6f658c94d5b13f33fbc269ada8bc225a9",
+      "version": "20261112115350",
+      "name": "fee_due_push_scan_devices_first",
+      "statement_count": 1,
+      "recorded_sql_sha256": "efaeb7e03998f420584546564f850cf6f658c94d5b13f33fbc269ada8bc225a9",
+      "verifiedAt": "2026-11-12T11:54:10.449Z",
+      "reason": "After 20261111200300 every once-a-minute push claim ran past the dispatcher and API timeouts: the due-today fee scan ran the ledger check for every fee due that day (2,006) before filtering by device, so no push was dispatched from 11:15Z until this fix. The device filter now runs first."
+    }
+  ],
+  "requested_migrations": 42,
+  "followup_fixes": 1,
+  "total_applied": 43,
+  "postchecks": {
+    "run": 41,
+    "verdicts": {
+      "same as rehearsal": 41
+    }
+  },
+  "ledgerReconcileAfter": {
+    "ok-present-exact": 116,
+    "ok-manual-not-ledgered": 7,
+    "note-version-differs": 2,
+    "STOP-already-in-ledger": 42,
+    "note": "STOP-already-in-ledger is the reconcile query's pre-apply verdict name; after the rollout it is the expected state for the 42 sources (exact SQL, one statement each). The counts cover all 160 ledgered repository sources by SHA-256, including 34 applied 6-10 November that neither rollout file lists."
+  },
+  "earlierSourcesConfirmed": [
+    {
+      "sourceVersion": "20261109112234",
+      "sourcePath": "supabase/migrations/20261109112234_admin_email_otp_eligibility.sql",
+      "sourceSha256": "d237a09825e253122aab392765833667f06a8e9f10091d613ba3ff6ff7868640",
+      "version": "20261109123752",
+      "name": "admin_email_otp_eligibility",
+      "statement_count": 1,
+      "recorded_sql_sha256": "d237a09825e253122aab392765833667f06a8e9f10091d613ba3ff6ff7868640",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    },
+    {
+      "sourceVersion": "20261109133000",
+      "sourcePath": "supabase/migrations/20261109133000_school_admin_single_factor_dashboard.sql",
+      "sourceSha256": "cdf72d5f17b406d6cf08cf149cb50d6a576624162194b9a0c3d0b06a8f309fce",
+      "version": "20261109133124",
+      "name": "school_admin_single_factor_dashboard",
+      "statement_count": 1,
+      "recorded_sql_sha256": "cdf72d5f17b406d6cf08cf149cb50d6a576624162194b9a0c3d0b06a8f309fce",
+      "verifiedAt": "2026-11-12T11:17:24.953Z"
+    }
+  ],
+  "incidents": [
+    {
+      "source": "supabase/migrations/20261111181500_guard_cleared_homework_max_marks.sql",
+      "ledgerVersion": "20261112110351",
+      "what": "The migration call succeeded, then the ledger insert failed with a network transport error and the run stopped. The new function body was confirmed live on hosted; the resumed run wrote only the missing ledger row. The SQL ran once."
+    },
+    {
+      "source": "supabase/migrations/20261111200200_list_requester_pending_results.sql",
+      "ledgerVersion": "20261112111434",
+      "what": "The migration call itself failed with a network transport error, so its outcome was unknown and the run stopped. The hosted catalog equalled the local replay after 25 files, the one function this file replaces still had its old body, the ledger had no row and no transaction was open: the file had not been committed. It was then applied once."
+    },
+    {
+      "source": "supabase/migrations/20261111200300_native_push_dispatch_fairness_retention.sql",
+      "ledgerVersion": "20261112111446",
+      "what": "Found after the rollout: from 2026-11-12T11:15Z every once-a-minute public.claim_family_push_jobs call was cancelled by the statement timeout (SQLSTATE 57014), because the new due-today fee scan ran the ledger check for all 2,006 fees due that day before the device filter. No push was dispatched until the follow-up fee_due_push_scan_devices_first was applied at 11:53:49Z; no job was waiting in that window. Catalog parity, the rehearsal and the post-checks cannot see a load-dependent regression like this."
+    }
+  ],
+  "catalogParity": {
+    "scope": "public and app_private: functions with bodies and grants, relations, columns, policies, triggers, indexes, constraints, enums, default privileges; plus storage policies and bucket settings",
+    "beforeFirstFile": {
+      "hostedRows": 3628,
+      "identicalToLocalReplay": 3610,
+      "unexplainedDifferences": 0,
+      "explainedPlatformDifferences": {
+        "range type constructor owned by supabase_admin on hosted": 5,
+        "same function body, CRLF line endings on hosted": 2,
+        "hosted platform trigger on storage tables": 11,
+        "not-null constraint row listed only by the local engine": 935
+      },
+      "note": "The hosted default-privileges query failed in this capture (SQL error 42725, fixed afterwards), so the 6 default-privilege rows of schema public had no hosted counterpart and are not counted here; they were captured and matched after file 25 and after the last file."
+    },
+    "afterLastFile": {
+      "hostedRows": 3754,
+      "identicalToLocalReplay": 3718,
+      "unexplainedDifferences": 0,
+      "explainedPlatformDifferences": {
+        "default privileges of a hosted platform schema": 18,
+        "range type constructor owned by supabase_admin on hosted": 5,
+        "same function body, CRLF line endings on hosted": 2,
+        "hosted platform trigger on storage tables": 11,
+        "not-null constraint row listed only by the local engine": 965
+      }
+    },
+    "engines": "Local replay: PostgreSQL 18 (PGlite, the engine the test suites use). Hosted: PostgreSQL 17."
+  }
+}

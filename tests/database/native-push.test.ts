@@ -855,6 +855,28 @@ describe("native push dispatch timing, fairness, retention and provider outcomes
     expect(await claim()).toEqual([]);
   });
 
+  it("asks the fee ledger only about due-today fees of pupils who have a device", async () => {
+    await preferences();
+    const guardian = await register();
+    const own = await saveFee(0);
+    await saveFee(0, 1000, id.unlinkedPupilA);
+    // Record every fee the scan asks the ledger about; the real check still decides.
+    await db.exec(`alter function app_private.family_fee_due_push_position(uuid,uuid,uuid) rename to family_fee_due_push_position_checked;
+      create table app_private.fee_due_ledger_calls(fee_id uuid);
+      create function app_private.family_fee_due_push_position(p_school_id uuid,p_fee_id uuid,p_student_id uuid)
+      returns boolean language plpgsql volatile set search_path='' as $$
+      begin
+        insert into app_private.fee_due_ledger_calls values(p_fee_id);
+        return app_private.family_fee_due_push_position_checked(p_school_id,p_fee_id,p_student_id);
+      end $$`);
+    await feeDueWindow(true);
+    const [lease, ...rest] = await claim();
+    expect(rest).toEqual([]);
+    expect(await job(lease.id)).toMatchObject({ kind: "fee_due", event_id: own, device_id: guardian.device_id });
+    const { rows: asked } = await db.query<{ fee_id: string }>("select distinct fee_id from app_private.fee_due_ledger_calls");
+    expect(asked.map(row => row.fee_id)).toEqual([own]);
+  });
+
   it("takes turns across schools so one school's backlog does not hold back another", async () => {
     const deviceA = await rawDevice(id.guardianA, "parent", id.schoolA);
     const deviceB = await rawDevice(id.studentUserB, "student", id.schoolB);
