@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ArrowLeft, ArrowRight, RefreshCw, Scale } from "lucide-react";
 import { formatFeeMoney, getOfficeFeeLedger, type FeeLedger } from "@/lib/finance/fee-batches";
 import { LoadingState } from "@/components/ui/skeleton";
+import { formatSchoolDay, statusTone } from "@/lib/finance/fee-print";
 
 type Props = { client: SupabaseClient; schoolId: string; academicYearId: string };
 const pageSize = 25;
@@ -94,13 +95,13 @@ export function FeeLedgerWorkspace({ client, schoolId, academicYearId }: Props) 
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0"><h3 className="break-words font-semibold">{row.student_name} · {row.admission_no}</h3>
                     <p className="mt-1 break-words text-sm muted">{row.fee_name}{row.kind === "opening" ? " · Brought forward" : row.billing_period ? ` · ${row.billing_period}` : ""}</p>
-                    <p className="mt-1 text-xs muted">{row.academic_year_name || "Unassigned academic session"}{row.due_date ? ` · Due ${row.due_date}` : ""}</p>
+                    <p className="mt-1 text-xs muted">{row.academic_year_name || "Unassigned academic session"}{row.due_date ? ` · Due ${formatSchoolDay(row.due_date)}` : ""}</p>
                     {row.kind === "opening" && row.source_reference && <p className="mt-1 break-words text-xs muted">Source · {row.source_reference}{row.as_of_date ? ` · As of ${row.as_of_date}` : ""}</p>}
                     {row.adjustment_amount && row.adjustment_amount !== "0.00" && row.base_net_amount && <p className="mt-2 break-words text-xs muted">Original net {formatFeeMoney(row.base_net_amount)} · Approved adjustments {formatFeeMoney(row.adjustment_amount)}</p>}
                     {row.reversed_amount && row.reversed_amount !== "0.00" && <p className="mt-1 break-words text-xs muted">Reversed payments {formatFeeMoney(row.reversed_amount)}</p>}
                     {row.advance_applied_amount && row.advance_applied_amount !== "0.00" && <p className="mt-1 break-words text-xs muted">Included advance applied {formatFeeMoney(row.advance_applied_amount)} · No new cash collection</p>}
                   </div>
-                  <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-semibold capitalize">{row.status}</span>
+                  <span className={statusTone(row.status)}>{row.status.replaceAll("_", " ")}</span>
                 </div>
                 <dl className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3">
                   {[["Net demand", row.net_amount], ["Applied", row.paid_amount], ["Balance", row.balance]].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs muted">{label}</dt><dd className="mt-1 break-words text-sm font-semibold tabular-nums">{value === null ? "—" : formatFeeMoney(value)}</dd></div>)}

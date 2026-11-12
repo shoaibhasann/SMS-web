@@ -134,4 +134,15 @@ describe("exact fee due links", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Your sign-in changed.");
     expect(screen.queryByText("₹1,23,456.75")).not.toBeInTheDocument();
   });
+
+  it("leads with the balance due and retries a failed load from under the error", async () => {
+    const user = userEvent.setup();
+    load.mockRejectedValueOnce(new Error("offline"));
+    render(<FamilyFeeDueDetail feeId={fee.id} studentId={fee.student_id} role="parent" userId={actor} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("This fee could not be loaded.");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("₹1,23,456.75")).toHaveClass("text-2xl");
+    expect(screen.getByText("Balance due")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

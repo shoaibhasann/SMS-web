@@ -217,7 +217,11 @@ begin
   perform public.save_academic_log(log_data,activities);
   perform set_config('role','service_role',true);
   perform set_config('request.jwt.claims','{"role":"service_role"}',true);
-  if public.finish_family_push_job(student_job,lease,'retry','QA_NO_SEND')
+  -- null confirms the retry and reports it cancelled as no longer eligible.
+  if public.finish_family_push_job(student_job,lease,'retry','QA_NO_SEND') is not null
+  then raise exception 'A retry on the unpublished homework job was not recorded.'; end if;
+  perform set_config('role','none',true);
+  if (select status||'/'||result_code from app_private.family_push_jobs where id=student_job) is distinct from 'cancelled/no_longer_eligible'
   then raise exception 'An unpublished homework job could still retry.'; end if;
 
   perform set_config('role','none',true);

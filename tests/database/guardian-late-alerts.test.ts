@@ -7,7 +7,7 @@ import { recoveryIds as id, seedRecoveryData } from "../../scripts/database-reco
 
 let db: PGlite,day:string;
 const principal=randomUUID(),finance=randomUUID(),peer=randomUUID(),peerParent=randomUUID(),replacement=randomUUID();
-type Policy={user_id:string;school_id:string;enabled:boolean;version:number;history:{version:number;enabled:boolean;reason:string;actor_id:string;created_at:string}[]};
+type Policy={user_id:string;school_id:string;enabled:boolean;version:number;history:{version:number;enabled:boolean;reason:string;actor_id:string;actor_name:string|null;created_at:string}[]};
 type Ack={user_id:string;school_id:string;enabled:boolean;version:number;request_id:string;replayed:boolean};
 type Item={id:string;kind:string;student_id:string;source_id:string;status:string;read_at:string|null;event_date:string;occurred_at:null;delayed:false;assessment_id:null};
 type Cursor={created_at:string;kind:string;id:string};
@@ -74,6 +74,13 @@ describe("school-controlled Late policy",()=>{
   expect(await policy(true,0,request)).toEqual({...first,replayed:true});expect(await settings()).toMatchObject({enabled:false,version:2});
   expect((await settings()).history).toMatchObject([{version:2,enabled:false,actor_id:principal},{version:1,enabled:true,actor_id:id.adminA}]);
   await denied(policy(false,0,request),"PT409");await denied(policy(true,0,randomUUID()),"PT409");await denied(policy(true,0,request,principal),"PT409");
+ });
+ it("names each policy actor from the same school and never only a UUID",async()=>{
+  await db.query("update public.profiles set full_name='Priya Principal' where id=$1",[principal]);
+  await policy(true,0);await policy(false,1,randomUUID(),principal);
+  expect((await settings(principal)).history).toMatchObject([{actor_id:principal,actor_name:"Priya Principal"},{actor_id:id.adminA,actor_name:"Synthetic admin-a"}]);
+  await db.query("update public.profiles set school_id=$1 where id=$2",[id.schoolB,id.adminA]);
+  expect((await settings(principal)).history[1]).toMatchObject({actor_id:id.adminA,actor_name:null});
  });
  it("bounds immutable history at20 without losing the latest version",async()=>{
   for(let n=0;n<23;n++)await policy(n%2===0,n);

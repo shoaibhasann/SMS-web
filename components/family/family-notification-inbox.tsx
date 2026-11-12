@@ -71,8 +71,8 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
     const refresh = () => { setCursor(null); setRevision((value) => value + 1); };
     const visible = () => { if (document.visibilityState === "visible") refresh(); };
     const changed = (event: Event) => {
-      const detail = (event as CustomEvent<{ userId?: unknown; role?: unknown }>).detail;
-      if (detail?.userId === userId && detail.role === role) refresh();
+      const detail = (event as CustomEvent<{ userId?: unknown; role?: unknown; keepCursor?: unknown }>).detail;
+      if (detail?.userId === userId && detail.role === role) { if (detail.keepCursor === true) setRevision((value) => value + 1); else refresh(); }
     };
     document.addEventListener("visibilitychange", visible);
     window.addEventListener("focus", refresh);
@@ -96,7 +96,8 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
       }
       if (controller.signal.aborted) return;
       if (document.activeElement === button || document.activeElement === document.body) heading.current?.focus({ preventScroll: true });
-      notifyFamilyNotificationsChanged(userId, role);
+      // A single mark refetches the current page; Mark all returns to the newest.
+      notifyFamilyNotificationsChanged(userId, role, target.kind === "single" ? { keepCursor: true } : undefined);
     } catch {
       if (!controller.signal.aborted) setMarkError(target.kind === "all"
         ? "Could not mark all notifications as read. Try again." : "Could not mark the notification as read. Try again.");
@@ -123,7 +124,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
       <div role="group" aria-label="Filter notifications" className="inline-flex rounded-xl border border-[var(--border)] p-0.5">
         {(["All", "Unread"] as const).map((option) => <button key={option} type="button" aria-pressed={filter === option} disabled={!!pendingMark}
           onClick={() => { setFilter(option); setCursor(null); setMarkError(undefined); }}
-          className="min-h-11 rounded-[10px] px-3 text-sm font-semibold aria-pressed:bg-[var(--surface-2)] aria-pressed:text-[var(--primary)] disabled:opacity-50">{option}</button>)}
+          className="min-h-11 rounded-[10px] px-3 text-sm font-semibold aria-pressed:bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] aria-pressed:text-[color-mix(in_srgb,var(--primary)_80%,var(--text))] disabled:opacity-50">{option}</button>)}
       </div>
       <button type="button" className={control} disabled={!inbox?.unread_count || !!pendingMark}
         onClick={(event) => void markRead({ kind: "all" }, event.currentTarget)}>{pendingMark?.kind === "all" ? "Marking all as read…" : "Mark all as read"}</button>
@@ -131,7 +132,8 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
     {!sessionChanged && markError && <p role="alert" className="px-4 pt-3 text-sm text-red-700 dark:text-red-300">{markError}</p>}
     {sessionChanged ? <p role="alert" className="p-4 text-sm muted">Your sign-in changed. Reopen this page to check notifications.</p>
       : !result ? <LoadingState variant="list" className="p-4 text-sm muted">Loading notifications…</LoadingState>
-        : "error" in result ? <p role="alert" className="p-4 text-sm text-red-700 dark:text-red-300">{result.error}</p>
+        : "error" in result ? <div className="space-y-3 p-4"><p role="alert" className="text-sm text-danger">{result.error}</p>
+          <button type="button" className="btn btn-secondary" onClick={refresh}>Try again</button></div>
           : notifications.length === 0 ? <p className="p-4 text-sm muted">{filter === "Unread" ? "No unread notifications." : "No notifications available."}</p>
             : <ul className="divide-y divide-[var(--border)]">{notifications.map((notification) => {
               const gate = notification.kind === "gate_arrival" || notification.kind === "gate_exit";
@@ -154,8 +156,8 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
                     {notification.kind === "homework_assigned" && <NotebookPen size={13} aria-hidden="true" />}
                     {exam && <CalendarDays size={13} aria-hidden="true" />}
                     {(due || payment) && <Receipt size={13} aria-hidden="true" />}{type}</span>
-                    {notification.delayed && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 muted">Delayed update</span>}
-                    {!notification.read_at && <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 font-semibold text-[var(--primary)]">Unread</span>}
+                    {notification.delayed && <span className="rounded-full border border-[var(--border)] bg-[var(--surface-2)] px-2 py-0.5 muted">Delayed update</span>}
+                    {!notification.read_at && <span className="rounded-full bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] px-2 py-0.5 font-semibold text-[color-mix(in_srgb,var(--primary)_80%,var(--text))]">Unread</span>}
                     {notification.read_at && !summary && <span className="muted">Read</span>}
                   </div>
                   <Link href={notificationHref(notification, role)} className="block min-h-11 rounded-md py-1 text-sm leading-6 hover:text-[var(--primary)] focus-visible:outline-2 focus-visible:outline-[var(--primary)]">

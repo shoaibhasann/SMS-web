@@ -339,7 +339,7 @@ describe("attendance repository save", () => {
     ]);
     expect(result.saved.map((entry) => entry.student_id)).toEqual(["ok"]);
     expect(result.failures.map((entry) => entry.studentId)).toEqual(["conflict", "policy", "network"]);
-    expect(result.failures[1].message).toBe("Row access denied");
+    expect(result.failures[1]).toMatchObject({ message: "Row access denied", code: "42501" });
     expect(result.failures[2].message).toBe("Connection interrupted");
   });
 

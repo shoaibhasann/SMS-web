@@ -15,12 +15,12 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({
   auth: { getUser: async () => ({ data: { user: { id: "admin" } }, error: null }) }, rpc,
   from: (table: string) => {
     const rows: Record<string, unknown[]> = {
-      user_roles: [{ role: "school_admin", school_id: "school" }],
+      user_roles: [{ role: "school_admin", school_id: "school" }], schools: [{ id: "school", name: "School" }],
       academic_years: [{ id: "year", name: "2026–27" }], classes: [{ id: "class", name: "Class 6" }],
       sections: [{ id: "section", class_id: "class", name: "A" }], subjects: [{ id: "subject", name: "Science" }],
       teachers: [{ id: "teacher", full_name: "Assigned teacher" }],
     };
-    const query = { select: () => query, eq: () => query, order: () => query, upsert: unsafeUpsert,
+    const query = { select: () => query, eq: () => query, in: () => query, order: () => query, range: () => query, upsert: unsafeUpsert,
       then: (resolve: (value: { data: unknown[]; error: null }) => unknown) => Promise.resolve({ data: rows[table] ?? [], error: null }).then(resolve) };
     return query;
   },

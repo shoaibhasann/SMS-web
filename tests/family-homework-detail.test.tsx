@@ -149,4 +149,22 @@ describe("exact homework links", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Your sign-in changed.");
     expect(screen.queryByRole("heading", { name: other.title })).not.toBeInTheDocument();
   });
+
+  it("shows sighted refresh feedback and retries a failed load from under the error", async () => {
+    const user = userEvent.setup();
+    render(<FamilyHomeworkDetail activityId={first.id} userId={actor} role="parent" />);
+    await screen.findByRole("heading", { name: first.title });
+    let resolve: (value: typeof first) => void = () => {};
+    load.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    await user.click(screen.getByRole("button", { name: "Refresh homework" }));
+    expect(screen.getByRole("button", { name: "Refresh homework" })).toHaveTextContent("Refreshing…");
+    await act(async () => { resolve(first); });
+    expect(screen.getByRole("button", { name: "Refresh homework" })).toHaveTextContent(/^Refresh$/);
+    load.mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Refresh homework" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Homework could not be loaded.");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: first.title })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

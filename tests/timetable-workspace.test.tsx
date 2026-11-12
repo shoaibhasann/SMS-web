@@ -6,8 +6,8 @@ import { loadFamilyStudents, type FamilyStudent } from "@/lib/attendance/family"
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import type { TimetablePeriod, TimetableSetup } from "@/lib/timetable";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), listener: (() => {}) as (event: string, session: { user: { id: string } } | null) => void }));
-vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc: mocks.rpc, auth: {
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), getUser: vi.fn(), listener: (() => {}) as (event: string, session: { user: { id: string } } | null) => void }));
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc: mocks.rpc, from: mocks.from, auth: {
   getUser: mocks.getUser, onAuthStateChange: (listener: typeof mocks.listener) => { mocks.listener = listener; return { data: { subscription: { unsubscribe: () => {} } } }; },
 } }) }));
 vi.mock("@/lib/attendance/family", async (original) => ({ ...await original<typeof import("../lib/attendance/family")>(), loadFamilyStudents: vi.fn() }));
@@ -94,7 +94,7 @@ async function newPeriod(assignment = "assignment-a") {
   return user;
 }
 beforeEach(() => {
-  sessionStorage.clear(); mocks.rpc.mockReset(); mocks.getUser.mockReset(); familyLoader.mockReset(); schoolLoader.mockReset();
+  sessionStorage.clear(); mocks.rpc.mockReset(); mocks.from.mockReset(); mocks.getUser.mockReset(); familyLoader.mockReset(); schoolLoader.mockReset();
   mocks.getUser.mockResolvedValue({ data: { user: { id: "guardian" } }, error: null }); familyLoader.mockResolvedValue([childA, childB]);
   schoolLoader.mockResolvedValue({ userId: "admin", schools: [{ id: "school-a", name: "QA School" }], schoolAdminIds: ["school-a"] });
 });
@@ -173,6 +173,52 @@ describe("timetable operational UI", () => {
     fireEvent.change(screen.getByLabelText("Start time"), { target: { value: "08:00" } }); fireEvent.change(screen.getByLabelText("End time"), { target: { value: "08:45" } });
     await user.click(screen.getByRole("button", { name: "Save period" })); await screen.findByText(/Period saved and shared/);
     expect(saved.rows[0].needs_attention).toBe(false); expect(screen.queryByText(/Needs attention: verify/)).not.toBeInTheDocument();
+  });
+
+  it("offers the office a governed removal of live periods whose teaching assignment no longer exists", async () => {
+    const saved = store([
+      period({ id: uuid(11), version: uuid(12), assignment_id: "assignment-gone", needs_attention: true }),
+      period({ id: uuid(13), version: uuid(14), assignment_id: "assignment-gone", day_of_week: 2, needs_attention: true }),
+      period({ id: uuid(15), version: uuid(16), assignment_id: "assignment-a", day_of_week: 3, start_time: null, end_time: null, needs_attention: true }),
+      period({ id: uuid(17), version: uuid(18), assignment_id: null, day_of_week: 4, needs_attention: true }),
+      period({ id: uuid(19), version: uuid(20), day_of_week: 5 }),
+    ]);
+    const lookups: string[][] = [];
+    mocks.from.mockImplementation((table: string) => ({ select: () => ({ in: async (column: string, ids: string[]) => {
+      expect([table, column]).toEqual(["teacher_subject_assignments", "id"]); lookups.push(ids);
+      return { data: ids.filter((item) => item !== "assignment-gone").map((item) => ({ id: item })), error: null };
+    } }) }));
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<TimetableWorkspace role="admin" userId="admin" />); const user = userEvent.setup();
+    expect(await screen.findByText(/2 periods still use a teaching assignment that was removed/)).toBeInTheDocument();
+    expect(lookups[0].sort()).toEqual(["assignment-a", "assignment-gone"]);
+    await user.click(screen.getByRole("button", { name: "Remove stale periods" }));
+    expect(confirm).toHaveBeenCalledOnce();
+    await screen.findByText("2 stale periods removed from the shared timetable.");
+    const calls = mocks.rpc.mock.calls.filter(([name]) => name === "remove_timetable_period");
+    expect(calls.map(([, args]) => [args.p_period_id, args.p_expected_version])).toEqual([[uuid(11), uuid(12)], [uuid(13), uuid(14)]]);
+    expect(new Set(calls.map(([, args]) => args.p_request_id)).size).toBe(2);
+    expect(saved.rows.map((row) => row.id)).toEqual([uuid(15), uuid(17), uuid(19)]);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Remove stale periods" })).not.toBeInTheDocument());
+    confirm.mockRestore();
+  });
+
+  it("keeps stale periods when the office declines, and reports a partial removal", async () => {
+    const saved = store([
+      period({ id: uuid(11), version: uuid(12), assignment_id: "assignment-gone", needs_attention: true }),
+      period({ id: uuid(13), version: uuid(14), assignment_id: "assignment-gone", day_of_week: 2, needs_attention: true }),
+    ]);
+    mocks.from.mockReturnValue({ select: () => ({ in: async () => ({ data: [], error: null }) }) });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValue(true);
+    render(<TimetableWorkspace role="admin" userId="admin" />); const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Remove stale periods" }));
+    expect(mocks.rpc.mock.calls.some(([name]) => name === "remove_timetable_period")).toBe(false);
+    saved.rows[1] = { ...saved.rows[1], version: uuid(99) }; // changed elsewhere after the office loaded it
+    await user.click(screen.getByRole("button", { name: "Remove stale periods" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("1 of 2 stale periods removed. The period changed before removal.");
+    expect(saved.rows.map((row) => row.id)).toEqual([uuid(13)]);
+    expect(await screen.findByText(/1 period still uses a teaching assignment that was removed/)).toBeInTheDocument();
+    confirm.mockRestore();
   });
 
   it("switches only linked children, persists selection and provides read-only family schedules", async () => {

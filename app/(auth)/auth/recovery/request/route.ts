@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { allowAuthAttempt } from "@/lib/auth/attempt-throttle";
 import { createRecoveryClient, recoveryDestination, sameOriginRecoveryPost } from "@/lib/auth/recovery";
 
 const headers = { "Cache-Control": "no-store" };
@@ -12,6 +13,9 @@ export async function POST(request: Request) {
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+$/.test(email)) {
     return NextResponse.json({ ok: false }, { status: 400, headers });
   }
+
+  // A throttled request gets the same generic reply, so the limit does not reveal anything about the address.
+  if (!await allowAuthAttempt(request, "recovery_request", email.toLowerCase())) return NextResponse.json({ ok: true }, { headers });
 
   try {
     const { supabase } = await createRecoveryClient(origin.startsWith("https:"), true);

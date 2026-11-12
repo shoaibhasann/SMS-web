@@ -72,6 +72,24 @@ export async function loadAssessmentStudents(client: SupabaseClient, schoolId: s
   return students;
 }
 
+/** Result reports resolve marked pupils through the assessment's scope, so a section move cannot hide them. */
+export async function loadAssessmentResultStudents(client: SupabaseClient, schoolId: string, assessmentIds: string[], studentIds: string[]) {
+  const ids = [...new Set(studentIds)];
+  if (!ids.length) return [];
+  const assessments = [...new Set(assessmentIds)];
+  const byId = new Map<string, AssessmentStudent>();
+  for (let offset = 0; offset < assessments.length; offset += CHUNK_SIZE) {
+    const rows = await readCompletePages<AssessmentStudent>((from, to) => client.rpc("list_assessment_result_students", {
+      p_school_id: schoolId, p_assessment_ids: assessments.slice(offset, offset + CHUNK_SIZE),
+    }, { count: "exact" }).order("id").range(from, to), "Student details could not be loaded completely");
+    for (const row of rows) byId.set(row.id, row);
+  }
+  if (ids.some((id) => !byId.has(id))) {
+    throw new Error("Some student details are unavailable. Refresh or contact your school; a partial result cannot be shown.");
+  }
+  return ids.map((id) => byId.get(id)!);
+}
+
 export async function loadAssessmentRoster(client: SupabaseClient, assessment: Pick<AssessmentRecord, "id" | "school_id" | "academic_year_id" | "class_id" | "section_id">, isCurrent: () => boolean = () => true) {
   const enrollments = await readCompletePages<{ id: string; student_id: string }>((from, to) => {
     let query = client.from("enrollments").select("id,student_id", { count: "exact" })
@@ -191,4 +209,16 @@ export function rankAssessmentMarks(assessments: AssessmentRecord[], marks: Asse
     const assessment = assessmentById.get(mark.assessment_id)!;
     return { assessment, mark, student: studentById.get(mark.student_id)!, rank: rankById.get(mark.id)!, percentage: Number(mark.marks_obtained) / Number(assessment.maximum_marks) * 100 };
   });
+}
+
+export type TeachingAssignmentScope = {
+  teacher_id: string; academic_year_id: string; class_id: string; section_id: string | null; subject_id: string;
+};
+type AssessmentScopeDraft = { teacher_id?: string; academic_year_id: string; class_id: string; section_id: string | null; subject_id: string };
+/** Mirrors result_source_eligible: a whole-class assessment needs a whole-class assignment. Unchosen fields match any. */
+export function teacherMatchesAssessmentScope(assignments: TeachingAssignmentScope[], teacherId: string, scope: AssessmentScopeDraft) {
+  return assignments.some((row) => row.teacher_id === teacherId
+    && (!scope.academic_year_id || row.academic_year_id === scope.academic_year_id)
+    && (!scope.class_id || (row.class_id === scope.class_id && (row.section_id === null || row.section_id === scope.section_id)))
+    && (!scope.subject_id || row.subject_id === scope.subject_id));
 }

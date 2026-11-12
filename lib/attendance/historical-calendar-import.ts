@@ -5,7 +5,7 @@ import { SchoolCalendarError, validCalendarDate } from "./calendar";
 import { historicalCalendarCsvMaxRows, type HistoricalCalendarRecord } from "./historical-calendar-csv";
 
 export type HistoricalCalendarYear = { id: string; name: string; start_date: string; end_date: string };
-export type HistoricalCalendarReceipt = { request_id: string; academic_year_id: string; revision: number; imported_rows: number; working_rows: number; holiday_rows: number; reason: string; actor_id: string; created_at: string };
+export type HistoricalCalendarReceipt = { request_id: string; academic_year_id: string; revision: number; imported_rows: number; working_rows: number; holiday_rows: number; reason: string; actor_id: string; actor_name: string | null; created_at: string };
 export type HistoricalCalendarContext = { user_id: string; school_id: string; server_today: string; timezone: "Asia/Kolkata"; revision: number; can_import: boolean; years: HistoricalCalendarYear[]; history: HistoricalCalendarReceipt[]; history_limit: 10 };
 export type HistoricalCalendarPreviewRow = HistoricalCalendarRecord & { row_number: number; issue: string | null; attendance_count: number; present_count: number; absent_count: number; late_count: number; half_day_count: number; leave_count: number; holiday_count: number; pupils_with_marks: number };
 export type HistoricalCalendarPreview = Omit<HistoricalCalendarContext, "years" | "history" | "history_limit"> & { academic_year_id: string; preview_token: string; rows: HistoricalCalendarPreviewRow[]; summary: { total_rows: number; valid_rows: number; working_rows: number; holiday_rows: number; attendance_records: number; pupils_with_marks: number } };
@@ -43,7 +43,7 @@ export function parseHistoricalCalendarContext(value: unknown, userId: string, s
     if (!uuid(receipt.request_id) || requests.has(receipt.request_id) || !uuid(receipt.academic_year_id) || !revision(receipt.revision) || receipt.revision < 1
       || receipt.revision > Number(row.revision) || revisions.has(receipt.revision) || !integer(receipt.imported_rows, 366) || receipt.imported_rows < 1 || !integer(receipt.working_rows, 366)
       || !integer(receipt.holiday_rows, 366) || receipt.imported_rows !== receipt.working_rows + receipt.holiday_rows || !text(receipt.reason, 5, 300)
-      || !uuid(receipt.actor_id) || typeof receipt.created_at !== "string" || !receipt.created_at.includes("T") || !Number.isFinite(Date.parse(receipt.created_at))) throw invalid();
+      || !uuid(receipt.actor_id) || !(receipt.actor_name === null || typeof receipt.actor_name === "string" && receipt.actor_name.length >= 1 && [...receipt.actor_name].length <= 160) || typeof receipt.created_at !== "string" || !receipt.created_at.includes("T") || !Number.isFinite(Date.parse(receipt.created_at))) throw invalid();
     revisions.add(receipt.revision); requests.add(receipt.request_id);
   }
   return value as HistoricalCalendarContext;

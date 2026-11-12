@@ -106,6 +106,11 @@ async function saveHomework(status: "draft" | "published", previousLog?: string,
     "select id from public.class_activities where class_log_id=$1 and title=$2", [logId, addedTitle ?? activities[0].title]);
   return { logId, activityId: activity.id };
 }
+// Pin the 08:00 IST fee-reminder window so due-today cases do not depend on the wall clock.
+const feeDueWindow = (open: boolean) => db.exec(`create or replace function app_private.family_fee_due_push_open(p_at timestamptz)
+  returns boolean language sql immutable set search_path='' as $$ select ${open} $$`);
+// The due-today scan runs at most once a minute; age the last run to let the next claim scan again.
+const nextFeeDueScan = () => db.exec("update app_private.family_fee_due_push_scans set scanned_at=scanned_at-interval '61 seconds'");
 async function ready(){await preferences();const device=await register();await leave();return device;}
 const job=async(jobId:string)=>(await db.query<Record<string,unknown>>("select * from app_private.family_push_jobs where id=$1",[jobId])).rows[0];
 const deliverySummary = async (user: string | null = id.adminA, school: string = id.schoolA, aal = "aal2",
@@ -214,6 +219,15 @@ describe("native family push under the recovered application schema",()=>{
     expect(JSON.stringify(own)).not.toContain(fid());expect(JSON.stringify(own)).not.toContain(proof);
     const stored=(await db.query<{hashed:boolean}>("select installation_hash=sha256(convert_to($1,'UTF8')) as hashed from app_private.family_push_devices where id=$2",[proof,first.device_id])).rows[0];expect(stored.hashed).toBe(true);
   });
+  it("lets the app refresh a stale phone in place: same generation, fresh last_seen_at, delivery resumes, revoked stays revoked",async()=>{
+    await preferences();const installation=randomUUID(),first=await register(installation);
+    await db.query("update app_private.family_push_devices set last_seen_at=now()-interval '91 days' where id=$1",[first.device_id]);
+    await leave();expect(await countJobs()).toBe(0);
+    expect(await register(installation)).toEqual(first);
+    expect((await db.query<{fresh:boolean}>("select last_seen_at>now()-interval '1 day' as fresh from app_private.family_push_devices where id=$1",[first.device_id])).rows[0].fresh).toBe(true);
+    await leave("2026-11-11");expect(await countJobs()).toBe(1);
+    expect(await revoke(first.device_id)).toBe(true);await denied(register(installation));
+  });
   it("refuses installation/FID theft and any cross-user/role/school rebinding even with proof",async()=>{
     const installation=randomUUID();await register(installation);
     await denied(register(installation,fid(),id.studentUserA,"student"));await denied(register(randomUUID(),fid(),id.studentUserA,"student"));
@@ -273,6 +287,8 @@ describe("native family push under the recovered application schema",()=>{
     await db.query("insert into public.student_parents(student_id,parent_id,relationship) values($1,$2,'guardian')",[id.unlinkedPupilA,id.parentA]);
     const peerSection = randomUUID();
     await db.query("insert into public.sections(id,school_id,class_id,name) values($1,$2,$3,'Other section')",[peerSection,id.schoolA,id.classA]);
+    // Office exams must sit inside the teacher's assignment, so give the teacher the whole class.
+    await db.query("insert into public.teacher_subject_assignments(teacher_id,academic_year_id,class_id,section_id,subject_id) values($1,$2,$3,null,$4)",[id.teacherRecordA,id.yearA,id.classA,id.subjectA]);
     await scheduleExam(1,peerSection,id.adminA);
     await scheduleExam(-1);
     expect(await countJobs()).toBe(0);
@@ -425,6 +441,7 @@ describe("native family push under the recovered application schema",()=>{
   });
 
   it("leases due-today fee reminders for opted-in families and keeps inbox read state independent", async () => {
+    await feeDueWindow(true);
     const due = await saveFee(0);
     const partial = await saveFee(0);
     await payFee(partial,250);
@@ -459,6 +476,8 @@ describe("native family push under the recovered application schema",()=>{
     expect(await claim()).toEqual([]);
 
     await preferences(id.studentUserA,"student");
+    expect(await claim()).toEqual([]);
+    await nextFeeDueScan();
     const studentLeases = await claim();
     expect(studentLeases).toHaveLength(2);
     for (const lease of studentLeases) {
@@ -483,6 +502,7 @@ describe("native family push under the recovered application schema",()=>{
   });
 
   it("rechecks live ledger, links and native session before sending leased fee reminders", async () => {
+    await feeDueWindow(true);
     await preferences();
     await register();
     await preferences(id.studentUserA,"student");
@@ -658,8 +678,9 @@ describe("native family push under the recovered application schema",()=>{
     await db.query("delete from public.student_parents where parent_id=$1 and student_id=$2",[id.parentA,id.unlinkedPupilA]);
     expect(await prepare(otherParent)).toBeNull();
     expect((await job(otherParent.id)).result_code).toBe("no_longer_eligible");
-    expect(await finish(parent)).toBe(false);
-    expect((await job(parent.id)).status).toBe("cancelled");
+    // FCM already accepted the prepared send, so the outcome is recorded even though access changed.
+    expect(await finish(parent)).toBe(true);
+    expect(await job(parent.id)).toMatchObject({ status: "accepted", last_outcome: "accepted" });
 
     await saveHomework("draft", work.logId);
     expect(await prepare(student)).toBeNull();
@@ -717,6 +738,19 @@ describe("native family push under the recovered application schema",()=>{
     expect(await claim()).toEqual([]);expect(await rows("app_private.family_notifications")).toEqual(before);
     expect((await settings()).devices[0].revoked_at).toBeTruthy();
     await denied(register((await db.query<{installation_id:string}>("select installation_id from app_private.family_push_devices where id=$1",[device.device_id])).rows[0].installation_id));
+  });
+  it("revokes the caller's own registration by installation id idempotently, never another user's",async()=>{
+    await preferences();const installation=randomUUID(),device=await register(installation);await leave();
+    const byInstallation=(user:string,role:string,installationId:string|null=installation)=>value<boolean>(user,"select public.revoke_my_family_push_installation($1,$2) as value",[role,installationId]);
+    expect(await byInstallation(id.studentUserA,"student")).toBe(false);
+    expect(await byInstallation(id.guardianA,"parent",randomUUID())).toBe(false);
+    await denied(actor(null,"select public.revoke_my_family_push_installation('parent',$1)",[installation],"anon"));
+    expect((await settings()).devices[0].revoked_at).toBeNull();
+    expect(await byInstallation(id.guardianA,"parent")).toBe(true);expect(await byInstallation(id.guardianA,"parent")).toBe(true);
+    const {rows:[row]}=await db.query<{generation:number;revoked:boolean}>("select generation,revoked_at is not null as revoked from app_private.family_push_devices where id=$1",[device.device_id]);
+    expect(row).toEqual({generation:device.generation+1,revoked:true});
+    expect(await claim()).toEqual([]);
+    await invalid(byInstallation(id.guardianA,"parent",null));
   });
   it("honors retry backoff/max-attempts and terminal invalid-FID cleanup without touching in-app read state",async()=>{
     await ready();const first=(await claim())[0];await prepare(first);expect(await finish(first,"retry","unavailable",null,120)).toBe(true);expect(await claim()).toEqual([]);
@@ -784,4 +818,133 @@ describe("native family push under the recovered application schema",()=>{
     expect(await rows("app_private.family_push_jobs")).toEqual(jobs);expect((await settings()).devices.filter(d=>d.revoked_at===null).map(d=>d.id)).toEqual([fresh.device_id]);
   });
 
+});
+
+describe("native push dispatch timing, fairness, retention and provider outcomes", () => {
+  const rawDevice = async (user: string, role: string, school: string) => (await db.query<{ id: string }>(`
+    insert into app_private.family_push_devices(installation_id,installation_hash,user_id,recipient_role,school_id,session_id,device_fid,fid_hash,platform,label)
+    values(gen_random_uuid(),sha256(convert_to('proof','UTF8')),$1,$2,$3,$1,$4,sha256(convert_to($4,'UTF8')),'android','Raw phone') returning id`,
+  [user, role, school, `r${randomUUID().replaceAll("-", "").slice(0, 21)}`])).rows[0].id;
+  const rawJob = async (device: string, kind: string, readyAgo: string) => (await db.query<{ id: string }>(`
+    insert into app_private.family_push_jobs(kind,event_id,device_id,device_generation,user_id,recipient_role,school_id,expires_at,next_attempt_at,created_at)
+    select $2,gen_random_uuid(),device.id,device.generation,device.user_id,device.recipient_role,device.school_id,
+      now()+interval '1 day',now()-$3::interval,now()-$3::interval
+    from app_private.family_push_devices device where device.id=$1 returning id`, [device, kind, readyAgo])).rows[0].id;
+  const touched = async () => (await db.query<{ id: string }>(
+    "select id from app_private.family_push_jobs where status<>'queued' order by id")).rows.map(row => row.id).sort();
+
+  it("opens due-today fee reminders at 08:00 IST", async () => {
+    const { rows: [gate] } = await db.query(`select app_private.family_fee_due_push_open('2026-12-10 00:30+05:30'::timestamptz) as midnight,
+      app_private.family_fee_due_push_open('2026-12-10 07:59:59+05:30'::timestamptz) as early,
+      app_private.family_fee_due_push_open('2026-12-10 08:00+05:30'::timestamptz) as open,
+      app_private.family_fee_due_push_open('2026-12-10 23:59:59+05:30'::timestamptz) as late`);
+    expect(gate).toEqual({ midnight: false, early: false, open: true, late: true });
+  });
+
+  it("queues nothing for a due-today fee before 08:00 IST and exactly one reminder per device afterwards", async () => {
+    await preferences();
+    const guardian = await register();
+    const fee = await saveFee(0);
+    await feeDueWindow(false);
+    expect(await claim()).toEqual([]);
+    expect(await countJobs()).toBe(0);
+    await feeDueWindow(true);
+    const [lease, ...rest] = await claim();
+    expect(rest).toEqual([]);
+    expect(await job(lease.id)).toMatchObject({ kind: "fee_due", event_id: fee, device_id: guardian.device_id });
+    expect(await claim()).toEqual([]);
+  });
+
+  it("takes turns across schools so one school's backlog does not hold back another", async () => {
+    const deviceA = await rawDevice(id.guardianA, "parent", id.schoolA);
+    const deviceB = await rawDevice(id.studentUserB, "student", id.schoolB);
+    const oldestA = await rawJob(deviceA, "leave_decision", "3 hours");
+    await rawJob(deviceA, "leave_decision", "2 hours");
+    await rawJob(deviceA, "leave_decision", "1 hour");
+    const newestB = await rawJob(deviceB, "leave_decision", "1 minute");
+    await claim(randomUUID(), 2);
+    expect(await touched()).toEqual([oldestA, newestB].sort());
+  });
+
+  it("claims a school's absence alerts ahead of its older bulk notifications", async () => {
+    const device = await rawDevice(id.guardianA, "parent", id.schoolA);
+    await rawJob(device, "announcement", "2 hours");
+    const absent = await rawJob(device, "absence", "1 minute");
+    await claim(randomUUID(), 1);
+    expect(await touched()).toEqual([absent]);
+  });
+
+  it("prunes long-expired batches and old terminal jobs in bounded chunks while keeping live state", async () => {
+    const live = randomUUID();
+    await ready();
+    const leases = await claim(live);
+    expect(leases).toHaveLength(1);
+    const [stale, recent] = [randomUUID(), randomUUID()];
+    await db.query(`insert into app_private.family_push_batches(id,expires_at,jobs) values
+      ($1,now()-interval '2 days','[]'),($2,now()-interval '1 minute','[]')`, [stale, recent]);
+    const device = await rawDevice(id.guardianA, "parent", id.schoolA);
+    const ancient = await rawJob(device, "leave_decision", "91 days");
+    const tenDays = await rawJob(device, "leave_decision", "10 days");
+    await db.query(`update app_private.family_push_jobs set status='accepted',finished_at=next_attempt_at,expires_at=next_attempt_at
+      where id = any($1)`, [[ancient, tenDays]]);
+    const waiting = await rawJob(device, "leave_decision", "-1 hour");
+    expect(await claim()).toEqual([]);
+    const { rows: batches } = await db.query<{ id: string }>("select id from app_private.family_push_batches where id = any($1)", [[live, stale, recent]]);
+    expect(batches.map(row => row.id).sort()).toEqual([live, recent].sort());
+    expect(await claim(live)).toEqual(leases);
+    const { rows: kept } = await db.query<{ id: string }>("select id from app_private.family_push_jobs where id = any($1)", [[ancient, tenDays, waiting]]);
+    expect(kept.map(row => row.id).sort()).toEqual([tenDays, waiting].sort());
+  });
+
+  it("records an FCM-accepted send even if the job expired after preparation", async () => {
+    await ready();
+    const [lease] = await claim();
+    expect(await prepare(lease)).not.toBeNull();
+    await db.query("update app_private.family_push_jobs set expires_at=now()-interval '1 second' where id=$1", [lease.id]);
+    expect(await finish(lease, "accepted", "FCM_ACCEPTED", "projects/qa/messages/late")).toBe(true);
+    expect(await job(lease.id)).toMatchObject({ status: "accepted", last_outcome: "accepted", provider_id: "projects/qa/messages/late" });
+  });
+
+  it("still revokes an UNREGISTERED device when preferences changed after preparation", async () => {
+    const device = await ready();
+    const [lease] = await claim();
+    expect(await prepare(lease)).not.toBeNull();
+    await db.query("update app_private.family_push_preferences set enabled=false where user_id=$1", [id.guardianA]);
+    expect(await finish(lease, "invalid_token", "UNREGISTERED")).toBe(true);
+    expect((await db.query("select generation,revoked_at is not null as revoked from app_private.family_push_devices where id=$1", [device.device_id])).rows[0])
+      .toEqual({ generation: device.generation + 1, revoked: true });
+  });
+
+  it("cancels instead of requeueing a retry for a job that is no longer eligible", async () => {
+    await ready();
+    const [lease] = await claim();
+    expect(await prepare(lease)).not.toBeNull();
+    await db.query("update app_private.family_push_preferences set enabled=false where user_id=$1", [id.guardianA]);
+    // null confirms the outcome but tells the dispatcher the job was cancelled, so it is counted as suppressed.
+    expect(await finish(lease, "retry", "PROVIDER_UNAVAILABLE", null, 120)).toBeNull();
+    expect(await job(lease.id)).toMatchObject({ status: "cancelled", result_code: "no_longer_eligible", last_outcome: "retry" });
+    expect(await finish(lease, "retry", "PROVIDER_UNAVAILABLE", null, 120)).toBeNull();
+  });
+
+  it("skips row-locked prune candidates instead of waiting behind an overlapping claim", async () => {
+    // PGlite has one connection, so a second session cannot hold the lock; assert both prune selections skip locked rows.
+    const { rows: [{ body }] } = await db.query<{ body: string }>(
+      "select pg_get_functiondef('app_private.claim_family_push_jobs(uuid,integer)'::regprocedure) as body");
+    expect(body.match(/limit (1000|500) for update skip locked\)/g)).toEqual(["limit 1000 for update skip locked)", "limit 500 for update skip locked)"]);
+  });
+
+  it("scans due-today fees at most once a minute across back-to-back claims", async () => {
+    await preferences();
+    await register();
+    await feeDueWindow(true);
+    const first = await saveFee(0);
+    const [lease] = await claim();
+    expect(await job(lease.id)).toMatchObject({ kind: "fee_due", event_id: first });
+    const second = await saveFee(0, 500);
+    expect(await claim()).toEqual([]);
+    await nextFeeDueScan();
+    const [next, ...rest] = await claim();
+    expect(rest).toEqual([]);
+    expect(await job(next.id)).toMatchObject({ kind: "fee_due", event_id: second });
+  });
 });

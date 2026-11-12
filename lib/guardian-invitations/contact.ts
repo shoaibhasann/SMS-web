@@ -1,6 +1,7 @@
 import { createClient as createSupabaseClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import { normalizeIndianMobile, phoneAuthError, prepareGuardianPhoneRequest, readGuardianPhoneStatus } from "@/lib/auth/phone";
-import { listAuthenticators, readStaffMfaStatus, StaffMfaError, verifyAuthenticator, type AuthenticatorFactor } from "@/lib/auth/staff-mfa";
+import { createBoundMfaClient, listAuthenticators, readStaffMfaStatus, StaffMfaError, verifyAuthenticator, type AuthenticatorFactor } from "@/lib/auth/staff-mfa";
+import { validateNewPassword } from "@/lib/account/password";
 
 export type GuardianContactProviders = { email: boolean; sms: boolean; captchaSiteKey?: string | null };
 
@@ -13,15 +14,17 @@ export function guardianPhone(value: string | null | undefined) {
   return canonicalPhone.test(phone) ? phone : "";
 }
 
-export async function readGuardianContactProviders(): Promise<GuardianContactProviders> {
+// Throws when the settings cannot be read (including a hung read past the timeout); a resolved sms:false means SMS is really off.
+export async function readGuardianContactProviders(signal: AbortSignal = AbortSignal.timeout(10_000)): Promise<GuardianContactProviders> {
+  const unavailable = (): never => { throw new Error("Contact verification settings are temporarily unavailable."); };
   const url = new URL("/auth/v1/settings", process.env.NEXT_PUBLIC_SUPABASE_URL);
   const response = await fetch(url, {
     headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY! },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error("Contact verification settings are temporarily unavailable.");
-  const settings = await response.json();
-  const mobile = await readGuardianPhoneStatus().catch(() => ({ enabled: false, captchaSiteKey: null }));
+    cache: "no-store", signal,
+  }).catch(unavailable);
+  if (!response.ok) unavailable();
+  const settings = await response.json().catch(unavailable);
+  const mobile = await readGuardianPhoneStatus(signal).catch(unavailable);
   return {
     email: settings?.external?.email === true && settings.mailer_autoconfirm === false,
     sms: settings?.external?.phone === true && settings.phone_autoconfirm === false && mobile.enabled,
@@ -240,4 +243,47 @@ export async function confirmGuardianMobileChange(
   } finally {
     await closeTemporarySession(verificationClient);
   }
+}
+
+export class SpentGuardianCodeError extends Error {}
+
+export async function setGuardianAppPassword(client: SupabaseClient, verificationClient: SupabaseClient, userId: string,
+  input: { code: string; newPassword: string; confirmation: string }, signal?: AbortSignal) {
+  try {
+    const current = await readGuardianAuthUser(client, userId);
+    const phone = current.phone_confirmed_at && normalizeIndianMobile(current.phone ?? "");
+    if (current.email_confirmed_at || !phone) throw new Error("A verified current mobile is required. Contact the school office.");
+    const invalid = validateNewPassword(input.newPassword, input.confirmation);
+    if (invalid) throw new Error(invalid);
+    const code = input.code.trim();
+    if (!/^\d{6}$/.test(code)) throw new Error("Enter the six-digit code sent to your current mobile.");
+    const proof = await verificationClient.auth.verifyOtp({ phone, token: code, type: "sms" });
+    if (proof.error) throw new Error(phoneAuthError(proof.error, true));
+    try {
+      if (!proof.data.session || proof.data.user?.id !== userId || !proof.data.user.phone_confirmed_at
+        || guardianPhone(proof.data.user.phone) !== phone) throw new Error("The current-mobile code did not match this account.");
+      await primaryOwner(client, userId, signal);
+      const security = await readStaffMfaStatus(client, userId, signal);
+      if (!security?.allowed) throw new Error("Verify your authenticator before setting an app password.");
+      // Auth keeps only the caller's session after a password change, so mutate through the browser's own session.
+      const mutation = await createBoundMfaClient(client, userId, signal).catch(() => {
+        throw new Error("Sign in again before setting an app password.");
+      });
+      const { data, error } = await mutation.auth.updateUser({ password: input.newPassword });
+      cancelled(signal);
+      if (error?.status === 429 || error?.code === "over_request_rate_limit") throw new Error("Too many attempts. Wait before trying again.");
+      if (error?.code === "weak_password") throw new Error("Choose a stronger password and try again.");
+      if (error?.code === "reauthentication_needed" || error?.code === "reauthentication_not_valid") {
+        throw new Error("Sign out, sign in again with your mobile code, then set the app password.");
+      }
+      if (error || data.user?.id !== userId) {
+        throw new SpentGuardianCodeError("The app password could not be confirmed. Try signing in to the app with it; if that fails, request a new current-mobile code and set it again.");
+      }
+      return phone;
+    } catch (failure) {
+      if (failure instanceof SpentGuardianCodeError) throw failure;
+      // verifyOtp accepted (and consumed) the single-use code, so a retry needs a fresh one.
+      throw new SpentGuardianCodeError(`${failure instanceof Error ? failure.message : "The app password could not be set."} Request a new current-mobile code to try again.`);
+    }
+  } finally { await closeTemporarySession(verificationClient); }
 }

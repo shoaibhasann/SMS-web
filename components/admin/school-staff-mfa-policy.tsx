@@ -5,10 +5,13 @@ import { History, RefreshCw, ShieldCheck } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { LoadingState } from "@/components/ui/skeleton";
-import { loadStaffMfaPolicy, saveStaffMfaPolicy, StaffMfaPolicyError, type StaffMfaPolicy, type StaffMfaPolicyIntent } from "@/lib/admin/staff-mfa-policy";
+import { loadStaffMfaPolicy, saveStaffMfaPolicy, STAFF_MFA_PENDING_LIMIT, StaffMfaPolicyError, type StaffMfaPendingReason, type StaffMfaPolicy, type StaffMfaPolicyIntent } from "@/lib/admin/staff-mfa-policy";
+import { roleLabel, toUiRole } from "@/lib/auth/roles";
 import { mfaPath, readStaffMfaStatus, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+const reasonLabels: Record<StaffMfaPendingReason, string> = { not_enrolled: "Not enrolled", unconfirmed: "Email or phone not confirmed", banned: "Account blocked", deleted: "Account deleted" };
+const staffRoles = (roles: string[]) => [...new Set(roles.map((role) => { const ui = toUiRole(role); return ui ? roleLabel(ui) : role; }))].join(", ");
 type Props = { client: SupabaseClient; userId: string; schoolId: string; onLock: (value: boolean) => void };
 export function SchoolStaffMfaPolicy(props: Props) {
   return <OwnSchoolStaffMfaPolicy key={`${props.userId}:${props.schoolId}`} {...props} />;
@@ -62,6 +65,15 @@ function OwnSchoolStaffMfaPolicy({ client, userId, schoolId, onLock }: Props) {
       {!record ? !error && <LoadingState variant="form">Checking school security…</LoadingState> : <>
         <div className="flex flex-wrap items-center justify-between gap-3"><span className="rounded-full bg-[var(--surface-2)] px-3 py-1.5 text-xs font-semibold">{record.required ? "Required for staff" : "Optional for staff"}</span><span className="text-xs muted">Revision {record.revision}</span></div>
         <dl className="grid grid-cols-3 gap-3">{[["Active staff", record.staff_count], ["Enrolled", record.enrolled_staff_count], ["Still needed", record.enrollment_required_count]].map(([label, value]) => <div key={label} className="rounded-xl border border-[var(--border)] p-3"><dt className="text-xs muted">{label}</dt><dd className="mt-1 text-xl font-bold">{value}</dd></div>)}</dl>
+        {record.pending.length > 0 && <div className="space-y-2">
+          <h3 id="school-mfa-pending-heading" className="text-sm font-semibold">Staff still to enroll</h3>
+          <ul aria-labelledby="school-mfa-pending-heading" className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">{record.pending.map((person) => <li key={person.profile_id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2 text-sm">
+            <span className="min-w-0 break-words"><span className="font-semibold">{person.full_name || "Unnamed staff account"}</span> <span className="text-xs muted">· {staffRoles(person.roles)}</span></span>
+            <span className={`text-xs font-semibold ${person.reason === "not_enrolled" ? "muted" : "text-amber-700 dark:text-amber-300"}`}>{reasonLabels[person.reason]}</span>
+          </li>)}</ul>
+          {record.enrollment_required_count > record.pending.length && <p className="text-xs muted">Showing the first {STAFF_MFA_PENDING_LIMIT} of {record.enrollment_required_count}.</p>}
+          <p className="text-xs leading-6 muted">A blocked, deleted or unconfirmed account cannot enroll. Fix the account or remove its staff role before enabling this policy.</p>
+        </div>}
         <p className="text-xs leading-6 muted">Every active staff member must enroll before this can be enabled. A staff member with a guardian role must verify before opening either workspace. Existing authenticators remain required for their accounts when this policy is optional.</p>
         {record.can_manage ? !ready ? <Link className={button} href={`${mfaPath("/modules/settings")}&setup=1`}>Set up and verify your authenticator first</Link> : <form aria-label="Change staff authenticator policy" className="space-y-4" onSubmit={save}>
           <label className="block space-y-2 text-sm font-semibold"><span>Reason for {record.required ? "disabling" : "enabling"}</span><textarea required minLength={5} maxLength={300} className="field !min-h-24" value={intent?.reason ?? reason} disabled={saving || Boolean(intent) || conflict} onChange={(event) => setReason(event.target.value)} /></label>

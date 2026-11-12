@@ -110,6 +110,15 @@ describe("student homework submission UI", () => {
   });
 });
 
+describe("student homework submission time", () => {
+  it("shows the saved time in IST whatever the browser locale", async () => {
+    const user = userEvent.setup(); current = submitted();
+    render(<StudentHomeworkSubmission scope={scope} userId="auth-student" maxMarks={10} />);
+    await user.click(screen.getByRole("button", { name: "My submission" }));
+    expect(await screen.findByText("Saved 5 Nov 2026, 5:30 pm IST")).toBeInTheDocument();
+  });
+});
+
 describe("teacher homework grading UI", () => {
   it("shows submitted and pending pupils separately and saves marks against the original revision", async () => {
     const user = userEvent.setup();
@@ -117,6 +126,7 @@ describe("teacher homework grading UI", () => {
     render(<TeacherHomeworkGrading activityId="homework-a" userId="auth-teacher" />);
     await user.click(screen.getByRole("button", { name: "View submissions" })); await screen.findByText("Asha Student");
     expect(screen.getByText("Pending Student")).toBeInTheDocument(); expect(screen.getAllByRole("button", { name: "Grade submission" })).toHaveLength(1);
+    expect(screen.getByText("Submitted")).toHaveClass("badge", "text-warning"); expect(screen.getByText("Not submitted")).toHaveClass("badge", "muted");
     await user.click(screen.getByRole("button", { name: "Grade submission" }));
     await user.type(screen.getByRole("spinbutton", { name: "Marks" }), "8"); await user.type(screen.getByRole("textbox", { name: "Feedback" }), "Good method");
     await user.click(screen.getByRole("button", { name: "Save grade" }));

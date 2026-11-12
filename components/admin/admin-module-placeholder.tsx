@@ -11,12 +11,12 @@ export function AdminModulePlaceholder({ moduleName }: { moduleName: string }) {
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">School Administration</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-[var(--primary)]">School Administration</p>
         <h1 className="mt-1 text-3xl font-black">{title}</h1>
       </header>
       <section className="card p-6 sm:p-8">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[var(--surface-2)] text-[var(--primary)]">
             <CircleHelp size={20} />
           </div>
           <div>

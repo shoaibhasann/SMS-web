@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { TeachingAssignmentManager } from "../components/academic/teaching-assignment-manager";
@@ -16,6 +16,7 @@ function repository(value: AssignmentAccess = access): TeachingAssignmentReposit
   return {
     access: vi.fn().mockResolvedValue(value), load: vi.fn().mockResolvedValue(data),
     save: vi.fn().mockResolvedValue(undefined), remove: vi.fn().mockResolvedValue(undefined),
+    timetablePeriods: vi.fn().mockResolvedValue([]),
     previewImport: vi.fn(), confirmImport: vi.fn(),
   };
 }
@@ -101,6 +102,38 @@ describe("administrator and principal assignment workflow", () => {
     await screen.findByRole("alert"); expect(screen.getByRole("cell", { name: "Mathematics" })).toBeInTheDocument();
     expect(screen.queryByText("Teaching assignment removed.")).not.toBeInTheDocument(); expect(repo.remove).toHaveBeenCalledWith("a", row);
   });
+  it("lists the timetable periods a removal retires before the admin confirms", async () => {
+    const user = userEvent.setup(); const repo = repository();
+    vi.mocked(repo.timetablePeriods).mockResolvedValue([{ id: "p1", class_name: "Class 1", section_name: "Section A", day_of_week: 1, period_no: 2, start_time: "08:00:00", end_time: "09:00:00" }]);
+    render(<TeachingAssignmentManager repository={repo} />);
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    const dialog = screen.getByRole("group", { name: "Confirm assignment removal" });
+    expect(await within(dialog).findByText("Monday · Period 2 · 08:00–09:00 · Class 1 / Section A")).toBeInTheDocument();
+    expect(within(dialog).getByText(/timetable periods use this assignment and are removed with it/)).toBeInTheDocument();
+    expect(repo.timetablePeriods).toHaveBeenCalledWith("a", "assignment");
+  });
+  it("warns while editing which periods a re-point retires, and says so when they cannot be checked", async () => {
+    const user = userEvent.setup(); const repo = repository();
+    vi.mocked(repo.timetablePeriods).mockResolvedValueOnce([{ id: "p1", class_name: "Class 1", section_name: null, day_of_week: 3, period_no: 1, start_time: "10:00:00", end_time: "10:40:00" }]);
+    render(<TeachingAssignmentManager repository={repo} />);
+    await user.click(await screen.findByRole("button", { name: "Edit" }));
+    await waitFor(() => expect(repo.timetablePeriods).toHaveBeenCalledWith("a", "assignment"));
+    // A class-teacher-only edit keeps the periods, so no removal warning is shown.
+    await user.click(screen.getByRole("checkbox", { name: "Mark as class teacher" }));
+    expect(screen.queryByText("Wednesday · Period 1 · 10:00–10:40 · Class 1 (whole class)")).not.toBeInTheDocument();
+    expect(screen.queryByText(/removes these timetable periods/)).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class" }), "class-2");
+    expect(await screen.findByText("Wednesday · Period 1 · 10:00–10:40 · Class 1 (whole class)")).toBeInTheDocument();
+    expect(screen.getByText(/Changing the teacher, class, section or subject removes these timetable periods/)).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Class" }), "class");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Section" }), "section");
+    expect(screen.queryByText(/removes these timetable periods/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel assignment" }));
+    vi.mocked(repo.timetablePeriods).mockRejectedValueOnce(new Error("offline"));
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+    expect(await screen.findByText(/could not be checked. Any period scheduled with it is removed/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm remove" })).toBeEnabled();
+  });
   it("keeps a successful write separate from a subsequent reload failure", async () => {
     const user = userEvent.setup(); const repo = repository(); vi.mocked(repo.load).mockResolvedValueOnce(data).mockRejectedValue(new Error("Assignments could not be reloaded."));
     render(<TeachingAssignmentManager repository={repo} />); await fill(user);
@@ -142,5 +175,20 @@ describe("access and request lifecycle", () => {
     expect(getAdminNavigationModules().some((module) => module.key === "teacher-assignments")).toBe(true);
     expect(getVisibleModules("principal").some((module) => module.key === "teacher-assignments")).toBe(true);
     expect(getTeacherNavigationModules().some((module) => module.key === "teacher-assignments")).toBe(true);
+  });
+});
+
+describe("coverage panel sync", () => {
+  it("reports confirmed saves and removals through onChanged, never failed saves", async () => {
+    const user = userEvent.setup(); const repo = repository(); const onChanged = vi.fn();
+    vi.mocked(repo.save).mockRejectedValueOnce(new Error("No successful save was confirmed. Refresh before retrying."));
+    render(<TeachingAssignmentManager repository={repo} onChanged={onChanged} />); await fill(user);
+    await user.click(screen.getByRole("button", { name: "Add Assignment" }));
+    await screen.findByRole("alert"); expect(onChanged).not.toHaveBeenCalled();
+    await user.click(screen.getByRole("button", { name: "Add Assignment" }));
+    await screen.findByText("Teaching assignment added."); expect(onChanged).toHaveBeenCalledTimes(1);
+    await user.click(await screen.findByRole("button", { name: "Remove" }));
+    await user.click(screen.getByRole("button", { name: "Confirm remove" }));
+    await screen.findByText("Teaching assignment removed."); expect(onChanged).toHaveBeenCalledTimes(2);
   });
 });

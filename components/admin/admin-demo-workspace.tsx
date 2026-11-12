@@ -13,11 +13,11 @@ type Column = { key: string; label: string };
 type ModuleConfig = { title: string; description: string; columns: Column[] };
 
 const configs: Record<AdminDemoModule, ModuleConfig> = {
-  students: { title: "Students", description: "Student directory, class placement, and parent details.", columns: [{ key: "admissionNo", label: "Admission No." }, { key: "name", label: "Student" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "parent", label: "Parent" }, { key: "mobile", label: "Mobile" }, { key: "status", label: "Status" }] },
-  parents: { title: "Parents", description: "Parent and guardian contacts with linked children.", columns: [{ key: "name", label: "Parent" }, { key: "relationship", label: "Relationship" }, { key: "mobile", label: "Mobile" }, { key: "email", label: "Email" }, { key: "children", label: "Children" }, { key: "status", label: "Status" }] },
+  students: { title: "Students", description: "Student directory, class placement, and guardian details.", columns: [{ key: "admissionNo", label: "Admission No." }, { key: "name", label: "Student" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "parent", label: "Guardian" }, { key: "mobile", label: "Mobile" }, { key: "status", label: "Status" }] },
+  parents: { title: "Guardians", description: "Guardian contacts with linked children.", columns: [{ key: "name", label: "Guardian" }, { key: "relationship", label: "Relationship" }, { key: "mobile", label: "Mobile" }, { key: "email", label: "Email" }, { key: "children", label: "Children" }, { key: "status", label: "Status" }] },
   teachers: { title: "Teachers & Staff", description: "School staff profiles and academic assignments.", columns: [{ key: "employeeId", label: "Employee ID" }, { key: "name", label: "Name" }, { key: "designation", label: "Designation" }, { key: "department", label: "Department" }, { key: "mobile", label: "Mobile" }, { key: "assignments", label: "Assignments" }, { key: "status", label: "Status" }] },
   academics: { title: "Academics", description: "Academic years, classes, sections, and subjects.", columns: [] },
-  admissions: { title: "Admissions", description: "Admission enquiries and application progress.", columns: [{ key: "applicationNo", label: "Application" }, { key: "studentName", label: "Student" }, { key: "parentName", label: "Parent" }, { key: "className", label: "Class" }, { key: "stage", label: "Stage" }, { key: "receivedOn", label: "Received" }, { key: "status", label: "Status" }] },
+  admissions: { title: "Admissions", description: "Admission enquiries and application progress.", columns: [{ key: "applicationNo", label: "Application" }, { key: "studentName", label: "Student" }, { key: "parentName", label: "Guardian" }, { key: "className", label: "Class" }, { key: "stage", label: "Stage" }, { key: "receivedOn", label: "Received" }, { key: "status", label: "Status" }] },
   timetable: { title: "Timetable", description: "Class and subject timetable entries.", columns: [{ key: "day", label: "Day" }, { key: "period", label: "Period" }, { key: "startTime", label: "Start" }, { key: "endTime", label: "End" }, { key: "className", label: "Class" }, { key: "section", label: "Section" }, { key: "subject", label: "Subject" }, { key: "teacher", label: "Teacher" }, { key: "room", label: "Room" }] },
   events: { title: "Events & Calendar", description: "School events and important dates.", columns: [{ key: "title", label: "Event" }, { key: "type", label: "Type" }, { key: "date", label: "Date" }, { key: "startTime", label: "Start" }, { key: "endTime", label: "End" }, { key: "location", label: "Venue" }, { key: "audience", label: "Audience" }, { key: "status", label: "Status" }] },
   library: { title: "Library", description: "Book catalogue, issues, returns, and fines.", columns: [{ key: "name", label: "Book" }, { key: "isbn", label: "ISBN" }, { key: "category", label: "Category" }, { key: "author", label: "Author" }, { key: "quantity", label: "Copies" }, { key: "available", label: "Available" }, { key: "status", label: "Status" }] },
@@ -92,6 +92,12 @@ function DemoWorkspace({ module }: { module: AdminDemoModule }) {
     refreshLoans();
     refreshAllocations();
     refreshMovements();
+  };
+  const resetDemo = () => {
+    AdminDemoService.reset(module);
+    setSelected(null);
+    refresh();
+    setToast("Demo data reset.");
   };
 
   const columns = useMemo(() => {
@@ -190,7 +196,7 @@ function DemoWorkspace({ module }: { module: AdminDemoModule }) {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div><p className="text-xs font-bold uppercase tracking-widest text-blue-600">School Administration</p><h1 className="mt-1 text-3xl font-black">{config.title}</h1><p className="mt-2 text-sm muted">{config.description}</p></div>
-        <div className="flex gap-2"><button type="button" onClick={refresh} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16} /> Reset demo data</button><button type="button" onClick={() => openForm()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Add record</button></div>
+        <div className="flex gap-2"><button type="button" onClick={resetDemo} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold"><RefreshCw size={16} /> Reset demo data</button><button type="button" onClick={() => openForm()} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white"><Plus size={16} /> Add record</button></div>
       </header>
       <div className="rounded-xl border border-sky-300/50 bg-sky-500/5 px-4 py-3 text-xs leading-5 text-sky-800 dark:text-sky-200">Demo preview: changes are saved in this browser only.</div>
       {toast && <p role="status" className="text-sm text-emerald-600">{toast}</p>}

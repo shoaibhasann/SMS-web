@@ -91,6 +91,7 @@ describe("School gate operations workspace", () => {
   });
   it("requires a reason before revoking a mapping and retains its history", async () => {
     save.mockResolvedValue({ revoked_at: now }); render(<GateOperationsWorkspace {...props} />); await ready(); fireEvent.click(screen.getByRole("button", { name: `Revoke identifier card:101 on device ${deviceId}` })); const confirm = screen.getByRole("button", { name: "Confirm revocation" });
+    expect(screen.getByLabelText("Revocation reason")).toHaveFocus(); expect(screen.getByLabelText("Revocation reason")).toHaveAccessibleDescription("At least 5 characters."); expect(confirm).toHaveClass("btn-danger-solid"); expect(screen.getByRole("button", { name: "Revoke active device" })).toHaveClass("btn-danger");
     expect(confirm).toBeDisabled(); fireEvent.change(screen.getByLabelText("Revocation reason"), { target: { value: "lost" } }); expect(confirm).toBeDisabled(); fireEvent.change(screen.getByLabelText("Revocation reason"), { target: { value: "Card replaced by school" } });
     setup.mockResolvedValue(gateSetup({ mappings: [mapping({ revoked_at: now })] })); fireEvent.click(confirm); await waitFor(() => expect(save).toHaveBeenCalledWith(client, userId, { kind: "revoke_mapping", schoolId, mappingId, reason: "Card replaced by school" }, expect.any(AbortSignal)));
     expect(await screen.findByRole("status")).toHaveTextContent("Existing scan and attendance history is unchanged"); expect(within(screen.getByRole("region", { name: "Gate student mappings" })).getByText("card:101")).toBeInTheDocument();
@@ -101,7 +102,7 @@ describe("School gate operations workspace", () => {
   });
   it("renders explicit immutable IN/OUT receipts and routes held events to reviewed correction flow", async () => {
     const review = vi.fn(); render(<GateOperationsWorkspace {...props} onReviewAttendance={review} />); await ready(); const receipts = screen.getByRole("region", { name: "Gate event receipts" });
-    expect(within(receipts).getByText("OUT · Held for review")).toBeInTheDocument(); expect(within(receipts).getByText(/not the current attendance register/)).toBeInTheDocument(); expect(within(receipts).getAllByText(/IST/)).toHaveLength(4); expect(within(receipts).getByText(/Receipt attendance: present/)).toBeInTheDocument();
+    expect(within(receipts).getByText("OUT · Held for review")).toHaveClass("badge", "text-warning"); expect(within(receipts).getByText("IN · Accepted")).toHaveClass("badge", "text-success"); expect(within(receipts).getByText(/not the current attendance register/)).toBeInTheDocument(); expect(within(receipts).getAllByText(/IST/)).toHaveLength(4); expect(within(receipts).getByText(/Receipt attendance: present/)).toBeInTheDocument();
     fireEvent.click(within(receipts).getByRole("button", { name: "Open attendance review" })); expect(review).toHaveBeenCalledOnce(); expect(within(receipts).getByText(/correction does not change these immutable receipts/)).toBeInTheDocument(); expect(within(receipts).queryByRole("button", { name: /approve|resolve|replay|send|scan/i })).not.toBeInTheDocument();
   });
   it("uses separate 100-row mapping and receipt pages without claiming a partial page is the whole history", async () => {

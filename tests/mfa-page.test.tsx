@@ -52,6 +52,11 @@ describe("standalone MFA continuation", () => {
     expect(screen.getByRole("region", { name: "Own authenticator" })).toHaveTextContent("Setup or add backup");
     expect(mocks.refresh).toHaveBeenCalledOnce();
   });
+  it("returns a verified guardian to the mobile invitation with its token fragment", async () => {
+    params = new URLSearchParams("next=/guardian-mobile-invite");
+    render(<MfaPage />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(`/guardian-mobile-invite#token=${"a".repeat(64)}`));
+  });
   it("does not offer a continue shortcut while a code is still required", async () => {
     mocks.status.mockResolvedValue({ user_id: "owner", allowed: false, action: "challenge", current_aal: "aal1", verified_totp_count: 1 });
     render(<MfaPage />);
@@ -59,6 +64,26 @@ describe("standalone MFA continuation", () => {
     expect(screen.getByRole("link", { name: "Back to sign-in options" })).toHaveAttribute("href", "/login");
     expect(screen.queryByRole("button", { name: "Continue to workspace" })).not.toBeInTheDocument();
     expect(mocks.replace).not.toHaveBeenCalled();
+  });
+  it("gives a guardian without an authenticator a way back to the invitation from setup", async () => {
+    params = new URLSearchParams("next=/guardian-invite&setup=1");
+    mocks.status.mockResolvedValue({ user_id: "owner", allowed: false, action: "enroll", current_aal: "aal1", verified_totp_count: 0 });
+    render(<MfaPage />);
+    await screen.findByRole("region", { name: "Own authenticator" });
+    expect(screen.getByRole("link", { name: "Back to invitation" })).toHaveAttribute("href", `/guardian-invite#token=${"a".repeat(64)}`);
+  });
+  it.each([
+    ["next=/dashboard&setup=1", `#token=${"a".repeat(64)}`, null],
+    ["next=https%3A%2F%2Funtrusted.example%2Fguardian-invite&setup=1", `#token=${"a".repeat(64)}`, null],
+    ["next=/guardian-recover&setup=1", "#token=not-a-token", "/guardian-recover"],
+  ])("only links back to an allowlisted invitation and drops an invalid fragment (%s %s)", async (query, hash, href) => {
+    params = new URLSearchParams(query);
+    window.history.replaceState(null, "", `/mfa?${params}${hash}`);
+    mocks.status.mockResolvedValue({ user_id: "owner", allowed: false, action: "enroll", current_aal: "aal1", verified_totp_count: 0 });
+    render(<MfaPage />);
+    await screen.findByRole("region", { name: "Own authenticator" });
+    const link = screen.queryByRole("link", { name: "Back to invitation" });
+    if (href) expect(link).toHaveAttribute("href", href); else expect(link).not.toBeInTheDocument();
   });
   it.each([null, {
     user_id: "owner", allowed: false, action: "sign_in", current_aal: "aal1", verified_totp_count: 0,

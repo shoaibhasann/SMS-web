@@ -5,13 +5,20 @@ export type StaffMfaPolicy = {
   school_id: string; required: boolean; revision: number; can_manage: boolean;
   staff_count: number; enrolled_staff_count: number; enrollment_required_count: number;
   history: { id: string; revision: number; required: boolean; changed_at: string; actor_name: string | null }[];
+  pending: { profile_id: string; full_name: string | null; roles: string[]; reason: StaffMfaPendingReason }[];
 };
+export type StaffMfaPendingReason = "not_enrolled" | "unconfirmed" | "banned" | "deleted";
+/** Server caps the named list of staff still to enroll at this many rows. */
+export const STAFF_MFA_PENDING_LIMIT = 200;
+const pendingReasons: readonly unknown[] = ["not_enrolled", "unconfirmed", "banned", "deleted"] satisfies StaffMfaPendingReason[];
 export type StaffMfaPolicyIntent = { schoolId: string; revision: number; required: boolean; requestId: string; reason: string };
 export class StaffMfaPolicyError extends Error {
   constructor(message: string, readonly code: "access" | "validation" | "conflict" | "unconfirmed" = "unconfirmed") { super(message); this.name = "StaffMfaPolicyError"; }
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+// SQL trims names with left(..., 160), which counts code points, not UTF-16 units.
+const name = (value: unknown) => value === null || typeof value === "string" && [...value].length <= 160;
 const count = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 && value <= 2147483647;
 function cancelled(signal?: AbortSignal) { if (signal?.aborted) throw new DOMException("Request cancelled.", "AbortError"); }
 function failure(error: { code?: string } | null) {
@@ -31,8 +38,15 @@ export function parseStaffMfaPolicy(value: unknown, schoolId: string): StaffMfaP
       return typeof event.id === "string" && uuid.test(event.id) && count(event.revision) && event.revision > 0 && event.revision <= Number(row.revision)
         && (index === 0 || event.revision < Number(object((row.history as unknown[])[index - 1]).revision))
         && typeof event.required === "boolean" && typeof event.changed_at === "string" && Number.isFinite(Date.parse(event.changed_at))
-        && (event.actor_name === null || typeof event.actor_name === "string" && event.actor_name.length <= 200);
-    }) || new Set(row.history.map((entry) => object(entry).id)).size !== row.history.length) {
+        && name(event.actor_name);
+    }) || new Set(row.history.map((entry) => object(entry).id)).size !== row.history.length
+    || !Array.isArray(row.pending) || row.pending.length !== Math.min(row.enrollment_required_count, STAFF_MFA_PENDING_LIMIT)
+    || !row.pending.every((entry) => {
+      const person = object(entry);
+      return typeof person.profile_id === "string" && uuid.test(person.profile_id) && pendingReasons.includes(person.reason)
+        && name(person.full_name)
+        && Array.isArray(person.roles) && person.roles.length > 0 && person.roles.every((role) => typeof role === "string" && role.length > 0 && role.length <= 40);
+    }) || new Set(row.pending.map((entry) => object(entry).profile_id)).size !== row.pending.length) {
     throw new StaffMfaPolicyError("School authenticator policy could not be verified. Reload to try again.");
   }
   return value as StaffMfaPolicy;

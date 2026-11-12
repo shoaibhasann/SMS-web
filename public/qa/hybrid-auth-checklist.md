@@ -22,6 +22,9 @@ App: https://sms-web-shoaibhasann.vercel.app/login
 - [ ] Staff/Admin/Finance/Student accounts cannot use guardian OTP as an alternate path to their higher-level workspace.
 - [ ] Resend cooldown, wrong-code limits, repeated webhook delivery, SMS failure and daily allowance exhaustion never cause duplicate sends or unexpected links.
 - [ ] Phone-only settings explain mobile access and school-assisted recovery, without requiring an email/password for routine sign-in.
+- [ ] Phone-only guardian sets an app password (at least 8 characters) in guardian contact settings with a fresh current-mobile code, stays signed in on the web, and signs in to the SMS Android app with the mobile number and that password.
+- [ ] With SMS verification disabled for the school, a phone-only guardian sees no Set app password link in Account settings; Account settings and the App password card say the school office must enable mobile verification or add an email.
+- [ ] When the verification settings read fails or hangs, Account settings still shows the account details and both pages show a neutral temporarily-unavailable message with a retry instead of the school-office message.
 - [ ] Test real target phones, shared-school Wi-Fi, different mobile carriers, slow internet, blocked security scripts and keyboard navigation.
 
 ## Commercial boundaries

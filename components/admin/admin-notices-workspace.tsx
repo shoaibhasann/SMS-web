@@ -17,11 +17,11 @@ type Notice = {
 };
 type Choice = { id: string; name: string };
 type SectionChoice = Choice & { class_id: string };
-const audienceChoices = ["Everyone", "Students", "Parents", "Teachers", "Staff", "Specific Class", "Specific Section"] as const;
+const audienceChoices = ["Everyone", "Students", "Guardians", "Teachers", "Staff", "Specific Class", "Specific Section"] as const;
 type AudienceKind = (typeof audienceChoices)[number] | "Existing audience";
 class NoticeVersionUnavailable extends Error {}
 const audienceForRole = new Map<string, AudienceKind>([
-  ["student", "Students"], ["parent", "Parents"], ["teacher", "Teachers"], ["staff", "Staff"],
+  ["student", "Students"], ["parent", "Guardians"], ["teacher", "Teachers"], ["staff", "Staff"],
 ]);
 const schoolDateTime = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata",
@@ -210,6 +210,16 @@ export function AdminNoticesWorkspace() {
     event.preventDefault();
     if (!schoolId || !userId || !title.trim() || !content.trim() || saving || loading || mutationPending.current
       || (editingId && conflictedId === editingId)) return;
+    // "Today" is evaluated at submit time: a tab left open overnight must not backdate the notice.
+    const today = schoolDate();
+    const keepsOriginalTime = !!editingNotice?.published_at
+      && schoolDate(new Date(editingNotice.published_at)) === publishDate;
+    if (publishStatus === "Published" && !keepsOriginalTime && publishDate < today) {
+      setPublishDate(today);
+      setMessage("");
+      setError("The publish date was in the past and has been changed to today. Check it and publish again.");
+      return;
+    }
     mutationPending.current = true;
     setSaving(true);
     setError("");
@@ -229,7 +239,7 @@ export function AdminNoticesWorkspace() {
       const publishedAt = publishStatus === "Draft" ? null
         : originalPublishTime && schoolDate(new Date(originalPublishTime)) === publishDate
           ? originalPublishTime
-          : publishDate === schoolDate() ? new Date().toISOString() : `${publishDate}T09:00:00+05:30`;
+          : publishDate === today ? new Date().toISOString() : `${publishDate}T09:00:00+05:30`;
       const payload = {
         title: title.trim(),
         content: content.trim(),

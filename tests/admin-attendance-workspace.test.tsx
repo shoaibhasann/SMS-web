@@ -214,6 +214,7 @@ describe("AdminAttendanceWorkspace", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Set exactly one current academic year for this school");
     expect(screen.getByRole("button", { name: "Retry school setup" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Retry school setup" })).toHaveClass("btn", "btn-secondary");
     expect(editor).not.toHaveBeenCalled();
   });
 });

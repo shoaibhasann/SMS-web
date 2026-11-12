@@ -5,7 +5,25 @@ type Column = { name: string; type: string; not_null: boolean; default: string |
 type Relation = { name: string; columns: Column[]; constraints: { name: string; definition: string }[] };
 type Policy = { tablename: string; policyname: string; qual: string; with_check: string };
 const directory = new URL("../../supabase/migrations/", import.meta.url);
+export const GOVERNED_FEE_MIGRATIONS = ["_record_office_fee_payment.sql", "_close_office_fee_day.sql", "_office_fee_day_optimistic_conflict_http_status.sql", "_office_fee_batches_and_opening_balances.sql", "_harden_fee_adjustment_record_access.sql", "_governed_office_fee_changes.sql"];
 const ident = (value: string) => `"${value.replaceAll('"', '""')}"`;
+
+const definedFunctions = (sql: string) => [...sql.matchAll(/create\s+(?:or\s+replace\s+)?function\s+([a-z_]+\.[a-z_0-9]+)/gi)].map((match) => match[1].toLowerCase());
+
+// The fixtures stage named migrations (legacy rows are created under the old bodies), so afterwards apply,
+// in replay order, every later migration that redefines a function they created: the deep cases then run
+// on the current bodies. Advance credit is the last migration either fixture applies by name.
+export async function applyLaterFeeRedefinitions(db: GovernedFeeFixture["db"], appliedSuffixes: string[]) {
+  const files = (await readdir(directory)).filter((name) => name.endsWith(".sql")).sort();
+  const created = new Set<string>();
+  for (const file of files.filter((name) => appliedSuffixes.some((suffix) => name.endsWith(suffix)))) {
+    for (const name of definedFunctions(await readFile(new URL(file, directory), "utf8"))) created.add(name);
+  }
+  for (const file of files.filter((name) => name > "20261105170615_office_student_advance_credit.sql")) {
+    const sql = await readFile(new URL(file, directory), "utf8");
+    if (definedFunctions(sql).some((name) => created.has(name))) await db.exec(sql);
+  }
+}
 
 export async function createGovernedFeeDatabase({ previousMonth = false }: { previousMonth?: boolean } = {}) {
   const db = await createStaffScopeDatabase();
@@ -21,7 +39,7 @@ export async function createGovernedFeeDatabase({ previousMonth = false }: { pre
       await db.exec(`create policy ${ident(policy.policyname)} on public.${ident(policy.tablename)} for all to public using (${policy.qual}) with check (${policy.with_check})`);
     }
     const files = await readdir(directory);
-    for (const suffix of ["_record_office_fee_payment.sql", "_close_office_fee_day.sql", "_office_fee_day_optimistic_conflict_http_status.sql", "_office_fee_batches_and_opening_balances.sql", "_harden_fee_adjustment_record_access.sql"]) {
+    for (const suffix of GOVERNED_FEE_MIGRATIONS.slice(0, -1)) {
       const matches = files.filter((name) => name.endsWith(suffix));
       if (matches.length !== 1) throw new Error(`Expected one ${suffix} migration.`);
       await db.exec(await readFile(new URL(matches[0], directory), "utf8"));
@@ -36,6 +54,7 @@ export async function createGovernedFeeDatabase({ previousMonth = false }: { pre
     const matches = files.filter((name) => name.endsWith("_governed_office_fee_changes.sql"));
     if (matches.length !== 1) throw new Error("Expected one governed-office-fee-changes migration.");
     await db.exec(await readFile(new URL(matches[0], directory), "utf8"));
+    await applyLaterFeeRedefinitions(db, GOVERNED_FEE_MIGRATIONS);
     return { db, ...dates, legacyDay, oldClosed: closed, originalFee, originalReceipt };
   } catch (error) { await db.close(); throw error; }
 }

@@ -57,7 +57,7 @@ export function validateSchoolDetails(input: SchoolDetails): string | null {
     if (!optional(input[key], maximum)) return `Check the ${key.replaceAll("_", " ")} field and its length.`;
   }
   if (input.pincode !== null && !/^\d{6}$/.test(input.pincode)) return "Use a six-digit PIN code or leave it empty.";
-  if (input.phone !== null && (!/^\+?[0-9][0-9 ()-]*$/.test(input.phone) || input.phone.replace(/\D/g, "").length < 7 || input.phone.replace(/\D/g, "").length > 15)) return "Use a phone number with 7–15 digits, with optional spaces, parentheses or hyphens.";
+  if (input.phone !== null && (!/^(\+[0-9]|[0-9(])[0-9 ()-]*$/.test(input.phone) || input.phone.replace(/\D/g, "").length < 7 || input.phone.replace(/\D/g, "").length > 15)) return "Use a phone number with 7–15 digits, with optional spaces, parentheses or hyphens.";
   if (input.email !== null && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) return "Enter a valid school email or leave it empty.";
   if (input.website !== null) {
     try {

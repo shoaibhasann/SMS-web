@@ -382,7 +382,7 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
             </label>}
             <p className="text-sm muted">Creating a new invitation for the same student and contact replaces the previous pending link.</p>
             {method === "phone" && <p className="text-sm muted">Mobile verification needs the school’s SMS service. Existing email guardians should verify their mobile from their current account to preserve child links.</p>}
-            <button type="submit" className={`${button} bg-blue-700 text-white`}>{action === "issue" ? "Creating invitation…" : "Create invitation"}</button>
+            <button type="submit" className="btn btn-primary">{action === "issue" ? "Creating invitation…" : "Create invitation"}</button>
           </fieldset>
         </form>
         {displayLink && (
@@ -409,9 +409,9 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
           <div role="group" aria-label="Confirm revocation" className="space-y-3 rounded-xl border border-red-500/40 p-4">
             <p className="text-sm break-words">Revoke the pending link for {pendingRevoke.email || pendingRevoke.phone}?</p>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={`${button} text-red-600 dark:text-red-400`} disabled={busy}
+              <button type="button" className="btn btn-danger-solid" disabled={busy}
                 onClick={() => void revoke()}>{action === "revoke" ? "Revoking…" : "Confirm revoke"}</button>
-              <button type="button" className={button} disabled={busy} onClick={() => setPendingRevoke(undefined)}>Keep invitation</button>
+              <button type="button" className={button} autoFocus disabled={busy} onClick={() => setPendingRevoke(undefined)}>Keep invitation</button>
             </div>
           </div>
         )}
@@ -429,7 +429,7 @@ function StudentInvitations({ client, schoolId, student, historyRevision, busy, 
                       <p className="text-sm muted">{status} · Expires {expiryFormat.format(Date.parse(invitation.expires_at))} IST</p>
                     </div>
                     {status === "Pending" && (
-                      <button type="button" className={button} disabled={busy || Boolean(pendingRevoke)}
+                      <button type="button" className="btn btn-danger" disabled={busy || Boolean(pendingRevoke)}
                         aria-label={`Revoke invitation for ${invitation.email || invitation.phone}`}
                         onClick={() => setPendingRevoke(invitation)}>Revoke</button>
                     )}

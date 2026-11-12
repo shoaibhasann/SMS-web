@@ -55,6 +55,14 @@ describe('owner-bound roster writes', () => {
     expect(c.rpc.mock.calls[0]).toEqual(c.rpc.mock.calls[1]);
     expect(c.query.setHeader).toHaveBeenCalledTimes(2);
   });
+  it.each(['Enter a valid date of birth.', 'Enter a valid 10-digit mobile number.'])('shows the server contact error for an import (%s)', async (message) => {
+    const c = client({ data: null, error: { code: '22023', message } });
+    await expect(importRosterStudents(c.api, context, crypto.randomUUID(), [fields], options))
+      .rejects.toMatchObject({ code: 'validation', message: `${message} The batch was not saved.` });
+    const other = client({ data: null, error: { code: '22023', message: 'Choose a valid class and section in the current academic year.' } });
+    await expect(importRosterStudents(other.api, context, crypto.randomUUID(), [fields], options))
+      .rejects.toMatchObject({ message: 'Check the student details and current class and section. The batch was not saved.' });
+  });
   it.each([0, 2, '1', null])('rejects an incomplete or malformed import receipt (%s)', async (data) => {
     const c = client({ data, error: null });
     await expect(importRosterStudents(c.api, context, crypto.randomUUID(), [fields], options)).rejects.toMatchObject({ code: 'unconfirmed' });

@@ -59,6 +59,7 @@ describe("guardian phone OTP form", () => {
       body: JSON.stringify({ phone, captchaToken: "fresh-proof" }),
     }));
     expect(screen.getByRole("textbox", { name: "SMS code" })).toHaveAttribute("autocomplete", "one-time-code");
+    expect(screen.getByRole("textbox", { name: "SMS code" })).toHaveClass("login-input");
   });
 
   it("requires six digits and a verified current matching account before continuing", async () => {

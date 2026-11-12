@@ -27,6 +27,8 @@ export type StudentLeaveRequest = {
   review_note: string | null;
   reviewed_at: string | null;
   total_count: number;
+  /** Office review list only: the caller is this pupil's account or linked guardian and cannot decide. */
+  is_family_reviewer?: boolean;
 };
 
 export type StudentLeaveSubmission = {
@@ -106,8 +108,10 @@ function rpcError(error: { code?: string; message?: string } | null, action: "lo
   if (!error) return;
   const code = error.code ?? "";
   if (["PGRST202", "42883"].includes(code)) throw new StudentLeaveError("Leave requests need the latest school update. Contact your administrator.", code);
-  if (code === "42501") throw new StudentLeaveError("Your access to this student or school could not be verified. Refresh your linked students or school access.", code);
-  if (["22023", "23505", "PT409", "40001"].includes(code) && error.message) throw new StudentLeaveError(error.message, code);
+  if (code === "42501") throw new StudentLeaveError(action === "review"
+    ? "You cannot review this request. Your office access may have changed, or the request is for your own child; another administrator or principal must review it."
+    : "Your access to this student or school could not be verified. Refresh your linked students or school access.", code);
+  if (["22023", "23505", "PT409", "PT422", "40001"].includes(code) && error.message) throw new StudentLeaveError(error.message, code);
   throw new StudentLeaveError(action === "submit"
     ? "The submission could not be confirmed. Your dates and reason are kept. Retry the same request or refresh its saved history."
     : action === "review"
@@ -137,7 +141,9 @@ export async function listStudentLeaveReview(client: SupabaseClient, schoolId: s
   if (status !== null && !studentLeaveStatuses.includes(status)) throw new StudentLeaveError("Choose a valid request status.", "22023");
   const { data, error } = await client.rpc("list_student_leave_review", { p_school_id: schoolId, p_status: status, p_offset: offset });
   rpcError(error, "load");
-  return readRows(data, { schoolId, status }, offset);
+  const rows = readRows(data, { schoolId, status }, offset);
+  if (rows.some((row) => typeof row.is_family_reviewer !== "boolean")) throw new StudentLeaveError("Leave records could not be verified. Refresh to try again.");
+  return rows;
 }
 
 export async function submitStudentLeave(client: SupabaseClient, request: StudentLeaveSubmission) {

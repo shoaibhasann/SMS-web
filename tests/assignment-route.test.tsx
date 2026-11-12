@@ -100,7 +100,10 @@ vi.mock("@/components/academic/teacher-attendance-register", () => ({
   TeacherAttendanceRegister: () => <section aria-label="Teacher attendance register" />,
 }));
 vi.mock("@/components/academic/academic-workspace", () => ({
-  AcademicWorkspace: ({ module }: { module: string }) => <section aria-label={`Academic workspace ${module}`} />,
+  AcademicWorkspace: ({ module, role }: { module: string; role?: string }) => <section aria-label={`Academic workspace ${module}`}>{role ?? "self-resolved"}</section>,
+}));
+vi.mock("@/components/academic/teacher-activity-workspace", () => ({
+  TeacherAcademicActivityWorkspace: ({ module }: { module: string }) => <section aria-label={`Teacher activity workspace ${module}`} />,
 }));
 vi.mock("@/components/family/guardian-contact-settings", () => ({
   GuardianContactSettings: ({ userId, callbackStatus }: { userId: string; callbackStatus: string | null }) => (
@@ -193,8 +196,7 @@ describe("official office attendance report route", () => {
   it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("does not mount the office reader for %s", async (role) => {
     currentModule = "reports"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    if (role === "accountant") expect(await screen.findByRole("heading", { name: /^Reports$/ })).toBeInTheDocument();
-    else expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
     expect(screen.queryByRole("region", { name: "Official office attendance reports" })).not.toBeInTheDocument();
   });
 });
@@ -721,5 +723,22 @@ describe("published assessment result routes", () => {
     }
     expect(getTeacherNavigationModules().some((item) => item.key === "published-results")).toBe(true);
     expect(getAdminNavigationModules().some((item) => item.key === "published-results")).toBe(true);
+  });
+});
+
+describe("mixed teacher and guardian academic pages", () => {
+  it.each(["class-logs", "classwork", "homework", "assignments", "projects", "study-material", "missed-activities"])("opens %s in guardian scope with view=guardian", async (module) => {
+    currentModule = module; searchParams.set("view", "guardian");
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: `Academic workspace ${module}` })).toHaveTextContent("parent");
+    expect(screen.queryByRole("region", { name: `Teacher activity workspace ${module}` })).not.toBeInTheDocument();
+  });
+
+  it.each(["classwork", "homework"])("still opens the teacher %s editor without a guardian view", async (module) => {
+    currentModule = module;
+    readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
+    render(<ModulePage />);
+    expect(await screen.findByRole("region", { name: `Teacher activity workspace ${module}` })).toBeInTheDocument();
   });
 });

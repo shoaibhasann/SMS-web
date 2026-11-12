@@ -83,6 +83,20 @@ describe("school guardian directory reads", () => {
     await expect(loadGuardianDirectory(db.client, userId, schoolId, new AbortController().signal)).rejects.toThrow(/could not be verified completely/);
   });
 
+  it("shows a withdrawn or unenrolled child from the current-year enrollment while students.status stays active", async () => {
+    const currentYear = id(40), pastYear = id(41);
+    const pupils = [0, 1, 2].map(n => ({ ...pupil(n), status: "active" }));
+    const tables = { parents: [parent(0)], profiles: [profile(0)], students: pupils, student_parents: [0, 1, 2].map(n => ({ ...link(n), parent_id: id(10) })),
+      academic_years: [{ id: currentYear, school_id: schoolId, is_current: true }, { id: pastYear, school_id: schoolId, is_current: false }],
+      enrollments: [{ student_id: id(30), academic_year_id: currentYear, status: "active" }, { student_id: id(31), academic_year_id: currentYear, status: "withdrawn" },
+        { student_id: id(32), academic_year_id: pastYear, status: "active" }] };
+    const rows = await loadGuardianDirectory(database({ tables }).client, userId, schoolId, new AbortController().signal);
+    expect(rows[0].children.map(child => [child.admissionNumber, child.status])).toEqual([["ADM-0", "active"], ["ADM-1", "withdrawn"], ["ADM-2", "not enrolled this year"]]);
+    const duplicate = database({ tables, change: (reply, request) => request.table === "enrollments"
+      ? { ...reply, data: [tables.enrollments[1], tables.enrollments[1]], count: 2 } : reply });
+    await expect(loadGuardianDirectory(duplicate.client, userId, schoolId, new AbortController().signal)).rejects.toThrow(/could not be verified completely/);
+  });
+
   it("does not query a directory after a missing or changed owner", async () => {
     const db = database(); owner.mockResolvedValue(null);
     await expect(loadGuardianDirectory(db.client, userId, schoolId, new AbortController().signal)).rejects.toThrow("Sign in again");

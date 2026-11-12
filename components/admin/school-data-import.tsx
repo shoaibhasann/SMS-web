@@ -14,7 +14,7 @@ export function SchoolDataImport({ school }: { school: { id: string; name: strin
       detail: "Create the academic year, then import classes before sections. Import subjects before teaching assignments.",
       templates: Object.entries(academicCsvTemplates).map(([key, template]) => ({ name: template.label, filename: `${key}-template.csv`, csv: `${template.header}\n${template.sample}\n` })) },
     { name: "Students", href: "/modules/students",
-      detail: `Select the year, class and section for each file. Import admission numbers and names in batches of up to ${maxRosterImportStudents}.`,
+      detail: `Select the year, class and section for each file. Import admission numbers, names, date of birth and registered mobile in batches of up to ${maxRosterImportStudents}.`,
       templates: [{ name: "Students", filename: "students-template.csv", csv: rosterCsvTemplate }] },
     { name: "Staff", href: "/modules/teachers",
       detail: "Import directory records using employee IDs. Invite staff separately when they need sign-in access.",
@@ -40,7 +40,7 @@ export function SchoolDataImport({ school }: { school: { id: string; name: strin
       </summary>
       <div className="border-t border-[var(--border)]">
         <p className="break-words px-5 py-4 text-sm leading-6 muted">
-          Prepare UTF-8 CSV files for <strong>{school.name}</strong> using the templates below. Keep admission numbers and employee IDs as text in your spreadsheet. Check the school and preview in each import before confirming.
+          Prepare UTF-8 CSV files for <strong>{school.name}</strong> using the templates below. Keep admission numbers, employee IDs and calendar dates as text in your spreadsheet. Check the school and preview in each import before confirming.
         </p>
         <ol className="divide-y divide-[var(--border)] px-5">
           {steps.map((step, index) => (

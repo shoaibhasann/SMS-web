@@ -17,7 +17,7 @@ type Feedback = { text: string; error?: boolean };
 
 const label = "block space-y-2 text-sm font-semibold";
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-60";
-const primary = button + " bg-blue-700 text-white hover:bg-blue-800";
+const primary = "btn btn-primary";
 const dateLabel = new Intl.DateTimeFormat("en-IN", {
   day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata",
 });
@@ -32,6 +32,7 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
   const [school, setSchool] = useState("");
   const [sessionChanged, setSessionChanged] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
@@ -51,7 +52,7 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
       if (active) setAccess({ error: message(error, "School access could not be loaded.") });
     });
     return () => { active = false; };
-  }, [client, userId, sessionChanged]);
+  }, [client, userId, sessionChanged, attempt]);
 
   const schools = access && "data" in access ? access.data.schools : [];
   const schoolId = school || (schools.length === 1 ? schools[0].id : "");
@@ -66,9 +67,12 @@ export function TeacherDirectoryWorkspace({ userId }: { userId: string }) {
           <p className="mt-1 text-sm text-white/85">Manage the school’s teachers and non-teaching staff. Teachers can link a verified school login by invitation.</p>
         </div>
       </header>
-      {sessionChanged ? <p role="alert" className="card p-4 text-sm">Your account changed. Reload the page to check school access.</p>
+      {sessionChanged ? <p role="alert" className="card p-4 text-sm text-danger">Your account changed. Reload the page to check school access.</p>
         : !access ? <LoadingState variant="form" className="text-sm muted">Checking school access…</LoadingState>
-        : "error" in access ? <p role="alert" className="card p-4 text-sm">{access.error}</p>
+        : "error" in access ? <div className="card space-y-3 p-4">
+          <p role="alert" className="text-sm text-danger">{access.error}</p>
+          <button className={button} type="button" onClick={() => { setAccess(undefined); setAttempt((value) => value + 1); }}>Try again</button>
+        </div>
         : <>
           <label className={`card p-4 ${label}`}>
             <span>School</span>
@@ -168,7 +172,7 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
         <button className={primary} type="submit" disabled={busy || !fullName.trim() || !employeeId.trim()}>
           <UserRoundPlus size={17} aria-hidden="true" /> Add teacher
         </button>
-        {feedback && <p role={feedback.error ? "alert" : "status"} className="text-sm">{feedback.text}</p>}
+        {feedback && <p role={feedback.error ? "alert" : "status"} className={`text-sm ${feedback.error ? "text-danger" : "text-success"}`}>{feedback.text}</p>}
       </form>
       <StaffCsvImport client={client} schoolId={schoolId} existingEmployeeIds={existingEmployeeIds}
         disabled={busy} refreshVersion={version} onBusyChange={setBusy} onImported={() => {
@@ -187,7 +191,7 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
           <label className={label}><span>Search teachers</span><input className="field" type="search" value={filter}
             onChange={(event) => setFilter(event.target.value)} /></label>
           {!result ? <LoadingState variant="list" className="text-sm muted">Loading teachers…</LoadingState>
-            : "error" in result ? <p role="alert" className="text-sm">{result.error}</p>
+            : "error" in result ? <p role="alert" className="text-sm text-danger">{result.error}</p>
             : visibleTeachers.length === 0 ? <p className="text-sm muted">{search ? "No matching teachers." : "No teachers have been added to this school."}</p>
             : <ul className="divide-y divide-[var(--border)]">
               {visibleTeachers.map((teacher) => (
@@ -199,7 +203,7 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
                       <strong className="block text-sm">{teacher.full_name || teacher.employee_id}</strong>
                       <span className="text-xs muted">{teacher.employee_id}</span>
                     </span>
-                    <span className="shrink-0 rounded-full border border-[var(--border)] px-2 py-1 text-xs">
+                    <span className={`badge shrink-0 ${teacher.profile_id ? "text-success" : "text-warning"}`}>
                       {teacher.profile_id ? "Linked" : "Awaiting link"}
                     </span>
                   </button>
@@ -219,7 +223,10 @@ function SchoolDirectory({ client, schoolId, busy, setBusy }: {
         <label className={label}><span>Search staff</span><input className="field" type="search" value={staffFilter}
           onChange={(event) => setStaffFilter(event.target.value)} /></label>
         {!staffResult ? <LoadingState variant="list" className="text-sm muted">Loading staff…</LoadingState>
-          : "error" in staffResult ? <p role="alert" className="text-sm">{staffResult.error}</p>
+          : "error" in staffResult ? <div className="space-y-3">
+            <p role="alert" className="text-sm text-danger">{staffResult.error}</p>
+            <button className={button} type="button" disabled={busy} onClick={() => setVersion((value) => value + 1)}>Try again</button>
+          </div>
           : !visibleStaff.length ? <p className="text-sm muted">{staffSearch ? "No matching staff." : "No non-teaching staff have been added to this school."}</p>
           : <ul className="divide-y divide-[var(--border)]">
               {visibleStaff.map((person) => (
@@ -320,7 +327,7 @@ function TeacherInvitationPanel({ teacher, client, busy, setBusy, refreshVersion
               <Link2 size={17} aria-hidden="true" /> {pending ? "Create replacement link" : "Create teacher invitation"}
             </button>
           </form>}
-      {feedback && <p role={feedback.error ? "alert" : "status"} className="text-sm">{feedback.text}</p>}
+      {feedback && <p role={feedback.error ? "alert" : "status"} className={`text-sm ${feedback.error ? "text-danger" : "text-success"}`}>{feedback.text}</p>}
       {share && !teacher.profile_id && (
         <div className="space-y-3 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
           <label className={label}><span>Invitation link</span>
@@ -335,7 +342,7 @@ function TeacherInvitationPanel({ teacher, client, busy, setBusy, refreshVersion
       <div className="space-y-2 border-t border-[var(--border)] pt-4">
         <h3 className="text-sm font-semibold">Invitation history</h3>
         {!result ? <LoadingState variant="list" className="text-sm muted">Loading invitations…</LoadingState>
-          : "error" in result ? <p role="alert" className="text-sm">{result.error}</p>
+          : "error" in result ? <p role="alert" className="text-sm text-danger">{result.error}</p>
           : result.data.items.length === 0 ? <p className="text-sm muted">No invitations have been created for this teacher.</p>
           : <ul className="divide-y divide-[var(--border)]">
             {result.data.items.map((invitation) => {
@@ -346,7 +353,7 @@ function TeacherInvitationPanel({ teacher, client, busy, setBusy, refreshVersion
                     <p className="text-sm font-semibold">{invitation.email}</p>
                     <p className="text-xs muted">{status} · {dateLabel.format(new Date(invitation.expires_at))} IST</p>
                   </div>
-                  {status === "Pending" && <button className={button} type="button" disabled={busy}
+                  {status === "Pending" && <button className="btn btn-danger" type="button" disabled={busy}
                     onClick={() => void updateInvitation(async () => {
                       const revoked = await revokeTeacherInvitation(client, invitation.id);
                       if (share?.id === invitation.id) setShare(undefined);

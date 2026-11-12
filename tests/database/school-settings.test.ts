@@ -176,11 +176,16 @@ describe("governed school settings and derived setup status",()=>{
     expect((await load()).school).toMatchObject({address:"Sector 4\nDelhi\nIndia",affiliation_no:null,phone:"011 2345-6789",website:"https://school.invalid:443/?q=@office"});
   });
 
+  it("accepts an office STD landline written with a leading parenthesis",async()=>{
+    expect(await save({value:details({phone:"(0522) 2345678"})})).toMatchObject({revision:1,changed:true});
+    expect((await load()).school.phone).toBe("(0522) 2345678");
+  });
+
   it.each([
     {name:"X"},{name:" ".repeat(5)},{name:"N".repeat(161)},{name:"School\u0001"},{address:"Line1\u0007Line2"},
     {address:"a".repeat(1001)},{city:"c".repeat(101)},{state:"s".repeat(101)},{affiliation_no:"a".repeat(101)},
     {board:"ICSE"},{pincode:"12345"},{pincode:"1234567"},{phone:"123"},{phone:"+91 1234x56789"},
-    {phone:"+1234567890123456"},{email:"invalid-email"},{email:"one@@school.invalid"},{email:"a b@school.invalid"},
+    {phone:"+1234567890123456"},{phone:"+(91) 1234567"},{phone:"-0522 2345678"},{email:"invalid-email"},{email:"one@@school.invalid"},{email:"a b@school.invalid"},
     {website:"http://school.invalid"},{website:"https://user:password@school.invalid"},{website:"https://school.invalid:99999"},
     {website:"https://school.invalid/\nprivate"},{website:"https://school.invalid\\@other.invalid"},
     {website:"https:///empty"},{website:"https://"},

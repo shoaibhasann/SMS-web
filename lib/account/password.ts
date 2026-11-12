@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createBoundMfaClient, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/account/password-rule";
 
 export type PasswordChange = { currentPassword: string; newPassword: string; confirmation: string };
 export type PasswordChangeResult = { changed: true; temporarySessionClosed: boolean };
@@ -7,13 +8,20 @@ export class PasswordChangeError extends Error {
   constructor(message: string, readonly code = "") { super(message); this.name = "PasswordChangeError"; }
 }
 
+export function validateNewPassword(newPassword: string, confirmation: string): string | null {
+  const problem = passwordProblem(newPassword);
+  if (problem === "too_short") return `Use at least ${MIN_PASSWORD_LENGTH} characters for your new password.`;
+  if (problem === "too_long") return "That password is too long. Try a shorter password.";
+  if (newPassword !== confirmation) return "New password and confirmation do not match.";
+  return null;
+}
+
 export function validatePasswordChange(input: PasswordChange): string | null {
   if (!input.currentPassword) return "Enter your current password.";
-  if ([...input.newPassword].length < 12 || !input.newPassword.trim()) return "Use at least 12 characters for your new password.";
-  if (new TextEncoder().encode(input.newPassword).length > 72) return "That password is too long. Try a shorter password.";
+  const invalid = validateNewPassword(input.newPassword, input.newPassword);
+  if (invalid) return invalid;
   if (input.newPassword === input.currentPassword) return "Choose a new password different from your current password.";
-  if (input.newPassword !== input.confirmation) return "New password and confirmation do not match.";
-  return null;
+  return validateNewPassword(input.newPassword, input.confirmation);
 }
 
 function failed(error: { code?: string; status?: number } | null, phase: "verify" | "update") {
@@ -64,9 +72,9 @@ export async function changeOwnPassword(primary: SupabaseClient, ownerId: string
     checkOwner(current.data.user, ownerId, email, signal);
     const currentSecurity = await readStaffMfaStatus(primary, ownerId, signal);
     if (!currentSecurity?.allowed) throw new PasswordChangeError("Verify your authenticator before changing your password.", "mfa_required");
-    // Fresh password proof stays separate from the current AAL2 native session. An AAL1 verifier must not downgrade MFA.
-    const mutationClient = currentSecurity.current_aal === "aal2" || currentSecurity.required
-      ? await createBoundMfaClient(primary, ownerId, signal) : verifier;
+    // Mutate through the browser's own session: Auth keeps only the caller's session after a password change,
+    // and it never downgrades AAL2. The verifier only proves the current password.
+    const mutationClient = await createBoundMfaClient(primary, ownerId, signal);
     const updated = await mutationClient.auth.updateUser({ password: input.newPassword, current_password: input.currentPassword });
     failed(updated.error, "update");
     if (updated.data.user?.id !== ownerId) throw new PasswordChangeError("The password change could not be confirmed. Try signing in with the new password before retrying.", "unconfirmed");

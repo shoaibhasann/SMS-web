@@ -16,6 +16,7 @@ import { loadSchoolSettings, saveSchoolSettings, schoolBoards, schoolDetails, Sc
 
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold transition hover:bg-[var(--surface-2)] focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 const primary = `${button} border-transparent bg-[var(--primary)] text-white hover:brightness-95 dark:text-[var(--bg)]`;
+const formatDate = (value: string) => new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeZone: "UTC" }).format(new Date(`${value}T00:00:00Z`));
 const fieldLabels: Record<keyof SchoolDetails, string> = { name: "School name", board: "Education board", affiliation_no: "Affiliation number",
   address: "School address", city: "City", state: "State", pincode: "PIN code", phone: "School phone", email: "School email", website: "School website" };
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -228,14 +229,14 @@ function SetupChecklist({ setup }: { setup: SchoolSettings["setup"] }) {
   const activeYear = Boolean(current && current.start_date <= setup.school_day && current.end_date >= setup.school_day);
   const amount = (value: number, one: string, many = `${one}s`) => `${value} ${value === 1 ? one : many}`;
   const steps = [
-    { name: "Academic year", href: "/modules/academics", good: activeYear, detail: current ? `${current.name} · ${current.start_date} to ${current.end_date}${activeYear ? "" : " · Review dates"}` : `${amount(setup.current_year_count, "current year")} · Set exactly one current year` },
+    { name: "Academic year", href: "/modules/academics", good: activeYear, detail: current ? `${current.name} · ${formatDate(current.start_date)} to ${formatDate(current.end_date)}${activeYear ? "" : " · Review dates"}` : `${amount(setup.current_year_count, "current year")} · Set exactly one current year` },
     { name: "Classes and sections", href: "/modules/academics", good: setup.active_classes > 0 && setup.sections > 0 && setup.classes_without_sections === 0, detail: `${amount(setup.active_classes, "active class", "active classes")} · ${amount(setup.sections, "section")} · ${amount(setup.classes_without_sections, "class", "classes")} ${setup.classes_without_sections === 1 ? "needs" : "need"} a section` },
     { name: "Subjects", href: "/modules/academics", good: setup.active_subjects > 0, detail: amount(setup.active_subjects, "active subject") },
     { name: "Staff sign-in links", href: "/modules/teachers", good: setup.teachers > 0 && setup.linked_teachers === setup.teachers, detail: `${amount(setup.linked_teachers, "verified sign-in link")} / ${amount(setup.teachers, "teacher directory record")}` },
     { name: "Teaching assignments", href: "/modules/teacher-assignments", good: setup.teaching_assignments > 0 && setup.sections_without_class_teacher === 0, detail: `${amount(setup.teaching_assignments, "assignment")} · ${amount(setup.sections_without_class_teacher, "section")} ${setup.sections_without_class_teacher === 1 ? "needs" : "need"} a class teacher` },
     { name: "Student enrollment", href: "/modules/students", good: setup.enrolled_students > 0 && setup.invalid_enrollments === 0, detail: `${amount(setup.enrolled_students, "current student")} · ${amount(setup.invalid_enrollments, "placement")} ${setup.invalid_enrollments === 1 ? "needs" : "need"} review` },
     { name: "Guardian access", href: "/modules/guardian-invitations", good: setup.enrolled_students > 0 && setup.linked_students === setup.enrolled_students, detail: `${amount(setup.linked_students, "student")} with a verified guardian link · ${amount(setup.pending_guardian_invitations, "pending invitation")}` },
-    { name: "Attendance walkthrough", href: "/modules/attendance", good: setup.today_attendance > 0, detail: `${amount(setup.today_attendance, "saved attendance record")} for ${setup.school_day}. This count does not confirm all registers are complete.` },
+    { name: "Attendance walkthrough", href: "/modules/attendance", good: setup.today_attendance > 0, detail: `${amount(setup.today_attendance, "saved attendance record")} for ${formatDate(setup.school_day)}. This count does not confirm all registers are complete.` },
   ];
   return <section className="card min-w-0 overflow-hidden" aria-labelledby="school-setup-heading"><header className="border-b border-[var(--border)] p-5"><h2 id="school-setup-heading" className="text-lg font-semibold">Connected school setup</h2><p className="mt-2 text-sm leading-6 muted">Live records guide the next step. Each link opens the existing school workflow.</p></header>
     <ol className="divide-y divide-[var(--border)] px-5">{steps.map((step) => <li key={step.name} className="flex items-start gap-3 py-4">

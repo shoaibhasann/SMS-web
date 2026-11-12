@@ -6,10 +6,10 @@ import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspac
 import { feeMoney, type FeeLedgerRow } from "@/lib/finance/fee-batches";
 import type { OfficeFeeReceipt, OfficeFinanceSummary } from "@/lib/finance/fee-changes";
 
-const api = vi.hoisted(() => ({ create: vi.fn(), positions: vi.fn(), receipts: vi.fn(), summary: vi.fn() }));
+const api = vi.hoisted(() => ({ create: vi.fn(), positions: vi.fn(), receipts: vi.fn(), page: vi.fn(), summary: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: api.create }));
 vi.mock("@/lib/finance/fee-changes", async (original) => ({ ...await original<typeof import("@/lib/finance/fee-changes")>(),
-  loadOfficeFeePositions: api.positions, loadOfficeFeeReceipts: api.receipts, getOfficeFinanceSummary: api.summary,
+  loadOfficeFeePositions: api.positions, loadOfficeFeeReceipts: api.receipts, listOfficeFeeReceipts: api.page, getOfficeFinanceSummary: api.summary,
 }));
 vi.mock("@/components/finance/fee-batch-workspace", () => ({ FeeBatchWorkspace: () => null }));
 vi.mock("@/components/finance/fee-ledger", () => ({ FeeLedgerWorkspace: () => null }));
@@ -20,6 +20,7 @@ const position: FeeLedgerRow = { demand_id: "fee-a", student_id: "pupil-a", admi
 const original: OfficeFeeReceipt = { id: "payment-old", student_fee_id: "fee-a", student_id: "pupil-a", receipt_no: "QA-OLD-100", amount: "100.00", payment_method: "cash", status: "reversed", recorded_status: "paid", paid_at: "2026-11-01T10:00:00Z", net_amount: "0.00", reversed_amount: "100.00", reversed_at: "2026-11-05T10:00:00Z", reversal_reference: "FC-REV-001", financial_token: "financial-a", legacy_refund: false };
 const active: OfficeFeeReceipt = { ...original, id: "payment-current", receipt_no: "QA-CURRENT-300", amount: "300.00", paid_at: "2026-11-05T09:00:00Z", net_amount: "300.00", reversed_amount: "0.00", status: "paid", reversed_at: null, reversal_reference: null };
 const summary: OfficeFinanceSummary = { demand_count: 1, pending_count: 1, overdue_count: 1, invalid_count: 0, net_amount: "900.00", paid_amount: "300.00", balance: "600.00", opening_amount: "0.00", collections: { gross_amount: "400.00", reversal_amount: "100.00", net_amount: "300.00", today_gross: "300.00", today_reversal: "100.00", today_net: "200.00", month_gross: "400.00", month_reversal: "100.00", month_net: "300.00" } };
+let structures: unknown[] = [];
 function database() {
   let callback: ((event: string, session: { user: { id: string } } | null) => void) | undefined;
   const rpc = vi.fn(async () => ({ data: { payment_id: "new-payment", receipt_no: "QA-NEW-600" }, error: null }));
@@ -28,6 +29,7 @@ function database() {
       let single = false;
       const data = () => table === "user_roles" ? [{ role: "accountant", school_id: "school-a" }, { role: "principal", school_id: "school-b" }]
         : table === "academic_years" ? (single ? { id: "year-a" } : [{ id: "year-a" }])
+          : table === "fee_structures" ? structures
           : table === "students" ? [{ id: "pupil-a", first_name: "QA", middle_name: null, last_name: "Pupil", admission_no: "QA-001", enrollments: [{ class_id: "class-a" }] }] : [];
       const query = { select() { return query; }, eq() { return query; }, in() { return query; }, order() { return query; }, range() { return query; }, maybeSingle() { single = true; return query; },
         then<T = unknown, U = never>(yes?: ((value: { data: unknown; count: number; error: null }) => T | PromiseLike<T>) | null, no?: ((reason: unknown) => U | PromiseLike<U>) | null) {
@@ -41,8 +43,8 @@ function database() {
 }
 function readBlob(blob: Blob): Promise<string> { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = reject; reader.readAsText(blob); }); }
 beforeEach(() => {
-  sessionStorage.clear();
-  api.positions.mockReset().mockResolvedValue([position]); api.receipts.mockReset().mockResolvedValue([original, active]); api.summary.mockReset().mockResolvedValue(summary);
+  sessionStorage.clear(); structures = [];
+  api.positions.mockReset().mockResolvedValue([position]); api.receipts.mockReset().mockResolvedValue([original, active]); api.page.mockReset().mockResolvedValue({ rows: [active, original], count: 2 }); api.summary.mockReset().mockResolvedValue(summary);
 });
 afterEach(() => vi.unstubAllGlobals());
 
@@ -75,6 +77,20 @@ describe("effective office finance read models", () => {
     expect(screen.getByText(/Collections include fee payments and money received as advance credit/)).toBeInTheDocument();
   });
 
+  it("reads only the latest receipts page for Finance Reports and labels it as a sample", async () => {
+    api.page.mockResolvedValue({ rows: [active, original], count: 57 });
+    const db = database(); render(<AdminFinanceWorkspace mode="reports" />);
+    const latest = within((await screen.findByRole("heading", { name: "Latest receipts" })).closest("section")!);
+    expect(await latest.findByText("QA-CURRENT-300")).toBeInTheDocument();
+    expect(latest.getAllByText("QA Pupil")).toHaveLength(2);
+    expect(latest.getByText("Showing 2 of 57")).toBeInTheDocument();
+    expect(latest.getByRole("link", { name: "All receipts" })).toHaveAttribute("href", "/modules/invoices?tab=receipts&school=school-a");
+    expect(screen.queryByText("Student-wise dues")).not.toBeInTheDocument();
+    expect(api.page).toHaveBeenCalledExactlyOnceWith(db.client, "school-a", null, 20, 0);
+    expect(api.positions).not.toHaveBeenCalled();
+    expect(api.receipts).not.toHaveBeenCalled();
+  });
+
   it("uses server net collections and balances, enforces the effective payment cap, and doesn't inherit another school's reviewer role", async () => {
     const user = userEvent.setup(), db = database(); render(<AdminFinanceWorkspace mode="fees" />);
     await screen.findByText("School review unavailable");
@@ -86,13 +102,23 @@ describe("effective office finance read models", () => {
     await user.click(screen.getByRole("button", { name: "Record payment" }));
     const dialog = within(screen.getByRole("dialog", { name: "Record payment" }));
     expect(dialog.getByRole("option", { name: /balance ₹600.00/ })).toBeVisible();
+    await user.selectOptions(dialog.getByRole("combobox", { name: "Student fee record" }), "fee-a");
     await user.type(dialog.getByRole("spinbutton", { name: "Amount" }), "600.01"); await user.click(dialog.getByRole("button", { name: "Save payment" }));
     await dialog.findByText("The amount exceeds the displayed balance. Refresh the fee records."); expect(db.rpc).not.toHaveBeenCalled();
     await user.clear(dialog.getByRole("spinbutton", { name: "Amount" })); await user.type(dialog.getByRole("spinbutton", { name: "Amount" }), "600.00");
     await user.click(dialog.getByRole("button", { name: "Save payment" }));
+    expect(db.rpc).not.toHaveBeenCalled();
+    await user.click(dialog.getByRole("button", { name: "Confirm and save" }));
     await screen.findByText("QA-NEW-600");
     expect(db.rpc).toHaveBeenCalledWith("record_office_fee_payment", expect.objectContaining({ p_student_fee_id: "fee-a" }));
     expect(feeMoney((db.rpc.mock.calls[0] as unknown as [string, { p_amount: string }])[1].p_amount)).toBe("600.00");
+  });
+
+  it("opens directly on the Receipts tab when the All receipts link asks for it", async () => {
+    database(); render(<AdminFinanceWorkspace mode="invoices" initialTab="receipts" />);
+    expect(await screen.findByPlaceholderText("Search receipts")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "View QA-CURRENT-300" })).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Search invoices")).not.toBeInTheDocument();
   });
 
   it("keeps original receipt amounts readable and exports corrected invoice and receipt values", async () => {
@@ -106,13 +132,31 @@ describe("effective office finance read models", () => {
     expect(detail.getByText("Original receipt amount").nextElementSibling).toHaveTextContent("₹100.00");
     expect(detail.getByText("Credited amount").nextElementSibling).toHaveTextContent("₹0.00");
     expect(detail.getByText("FC-REV-001")).toBeVisible(); expect(detail.getByText(/does not send a bank refund/)).toBeVisible();
-    await user.click(screen.getByRole("button", { name: "Download QA-OLD-100" }));
-    expect(JSON.parse(await readBlob(blobs[0]))).toEqual(expect.objectContaining({ amount: "100.00", creditedAmount: "0.00", reversedAmount: "100.00", status: "reversed", recordedStatus: "paid", reversalReference: "FC-REV-001" }));
+    await user.click(screen.getByRole("button", { name: "Download QA-OLD-100 as CSV" }));
+    const receiptCsv = await readBlob(blobs[0]);
+    for (const line of ["Original amount,₹100.00", "Credited amount,₹0.00", "Reversed amount,₹100.00", "Reversal reference,FC-REV-001", "Status,reversed"]) expect(receiptCsv).toContain(line);
     await user.click(screen.getByRole("button", { name: /^Invoices$/ }));
     fireEvent.change(screen.getByPlaceholderText("Search invoices"), { target: { value: "" } });
-    await user.click(await screen.findByRole("button", { name: "Download invoice preview" }));
-    expect(JSON.parse(await readBlob(blobs[1]))).toEqual(expect.objectContaining({ subtotal: "1000.00", approvedAdjustments: "-100.00", total: "900.00", paid: "300.00", pending: "600.00", reversedAmount: "100.00" }));
+    await user.click(await screen.findByRole("button", { name: "Download invoice as CSV" }));
+    const invoiceCsv = await readBlob(blobs[1]);
+    for (const line of ["Original subtotal,\"₹1,000.00\"", "Approved fee changes,−₹100.00", "Effective total,₹900.00", "Credited payments,₹300.00", "Pending,₹600.00", "Reversed,₹100.00"]) expect(invoiceCsv).toContain(line);
     expect(original.amount).toBe("100.00"); expect(position.amount).toBe("1000.00");
+  });
+
+  it("labels structure frequencies and shows the demand limit only for limited frequencies", async () => {
+    structures = [
+      { id: "lab", name: "Lab Fee", amount: 800, frequency: "half_yearly", academic_year_id: "year-a", class_id: null },
+      { id: "misc", name: "Misc Fee", amount: 50, frequency: "custom", academic_year_id: "year-a", class_id: null },
+    ];
+    const user = userEvent.setup(); database(); render(<AdminFinanceWorkspace mode="fees" />);
+    await screen.findByText("School review unavailable");
+    await user.selectOptions(await screen.findByRole("combobox", { name: /Enrolled student/ }), "pupil-a");
+    const structureSelect = screen.getByRole("combobox", { name: /Fee structure/ });
+    expect(within(structureSelect).getByRole("option", { name: "Lab Fee · Half-yearly · ₹800.00" })).toBeInTheDocument();
+    await user.selectOptions(structureSelect, "lab");
+    expect(screen.getByText("Half-yearly fees: one demand per pupil per half of the session.")).toBeVisible();
+    await user.selectOptions(structureSelect, "misc");
+    expect(screen.queryByText(/one demand per pupil/)).not.toBeInTheDocument();
   });
 
   it("clears old financial names, receipt details and controls immediately on sign-out", async () => {

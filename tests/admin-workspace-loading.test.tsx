@@ -108,7 +108,8 @@ describe("school-scoped asynchronous workspace reads", () => {
     const oldAuth = deferred<AuthResult>();
     const db = database(async (request) => request.table === "user_roles"
       ? result([{ role: "school_admin", school_id: request.filters.user_id === "new-admin" ? "school-b" : "school-a" }])
-      : result(request.single ? null : []));
+      : request.table === "schools" ? result([{ id: "school-b", name: "School B" }])
+        : result(request.single ? null : []));
     db.getUser.mockImplementationOnce(() => oldAuth.promise).mockResolvedValue(auth("new-admin"));
     render(workspace.render());
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
@@ -179,6 +180,7 @@ describe("school-scoped asynchronous workspace reads", () => {
     const assessment = (id: string) => ({ id, school_id: "school-a", academic_year_id: "year", class_id: id, section_id: null, subject_id: "subject", teacher_id: "teacher", name: `Exam ${id}`, assessment_date: "2026-11-02", maximum_marks: 100, description: null, status: "scheduled", updated_at: "2026-11-02T09:00:00Z" });
     const db = database(async (request) => {
       if (request.table === "user_roles") return result([{ role: "school_admin", school_id: "school-a" }]);
+      if (request.table === "schools") return result([{ id: "school-a", name: "School A" }]);
       if (request.table === "teacher_assessments") return result([assessment("A"), assessment("B")].filter((row) => !request.filters.id || request.filters.id === row.id));
       if (request.table === "enrollments") return request.filters.class_id === "A" ? oldRoster.promise : result([{ id: "enrollment-b", student_id: "pupil-b", roll_no: "1" }]);
       if (request.table === "students") return result([{ id: "pupil-b", first_name: "Selected roster pupil", admission_no: "ADM-B", roll_no: "1" }]);

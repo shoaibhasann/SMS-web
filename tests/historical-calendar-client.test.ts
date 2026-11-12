@@ -25,10 +25,15 @@ describe("historical school calendar RPC contract", () => {
     expect(() => parseHistoricalCalendarContext({ ...historicalContext(), ...patch }, uid, schoolId)).toThrow("could not be verified");
   });
   it("validates bounded retained receipt counts and actor, allowing deleted year display fallback", () => {
-    const receipt = { request_id: id(7), academic_year_id: id(8), revision: 2, imported_rows: 2, working_rows: 1, holiday_rows: 1, reason: "Office approved original calendar", actor_id: uid, created_at: "2026-11-07T10:00:00Z" };
+    const receipt = { request_id: id(7), academic_year_id: id(8), revision: 2, imported_rows: 2, working_rows: 1, holiday_rows: 1, reason: "Office approved original calendar", actor_id: uid, actor_name: "Asha Admin", created_at: "2026-11-07T10:00:00Z" };
     expect(parseHistoricalCalendarContext({ ...historicalContext(), history: [receipt] }, uid, schoolId).history).toHaveLength(1);
     expect(() => parseHistoricalCalendarContext({ ...historicalContext(), history: [{ ...receipt, imported_rows: 1 }] }, uid, schoolId)).toThrow();
     expect(() => parseHistoricalCalendarContext({ ...historicalContext(), history: [receipt, receipt] }, uid, schoolId)).toThrow();
+    expect(parseHistoricalCalendarContext({ ...historicalContext(), history: [{ ...receipt, actor_name: null }] }, uid, schoolId).history[0].actor_name).toBeNull();
+    for (const actor_name of [undefined, 7, "x".repeat(161)]) expect(() => parseHistoricalCalendarContext({ ...historicalContext(), history: [{ ...receipt, actor_name }] }, uid, schoolId)).toThrow();
+    // SQL trims actor names to 160 code points; an astral-character name of that length is 320 UTF-16 units.
+    expect(parseHistoricalCalendarContext({ ...historicalContext(), history: [{ ...receipt, actor_name: "\u{1F600}".repeat(160) }] }, uid, schoolId).history[0].actor_name).toBe("\u{1F600}".repeat(160));
+    expect(() => parseHistoricalCalendarContext({ ...historicalContext(), history: [{ ...receipt, actor_name: "\u{1F600}".repeat(161) }] }, uid, schoolId)).toThrow();
   });
   it("accepts authoritative preview counts with distinct pupils across dates", async () => {
     const saved = client(historicalPreview());

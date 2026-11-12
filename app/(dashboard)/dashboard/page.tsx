@@ -1,8 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { RoleDashboard } from "@/components/dashboard/role-dashboard";
 import { DashboardGreeting, DashboardMetric } from "@/components/dashboard/dashboard-primitives";
 import { AppShell } from "@/components/layout/app-shell";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { resolveUiRole, toUiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { dashboardStepUpPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
@@ -29,7 +31,7 @@ export default async function DashboardPage() {
         if (!summaryError && data && overviewMetrics.every(([key]) => Number.isSafeInteger(data[key]) && data[key] >= 0)) {
           return (
             <AppShell key={user_id} role="admin" userId={user_id} overviewSchoolId={profile_school_id}>
-              <div className="space-y-4">
+              <div className="sms-dashboard">
                 <DashboardGreeting eyebrow="School administration" title="School Admin Dashboard"
                   description="Your school overview. Verify your authenticator to open records and manage the school."
                   href={dashboardStepUpPath} action="Unlock full workspace" />
@@ -48,10 +50,14 @@ export default async function DashboardPage() {
       <main className="min-h-screen grid place-items-center bg-[var(--bg)] p-6">
         <div className="card max-w-xl p-8">
           <h1 className="text-2xl font-black">Dashboard could not load</h1>
-          <p className="mt-3 text-sm text-red-600">Your active school access could not be verified. Sign in again or contact the school office.</p>
+          <p className="mt-3 text-sm text-danger">Your active school access could not be verified. Sign in again or contact the school office.</p>
           <p className="mt-3 text-xs muted">
             Your account must be active and have a verified school role.
           </p>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6">
+            <Link href="/login" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 dark:text-blue-300">Return to sign in</Link>
+            <SignOutButton className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 disabled:opacity-50 dark:text-blue-300" />
+          </div>
         </div>
       </main>
     );
@@ -70,5 +76,6 @@ export default async function DashboardPage() {
     : roles.find((row) => toUiRole(row.role) === role);
 
   return <RoleDashboard role={role} schoolId={roleRow?.school_id ?? null} userId={userId}
-    hasGuardianRole={roles.some((row) => row.role === "parent" && row.school_id === access.profileSchoolId)} />;
+    hasGuardianRole={roles.some((row) => row.role === "parent" && row.school_id === access.profileSchoolId)}
+    schoolRoles={roles.filter((row) => row.school_id === access.profileSchoolId).map((row) => toUiRole(row.role))} />;
 }

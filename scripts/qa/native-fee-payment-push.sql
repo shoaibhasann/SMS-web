@@ -164,7 +164,7 @@ begin
     perform set_config('request.jwt.claim.sub','',true);
     perform set_config('request.jwt.claims','{"role":"service_role"}',true);
     if public.prepare_family_push_job(student_job,lease) is not null
-      or public.finish_family_push_job(guardian_job,lease,'retry','QA_NO_SEND')
+      or public.finish_family_push_job(guardian_job,lease,'retry','QA_NO_SEND') is not null
     then raise exception 'An independently reversed payment was still preparable or retryable.'; end if;
 
     perform set_config('role','none',true);

@@ -108,6 +108,11 @@ describe("independent result publication UI", () => {
     first.unmount(); store([resultDetail({ source_matches: false })]); render(<ResultPublicationWorkspace role="admin" userId="admin" />);
     await user.click(await screen.findByRole("button", { name: "Open result snapshot" })); expect(await screen.findByRole("button", { name: "Publish result snapshot" })).toBeDisabled(); expect(screen.getByRole("button", { name: "Reject publication" })).toBeEnabled();
   });
+  it("hides review from an office user the server reports as the score author after a teacher remark edit", async () => {
+    store([resultDetail({ viewer_entered_marks: true })]); render(<ResultPublicationWorkspace role="admin" userId="admin" />); const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Open result snapshot" })); await screen.findByText(/independent reviewer must decide/);
+    expect(screen.queryByRole("button", { name: "Publish result snapshot" })).not.toBeInTheDocument();
+  });
   it("cancels an own pending submission without altering marks and permits a fresh source preview", async () => {
     const saved = store([resultDetail()]); render(<ResultPublicationWorkspace role="teacher" userId="teacher" />); const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "Open result snapshot" })); await user.type(await screen.findByLabelText("Cancellation reason"), "Refresh the changed source");

@@ -73,14 +73,14 @@ export function NoticeInbox({ announcement }: {
           type="button"
           disabled={!result}
           onClick={() => { setResult(null); setVersion((value) => value + 1); }}
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-50"
+          className="btn btn-secondary disabled:opacity-50"
         >
-          <RefreshCw size={15} /> Refresh
+          <RefreshCw size={15} aria-hidden="true" /> Refresh
         </button>
       </header>
       <section className="card overflow-hidden" aria-label="Recent school notices">
         {!result ? <LoadingState variant="table" className="p-5 text-sm muted">Loading notices…</LoadingState>
-          : "error" in result ? <p role="alert" className="p-5 text-sm text-red-700 dark:text-red-300">{result.error}</p>
+          : "error" in result ? <p role="alert" className="p-5 text-sm text-danger">{result.error}</p>
           : result.notices.length === 0 ? <p className="p-5 text-sm muted">{announcement ? "This announcement is no longer available." : "No notices are available right now."}</p>
           : <div className="divide-y divide-[var(--border)]">
             {result.notices.map((notice) => (

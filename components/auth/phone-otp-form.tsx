@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { ArrowRight, Loader2, Smartphone } from "lucide-react";
+import { ArrowRight, KeyRound, Loader2, Smartphone } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeIndianMobile, phoneAuthError, prepareGuardianPhoneRequest, readGuardianPhoneStatus, type GuardianPhoneStatus } from "@/lib/auth/phone";
 import { LoadingState } from "@/components/ui/skeleton";
@@ -96,10 +96,12 @@ export function GuardianPhoneOtpForm({ purpose, onVerified, disabled = false, on
       : purpose === "invitation" ? "Use the mobile number your school invited. Already have an email account? Verify your mobile from that account first to keep your child links."
       : "Use the mobile verified on your guardian account. Staff and students should use email sign-in."}</p>
     {!target ? <form onSubmit={send} className="space-y-4" aria-label="Request guardian SMS code">
-      <label className="login-label" htmlFor="guardian-mobile">Mobile number</label>
-      <div className="login-input-wrap"><Smartphone className="login-input-icon" size={18} aria-hidden="true" />
-        <input id="guardian-mobile" type="tel" inputMode="tel" autoComplete="tel" className="login-input" placeholder="10-digit mobile number"
-          required maxLength={25} value={phone} disabled={busy || disabled} onChange={(event) => setPhone(event.target.value)} /></div>
+      <div>
+        <label className="login-label" htmlFor="guardian-mobile">Mobile number</label>
+        <div className="login-input-wrap"><Smartphone className="login-input-icon" size={18} aria-hidden="true" />
+          <input id="guardian-mobile" type="tel" inputMode="tel" autoComplete="tel" className="login-input" placeholder="10-digit mobile number"
+            required maxLength={25} value={phone} disabled={busy || disabled} onChange={(event) => setPhone(event.target.value)} /></div>
+      </div>
       <PhoneSecurityCheck key={challengeVersion} siteKey={status.captchaSiteKey!} onToken={setCaptcha} />
       <button type="submit" className="login-submit" disabled={busy || disabled || !captcha || remaining > 0}>
         {busy ? <><Loader2 className="animate-spin" size={18} aria-hidden="true" /> Requesting code…</>
@@ -111,11 +113,16 @@ export function GuardianPhoneOtpForm({ purpose, onVerified, disabled = false, on
           setTarget(""); setCode(""); setError(""); setNotice(""); setCaptcha(""); setChallengeVersion((value) => value + 1);
         }}>Change number</button></div>
       <form onSubmit={verify} className="space-y-4" aria-label="Verify guardian SMS code">
-        <label htmlFor="guardian-sms-code" className="login-label">SMS code</label>
-        <input id="guardian-sms-code" className="field" type="text" inputMode="numeric" autoComplete="one-time-code"
-          required pattern="[0-9]{6}" minLength={6} maxLength={6} value={code} disabled={busy || disabled}
-          onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} />
-        <button type="submit" className="login-submit" disabled={busy || disabled || !/^\d{6}$/.test(code)}>{busy ? "Verifying code…" : "Verify and continue"}</button>
+        <div>
+          <label htmlFor="guardian-sms-code" className="login-label">SMS code</label>
+          <div className="login-input-wrap"><KeyRound className="login-input-icon" size={18} aria-hidden="true" />
+            <input id="guardian-sms-code" className="login-input" type="text" inputMode="numeric" autoComplete="one-time-code"
+              required pattern="[0-9]{6}" minLength={6} maxLength={6} value={code} disabled={busy || disabled}
+              onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} /></div>
+        </div>
+        <button type="submit" className="login-submit" disabled={busy || disabled || !/^\d{6}$/.test(code)}>
+          {busy ? <><Loader2 className="animate-spin" size={18} aria-hidden="true" /> Verifying code…</> : "Verify and continue"}
+        </button>
       </form>
       <PhoneSecurityCheck key={challengeVersion} siteKey={status.captchaSiteKey!} onToken={setCaptcha} />
       <button type="button" className="min-h-11 text-sm font-semibold text-[var(--primary)]" disabled={busy || disabled || remaining > 0 || !captcha}

@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { isIP } from "node:net";
 import { createClient } from "@supabase/supabase-js";
+import { rateLimitIpHash, smsHookKey, vercelClientIp } from "@/lib/auth/client-ip";
 
 const indiaMobile = /^\+91[6-9]\d{9}$/;
 const responseHeaders = { "Cache-Control": "no-store" };
@@ -13,8 +13,7 @@ function limit(name: string, maximum: number) {
 
 function configuration() {
   if (process.env.GUARDIAN_PHONE_AUTH_ENABLED !== "true") return null;
-  const secret = process.env.SUPABASE_SMS_HOOK_SECRET?.match(/^(?:v1,)?whsec_([A-Za-z0-9+/]+={0,2})$/)?.[1];
-  const key = secret ? Buffer.from(secret, "base64") : null;
+  const key = smsHookKey();
   const authKey = process.env.MSG91_AUTH_KEY?.trim();
   const templateId = process.env.MSG91_OTP_TEMPLATE_ID?.trim();
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
@@ -24,8 +23,7 @@ function configuration() {
   const globalLimit = limit("GUARDIAN_SMS_GLOBAL_DAILY_LIMIT", 10_000);
   const schoolLimit = limit("GUARDIAN_SMS_SCHOOL_DAILY_LIMIT", 1_000);
   const phoneLimit = limit("GUARDIAN_SMS_PHONE_DAILY_LIMIT", 10);
-  if (!key || key.length < 24 || key.length > 64 || key.toString("base64") !== secret
-    || !authKey || !templateId || !serviceKey || !publishableKey || !captchaSiteKey || !captchaSecret
+  if (!key || !authKey || !templateId || !serviceKey || !publishableKey || !captchaSiteKey || !captchaSecret
     || !globalLimit || !schoolLimit || !phoneLimit) return null;
   try {
     const supabaseUrl = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "");
@@ -111,10 +109,7 @@ export async function guardianPhoneAuthStatus() {
 }
 
 function trustedIp(request: Request, config: Configuration) {
-  if (process.env.VERCEL === "1") {
-    const value = request.headers.get("x-vercel-forwarded-for")?.trim() ?? "";
-    return isIP(value) ? value : null;
-  }
+  if (process.env.VERCEL === "1") return vercelClientIp(request);
   if (process.env.NODE_ENV !== "production" && ["localhost", "127.0.0.1", "[::1]"].includes(config.origin.hostname)) {
     return "127.0.0.1";
   }
@@ -141,7 +136,7 @@ export async function authorizeGuardianSmsRequest(request: Request) {
     });
     const result = verification.ok ? await verification.json() : null;
     if (result?.success !== true || result.action !== "guardian-otp" || result.hostname !== config.origin.hostname) return failure(403);
-    const ipHash = createHmac("sha256", config.key).update(`guardian-sms-ip:${ip}`).digest("hex");
+    const ipHash = rateLimitIpHash(config.key, "guardian-sms-ip", ip);
     const { data, error } = await database(config).rpc("authorize_guardian_sms_request", {
       p_phone: body.phone, p_ip_hash: ipHash,
     }).abortSignal(AbortSignal.timeout(1_500));

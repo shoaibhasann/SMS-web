@@ -6,6 +6,7 @@ import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import { listFamilyFeeReceipts, type FamilyFeeReceipt } from "@/lib/finance/fee-changes";
 import { FamilyReceiptDetails } from "@/components/finance/family-receipt-details";
+import { formatFeeBillingPeriod } from "@/lib/finance/fee-batches";
 import { LoadingState } from "@/components/ui/skeleton";
 
 const pageSize = 30;
@@ -48,10 +49,10 @@ export function FamilyReceipts({ role, userId }: { role: "student" | "parent"; u
           ? "View recorded payments for your linked children."
           : "View your recorded payments."}</p>
       </header>
-      {sessionChanged ? <p role="alert" className="text-sm text-red-600">Your sign-in changed. Refresh to check access.</p>
+      {sessionChanged ? <p role="alert" className="text-sm text-danger">Your sign-in changed. Refresh to check access.</p>
         : error ? (
           <div className="card space-y-3 p-4">
-            <p role="alert" className="text-sm text-red-600">{error}</p>
+            <p role="alert" className="text-sm text-danger">{error}</p>
             <button type="button" className={button} onClick={() => {
               setError("");
               setAttempt((count) => count + 1);
@@ -108,13 +109,14 @@ function ReceiptHistory({ client, student }: { client: ReturnType<typeof createC
       {!view ? <LoadingState variant="table" className="p-4 text-sm muted">Loading receipts…</LoadingState>
         : view.error ? (
           <div className="space-y-3 p-4">
-            <p role="alert" className="text-sm text-red-600">Receipts could not be loaded.</p>
+            <p role="alert" className="text-sm text-danger">Receipts could not be loaded.</p>
             <button type="button" className={button} onClick={() => setAttempt((count) => count + 1)}>Retry receipts</button>
           </div>
         ) : !view.rows.length ? <p className="p-4 text-sm muted">No receipts on this page.</p> : (
           <ul aria-label="Receipt history" className="divide-y divide-[var(--border)]">
             {view.rows.map((row) => (
               <li key={row.id} className="px-4 py-4">
+                {row.fee_name && <p className="mb-2 text-sm font-semibold break-words">{row.fee_name} · {formatFeeBillingPeriod(row.billing_period ?? null)}</p>}
                 <FamilyReceiptDetails receipt={row} />
               </li>
             ))}

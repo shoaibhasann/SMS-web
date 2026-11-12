@@ -4,7 +4,8 @@ import LoginPage from "@/app/(auth)/login/page";
 import type { AuthChangeEvent, Session } from "@supabase/supabase-js";
 import type { StaffMfaStatus } from "@/lib/auth/staff-mfa";
 
-const { client, router, readStatus, unsubscribe } = vi.hoisted(() => ({
+const { client, router, readStatus, unsubscribe, search } = vi.hoisted(() => ({
+  search: { params: new URLSearchParams() },
   client: { auth: {
     getSession: vi.fn(), onAuthStateChange: vi.fn(), signOut: vi.fn(),
     signInWithPassword: vi.fn(), signInWithOAuth: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => client }));
 vi.mock("@/lib/auth/staff-mfa", async (original) => ({
   ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: readStatus,
 }));
-vi.mock("next/navigation", () => ({ useRouter: () => router }));
+vi.mock("next/navigation", () => ({ useRouter: () => router, useSearchParams: () => search.params }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => null }));
 
 const owner = { id: "owner" };
@@ -31,6 +32,7 @@ const challenge: StaffMfaStatus = {
 let emitAuth: (event: AuthChangeEvent, session: Session | null) => void;
 
 beforeEach(() => {
+  search.params = new URLSearchParams();
   auth.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
   auth.onAuthStateChange.mockReset().mockImplementation((callback: typeof emitAuth) => {
     emitAuth = callback;
@@ -242,4 +244,57 @@ it("reveals and hides the same password and links to password recovery", () => {
   expect(password).toHaveAttribute("type", "password");
   expect(password).toHaveValue("my saved password");
   expect(screen.getByRole("link", { name: "Forgot password?" })).toHaveAttribute("href", "/forgot-password");
+});
+
+const callbackCopy = "Sign-in couldn’t be completed. Try again or choose another sign-in option.";
+
+it.each(["auth_callback_failed", "auth_callback_missing_code"])("explains a failed auth callback without naming a provider (?error=%s)", (code) => {
+  search.params = new URLSearchParams({ error: code });
+  render(<LoginPage />);
+  expect(screen.getByRole("alert")).toHaveTextContent(callbackCopy);
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/google/i);
+});
+
+it("never echoes an unknown callback error value", () => {
+  search.params = new URLSearchParams({ error: "<b>provider internals</b>" });
+  render(<LoginPage />);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+it("clears the callback notice once the user switches method or submits", async () => {
+  search.params = new URLSearchParams({ error: "auth_callback_failed" });
+  const { unmount } = render(<LoginPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Guardian mobile" }));
+  fireEvent.click(screen.getByRole("button", { name: "Email & password" }));
+  expect(screen.queryByText(callbackCopy)).not.toBeInTheDocument();
+  unmount();
+
+  render(<LoginPage />);
+  expect(screen.getByRole("alert")).toHaveTextContent(callbackCopy);
+  enterCredentials();
+  submitPassword();
+  expect(screen.queryByText(callbackCopy)).not.toBeInTheDocument();
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/dashboard"));
+});
+
+it("removes the callback error from the URL once dismissed so a reload does not show it again", () => {
+  search.params = new URLSearchParams({ error: "auth_callback_failed" });
+  window.history.replaceState(null, "", "/login?error=auth_callback_failed");
+  router.replace.mockReset().mockImplementation((path: string) => window.history.replaceState(null, "", path));
+  render(<LoginPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Guardian mobile" }));
+  expect(router.replace).toHaveBeenCalledExactlyOnceWith("/login", { scroll: false });
+  expect(window.location.search).toBe("");
+  fireEvent.click(screen.getByRole("button", { name: "Email & password" }));
+  expect(router.replace).toHaveBeenCalledOnce();
+  router.replace.mockReset();
+  window.history.replaceState(null, "", "/");
+});
+
+it("does not touch the URL when there is no callback error to dismiss", () => {
+  router.replace.mockReset();
+  window.history.replaceState(null, "", "/login");
+  render(<LoginPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Guardian mobile" }));
+  expect(router.replace).not.toHaveBeenCalled();
 });

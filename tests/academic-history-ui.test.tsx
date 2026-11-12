@@ -69,6 +69,19 @@ describe("academic history and draft safety", () => {
     await waitFor(() => expect(mocks.logs).toHaveBeenLastCalledWith(expect.objectContaining({ academicYearId: "year-old", logDate: "2025-11-01" })));
   });
 
+  it("keeps a moved pupil's same-year logs from the section they left for the family", async () => {
+    const families = { user_roles: [{ role: "parent", school_id: "school-a" }], parents: { id: "parent-a" },
+      student_parents: [{ student_id: "student-a" }], students: [{ id: "student-a", first_name: "Asha", middle_name: null, last_name: null }],
+      enrollments: [{ student_id: "student-a", class_id: "class-a", section_id: "section-b", academic_year_id: "year-a" }] };
+    const base = read;
+    read = (query) => query.table in families ? { data: families[query.table as keyof typeof families], error: null } : base(query);
+    mocks.logs.mockResolvedValue([source, { ...source, id: "log-other-year", academic_year_id: "year-old", topic: "Other session lesson" }]);
+    render(<AcademicWorkspace module="class-logs" />);
+    await screen.findByText("Original lesson");
+    expect(screen.queryByText("Other session lesson")).not.toBeInTheDocument();
+    expect(mocks.logs).toHaveBeenLastCalledWith(expect.objectContaining({ status: "published", classIds: undefined }));
+  });
+
   it("keeps a draft's original version and children through a newer history reload", async () => {
     const user = userEvent.setup();
     render(<AcademicWorkspace module="class-logs" />);
@@ -149,5 +162,30 @@ describe("academic history and draft safety", () => {
     await screen.findByText(/Your draft is kept/);
     expect(details).toHaveValue("Still my draft");
     expect(mocks.rpc).toHaveBeenCalledWith("save_academic_log", expect.objectContaining({ p_log: expect.objectContaining({ expected_updated_at: source.updated_at }) }));
+  });
+  it("names the family history filters and shows log status as a text badge with an en-IN date", async () => {
+    const families = { user_roles: [{ role: "parent", school_id: "school-a" }], parents: { id: "parent-a" },
+      student_parents: [{ student_id: "student-a" }], students: [{ id: "student-a", first_name: "Asha", middle_name: null, last_name: null }],
+      enrollments: [{ student_id: "student-a", class_id: "class-a", section_id: "section-a", academic_year_id: "year-a" }] };
+    const base = read;
+    read = (query) => query.table in families ? { data: families[query.table as keyof typeof families], error: null } : base(query);
+    render(<AcademicWorkspace module="class-logs" />);
+    await screen.findByText("Original lesson");
+    for (const name of ["Class", "Section", "Subject", "Teacher", "Status"]) expect(screen.getByRole("combobox", { name })).toBeInTheDocument();
+    expect(screen.getByText("Published", { selector: "span" })).toHaveClass("badge", "text-success");
+    expect(screen.getByText(/5 Nov 2026/)).toBeInTheDocument();
+  });
+
+  it("focuses Cancel in the homework delete dialog and closes it with Escape", async () => {
+    const user = userEvent.setup();
+    render(<TeacherAcademicActivityWorkspace module="homework" />);
+    await user.click(await screen.findByRole("button", { name: /Original task/ }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Delete Homework?" });
+    expect(dialog).toHaveAccessibleDescription("This homework will be permanently removed.");
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(queries.some((query) => query.action === "delete")).toBe(false);
   });
 });

@@ -6,10 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import {
   confirmGuardianMobileChange, createGuardianVerificationClient, guardianPhone, readGuardianAuthUser,
   readGuardianContactProviders, requestGuardianEmailChange, requestGuardianCurrentMobileCode,
-  beginGuardianMobileChange, completeGuardianMobileChange, closeGuardianMobileChange, syncVerifiedGuardianMobile,
+  beginGuardianMobileChange, completeGuardianMobileChange, closeGuardianMobileChange, syncVerifiedGuardianMobile, setGuardianAppPassword, SpentGuardianCodeError,
   type GuardianContactProviders, type GuardianMobileProof,
 } from "@/lib/guardian-invitations/contact";
 import { StaffMfaError } from "@/lib/auth/staff-mfa";
+import { MIN_PASSWORD_LENGTH } from "@/lib/account/password-rule";
 import { LoadingState } from "@/components/ui/skeleton";
 import { PhoneSecurityCheck } from "@/components/auth/phone-security-check";
 
@@ -17,7 +18,7 @@ type Notice = { text: string; error?: boolean };
 type ProviderState = GuardianContactProviders | "unavailable";
 const label = "block space-y-2 text-sm font-semibold";
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-60";
-const primaryButton = `${button} bg-blue-700 text-white`;
+const primaryButton = "btn btn-primary";
 
 export function GuardianContactSettings({ userId, callbackStatus }: { userId: string; callbackStatus: string | null }) {
   return <OwnGuardianContactSettings key={userId} userId={userId} callbackStatus={callbackStatus} />;
@@ -223,6 +224,23 @@ function OwnGuardianContactSettings({ userId, callbackStatus }: { userId: string
     });
   }
 
+  async function setAppPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!smsEnabled || pending.current || !verifiedMobile || currentCodeTarget !== verifiedMobile) return;
+    const form = new FormData(event.currentTarget);
+    event.currentTarget.reset();
+    await run(async (signal) => {
+      const phone = await setGuardianAppPassword(client, createGuardianVerificationClient(), userId, {
+        code: String(form.get("appCode") ?? ""), newPassword: String(form.get("appPassword") ?? ""), confirmation: String(form.get("appConfirmation") ?? ""),
+      }, signal).catch((error: unknown) => {
+        if (error instanceof SpentGuardianCodeError && active.current) setCurrentCodeTarget("");
+        throw error;
+      });
+      if (active.current) setCurrentCodeTarget(""); // The code is single-use.
+      return { text: `App password set. Sign in to the SMS app with ${phone} and this password.` };
+    });
+  }
+
   async function verifyMobile(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!smsEnabled || pending.current) return;
@@ -347,6 +365,27 @@ function OwnGuardianContactSettings({ userId, callbackStatus }: { userId: string
               <p className="text-sm muted">{!smsEnabled ? "SMS verification is unavailable. The school must enable phone authentication and configure an SMS provider before you can verify a new mobile."
                 : "A verified sign-in email or current mobile is required. Contact the school office."}</p>}
           </section>
+
+          {!verifiedEmail && verifiedMobile && provider && <section className="card space-y-4 p-4 sm:p-5" aria-labelledby="guardian-app-password">
+            <div>
+              <h2 id="guardian-app-password" className="text-lg font-bold">App password</h2>
+              <p className="mt-1 text-sm muted">{smsEnabled ? "The SMS Android app signs in with your verified mobile number and an app password. Request a current-mobile code above, then enter it here. Setting it again replaces the previous app password. Other signed-in browsers will need to sign in again."
+                : provider === "unavailable" ? "App password setup is temporarily unavailable because mobile verification could not be checked. Use Retry verification check above to try again."
+                : "The SMS Android app signs in with your mobile number and an app password, which needs mobile verification. The school office must enable mobile verification or add a verified email to your account before you can use the app."}</p>
+            </div>
+            {smsEnabled && <form aria-label="Set app password" onSubmit={(event) => void setAppPassword(event)} className="max-w-md space-y-3">
+              <label className={label}><span>Current-mobile code</span>
+                <input name="appCode" type="text" inputMode="numeric" autoComplete="one-time-code" className="field" required minLength={6} maxLength={6} pattern="[0-9]{6}" disabled={busy} />
+              </label>
+              <label className={label}><span>New app password</span>
+                <input name="appPassword" type="password" autoComplete="new-password" className="field" required minLength={MIN_PASSWORD_LENGTH} disabled={busy} />
+              </label>
+              <label className={label}><span>Confirm app password</span>
+                <input name="appConfirmation" type="password" autoComplete="new-password" className="field" required minLength={MIN_PASSWORD_LENGTH} disabled={busy} />
+              </label>
+              <button type="submit" className={primaryButton} disabled={busy || currentCodeTarget !== verifiedMobile}>Set app password</button>
+            </form>}
+          </section>}
         </>}
     </div>
   );

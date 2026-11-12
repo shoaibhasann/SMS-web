@@ -21,6 +21,7 @@ import { StudentHomeworkSubmission } from "@/components/academic/homework-submis
 import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
 import { resolveUiRole, toUiRole, type UiRole } from "@/lib/auth/roles";
 import { LoadingState } from "@/components/ui/skeleton";
+import { schoolDate } from "@/lib/attendance/types";
 
 type EligibleClass = {
   class_id: string;
@@ -40,7 +41,13 @@ type AcademicLabels = {
 const emptyLabels: AcademicLabels = { classes: {}, sections: {}, subjects: {}, teachers: {} };
 
 function displayDate(value: string) {
-  return new Date(`${value}T00:00:00`).toLocaleDateString();
+  return new Date(`${value}T00:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+function LogStatus({ status }: { status: string }) {
+  return status === "published"
+    ? <span className="inline-flex flex-wrap items-center gap-2"><span className="badge text-success">Published</span><span className="text-xs muted">Visible to students and guardians</span></span>
+    : <span className="inline-flex flex-wrap items-center gap-2"><span className="badge text-warning">Draft</span><span className="text-xs muted">Visible only to teacher</span></span>;
 }
 
 type WorkspaceAbsence = { student: string; date: string; class_id: string; section_id: string };
@@ -48,7 +55,7 @@ type HistoryFilters = { yearId: string; date: string; classId: string; sectionId
 const initialHistoryFilters: HistoryFilters = { yearId: "current", date: "", classId: "all", sectionId: "all", subjectId: "all", teacherId: "all", status: "all" };
 const moduleActivityTypes: Partial<Record<string, (typeof activityTypes)[number][0]>> = { classwork: "classwork", homework: "homework", assignments: "assignment", projects: "project", "study-material": "study_material" };
 
-async function readAcademicWorkspace(history: HistoryFilters, module: string) {
+async function readAcademicWorkspace(history: HistoryFilters, module: string, role?: UiRole) {
   const supabase = createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError) throw authError;
@@ -59,7 +66,8 @@ async function readAcademicWorkspace(history: HistoryFilters, module: string) {
     .select("role, school_id")
     .eq("user_id", user.id);
   if (roleError) throw roleError;
-  const viewerRole = resolveUiRole(roleRows ?? []);
+  // The route passes its verified (possibly guardian-scoped) role; never silently fall back to another role.
+  const viewerRole = role ? (roleRows ?? []).some((row) => toUiRole(row.role) === role) ? role : null : resolveUiRole(roleRows ?? []);
   if (!viewerRole) throw new Error("No recognized role is assigned to this login.");
   const roleRow = roleRows?.find((row) => toUiRole(row.role) === viewerRole);
 
@@ -150,11 +158,13 @@ async function readAcademicWorkspace(history: HistoryFilters, module: string) {
     logFilters = { schoolId: roleRow?.school_id ?? undefined };
   }
 
+  const familyViewer = viewerRole === "student" || viewerRole === "parent";
   if (classScope.length && viewerRole !== "teacher") {
     logFilters = {
       ...logFilters,
-      classIds: [...new Set(classScope.map((entry) => entry.class_id))],
-      status: viewerRole === "student" || viewerRole === "parent" ? "published" : undefined,
+      // Families keep same-year logs from a section the pupil left; RLS limits them to the placement on the log date.
+      classIds: familyViewer ? undefined : [...new Set(classScope.map((entry) => entry.class_id))],
+      status: familyViewer ? "published" : undefined,
     };
   }
   if ((viewerRole === "student" || viewerRole === "parent") && classScope.length === 0) {
@@ -180,9 +190,9 @@ async function readAcademicWorkspace(history: HistoryFilters, module: string) {
   const loadedLogs = await loadAcademicLogs(logFilters);
   const scopedLogs = classScope.length && viewerRole !== "teacher"
     ? loadedLogs.filter((log) => classScope.some((entry) =>
-      entry.class_id === log.class_id &&
-      entry.academic_year_id === log.academic_year_id &&
-      (!entry.section_id || !log.section_id || entry.section_id === log.section_id),
+      entry.academic_year_id === log.academic_year_id && (familyViewer || (
+        entry.class_id === log.class_id &&
+        (!entry.section_id || !log.section_id || entry.section_id === log.section_id))),
     ))
     : loadedLogs;
   const loadedActivities = await loadAcademicActivities(scopedLogs.map((log) => log.id));
@@ -269,11 +279,11 @@ async function readAcademicWorkspace(history: HistoryFilters, module: string) {
   return { role: viewerRole, teacherId: currentTeacherId, schoolId: currentTeacherSchoolId, userId: user.id, studentId: viewerRole === "student" ? classScope[0]?.student_id ?? "" : "", assignments: loadedAssignments, logs: scopedLogs, activities: loadedActivities, labels, absences, years: years ?? [] };
 }
 
-export function AcademicWorkspace({ module }: { module: string }) {
-  return <AcademicWorkspaceView key={module} module={module} />;
+export function AcademicWorkspace({ module, role }: { module: string; role?: UiRole }) {
+  return <AcademicWorkspaceView key={`${module}:${role ?? ""}`} module={module} scopedRole={role} />;
 }
 
-function AcademicWorkspaceView({ module }: { module: string }) {
+function AcademicWorkspaceView({ module, scopedRole }: { module: string; scopedRole?: UiRole }) {
   const loadVersion = useRef(0);
   const appliedEdit = useRef<string | null>(null);
   const historyFilters = useRef<HistoryFilters>(initialHistoryFilters);
@@ -291,7 +301,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
   const [editingSource, setEditingSource] = useState<{ log: AcademicLogRecord; activities: AcademicActivity[] } | null>(null);
   const [years, setYears] = useState<{ id: string; name: string; is_current: boolean }[]>([]);
   const [filterYear, setFilterYear] = useState("current");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => schoolDate());
   const [topic, setTopic] = useState("");
   const [summary, setSummary] = useState("");
   const [remark, setRemark] = useState("");
@@ -330,7 +340,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
 
   const loadWorkspace = useCallback(() => {
     const version = ++loadVersion.current;
-    return readAcademicWorkspace(historyFilters.current, module).then((loaded) => {
+    return readAcademicWorkspace(historyFilters.current, module, scopedRole).then((loaded) => {
       if (version !== loadVersion.current) return;
       setRole(loaded.role);
       setTeacherId(loaded.teacherId);
@@ -392,7 +402,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
     }).finally(() => {
       if (version === loadVersion.current) setLoading(false);
     });
-  }, [module]);
+  }, [module, scopedRole]);
 
   useEffect(() => {
     void loadWorkspace();
@@ -494,11 +504,13 @@ function AcademicWorkspaceView({ module }: { module: string }) {
       });
       if (publish) {
         setStatus("published");
-        setMessage("Published — visible to students and parents.");
+        setMessage("Published — visible to students and guardians.");
       } else {
         setStatus(status);
         setMessage(status === "published" ? "Published academic log updated." : "Draft saved — visible only to you.");
       }
+      // A page left open past midnight IST must not keep yesterday for the next new log.
+      if (!editingLogId) setDate(schoolDate());
       resetForm();
       await loadWorkspace();
     } catch (error) {
@@ -529,15 +541,22 @@ function AcademicWorkspaceView({ module }: { module: string }) {
   const editingActivities = editingSource?.activities ?? [];
   const duplicateActivityTypes = new Set(activityTypes.filter(([type]) => editingActivities.filter((activity) => activity.activity_type === type).length > 1).map(([type]) => type));
   useAcademicAssignmentRevalidation({ enabled: isTeacher && !loading, assignments,
-    onChanged: () => {
+    onChanged: (next) => {
+      // A kept draft must never be retargeted: loadWorkspace falls back to the first assignment when the selected one is gone.
+      const kept = editingSource ? canEditAcademicLog(next, teacherId, teacherSchoolId, editingSource.log)
+        : next.some((assignment) => assignment.id === selectedAssignmentId);
       setAssignments([]); setLogs([]); setActivities([]); setLoading(true);
-      resetForm(); setMessage("");
-      setErrorMessage("Your teaching assignments changed. The workspace is refreshing its access.");
+      if (kept) {
+        setErrorMessage(""); setMessage("Your teaching assignments were re-checked. Any unsaved draft is kept.");
+      } else {
+        resetForm(); setMessage("");
+        setErrorMessage("Your teaching assignments changed. The workspace is refreshing its access.");
+      }
       void loadWorkspace();
     },
     onUnavailable: () => {
-      setAssignments([]); setLogs([]); setActivities([]); resetForm(); setMessage("");
-      setErrorMessage("Teaching access could not be verified. Refresh the workspace before making changes.");
+      setAssignments([]); setLogs([]); setActivities([]); setMessage("");
+      setErrorMessage("Teaching access could not be verified. Your unsaved draft is kept; saving is blocked until access is re-checked.");
     },
   });
   const filteredLogs = module === "class-logs" ? logs.filter((log) =>
@@ -559,7 +578,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
           ) : (
             <>
               <h1 className="text-xl font-bold">Academic workspace could not load</h1>
-              <p role="alert" className="mt-2 text-sm text-red-600">{errorMessage}</p>
+              <p role="alert" className="mt-2 text-sm text-danger">{errorMessage}</p>
             </>
           )}
         </div>
@@ -572,8 +591,8 @@ function AcademicWorkspaceView({ module }: { module: string }) {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="text-xs font-semibold uppercase tracking-widest text-blue-600">Academic Work Engine</div>
-            <h1 className="mt-1 text-3xl font-black">{title}</h1>
+            <div className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">Academic Work Engine</div>
+            <h1 className="mt-1 text-2xl font-black sm:text-3xl">{title}</h1>
             <p className="mt-1 text-sm muted">
               {isTeacher
                 ? "Daily Academic Log is the single source. Edit related work from its original log."
@@ -588,8 +607,8 @@ function AcademicWorkspaceView({ module }: { module: string }) {
         </div>
 
         {isTeacher && <button type="button" disabled={saving || loading} onClick={() => { setLoading(true); setLogs([]); setActivities([]); resetForm(); setMessage(""); setErrorMessage(""); void loadWorkspace(); }} className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50">Refresh teaching access</button>}
-        {message && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700">{message}</div>}
-        {errorMessage && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600">{errorMessage}</div>}
+        {message && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-success">{message}</div>}
+        {errorMessage && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-danger">{errorMessage}</div>}
 
         <section className="card flex flex-wrap items-end gap-4 p-5" aria-label="Academic history scope">
           <label className="text-sm font-semibold">History year<select value={filterYear} onChange={(event) => setFilterYear(event.target.value)} className="field mt-2"><option value="current">Current year</option><option value="all">All available years</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select></label>
@@ -624,7 +643,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
                   >
                     <div className="text-xs muted">{assignment.class_name} — {assignment.section_name}</div>
                     <div className="mt-1 font-bold">{assignment.subject_name}</div>
-                    {assignment.is_class_teacher && <div className="mt-2 text-xs text-emerald-600">Class Teacher</div>}
+                    {assignment.is_class_teacher && <div className="mt-2 text-xs font-semibold text-success">Class Teacher</div>}
                   </button>
                 ))}
               </div>
@@ -637,26 +656,26 @@ function AcademicWorkspaceView({ module }: { module: string }) {
             <fieldset disabled={saving} aria-label="Academic log editor">
             <div className="mb-5 flex items-center justify-between gap-3">
               <h2 className="text-lg font-bold">{editingLogId ? "Edit Daily Academic Log" : "Create Daily Academic Log"}</h2>
-              {editingLogId && <button type="button" onClick={resetForm} className="text-sm font-semibold text-blue-600">New Log / Cancel</button>}
+              {editingLogId && <button type="button" onClick={resetForm} className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 dark:text-blue-300">New Log / Cancel</button>}
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <label><span className="mb-2 block text-xs font-semibold">Date</span><input type="date" disabled={Boolean(editingLogId) || saving} value={date} onChange={(event) => setDate(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3" /></label>
-              <label><span className="mb-2 block text-xs font-semibold">Class / Section / Subject</span><select disabled={Boolean(editingLogId) || saving} value={selectedAssignmentId} onChange={(event) => { setSelectedAssignmentId(event.target.value); if (editingLogId) resetForm(); }} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3">{assignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.class_name} — {assignment.section_name} — {assignment.subject_name}</option>)}</select></label>
+              <label><span className="mb-2 block text-sm font-semibold">Date</span><input type="date" disabled={Boolean(editingLogId) || saving} value={date} onChange={(event) => setDate(event.target.value)} className="field" /></label>
+              <label><span className="mb-2 block text-sm font-semibold">Class / Section / Subject</span><select disabled={Boolean(editingLogId) || saving} value={selectedAssignmentId} onChange={(event) => { setSelectedAssignmentId(event.target.value); if (editingLogId) resetForm(); }} className="field">{assignments.map((assignment) => <option key={assignment.id} value={assignment.id}>{assignment.class_name} — {assignment.section_name} — {assignment.subject_name}</option>)}</select></label>
             </div>
             {editingLogId && <p className="mt-3 text-sm muted">To use another date, class or subject, start a new log.</p>}
             {selectedAssignment && <p className="mt-3 text-sm muted">{selectedAssignment.class_name} · Section {selectedAssignment.section_name} · {selectedAssignment.subject_name}</p>}
-            <label className="mt-5 block"><span className="mb-2 block text-xs font-semibold">Topic / Chapter *</span><input value={topic} onChange={(event) => setTopic(event.target.value)} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3" placeholder="e.g. The Last Lesson" /></label>
-            <label className="mt-4 block"><span className="mb-2 block text-xs font-semibold">What Was Taught *</span><textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={4} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3" /></label>
+            <label className="mt-5 block"><span className="mb-2 block text-sm font-semibold">Topic / Chapter *</span><input value={topic} onChange={(event) => setTopic(event.target.value)} className="field" placeholder="e.g. The Last Lesson" /></label>
+            <label className="mt-4 block"><span className="mb-2 block text-sm font-semibold">What Was Taught *</span><textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={4} className="field" /></label>
             <div className="mt-6"><h3 className="font-bold">Academic Activities</h3><p className="mt-1 text-sm muted">Enter each activity once; the dedicated menus read from this log.</p>
               <div className="mt-4 grid gap-4 md:grid-cols-2">
-                {activityTypes.map(([key, label]) => <label key={key} className="rounded-2xl border border-[var(--border)] p-4"><span className="mb-2 block text-sm font-semibold">{label}</span><textarea rows={3} disabled={duplicateActivityTypes.has(key) || saving} value={duplicateActivityTypes.has(key) ? "" : activityValues[key] ?? ""} onChange={(event) => setActivityValues((current) => ({ ...current, [key]: event.target.value }))} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-sm" placeholder={`Enter ${label.toLowerCase()}...`} />{duplicateActivityTypes.has(key) && <span className="mt-2 block text-xs muted">Multiple {label.toLowerCase()} entries are preserved unchanged here. Homework and classwork entries can be edited on their own pages.</span>}</label>)}
+                {activityTypes.map(([key, label]) => <label key={key} className="rounded-2xl border border-[var(--border)] p-4"><span className="mb-2 block text-sm font-semibold">{label}</span><textarea rows={3} disabled={duplicateActivityTypes.has(key) || saving} value={duplicateActivityTypes.has(key) ? "" : activityValues[key] ?? ""} onChange={(event) => setActivityValues((current) => ({ ...current, [key]: event.target.value }))} className="field" placeholder={`Enter ${label.toLowerCase()}...`} />{duplicateActivityTypes.has(key) && <span className="mt-2 block text-xs muted">Multiple {label.toLowerCase()} entries are preserved unchanged here. Homework and classwork entries can be edited on their own pages.</span>}</label>)}
               </div>
             </div>
-            <label className="mt-5 block"><span className="mb-2 block text-xs font-semibold">Teacher Remark</span><textarea value={remark} onChange={(event) => setRemark(event.target.value)} rows={3} className="w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3" /></label>
+            <label className="mt-5 block"><span className="mb-2 block text-sm font-semibold">Teacher Remark</span><textarea value={remark} onChange={(event) => setRemark(event.target.value)} rows={3} className="field" /></label>
             <div className="mt-6 flex flex-wrap items-center gap-3">
               <button type="button" disabled={saving || !selectedAssignment} onClick={() => void save(false)} className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] px-5 py-3 text-sm font-bold disabled:opacity-50"><Save size={16} />{saving ? "Saving..." : editingLogId && status === "published" ? "Save Changes" : "Save Draft"}</button>
-              {status !== "published" && <button type="button" disabled={saving || !selectedAssignment} onClick={() => void save(true)} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50"><Send size={16} />{saving ? "Publishing..." : "Publish for Student/Parent"}</button>}
-              <span className={`text-xs font-semibold ${status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>
+              {status !== "published" && <button type="button" disabled={saving || !selectedAssignment} onClick={() => void save(true)} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50"><Send size={16} />{saving ? "Publishing..." : "Publish for Student/Guardian"}</button>}
+              <LogStatus status={status} />
             </div>
             </fieldset>
           </section>
@@ -678,13 +697,13 @@ function AcademicWorkspaceView({ module }: { module: string }) {
           <section className="card overflow-hidden">
             <div className="border-b border-[var(--border)] p-5"><h2 className="font-bold">{isTeacher ? "My Academic Logs" : "Academic History"}</h2></div>
             {!isTeacher && <div className="grid gap-3 border-b border-[var(--border)] p-5 sm:grid-cols-2 lg:grid-cols-3">
-              <select value={filterClass} onChange={(event) => setFilterClass(event.target.value)} className="field"><option value="all">All classes</option>{[...new Set(logs.map((log) => log.class_id))].map((id) => <option key={id} value={id}>{labels.classes[id] ?? id}</option>)}</select>
-              <select value={filterSection} onChange={(event) => setFilterSection(event.target.value)} className="field"><option value="all">All sections</option>{[...new Set(logs.map((log) => log.section_id).filter(Boolean))].map((id) => <option key={id} value={id}>{labels.sections[id] ?? id}</option>)}</select>
-              <select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field"><option value="all">All subjects</option>{[...new Set(logs.map((log) => log.subject_id))].map((id) => <option key={id} value={id}>{labels.subjects[id] ?? id}</option>)}</select>
-              <select value={filterTeacher} onChange={(event) => setFilterTeacher(event.target.value)} className="field"><option value="all">All teachers</option>{[...new Set(logs.map((log) => log.teacher_id))].map((id) => <option key={id} value={id}>{labels.teachers[id] ?? "Teacher"}</option>)}</select>
-              <select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="field"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select>
+              <label className="block text-sm font-semibold">Class<select value={filterClass} onChange={(event) => setFilterClass(event.target.value)} className="field mt-2"><option value="all">All classes</option>{[...new Set(logs.map((log) => log.class_id))].map((id) => <option key={id} value={id}>{labels.classes[id] ?? id}</option>)}</select></label>
+              <label className="block text-sm font-semibold">Section<select value={filterSection} onChange={(event) => setFilterSection(event.target.value)} className="field mt-2"><option value="all">All sections</option>{[...new Set(logs.map((log) => log.section_id).filter(Boolean))].map((id) => <option key={id} value={id}>{labels.sections[id] ?? id}</option>)}</select></label>
+              <label className="block text-sm font-semibold">Subject<select value={filterSubject} onChange={(event) => setFilterSubject(event.target.value)} className="field mt-2"><option value="all">All subjects</option>{[...new Set(logs.map((log) => log.subject_id))].map((id) => <option key={id} value={id}>{labels.subjects[id] ?? id}</option>)}</select></label>
+              <label className="block text-sm font-semibold">Teacher<select value={filterTeacher} onChange={(event) => setFilterTeacher(event.target.value)} className="field mt-2"><option value="all">All teachers</option>{[...new Set(logs.map((log) => log.teacher_id))].map((id) => <option key={id} value={id}>{labels.teachers[id] ?? "Teacher"}</option>)}</select></label>
+              <label className="block text-sm font-semibold">Status<select value={filterStatus} onChange={(event) => setFilterStatus(event.target.value)} className="field mt-2"><option value="all">All statuses</option><option value="draft">Draft</option><option value="published">Published</option></select></label>
             </div>}
-            {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading complete academic history for the selected scope...</LoadingState> : filteredLogs.length === 0 ? <p className="p-5 text-sm muted">No academic logs found.</p> : <div className="divide-y divide-[var(--border)]">{filteredLogs.map((log) => <article key={log.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-1 whitespace-pre-wrap text-sm muted">{log.summary}</p></div><div className="flex items-center gap-3"><span className={`text-xs font-semibold ${log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{log.status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <><button type="button" disabled={saving} onClick={() => beginEdit(log)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</button><button type="button" disabled={saving} onClick={() => void deleteLog(log)} className="rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-red-600">Delete</button></>}</div></div>{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}{log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}</article>)}</div>}
+            {loading ? <LoadingState variant="table" className="p-5 text-sm muted">Loading complete academic history for the selected scope...</LoadingState> : filteredLogs.length === 0 ? <p className="p-5 text-sm muted">No academic logs found.</p> : <div className="divide-y divide-[var(--border)]">{filteredLogs.map((log) => <article key={log.id} className="p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-1 whitespace-pre-wrap text-sm muted">{log.summary}</p></div><div className="flex flex-wrap items-center gap-3"><LogStatus status={log.status} />{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <><button type="button" disabled={saving} onClick={() => beginEdit(log)} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</button><button type="button" disabled={saving} onClick={() => void deleteLog(log)} className="rounded-lg border border-red-500/30 px-3 py-2 text-sm font-semibold text-danger">Delete</button></>}</div></div>{activities.filter((activity) => activity.class_log_id === log.id).map((activity) => <p key={activity.id} className="mt-2 text-sm"><b>{activity.activity_type.replaceAll("_", " ")}:</b> {activity.title}</p>)}{log.teacher_remark && <p className="mt-2 text-sm"><b>Teacher Remark:</b> {log.teacher_remark}</p>}</article>)}</div>}
           </section>
         ) : (
           <section className="card overflow-hidden">
@@ -692,7 +711,7 @@ function AcademicWorkspaceView({ module }: { module: string }) {
             {loading ? <LoadingState variant="list" className="p-5 text-sm muted">Loading {title.toLowerCase()}...</LoadingState> : visibleActivities.length === 0 ? <p className="p-5 text-sm muted">No {title.toLowerCase()} published yet.</p> : <div className="divide-y divide-[var(--border)]">{visibleActivities.map((activity) => {
               const log = logForActivity(activity);
               if (!log) return null;
-              return <article key={activity.id} className="min-w-0 space-y-3 p-5"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-2 whitespace-pre-wrap text-sm">{activity.title}</p>{activity.due_date && <p className="mt-1 text-xs muted">Due {activity.due_date}</p>}</div><div className="flex items-center gap-3"><span className={`text-xs font-semibold ${log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{log.status === "published" ? "Published — visible to students and parents" : "Draft — visible only to teacher"}</span>{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <Link href={`/modules/class-logs?edit=${encodeURIComponent(log.id)}`} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</Link>}</div></div>{module === "homework" && role === "student" && studentId && userId && log.status === "published" && <StudentHomeworkSubmission key={`${userId}:${studentId}:${activity.id}`} userId={userId} maxMarks={activity.max_marks} scope={{ schoolId: log.school_id, academicYearId: log.academic_year_id, classId: log.class_id, sectionId: log.section_id, subjectId: log.subject_id, activityId: activity.id, studentId }} />}</article>;
+              return <article key={activity.id} className="min-w-0 space-y-3 p-5"><div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="text-xs muted">{displayDate(log.log_date)} · {titleForLog(log)}</div><h3 className="mt-1 font-bold">{log.topic}</h3><p className="mt-2 whitespace-pre-wrap text-sm">{activity.title}</p>{activity.due_date && <p className="mt-1 text-xs muted">Due {displayDate(activity.due_date)}</p>}</div><div className="flex flex-wrap items-center gap-3"><LogStatus status={log.status} />{isTeacher && canEditAcademicLog(assignments, teacherId, teacherSchoolId, log) && <Link href={`/modules/class-logs?edit=${encodeURIComponent(log.id)}`} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold">Edit source log</Link>}</div></div>{module === "homework" && role === "student" && studentId && userId && log.status === "published" && <StudentHomeworkSubmission key={`${userId}:${studentId}:${activity.id}`} userId={userId} maxMarks={activity.max_marks} scope={{ schoolId: log.school_id, academicYearId: log.academic_year_id, classId: log.class_id, sectionId: log.section_id, subjectId: log.subject_id, activityId: activity.id, studentId }} />}</article>;
             })}</div>}
           </section>
         )}

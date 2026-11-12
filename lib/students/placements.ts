@@ -58,6 +58,45 @@ export async function changeRosterPlacement(
   }
 }
 
+export async function stageSectionPromotions(
+  client: SupabaseClient,
+  source: AttendanceContext,
+  enrollmentIds: string[],
+  destination: Omit<AttendanceContext, "schoolId">,
+  reason: string,
+  requestId: string,
+) {
+  const { data, error } = await client.rpc("stage_section_promotions", {
+    p_school_id: source.schoolId,
+    p_source_class_id: source.classId,
+    p_source_section_id: source.sectionId,
+    p_enrollment_ids: enrollmentIds,
+    p_destination_academic_year_id: destination.academicYearId,
+    p_destination_class_id: destination.classId,
+    p_destination_section_id: destination.sectionId,
+    p_reason: reason.trim(),
+    p_request_id: requestId,
+  });
+  // The database names the blocking pupil as "Pupil <admission no>: ...".
+  const pupil = error?.message.match(/^Pupil ([^:]+):/)?.[1];
+  const prefix = pupil ? `Nothing was staged. Pupil ${pupil}: ` : "Nothing was staged. ";
+  if (error?.code === "42501") throw new Error("You cannot change enrollment for this school.");
+  if (error?.code === "55000") {
+    throw new Error(`${prefix}Resolve this student’s pending attendance corrections, or untick the student, and try again.`);
+  }
+  if (error?.code === "22023") {
+    throw new Error(`${prefix}Check the destination and reload the roster. The pupil list, enrollment or academic year may have changed.`);
+  }
+  if (error?.code === "23505") {
+    throw new Error(`${prefix}A placement already exists in the destination year. Untick the student or check the placement history.`);
+  }
+  const result = data as { staged?: unknown; already_staged?: unknown } | null;
+  if (error || typeof result?.staged !== "number" || typeof result.already_staged !== "number") {
+    throw new Error("The promotion could not be confirmed. Retry with the same destination and reason, or check placement history.");
+  }
+  return { staged: result.staged, alreadyStaged: result.already_staged };
+}
+
 export async function listRosterPlacementChanges(client: SupabaseClient, source: AttendanceContext) {
   const { data, error } = await client.rpc("list_roster_placement_changes", {
     p_school_id: source.schoolId,

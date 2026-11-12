@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   guardianInvitationUrl,
@@ -11,8 +11,8 @@ import {
 } from "@/lib/guardian-invitations/admin";
 
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--primary)] disabled:opacity-60";
-const danger = `${button} border-red-300 text-red-700 dark:border-red-800 dark:text-red-300`;
-const primary = `${button} bg-blue-700 text-white`;
+const danger = "btn btn-danger";
+const primary = "btn btn-primary";
 const dateFormat = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -34,6 +34,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
   onInvitationsChanged: () => void;
 }) {
   const pending = useRef(false);
+  const reasonHint = useId();
   const linkInput = useRef<HTMLInputElement>(null);
   const [admissionNo, setAdmissionNo] = useState("");
   const [record, setRecord] = useState<GuardianAccess | null>();
@@ -225,11 +226,12 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
               <p className="text-sm muted">Access for this student ends immediately. The school keeps the student’s attendance history. Other guardians and siblings keep their links.</p>
               <label className="block space-y-2 text-sm font-semibold">
                 Reason for removal
-                <textarea autoComplete="off" className="field min-h-20" value={reason} required minLength={5} maxLength={500}
+                <textarea autoComplete="off" autoFocus aria-describedby={reasonHint} className="field min-h-20" value={reason} required minLength={5} maxLength={500}
                   disabled={busy} onChange={(event) => setReason(event.target.value)} />
               </label>
+              <span id={reasonHint} className="-mt-2 block text-xs font-normal muted">At least 5 characters.</span>
               <div className="flex flex-wrap gap-2">
-                <button type="submit" className={danger} disabled={busy || reason.trim().length < 5}>Confirm removal</button>
+                <button type="submit" className="btn btn-danger-solid" disabled={busy || reason.trim().length < 5}>Confirm removal</button>
                 <button type="button" className={button} disabled={busy} onClick={() => { setSelected(undefined); setReason(""); }}>Cancel</button>
               </div>
             </form>
@@ -289,7 +291,7 @@ export function GuardianAccessWorkspace({ client, schoolId, busy, onBusyChange, 
                 {record.events.map((entry) => (
                   <li key={entry.id} className="space-y-1 break-words py-2 text-sm">
                     <p className="font-semibold">{entry.action === "linked" ? "Access linked" : "Access removed"}{entry.guardian_name ? ` · ${entry.guardian_name}` : ""}</p>
-                    <p className="muted">{dateFormat.format(new Date(entry.occurred_at))}{entry.actor_name ? ` · ${entry.actor_name}` : ""}</p>
+                    <p className="muted">{dateFormat.format(new Date(entry.occurred_at))} IST{entry.actor_name ? ` · ${entry.actor_name}` : ""}</p>
                     {entry.reason && <p>{entry.reason}</p>}
                   </li>
                 ))}

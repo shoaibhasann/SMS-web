@@ -1,9 +1,14 @@
 export type GuardianPhoneStatus = { enabled: boolean; captchaSiteKey: string | null };
 
+// Mirrors app_private.student_registered_mobile: +91, 91 or a leading 0 drop to the 10-digit number.
+// Stricter on '+': it is only accepted as a leading +91, so "+65 9123 4567" never becomes an Indian number.
 export function normalizeIndianMobile(value: string): string | null {
-  const compact = value.trim().replace(/[\s()-]/g, "");
-  const digits = compact.startsWith("+91") ? compact.slice(3)
-    : compact.length === 12 && compact.startsWith("91") ? compact.slice(2) : compact;
+  if (!/^[\s0-9+().-]{1,32}$/.test(value)) return null;
+  // Check '+' after dropping separators so "(+91) 98765 43210" and "+ 91 98765 43210" still pass.
+  const compact = value.replace(/[\s().-]/g, "");
+  if (compact.includes("+") && !/^\+91\d*$/.test(compact)) return null;
+  const raw = compact.replace(/\D/g, "");
+  const digits = raw.length === 12 && raw.startsWith("91") ? raw.slice(2) : raw.length === 11 && raw.startsWith("0") ? raw.slice(1) : raw;
   return /^[6-9]\d{9}$/.test(digits) ? `+91${digits}` : null;
 }
 

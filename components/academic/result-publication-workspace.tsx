@@ -10,7 +10,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   cancelPublication, decidePublication, getFamilyAssessmentResults, getFamilyNotificationResult, getResultSubmission, listPublicationCandidates,
   listResultSubmissions, previewPublication, printPublishedResult, publicationPageSize, requestPublication,
-  ResultPublicationError, validatePublicationReason,
+  resultDates as dates, resultTimes as times, ResultPublicationError, validatePublicationReason,
   type FamilyAssessmentResult, type FamilyResultPage, type PublicationDetail, type PublicationMetadata,
   type PublicationPage, type PublicationPreview, type PublicationPupil, type PublicationStatus, type PublicationSummary,
 } from "@/lib/result-publication";
@@ -24,8 +24,6 @@ type SchoolAccess = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50";
 const primary = `${button} border-transparent bg-[var(--primary)] text-white dark:text-slate-950`;
 const field = "min-w-0 space-y-2 text-sm font-semibold";
-const dates = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
-const times = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
 const labels: Record<PublicationStatus, string> = { pending: "Pending review", published: "Published", rejected: "Rejected", cancelled: "Cancelled" };
 function errorText(error: unknown, fallback: string) { return error instanceof ResultPublicationError ? error.message : fallback; }
 function useAlive() {
@@ -168,35 +166,39 @@ function SubmissionList({ client, schoolId, userId, teacher = false, externalRef
         : !current.data?.rows.length ? <p className="text-sm muted">No publication requests on this page.</p> : <ul className="divide-y divide-[var(--border)]">{current.data.rows.map((row) => <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h3 className="break-words font-semibold">{row.metadata.name}</h3><p className="mt-1 text-xs leading-relaxed muted">{row.metadata.class_name}{row.metadata.section_name && ` / ${row.metadata.section_name}`} · {row.metadata.subject_name} · {row.metadata.academic_year_name}</p><p className="mt-1 text-xs muted">Requested by {row.requester_name} · {times.format(new Date(row.requested_at))} IST</p></div><div className="flex flex-wrap items-center gap-3"><Status status={row.status} revision={row.revision} /><button type="button" className={button} disabled={busy} onClick={() => { setSelected(row.id); setDetailRefresh((value) => value + 1); }}>Open result snapshot</button></div></li>)}</ul>}
       {current?.data && <Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={busy} onPage={setPage} />}
     </div>
-    {selected && <SubmissionDetail key={selected} client={client} submissionId={selected} refresh={detailRefresh} userId={userId} teacher={teacher} disabled={externalBusy} onBusyChange={lock} onClose={close} onChanged={() => { setRefresh((value) => value + 1); setDetailRefresh((value) => value + 1); onChanged?.(); }} />}
+    {selected && <SubmissionDetail key={selected} client={client} submissionId={selected} refresh={detailRefresh} userId={userId} teacher={teacher}
+      pendingFallback={teacher && current?.data?.rows.some((row) => row.id === selected && row.status === "pending") === true} disabled={externalBusy} onBusyChange={lock} onClose={close} onChanged={() => { setRefresh((value) => value + 1); setDetailRefresh((value) => value + 1); onChanged?.(); }} />}
   </section>;
 }
 
-function SubmissionDetail({ client, submissionId, refresh, userId, teacher, disabled, onBusyChange, onClose, onChanged }: {
-  client: Client; submissionId: string; refresh: number; userId: string; teacher: boolean; disabled: boolean;
+function SubmissionDetail({ client, submissionId, refresh, userId, teacher, pendingFallback = false, disabled, onBusyChange, onClose, onChanged }: {
+  client: Client; submissionId: string; refresh: number; userId: string; teacher: boolean; pendingFallback?: boolean; disabled: boolean;
   onBusyChange: (busy: boolean) => void; onClose: () => void; onChanged: () => void;
 }) {
-  const [attempt, setAttempt] = useState(0), [result, setResult] = useState<{ key: string; value: Load<PublicationDetail> }>();
+  const [attempt, setAttempt] = useState(0), [result, setResult] = useState<{ key: string; value: Load<PublicationDetail>; denied?: boolean }>();
   const [reason, setReason] = useState(""), [saving, setSaving] = useState(false), [notice, setNotice] = useState<Notice>();
   const inFlight = useRef(false), alive = useAlive(), key = `${submissionId}:${attempt}:${refresh}`;
   const current = result?.key === key ? result.value : undefined;
   useEffect(() => {
     let active = true;
     getResultSubmission(client, submissionId).then((data) => { if (active) setResult({ key, value: { data } }); },
-      (error: unknown) => { if (active) setResult({ key, value: { error: errorText(error, "The saved result snapshot could not be loaded. Refresh to try again.") } }); });
+      (error: unknown) => { if (active) setResult({ key, value: { error: errorText(error, "The saved result snapshot could not be loaded. Refresh to try again.") },
+        denied: error instanceof ResultPublicationError && error.code === "42501" }); });
     return () => { active = false; };
   }, [client, key, submissionId]);
   async function act(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const detail = current?.data, decision = (event.nativeEvent as SubmitEvent).submitter?.getAttribute("value");
-    if (inFlight.current || disabled || !detail || detail.status !== "pending") return;
+    // The requester's own pending list row (server-filtered) still allows a cancel when the snapshot is hidden.
+    const fallback = teacher && pendingFallback && Boolean(current?.error);
+    if (inFlight.current || disabled || (!fallback && (!detail || detail.status !== "pending"))) return;
     const invalid = validatePublicationReason(reason);
     if (invalid) { setNotice({ error: true, text: invalid }); return; }
-    if (teacher ? detail.requested_by !== userId || decision !== "cancelled" : !["published", "rejected"].includes(decision ?? "")) return;
+    if (teacher ? (!fallback && detail?.requested_by !== userId) || decision !== "cancelled" : !detail || !["published", "rejected"].includes(decision ?? "")) return;
     inFlight.current = true; setSaving(true); onBusyChange(true); setNotice(undefined);
     let confirmed = false;
     try {
-      if (teacher) await cancelPublication(client, detail.id, reason); else await decidePublication(client, detail.id, decision as "published" | "rejected", reason);
+      if (teacher) await cancelPublication(client, detail?.id ?? submissionId, reason); else await decidePublication(client, detail!.id, decision as "published" | "rejected", reason);
       if (!alive.current) return;
       confirmed = true; setReason(""); onBusyChange(false); onChanged();
       setNotice({ error: false, text: teacher ? "Request cancelled. Refresh the source preview before requesting review again." : decision === "published" ? "Result snapshot published. Each permitted family can now read only their own pupil’s result." : "Publication rejected. The decision and reason are saved privately." });
@@ -207,20 +209,25 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, disa
     if (reason.trim() && !window.confirm("Discard the unsaved review reason?")) return;
     onClose();
   }
-  const detail = current?.data, own = detail?.requested_by === userId || detail?.snapshot.pupils.some((row) => row.mark_updated_by === userId);
+  const detail = current?.data, own = detail?.requested_by === userId || detail?.viewer_entered_marks === true || detail?.snapshot.pupils.some((row) => row.mark_updated_by === userId);
+  const reasonForm = <form className="space-y-4 rounded-xl bg-[var(--surface-2)] p-4" onSubmit={(event) => void act(event)}>
+          <div className={field}><label htmlFor="publication-review-reason">{teacher ? "Cancellation reason" : "Review reason"}</label><textarea id="publication-review-reason" className="field" rows={3} minLength={3} maxLength={1000} required value={reason} disabled={saving || disabled} onChange={(event) => { setReason(event.target.value); onBusyChange(Boolean(event.target.value.trim())); }} /></div>
+          <div className="flex flex-wrap gap-3">{teacher ? <button type="submit" value="cancelled" className={button} disabled={saving || disabled}><X size={16} aria-hidden="true" />{saving ? "Cancelling…" : "Cancel publication request"}</button> : <><button type="submit" value="published" className={primary} disabled={saving || disabled || detail?.source_matches !== true}><Check size={16} aria-hidden="true" />{saving ? "Saving review…" : "Publish result snapshot"}</button><button type="submit" value="rejected" className={`${button} text-red-700 dark:text-red-300`} disabled={saving || disabled}><X size={16} aria-hidden="true" />Reject publication</button></>}</div>
+          <p className="text-xs leading-relaxed muted">A published snapshot is immutable. Publishing a later reviewed revision replaces the family’s latest view without exposing earlier private snapshots.</p>
+        </form>;
   return <section className="card space-y-5 p-5" aria-label="Saved result snapshot"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Saved result snapshot</h2><div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh snapshot status</button><button type="button" className={button} disabled={saving || disabled} onClick={close}><X size={15} aria-hidden="true" />Close result details</button></div></div>
     {notice && <Message notice={notice} />}
-    {!current ? <LoadingState variant="list" className="text-sm muted">Loading the saved snapshot…</LoadingState> : current.error ? <ErrorMessage text={current.error} /> : detail && <>
+    {!current ? <LoadingState variant="list" className="text-sm muted">Loading the saved snapshot…</LoadingState> : current.error ? <>
+      <ErrorMessage text={current.error} />
+      {teacher && pendingFallback && <>{result?.denied ? <p className="text-sm muted">Your teaching assignment for this assessment changed, so the frozen snapshot is hidden. You can still cancel your pending request.</p>
+        : <div className="flex flex-wrap items-center gap-3"><p className="text-sm muted">The saved snapshot could not be loaded right now. Retry, or cancel your pending request below.</p><button type="button" className={button} disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Retry loading snapshot</button></div>}{reasonForm}</>}
+    </> : detail && <>
       <div className="flex flex-wrap items-center justify-between gap-3"><SourceHeading source={detail.snapshot.metadata} /><Status status={detail.status} revision={detail.revision} /></div>
       <PupilSnapshot pupils={detail.snapshot.pupils} maximum={detail.snapshot.metadata.maximum_marks} />
       {detail.reviewed_at && <div className="rounded-xl bg-[var(--surface-2)] p-4 text-sm"><p className="font-semibold">{labels[detail.status]}{detail.reviewer_name && ` by ${detail.reviewer_name}`} · {times.format(new Date(detail.reviewed_at))} IST</p><p className="mt-2 whitespace-pre-wrap break-words">{detail.review_note}</p></div>}
       {detail.status === "pending" && (teacher ? detail.requested_by === userId : true) && <>
         {detail.source_matches === false && <p role="alert" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">The source marks, roster or assessment changed after this request. It cannot be published. The requester can cancel, refresh the source preview and submit a new snapshot; the school may reject this saved request.</p>}
-        {!teacher && own ? <p className="text-sm muted">An independent reviewer must decide a request you submitted or entered marks for.</p> : <form className="space-y-4 rounded-xl bg-[var(--surface-2)] p-4" onSubmit={(event) => void act(event)}>
-          <div className={field}><label htmlFor="publication-review-reason">{teacher ? "Cancellation reason" : "Review reason"}</label><textarea id="publication-review-reason" className="field" rows={3} minLength={3} maxLength={1000} required value={reason} disabled={saving || disabled} onChange={(event) => { setReason(event.target.value); onBusyChange(Boolean(event.target.value.trim())); }} /></div>
-          <div className="flex flex-wrap gap-3">{teacher ? <button type="submit" value="cancelled" className={button} disabled={saving || disabled}><X size={16} aria-hidden="true" />{saving ? "Cancelling…" : "Cancel publication request"}</button> : <><button type="submit" value="published" className={primary} disabled={saving || disabled || detail.source_matches !== true}><Check size={16} aria-hidden="true" />{saving ? "Saving review…" : "Publish result snapshot"}</button><button type="submit" value="rejected" className={`${button} text-red-700 dark:text-red-300`} disabled={saving || disabled}><X size={16} aria-hidden="true" />Reject publication</button></>}</div>
-          <p className="text-xs leading-relaxed muted">A published snapshot is immutable. Publishing a later reviewed revision replaces the family’s latest view without exposing earlier private snapshots.</p>
-        </form>}
+        {!teacher && own ? <p className="text-sm muted">An independent reviewer must decide a request you submitted or entered marks for.</p> : reasonForm}
       </>}
     </>}
   </section>;

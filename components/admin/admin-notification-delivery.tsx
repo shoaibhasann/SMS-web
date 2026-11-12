@@ -67,8 +67,8 @@ export function AdminNotificationDelivery({ userId, schoolId }: { userId: string
       <div className="flex items-start gap-3">
         <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-xl bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><BellRing size={21} /></span>
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider muted">School communication</p>
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Notifications</h1>
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">School administration</p>
+          <h1 className="mt-1 text-2xl font-black sm:text-3xl">Notifications</h1>
           <p className="mt-2 text-sm leading-6 muted">Review mobile push activity for your school.</p>
         </div>
       </div>
@@ -80,7 +80,7 @@ export function AdminNotificationDelivery({ userId, schoolId }: { userId: string
 
     {!summary ? <LoadingState variant="cards">Loading mobile push delivery…</LoadingState>
       : "error" in summary ? <section className="card space-y-3 p-5">
-        <p role="alert" className="text-sm">{summary.error}</p>
+        <p role="alert" className="text-sm text-danger">{summary.error}</p>
         {summary.setup && <Link href={`${mfaPath("/modules/notifications")}&setup=1`} className={button}>Set up authenticator</Link>}
       </section> : <section className="card space-y-5 p-5" aria-labelledby="push-delivery-heading">
         <div className="flex flex-wrap items-start justify-between gap-3">

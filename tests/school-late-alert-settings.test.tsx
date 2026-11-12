@@ -10,7 +10,7 @@ vi.mock("@/lib/notifications/late-settings", async original => ({ ...await origi
 const id = (value: number) => `81000000-0000-4000-8000-${String(value).padStart(12, "0")}`;
 const userId = id(1), schoolId = id(2), requestId = id(3), timestamp = "2026-11-08T03:30:00Z", props = { userId, schoolId };
 const policy = (overrides: Partial<Policy> = {}): Policy => ({ user_id: userId, school_id: schoolId, enabled: false, version: 0, history: [], ...overrides });
-const history = (version = 1, enabled = true) => ({ version, enabled, reason: "School office approved", actor_id: userId, created_at: timestamp });
+const history = (version = 1, enabled = true) => ({ version, enabled, reason: "School office approved", actor_id: userId, actor_name: "Asha Admin" as string | null, created_at: timestamp });
 const ack = (overrides: Record<string, unknown> = {}) => ({ user_id: userId, school_id: schoolId, enabled: true, version: 1, request_id: requestId, replayed: false, ...overrides });
 function pending<T>() { let resolve!: (value: T) => void; let reject!: (error: unknown) => void; const promise = new Promise<T>((done, fail) => { resolve = done; reject = fail; }); return { promise, resolve, reject }; }
 let changed: (event: string, session: Session | null) => void;
@@ -115,7 +115,11 @@ describe("School-controlled Guardian Late inbox alerts", () => {
   });
   it("labels the bounded history honestly and displays policy actor, reason and IST timestamps", async () => {
     load.mockResolvedValue(policy({ enabled: true, version: 25, history: Array.from({ length: 20 }, (_, index) => history(25 - index, index % 2 === 0)) })); render(<SchoolLateAlertSettings {...props} />); await ready(); const region = screen.getByRole("region", { name: "Late alert policy history" });
-    expect(within(region).getByText("Latest 20 saved versions; at most 20 are shown. Earlier policy history is retained.")).toBeInTheDocument(); expect(within(region).getAllByRole("listitem")).toHaveLength(20); expect(within(region).getAllByText(`Changed by ${userId}`)).toHaveLength(20); expect(within(region).getAllByText(/IST/)).toHaveLength(20); expect(within(region).getAllByText("School office approved")).toHaveLength(20);
+    expect(within(region).getByText("Latest 20 saved versions; at most 20 are shown. Earlier policy history is retained.")).toBeInTheDocument(); expect(within(region).getAllByRole("listitem")).toHaveLength(20); expect(within(region).getAllByText("Changed by Asha Admin")).toHaveLength(20); expect(within(region).queryByText(new RegExp(userId))).not.toBeInTheDocument(); expect(within(region).getAllByText(/IST/)).toHaveLength(20); expect(within(region).getAllByText("School office approved")).toHaveLength(20);
+  });
+  it("shows Unknown user for a removed or other-school policy actor instead of the raw UUID", async () => {
+    load.mockResolvedValue(policy({ enabled: true, version: 1, history: [{ ...history(), actor_name: null }] })); render(<SchoolLateAlertSettings {...props} />); await ready();
+    const region = screen.getByRole("region", { name: "Late alert policy history" }); expect(within(region).getByText("Changed by Unknown user")).toBeInTheDocument(); expect(within(region).queryByText(new RegExp(userId))).not.toBeInTheDocument();
   });
   it("does not send invalid reasons or create a replacement request if secure UUID generation fails", async () => {
     render(<SchoolLateAlertSettings {...props} />); await ready(); edit("unsafe\u202ereason"); fireEvent.submit(screen.getByRole("form", { name: "Change school Late alert policy" })); expect(screen.getByRole("alert")).toHaveTextContent("without control characters"); expect(save).not.toHaveBeenCalled();

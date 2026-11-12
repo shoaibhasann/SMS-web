@@ -14,10 +14,11 @@ import {
   type TeachingAssignment,
 } from "@/lib/academic";
 import { createClient } from "@/lib/supabase/client";
-import { academicAuthoringError, canEditAcademicLog, matchesAcademicScope } from "@/lib/academic-permissions";
+import { academicAuthoringError, canEditAcademicLog, canGradeAcademicLog, matchesAcademicScope } from "@/lib/academic-permissions";
 import { TeacherHomeworkGrading } from "@/components/academic/homework-grading";
 import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
 import { LoadingState } from "@/components/ui/skeleton";
+import { schoolDate } from "@/lib/attendance/types";
 
 type ActivityModule = "classwork" | "homework";
 
@@ -47,13 +48,6 @@ function logSupabaseError(context: string, error: unknown) {
 function userError(error: unknown, fallback: string) {
   if (error instanceof Error && !(error as Error & { code?: string }).code) return error.message;
   return fallback;
-}
-
-function todayISO() {
-  const date = new Date();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 function displayDate(value: string) {
@@ -95,7 +89,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const [selectedSubjectId, setSelectedSubjectId] = useState("");
   const [editingActivityId, setEditingActivityId] = useState("");
   const [editingEntry, setEditingEntry] = useState<SubmittedEntry | null>(null);
-  const [date, setDate] = useState(todayISO());
+  const [date, setDate] = useState(() => schoolDate());
   const [details, setDetails] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [maximumMarks, setMaximumMarks] = useState("");
@@ -173,14 +167,16 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       const filters = historyFilters.current;
       const currentYear = yearRows?.find((year) => year.is_current);
       if (filters.yearId === "current" && !currentYear) throw new Error("Select an academic year to load history; no current year is configured.");
-      const ownLogs = await loadAcademicLogs({ teacherId: currentTeacherId,
+      // Own logs plus published logs inherited through a current assignment (RLS); office-readable logs of other scopes are dropped.
+      const ownLogs = (await loadAcademicLogs({ schoolId: teacher.school_id,
         academicYearId: filters.yearId === "current" ? currentYear?.id : filters.yearId === "all" ? undefined : filters.yearId,
         logDate: filters.date || undefined,
         classIds: filters.classId === "all" ? undefined : [filters.classId],
         sectionIds: filters.sectionId === "all" ? undefined : [filters.sectionId],
         subjectId: filters.subjectId === "all" ? undefined : filters.subjectId,
         activityType: module,
-      });
+      })).filter((log) => log.teacher_id === currentTeacherId
+        || (log.status === "published" && canGradeAcademicLog(ownAssignments, currentTeacherId, teacher.school_id, log)));
       const ownActivities = await loadAcademicActivities(ownLogs.map((log) => log.id));
       const logsById = new Map(ownLogs.map((log) => [log.id, log]));
       const submitted = ownActivities
@@ -282,7 +278,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   const resetForm = () => {
     setEditingEntry(null);
     setEditingActivityId("");
-    setDate(todayISO());
+    setDate(schoolDate());
     setDetails("");
     setDueDate("");
     setMaximumMarks("");
@@ -465,37 +461,47 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
   };
 
   useAcademicAssignmentRevalidation({ enabled: !loading && Boolean(teacherId), assignments,
-    onChanged: () => {
-      setAssignments([]); setEntries([]); setLoading(true); resetForm(); setPendingDelete(null);
-      setError("Your teaching assignments changed. The workspace is refreshing its access.");
+    onChanged: (next) => {
+      // Keep the typed draft unless the class/section/subject it targets was actually revoked.
+      const kept = editingEntry ? canEditAcademicLog(next, teacherId, teacherSchoolId, editingEntry.log)
+        : !selectedClassId || next.some((assignment) => assignment.teacher_id === teacherId && assignment.academic_year_id === academicYearId
+          && assignment.class_id === selectedClassId && (!selectedSectionId || assignment.section_id === selectedSectionId)
+          && (!selectedSubjectId || assignment.subject_id === selectedSubjectId));
+      setAssignments([]); setEntries([]); setLoading(true); setPendingDelete(null);
+      if (kept) {
+        setError(""); setMessage("Your teaching assignments were re-checked. Any unsaved draft is kept.");
+      } else {
+        resetForm(); setError("Your teaching assignments changed. The workspace is refreshing its access.");
+      }
       void load();
     },
     onUnavailable: () => {
-      setAssignments([]); setEntries([]); resetForm(); setPendingDelete(null);
-      setError("Teaching access could not be verified. Refresh before making changes.");
+      // Clearing assignments blocks saving; the draft stays until a successful check confirms revocation.
+      setAssignments([]); setEntries([]); setPendingDelete(null);
+      setError("Teaching access could not be verified. Your unsaved draft is kept; saving is blocked until access is re-checked.");
     },
   });
 
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">Teacher Workspace</p>
-        <h1 className="mt-1 text-3xl font-black">{label}</h1>
+        <p className="text-xs font-semibold uppercase tracking-widest text-blue-700 dark:text-blue-300">Teacher Workspace</p>
+        <h1 className="mt-1 text-2xl font-black sm:text-3xl">{label}</h1>
         <button type="button" disabled={saving || loading} className="mt-3 min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-50" onClick={() => { setLoading(true); setEntries([]); resetForm(); setPendingDelete(null); setError(""); void load(); }}>Refresh teaching access</button>
       </header>
 
-      {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-emerald-700">{message}</div>}
-      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-600">{error}</div>}
+      {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 text-sm text-success">{message}</div>}
+      {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-danger">{error}</div>}
 
       <form onSubmit={submit} className="card max-w-5xl space-y-5 p-5 sm:p-6">
         <fieldset disabled={saving} aria-label={`${label} editor`} className="min-w-0 space-y-5">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-lg font-bold">{editingActivityId ? `Edit ${label}` : `Add ${label}`}</h2>
-          {editingActivityId && <button type="button" onClick={resetForm} className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600"><X size={16} />Cancel</button>}
+          {editingActivityId && <button type="button" onClick={resetForm} className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-blue-700 dark:text-blue-300"><X size={16} />Cancel</button>}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Date</span>
-            <input required type="date" disabled={Boolean(editingActivityId) || saving} value={date} onChange={(event) => setDate(event.target.value)} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]" />
+            <input required type="date" disabled={Boolean(editingActivityId) || saving} value={date} onChange={(event) => setDate(event.target.value)} className="field" />
           </label>
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Academic Year</span>
             <select required value={academicYearId} onChange={(event) => {
@@ -504,7 +510,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId("");
               setSelectedSubjectId("");
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || Boolean(editingActivityId) || saving}>
+            }} className="field" disabled={loading || Boolean(editingActivityId) || saving}>
               <option value="">{loading ? "Loading academic years..." : "Select academic year"}</option>
               {workYears.map((year) => <option key={year.id} value={year.id}>{year.name}{year.is_current ? " (Current)" : ""}</option>)}
             </select>
@@ -515,7 +521,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId("");
               setSelectedSubjectId("");
                         setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || Boolean(editingActivityId) || saving}>
+            }} className="field" disabled={loading || Boolean(editingActivityId) || saving}>
               <option value="">{loading ? "Loading classes..." : "Select class"}</option>{workClasses.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
@@ -524,16 +530,16 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
               setSelectedSectionId(event.target.value);
               setSelectedSubjectId("");
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-60" disabled={!selectedClassId || sectionsLoading || Boolean(editingActivityId) || saving}>
+            }} className="field" disabled={!selectedClassId || sectionsLoading || Boolean(editingActivityId) || saving}>
               <option value="">{!selectedClassId ? "Select class first" : sectionsLoading ? "Loading sections..." : sectionsError ? "Error loading sections" : sections.length ? "Select section" : "No sections found for this class"}</option>{sections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            {sectionsError && <span role="alert" className="mt-2 block text-xs font-medium text-red-600">{sectionsError}</span>}
+            {sectionsError && <span role="alert" className="mt-2 block text-xs font-medium text-danger">{sectionsError}</span>}
           </label>
           <label className="block min-w-0 text-sm font-semibold"><span className="mb-2 block leading-5">Subject</span>
             <select required value={selectedSubjectId} onChange={(event) => {
               setSelectedSubjectId(event.target.value);
               setError("");
-            }} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 pr-9 text-sm text-[var(--text)]" disabled={loading || !selectedSectionId || Boolean(editingActivityId) || saving}>
+            }} className="field" disabled={loading || !selectedSectionId || Boolean(editingActivityId) || saving}>
               <option value="">{loading ? "Loading subjects..." : workSubjects.length ? "Select subject" : "No assigned subjects"}</option>{workSubjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
           </label>
@@ -552,14 +558,14 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
           <p className="text-sm muted">Choose a section and subject to verify your teaching assignment.</p>
         )}
         <label className="block text-sm font-semibold"><span className="mb-2 block leading-5">{label} Details</span>
-          <textarea required value={details} onChange={(event) => setDetails(event.target.value)} rows={8} className="min-h-[200px] w-full resize-y rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 py-3 text-base leading-7 text-[var(--text)]" placeholder={module === "classwork" ? "Write what was taught in class today...\nExample:\nChapter 4 - Fractions\nExplained equivalent fractions.\nSolved examples 1-5.\nStudents completed exercise 4.1." : "Enter homework details, questions, chapters, instructions, etc."} />
+          <textarea required value={details} onChange={(event) => setDetails(event.target.value)} rows={8} className="field min-h-[200px] text-base leading-7" placeholder={module === "classwork" ? "Write what was taught in class today...\nExample:\nChapter 4 - Fractions\nExplained equivalent fractions.\nSolved examples 1-5.\nStudents completed exercise 4.1." : "Enter homework details, questions, chapters, instructions, etc."} />
         </label>
         {module === "homework" && <label className="block max-w-sm text-sm font-semibold"><span className="mb-2 block leading-5">Due Date</span>
-          <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="h-12 w-full rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm text-[var(--text)]" />
+          <input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="field" />
         </label>}
         {module === "homework" && <label className="block max-w-sm text-sm font-semibold"><span className="mb-2 block leading-5">Maximum marks (optional)</span><input type="number" min={0} step="0.01" value={maximumMarks} onChange={(event) => setMaximumMarks(event.target.value)} className="field w-full" /><span className="mt-2 block text-xs muted">Set a maximum for numeric grades. Without it, submissions can receive written feedback.</span></label>}
         {editingActivityId && <p className="text-sm muted">To use another date, class or subject, create new work.</p>}
-        {selectedEntry?.log.status === "draft" && <p className="text-xs font-semibold text-amber-600">Draft — visible only to teacher. Editing will not publish the parent log.</p>}
+        {selectedEntry?.log.status === "draft" && <p className="flex flex-wrap items-center gap-2"><span className="badge text-warning">Draft</span><span className="text-xs muted">Visible only to teacher. Editing will not publish the parent log.</span></p>}
         <button type="submit" disabled={saving || loading || !academicYearId || !assignments.length || !classes.length || !selectedAssignment || sectionsLoading || Boolean(sectionsError)} className="inline-flex items-center gap-2 rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">
           {editingActivityId ? <Pencil size={16} /> : <Plus size={16} />}{saving ? "Saving..." : editingActivityId ? `Update ${label}` : `Submit ${label}`}
         </button>
@@ -613,7 +619,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
                       <span className="block text-xs muted">{displayDate(entry.log.log_date)} · {className(entry.log.class_id)} {sectionName(entry.log.section_id)} · {subjectName(entry.log.subject_id)}</span>
                       <span className="mt-2 block truncate font-semibold">{entry.activity.title}</span>
                     </span>
-                    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-blue-600">
+                    <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
                       {expanded ? "Close" : "Open"}
                       {expanded ? <ChevronUp size={19} className="muted" /> : <ChevronDown size={19} className="muted" />}
                     </span>
@@ -626,15 +632,15 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
                         <div><dt className="text-xs muted">Section</dt><dd className="mt-1 font-medium">{sectionName(entry.log.section_id)}</dd></div>
                         <div><dt className="text-xs muted">Subject</dt><dd className="mt-1 font-medium">{subjectName(entry.log.subject_id)}</dd></div>
                         {module === "homework" && <div><dt className="text-xs muted">Due Date</dt><dd className="mt-1 font-medium">{entry.activity.due_date ? displayDate(entry.activity.due_date) : "—"}</dd></div>}
-                        <div><dt className="text-xs muted">Teacher</dt><dd className="mt-1 font-medium">{teacherName}{teacherEmail ? ` · ${teacherEmail}` : ""}</dd></div>
-                        <div><dt className="text-xs muted">Status</dt><dd className={`mt-1 font-semibold ${entry.log.status === "published" ? "text-emerald-600" : "text-amber-600"}`}>{entry.log.status === "published" ? "Published" : "Draft — visible only to teacher"}</dd></div>
+                        <div><dt className="text-xs muted">Teacher</dt><dd className="mt-1 font-medium">{entry.log.teacher_id === teacherId ? `${teacherName}${teacherEmail ? ` · ${teacherEmail}` : ""}` : "Previously assigned teacher"}</dd></div>
+                        <div><dt className="text-xs muted">Status</dt><dd className="mt-1 flex flex-wrap items-center gap-2">{entry.log.status === "published" ? <span className="badge text-success">Published</span> : <><span className="badge text-warning">Draft</span><span className="text-xs muted">Visible only to teacher</span></>}</dd></div>
                         <div className="sm:col-span-2"><dt className="text-xs muted">{label} Details</dt><dd className="mt-1 whitespace-pre-wrap font-medium">{entry.activity.title}</dd></div>
                       </dl>
                       {canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) && <div className="mt-4 flex flex-wrap gap-2">
-                        <button type="button" disabled={saving} onClick={() => editEntry(entry)} className="inline-flex items-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"><Pencil size={15} />Edit</button>
-                        <button type="button" disabled={saving} onClick={() => setPendingDelete(entry)} className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-red-600"><Trash2 size={15} />Delete</button>
+                        <button type="button" disabled={saving} onClick={() => editEntry(entry)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold"><Pencil size={15} />Edit</button>
+                        <button type="button" disabled={saving} onClick={() => setPendingDelete(entry)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm font-semibold text-danger"><Trash2 size={15} />Delete</button>
                       </div>}
-                      {module === "homework" && teacherUserId && entry.log.status === "published" && canEditAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) && <TeacherHomeworkGrading key={`${teacherUserId}:${entry.activity.id}`} userId={teacherUserId} activityId={entry.activity.id} />}
+                      {module === "homework" && teacherUserId && entry.log.status === "published" && canGradeAcademicLog(assignments, teacherId, teacherSchoolId, entry.log) && <TeacherHomeworkGrading key={`${teacherUserId}:${entry.activity.id}`} userId={teacherUserId} activityId={entry.activity.id} />}
                     </div>
                   )}
                 </article>
@@ -645,12 +651,12 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       </section>
       {pendingDelete && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
-          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-activity-title" className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-activity-title" aria-describedby="delete-activity-body" onKeyDown={(event) => { if (event.key === "Escape" && !saving) setPendingDelete(null); }} className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">
             <h2 id="delete-activity-title" className="text-lg font-bold">Delete {label}?</h2>
-            <p className="mt-2 text-sm muted">This {label.toLowerCase()} will be permanently removed.</p>
+            <p id="delete-activity-body" className="mt-2 text-sm muted">This {label.toLowerCase()} will be permanently removed.</p>
             <div className="mt-5 flex justify-end gap-3">
-              <button type="button" onClick={() => setPendingDelete(null)} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold">Cancel</button>
-              <button type="button" disabled={saving} onClick={() => void deleteEntry(pendingDelete)} className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">Delete</button>
+              <button type="button" autoFocus onClick={() => setPendingDelete(null)} className="btn btn-secondary">Cancel</button>
+              <button type="button" disabled={saving} onClick={() => void deleteEntry(pendingDelete)} className="btn btn-danger-solid">Delete</button>
             </div>
           </section>
         </div>

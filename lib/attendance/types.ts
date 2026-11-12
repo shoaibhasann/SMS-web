@@ -72,7 +72,7 @@ export type AttendanceChange = {
 
 export type AttendanceSaveResult = {
   saved: AttendanceEntry[];
-  failures: { studentId: string; message: string }[];
+  failures: { studentId: string; message: string; code?: string }[];
 };
 
 export interface AttendanceRepository {

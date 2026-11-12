@@ -193,7 +193,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
             <ul aria-label="Collections by method" className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)]">
               {snapshot.methods.map(({ method, receipt_count, total, reversal_count = 0, reversed_total = 0, advance_count = 0, refund_count = 0, refunded_total = 0 }) => (
                 <li key={method} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
-                  <span className="font-medium capitalize">{methodLabels[method] ?? method.replaceAll("_", " ")}</span>
+                  <span className="font-medium">{methodLabels[method] ?? method.replaceAll("_", " ")}</span>
                   <span className="ml-auto text-xs muted">{receipt_count} {receipt_count === 1 ? "receipt" : "receipts"} ({advance_count} advance) · {reversal_count} {reversal_count === 1 ? "reversal" : "reversals"}{reversal_count > 0 && ` (${formatFeeMoney(reversed_total)})`} · {refund_count} offline {refund_count === 1 ? "refund" : "refunds"}{refund_count > 0 && ` (${formatFeeMoney(refunded_total)})`}</span>
                   <span className="min-w-24 text-right font-semibold tabular-nums">Net {formatFeeMoney(total)}</span>
                 </li>
@@ -211,7 +211,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
               </div>
               <dl className="grid gap-2 text-sm sm:grid-cols-2">
                 <div><dt className="muted">Counted cash</dt><dd className="font-semibold">{formatFeeMoney(snapshot.counted_cash ?? 0)}</dd></div>
-                <div><dt className="muted">Cash variance</dt><dd className="font-semibold">{formatFeeMoney(snapshot.cash_variance ?? 0)}</dd></div>
+                <div><dt className="muted">Cash variance</dt><dd className="font-semibold">{formatFeeMoney(snapshot.cash_variance ?? 0)}{feeMoney(snapshot.cash_variance ?? 0) !== "0.00" && <VarianceCue value={snapshot.cash_variance ?? 0} />}</dd></div>
               </dl>
               {snapshot.variance_note && <p className="break-words text-sm muted">{snapshot.variance_note}</p>}
             </div>
@@ -228,7 +228,7 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
                   <input required={hasVariance} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} className="field" placeholder="Explain any difference" />
                 </label>
               </fieldset>
-              {difference !== null && <p className="text-sm muted">Cash variance <strong className="tabular-nums">{formatFeeMoney(difference)}</strong></p>}
+              {difference !== null && <p className="text-sm muted">Cash variance <strong className="tabular-nums">{formatFeeMoney(difference)}</strong>{hasVariance && <VarianceCue value={difference} />}</p>}
               {confirming && <p role="status" className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-300">
                 Closing locks receipts, offline payouts and reversal entries for this date. New entries for this date will be refused. Credit applications and refund reservations are not cash movements.
               </p>}
@@ -244,4 +244,10 @@ export function CashierDayClose({ schoolId, client }: { schoolId: string; client
       </div>
     </section>
   );
+}
+
+// Shortage/overage spelled out so the cue is not only the minus sign.
+function VarianceCue({ value }: { value: number | string }) {
+  const short = String(value).startsWith("-");
+  return <span className={short ? "text-danger" : "text-warning"}>{short ? " · cash short" : " · cash over"}</span>;
 }

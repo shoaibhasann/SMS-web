@@ -535,3 +535,77 @@ describe("timetable under the complete recovered schema", () => {
     expect((await teacher(extra.teacherUserB)).rows).toEqual([]);
   });
 });
+
+describe("timetable periods follow teaching assignment changes", () => {
+  type Affected = { id: string; class_name: string; section_name: string | null; day_of_week: number; period_no: number; start_time: string; end_time: string };
+  const affected = async (assignment: string, user = id.adminA, school = id.schoolA) =>
+    (await actor<{ value: Affected[] }>(user, "select public.get_assignment_timetable_periods($1,$2) as value", [school, assignment])).rows[0].value;
+  const later = { assignment: extra.teacherOtherClass, section: extra.section, periodNo: 2, start: "08:30", end: "09:30" };
+
+  it("names the blocking class, section and period in a teacher conflict, flagging leftover Needs attention periods", async () => {
+    await save();
+    const live = save(later);
+    await expect(live).rejects.toMatchObject({ code: "PT409", message: expect.stringMatching(/Recovery class 6 \/ Recovery A period 1 \(08:00–09:00\)/) });
+    await expect(live).rejects.not.toMatchObject({ message: expect.stringMatching(/Needs attention/) });
+    // A trusted writer without a signed-in profile leaves the period for office repair.
+    await db.query("delete from public.teacher_subject_assignments where id=$1", [id.assignmentA]);
+    await expect(save(later)).rejects.toMatchObject({ code: "PT409",
+      message: expect.stringMatching(/Recovery class 6 \/ Recovery A period 1 \(08:00–09:00\).*Needs attention/) });
+  });
+
+  it("lists an assignment's live periods for office staff only", async () => {
+    const period = await save();
+    expect(await affected(id.assignmentA)).toEqual([expect.objectContaining({ id: period, class_name: "Recovery class 6",
+      section_name: "Recovery A", day_of_week: 1, period_no: 1, start_time: expect.stringMatching(/^08:00/), end_time: expect.stringMatching(/^09:00/) })]);
+    expect(await affected(id.assignmentA, extra.principal)).toHaveLength(1);
+    await denied(affected(id.assignmentA, id.teacherA));
+    await denied(affected(id.assignmentA, extra.finance));
+    await denied(affected(id.assignmentA, id.adminA, id.schoolB));
+  });
+
+  it("retires a removed assignment's periods as governed tombstones so the teacher is free again", async () => {
+    const period = await save();
+    expect((await actor(id.adminA, "delete from public.teacher_subject_assignments where id=$1 returning id", [id.assignmentA])).rows).toHaveLength(1);
+    expect((await office()).rows).toEqual([]);
+    const tombstone = (await db.query<{ deleted_at: string | null; deleted_by: string | null }>("select deleted_at,deleted_by from public.timetables where id=$1", [period])).rows[0];
+    expect(tombstone.deleted_at).not.toBeNull(); expect(tombstone.deleted_by).toBe(id.adminA);
+    expect((await db.query("select 1 from app_private.timetable_write_receipts where period_id=$1 and operation='remove' and actor_id=$2", [period, id.adminA])).rows).toHaveLength(1);
+    await save(later);
+  });
+
+  it("keeps periods when the assignment form re-sends the same teacher, class, section and subject", async () => {
+    const period = await save();
+    // The edit form's PostgREST update sends every scope column, so the column-list trigger fires.
+    const sent = (await actor<{ id: string }>(id.adminA, `update public.teacher_subject_assignments a
+      set teacher_id=a.teacher_id,class_id=a.class_id,section_id=a.section_id,subject_id=a.subject_id,
+        academic_year_id=a.academic_year_id,is_class_teacher=false where id=$1 returning id`, [id.assignmentA])).rows;
+    expect(sent).toEqual([{ id: id.assignmentA }]);
+    expect((await office()).rows.map((row) => row.id)).toEqual([period]);
+    expect((await db.query("select 1 from app_private.timetable_write_receipts where period_id=$1 and operation='remove'", [period])).rows).toEqual([]);
+  });
+
+  it("lets the office find and remove periods orphaned by an earlier assignment removal through the governed path", async () => {
+    const period = await save();
+    // A trusted writer without a signed-in profile leaves the period live, blocking the teacher.
+    await db.query("delete from public.teacher_subject_assignments where id=$1", [id.assignmentA]);
+    const [orphan] = (await office()).rows;
+    expect(orphan).toMatchObject({ id: period, assignment_id: id.assignmentA, needs_attention: true });
+    expect((await actor(id.adminA, "select id from public.teacher_subject_assignments where id=any($1::uuid[])", [[id.assignmentA, extra.teacherOtherClass]])).rows)
+      .toEqual([{ id: extra.teacherOtherClass }]);
+    expect(await remove(orphan)).toBe(period);
+    expect((await office()).rows).toEqual([]);
+    expect((await db.query("select 1 from app_private.timetable_write_receipts where period_id=$1 and operation='remove' and actor_id=$2", [period, id.adminA])).rows).toHaveLength(1);
+    await save(later);
+  });
+
+  it("retires only periods a re-pointed assignment no longer covers", async () => {
+    const period = await save();
+    await actor(id.adminA, "update public.teacher_subject_assignments set is_class_teacher=false where id=$1", [id.assignmentA]);
+    expect((await office()).rows.map((row) => row.id)).toEqual([period]);
+    const other = await save({ ...later, start: "10:00", end: "11:00" });
+    await actor(id.adminA, "update public.teacher_subject_assignments set teacher_id=$1 where id=$2", [extra.teacherRecord, extra.teacherOtherClass]);
+    expect((await office(id.adminA, id.schoolA, id.yearA, extra.class)).rows).toEqual([]);
+    expect((await db.query("select deleted_by from public.timetables where id=$1", [other])).rows).toEqual([{ deleted_by: id.adminA }]);
+    expect((await office()).rows.map((row) => row.id)).toEqual([period]);
+  });
+});

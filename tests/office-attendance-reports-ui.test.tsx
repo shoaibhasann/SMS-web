@@ -94,4 +94,13 @@ describe("Office official attendance workspace", () => {
     await act(async () => old.resolve()); expect(newSignal.aborted).toBe(false); expect(screen.getByRole("button", { name: "Preparing PDF…" })).toBeDisabled();
     await act(async () => fresh.resolve()); expect(await screen.findByRole("status")).toHaveTextContent("PDF download started");
   });
+  it("reruns the school report on window focus only once the loaded report is five minutes old", async () => {
+    let now = Date.parse("2026-11-11T04:00:00Z"); vi.spyOn(Date, "now").mockImplementation(() => now);
+    render(<OfficialAttendanceReports {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
+    expect(context).toHaveBeenCalledTimes(1); expect(report).toHaveBeenCalledTimes(1);
+    now += 4 * 60_000; fireEvent.focus(window); fireEvent(document, new Event("visibilitychange"));
+    expect(screen.getByRole("article", { name: "Monthly attendance" })).toBeInTheDocument(); expect(context).toHaveBeenCalledTimes(1); expect(report).toHaveBeenCalledTimes(1);
+    now += 60_000; fireEvent.focus(window);
+    await waitFor(() => expect(report).toHaveBeenCalledTimes(2)); expect(context).toHaveBeenCalledTimes(2);
+  });
 });

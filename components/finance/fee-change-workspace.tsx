@@ -9,6 +9,7 @@ import {
   type FeeChange, type FeeChangeKind, type FeeChangeRequestInput, type FeeFinancialState, type OfficeFeeReceipt,
 } from "@/lib/finance/fee-changes";
 import { LoadingState } from "@/components/ui/skeleton";
+import { manualPaymentLabel } from "@/lib/finance/payment-methods";
 
 type Props = {
   client: SupabaseClient;
@@ -315,7 +316,7 @@ function ScopedFeeChangeWorkspace({ client, schoolId, userId, canReview, demands
         </fieldset><button type="submit" disabled={locked || !validReason(reason) || (kind === "payment_reversal" ? !paymentId : !feeId || !amount)} className={primaryClass}>{preparing ? "Preparing proposal…" : "Preview requested change"}</button>
       </form>}
       {proposal && !pendingRequest && !pendingReview && <section aria-label="Proposed fee change" className="space-y-3 rounded-xl border border-blue-500/25 p-4"><h3 ref={proposalHeading} tabIndex={-1} className="scroll-mt-24 rounded font-bold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">Loaded-ledger proposal</h3><p className="break-words text-sm font-semibold">{proposal.label}</p><p className="text-sm muted">Calculated from the loaded ledger. The server rechecks the financial snapshot before accepting the request; no money or fee record changes at this step.</p><StateComparison before={proposal.before} after={proposal.after} />
-        {proposal.kind === "payment_reversal" && <div className="rounded-xl bg-amber-500/5 p-3 text-sm"><p className="font-semibold">{reversalGuidance}</p><p className="mt-1">If approved, the full {formatFeeMoney(proposal.amount)} counter-entry reduces {proposal.method?.replaceAll("_", " ") || "the original payment method's"} collections on the approval day. Cash book impact: {proposal.method === "cash" ? formatFeeMoney(`-${proposal.amount}`) : formatFeeMoney("0.00")}.</p></div>}
+        {proposal.kind === "payment_reversal" && <div className="rounded-xl bg-amber-500/5 p-3 text-sm"><p className="font-semibold">{reversalGuidance}</p><p className="mt-1">If approved, the full {formatFeeMoney(proposal.amount)} counter-entry reduces {proposal.method ? manualPaymentLabel(proposal.method) : "the original payment method's"} collections on the approval day. Cash book impact: {proposal.method === "cash" ? formatFeeMoney(`-${proposal.amount}`) : formatFeeMoney("0.00")}.</p></div>}
         <label className="flex min-h-11 items-start gap-2 text-sm"><input type="checkbox" className="mt-1" checked={checked} onChange={(event) => setChecked(event.target.checked)} disabled={locked} /><span>I checked the proposed change and the request reason.</span></label><button type="button" disabled={locked || !checked} className={primaryClass} onClick={() => void submitRequest()}>Submit fee change request</button>
       </section>}
       {feedback && <p role={feedback.error ? "alert" : "status"} className={`break-words rounded-xl p-3 text-sm ${feedback.error ? "bg-amber-500/10 text-amber-900 dark:text-amber-200" : "bg-emerald-500/10 text-emerald-900 dark:text-emerald-200"}`}>{feedback.text}</p>}

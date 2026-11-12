@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createTeachingAssignmentRepository, type TeachingAssignmentRow } from "../lib/assignments/repository";
 
 type Row = Record<string, unknown>;
-function fake(overrides: Record<string, Row[]> = {}, options: { zeroWrites?: boolean; cap?: number } = {}) {
+function fake(overrides: Record<string, Row[]> = {}, options: { zeroWrites?: boolean; cap?: number; writeError?: { code: string; message: string } } = {}) {
   const tables: Record<string, Row[]> = {
     user_roles: [{ id: "role", role: "school_admin", school_id: "a", user_id: "user" }],
     schools: [{ id: "a", name: "School A" }], teachers: [{ id: "teacher", school_id: "a", profile_id: "user", full_name: "Teacher A" }],
@@ -27,7 +27,8 @@ function fake(overrides: Record<string, Row[]> = {}, options: { zeroWrites?: boo
       insert(value: Row) { call.operation = "insert"; payload = value; return query; },
       update(value: Row) { call.operation = "update"; payload = value; return query; },
       delete() { call.operation = "delete"; return query; },
-      then(resolve: (result: { data: Row[]; count: number; error: null }) => unknown) {
+      then(resolve: (result: { data: Row[] | null; count: number; error: { code: string; message: string } | null }) => unknown) {
+        if (call.operation !== "read" && options.writeError) return Promise.resolve(resolve({ data: null, count: 0, error: options.writeError }));
         const matched = (tables[table] ?? []).filter((row) => filters.every((filter) => filter(row)));
         let result = matched;
         if (call.operation !== "read" && options.zeroWrites) result = [];
@@ -95,6 +96,11 @@ describe("confirmed, scoped assignment mutations", () => {
     await expect(call).rejects.toThrow(/No (successful save|removal) was confirmed/);
     expect(f.tables.teacher_subject_assignments).toEqual([previous]);
   });
+  it.each(["insert", "update"])("surfaces the server's non-current academic year refusal on %s", async (operation) => {
+    const message = "Choose the current academic year for this school.";
+    const f = fake({ teacher_subject_assignments: [{ ...previous }] }, { writeError: { code: "22023", message } });
+    await expect(f.repository.save("a", "year", draft, operation === "update" ? previous : null)).rejects.toThrow(message);
+  });
   it("matches the loaded values and rejects stale UPDATE rather than overwriting a changed assignment", async () => {
     const f = fake({ teacher_subject_assignments: [{ ...previous, subject_id: "changed" }] });
     await expect(f.repository.save("a", "year", draft, previous)).rejects.toThrow(/changed elsewhere/);
@@ -110,5 +116,19 @@ describe("confirmed, scoped assignment mutations", () => {
     f.auth.getUser.mockResolvedValue({ data: { user: null }, error: null });
     await expect(f.repository.save("a", "year", draft, null)).rejects.toThrow(/sign in again/);
     expect(f.calls.some((call) => call.operation === "insert")).toBe(false);
+  });
+});
+
+describe("assignment timetable periods", () => {
+  it("reads the governed RPC and refuses malformed rows", async () => {
+    const period = { id: "p1", class_name: "Class 1", section_name: null, day_of_week: 1, period_no: 1, start_time: "08:00:00", end_time: "09:00:00" };
+    const rpc = vi.fn().mockResolvedValueOnce({ data: [period], error: null })
+      .mockResolvedValueOnce({ data: [{ id: "p2" }], error: null })
+      .mockResolvedValueOnce({ data: null, error: { code: "42501", message: "denied" } });
+    const repository = createTeachingAssignmentRepository({ rpc } as unknown as SupabaseClient);
+    await expect(repository.timetablePeriods("a", "assignment")).resolves.toEqual([period]);
+    expect(rpc).toHaveBeenCalledWith("get_assignment_timetable_periods", { p_school_id: "a", p_assignment_id: "assignment" });
+    await expect(repository.timetablePeriods("a", "assignment")).rejects.toThrow("could not be checked");
+    await expect(repository.timetablePeriods("a", "assignment")).rejects.toThrow("Your permission changed");
   });
 });

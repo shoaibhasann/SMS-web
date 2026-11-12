@@ -5,9 +5,13 @@ import { AttendanceEditor } from "@/components/academic/attendance-editor";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { createClient } from "@/lib/supabase/client";
 import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
-import { useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
+import { hasAttendanceScope, useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import type { AttendanceContext } from "@/lib/attendance/types";
+import { plainRosterText } from "@/lib/students/roster";
 import { LoadingState } from "@/components/ui/skeleton";
+
+const dateFormat = new Intl.DateTimeFormat("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+const formatDate = (value: string) => dateFormat.format(new Date(`${value}T00:00:00Z`));
 
 type Register = {
   context: AttendanceContext;
@@ -26,7 +30,9 @@ export function TeacherAttendanceRegister() {
   const [accessRevision, setAccessRevision] = useState(0);
   const [accessLoaded, setAccessLoaded] = useState(false);
   const [loadError, setLoadError] = useState("");
-  const [attendanceLocked, setAttendanceLocked] = useState(true);
+  // null = the editor has not reported yet: controls stay disabled, but a failed access check fails closed.
+  const [editorLock, setAttendanceLocked] = useState<boolean | null>(null);
+  const attendanceLocked = editorLock !== false;
   const [rosterVersion, setRosterVersion] = useState(0);
   const [showRequests, setShowRequests] = useState(false);
   const [requestRevision, setRequestRevision] = useState(0);
@@ -72,12 +78,17 @@ export function TeacherAttendanceRegister() {
   }, [client, selectedId, accessRevision]);
 
   function refreshAccess() {
-    setLoadError(""); setRegister(null); setRegistrationOpen(false); setAttendanceLocked(true);
+    setLoadError(""); setRegister(null); setRegistrationOpen(false); setAttendanceLocked(null);
     setAccessLoaded(false); setAccessRevision((value) => value + 1);
   }
 
-  useAttendanceAccessRevalidation({ client, enabled: accessLoaded, assignments: choices,
-    onChanged: refreshAccess,
+  const accessUnverified = useAttendanceAccessRevalidation({ client, enabled: accessLoaded, assignments: choices, locked: editorLock === true,
+    onChanged: (current) => {
+      // Keep the open register (and its draft) when only other scopes changed.
+      const year = register?.context.academicYearId;
+      if (register && hasAttendanceScope(current, register.assignment)) setChoices(current.filter((item) => item.academic_year_id === year));
+      else refreshAccess();
+    },
     onUnavailable: () => {
       setRegister(null); setChoices([]); setRegistrationOpen(false);
       setLoadError("Your attendance access could not be verified. Refresh to check your access.");
@@ -88,7 +99,7 @@ export function TeacherAttendanceRegister() {
 
   async function registerStudent(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const name = studentName.trim();
+    const name = plainRosterText(studentName);
     if (!register || !mayRegister || !name || registrationInFlight.current || attendanceLocked) return;
     registrationInFlight.current = true;
     setRegistering(true);
@@ -108,7 +119,7 @@ export function TeacherAttendanceRegister() {
     }
   }
 
-  if (loadError) return <div className="space-y-3"><p role="alert" className="rounded-xl border border-red-500/30 p-4 text-sm text-red-600">{loadError}</p>
+  if (loadError) return <div className="space-y-3"><p role="alert" className="rounded-xl border border-danger/30 p-4 text-sm text-danger">{loadError}</p>
     <button type="button" className="min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold" onClick={refreshAccess}>Refresh attendance access</button></div>;
   if (!register) return <LoadingState variant="table" className="text-sm muted">Loading your attendance register…</LoadingState>;
 
@@ -116,16 +127,17 @@ export function TeacherAttendanceRegister() {
     <div className="space-y-5">
       <header className="card flex flex-wrap items-center justify-between gap-4 p-5">
         <div>
-          <h1 className="text-2xl font-bold">Attendance Register</h1>
+          <h1 className="text-2xl font-black sm:text-3xl">Attendance Register</h1>
           <p className="mt-1 text-sm muted">{register.teacherName} · {register.className} / {register.sectionName}</p>
-          {register.assignment.coverage_id && <p className="mt-1 text-sm font-semibold text-blue-700 dark:text-blue-300">Temporary attendance coverage · {register.assignment.starts_on} through {register.assignment.ends_on} IST</p>}
+          {register.assignment.coverage_id && <p className="mt-1 text-sm font-semibold text-blue-700 dark:text-blue-300">Temporary attendance coverage · {register.assignment.starts_on && formatDate(register.assignment.starts_on)} through {register.assignment.ends_on && formatDate(register.assignment.ends_on)} IST</p>}
         </div>
-        {mayRegister && <button type="button" onClick={() => setRegistrationOpen((value) => !value)} disabled={attendanceLocked || registering} className="rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{registrationOpen ? "Cancel registration" : "Register Student"}</button>}
+        {mayRegister && <button type="button" onClick={() => setRegistrationOpen((value) => !value)} disabled={attendanceLocked || registering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{registrationOpen ? "Cancel registration" : "Register Student"}</button>}
       </header>
+      {accessUnverified && <p role="status" className="rounded-xl border border-amber-500/40 p-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your unsaved marks are kept and the check will retry. Save once the connection returns.</p>}
       <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
         <label className="block w-full min-w-0 space-y-2 text-sm font-semibold sm:flex-1">Attendance class
           <select className="field" value={register.assignment.id} disabled={attendanceLocked || registering} onChange={(event) => {
-            setSelectedId(event.target.value); setRegister(null); setLoadError(""); setAttendanceLocked(true);
+            setSelectedId(event.target.value); setRegister(null); setLoadError(""); setAttendanceLocked(null);
             setRegistrationOpen(false); setStudentName(""); setRegistrationMessage("");
           }}>{choices.map((item) => <option key={item.id} value={item.id}>{item.class_name} / {item.section_name}{item.coverage_id ? " · Temporary coverage" : " · Class teacher"}</option>)}</select>
         </label>
@@ -154,7 +166,7 @@ export function TeacherAttendanceRegister() {
             }} />
         </fieldset>
       </div>
-      {!register.assignment.coverage_id && <button type="button" aria-expanded={showRequests} onClick={() => setShowRequests((value) => !value)} className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold">
+      {!register.assignment.coverage_id && <button type="button" aria-expanded={showRequests} onClick={() => setShowRequests((value) => !value)} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold">
         {showRequests ? "Hide my correction requests" : "Show my correction requests"}
       </button>}
       {showRequests && !register.assignment.coverage_id && <AttendanceCorrectionQueue client={client} schoolId={register.context.schoolId}

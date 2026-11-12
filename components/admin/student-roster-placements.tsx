@@ -155,7 +155,7 @@ export function StudentPlacementDialog({
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{error}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           <button type="button" className={button} onClick={() => dialog.current?.close()} disabled={saving}>Cancel</button>
-          <button type="submit" disabled={saving || !canSave} className={`${button} bg-blue-600 text-white`}>
+          <button type="submit" disabled={saving || !canSave} className="btn btn-primary">
             {saving ? "Saving placement…" : isPromotion ? "Confirm staged promotion" : "Confirm move"}
           </button>
         </div>

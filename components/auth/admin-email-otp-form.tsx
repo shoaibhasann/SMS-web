@@ -50,7 +50,8 @@ export function AdminEmailOtpForm({ onBusyChange, onVerified }: {
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
-      if (action === "request" && (response.ok || response.status === 429)) {
+      // Resend cooldown only; a 429 is the 15-minute throttle window, stated in the message instead of a short timer.
+      if (action === "request" && response.ok) {
         setRetryAt(Date.now() + 60_000);
         setRemaining(60);
       }
@@ -64,7 +65,7 @@ export function AdminEmailOtpForm({ onBusyChange, onVerified }: {
           setCode("");
         }
       } else if (response.status === 429) {
-        setError("Too many attempts. Wait a minute and try again.");
+        setError("Too many attempts. Try again in 15 minutes.");
       } else if (response.status === 503) {
         setError("Email code sign-in is unavailable. Use your password or try again later.");
       } else if (response.status === 401 && action === "verify") {

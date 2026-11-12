@@ -160,7 +160,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
         {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
         {error && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
         {snapshot && <div className="space-y-2 rounded-xl bg-[var(--surface-2)] p-3 text-sm">
-          <p>Saved {new Date(snapshot.submitted_at).toLocaleString("en-IN")}</p>
+          <p>Saved {new Date(snapshot.submitted_at).toLocaleString("en-IN", { dateStyle: "medium", timeZone: "Asia/Kolkata", timeStyle: "short" })} IST</p>
           {snapshot.file_path && <button type="button" className={`${action} max-w-full break-all text-left`} disabled={downloading} onClick={() => void download()}>{downloading ? "Downloading attachment…" : `Download attachment${snapshot.file_name ? ` · ${snapshot.file_name}` : ""}`}</button>}
           {graded && <><p className="font-semibold">Marks: {snapshot.marks === null ? "Feedback only" : `${snapshot.marks}${typeof maxMarks === "number" ? ` / ${maxMarks}` : ""}`}</p><p className="whitespace-pre-wrap">{snapshot.feedback || "No written feedback."}</p></>}
         </div>}

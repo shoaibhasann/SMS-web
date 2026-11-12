@@ -35,6 +35,15 @@ describe("family reversed receipt history", () => {
     expect(screen.queryByRole("button", { name: /approve|request|reverse|pay/i })).not.toBeInTheDocument();
   });
 
+  it("labels methods consistently and marks an unknown effective amount as needing review", async () => {
+    receipts.mockResolvedValue({ rows: [{ ...original, payment_method: "bank_transfer", net_amount: null }], count: 1 });
+    render(<FamilyReceipts role="student" userId="student-a" />);
+    const old = (await screen.findByText("RCPT-ORIGINAL")).closest("li")!;
+    expect(within(old).getByText("Bank transfer")).toBeInTheDocument();
+    expect(within(old).getByText(/Effective recorded amount: Needs review/)).toBeInTheDocument();
+    expect(within(old).getByText("Receipt amount").parentElement).toHaveClass("col-span-2", "sm:col-span-1");
+  });
+
   it("ignores the previous child's late financial response after switching child", async () => {
     const user = userEvent.setup();
     load.mockResolvedValue(pupils);
@@ -53,7 +62,7 @@ describe("family reversed receipt history", () => {
     const user = userEvent.setup();
     receipts.mockRejectedValueOnce(new Error("Linked access removed")).mockResolvedValue({ rows: [active], count: 1 });
     render(<FamilyReceipts role="student" userId="student-a" />);
-    await screen.findByText("Receipts could not be loaded.");
+    expect(await screen.findByText("Receipts could not be loaded.")).toHaveClass("text-danger");
     expect(screen.queryByText("No receipts on this page.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Retry receipts" }));
     await screen.findByText("RCPT-NEW");

@@ -99,12 +99,31 @@ export async function loadGuardianDirectory(client: SupabaseClient, userId: stri
     }
   }
   if (childIds.some(id => !children.has(id))) throw unreadable();
+  // Withdrawal only changes the enrollment, so derive a pupil's school-year state from the current-year row.
+  const yearStatus = new Map<string, string>();
+  const years = childIds.length ? await read<{ id: string; school_id: string; is_current: boolean }>((from, to) => client.from("academic_years")
+    .select("id,school_id,is_current", { count: "exact" }).eq("school_id", schoolId).eq("is_current", true).order("id").range(from, to)
+    .setHeader("Authorization", authorization).abortSignal(signal), "Current academic year") : [];
+  if (years.some(year => !year || !uuid(year.id) || year.school_id !== schoolId || year.is_current !== true)) throw unreadable();
+  const currentYear = years.length === 1 ? years[0].id : null;
+  for (let offset = 0; currentYear && offset < childIds.length; offset += 100) {
+    const batch = childIds.slice(offset, offset + 100);
+    for (const enrollment of await read<{ student_id: string; academic_year_id: string; status: string }>((from, to) => client.from("enrollments")
+      .select("student_id,academic_year_id,status", { count: "exact" }).eq("academic_year_id", currentYear).in("student_id", batch)
+      .order("student_id").range(from, to).setHeader("Authorization", authorization).abortSignal(signal), "Linked student enrollments")) {
+      if (!enrollment || !uuid(enrollment.student_id) || !batch.includes(enrollment.student_id) || enrollment.academic_year_id !== currentYear
+        || yearStatus.has(enrollment.student_id) || !text(enrollment.status)) throw unreadable();
+      yearStatus.set(enrollment.student_id, enrollment.status);
+    }
+  }
+  const childStatus = (child: StudentRow) => child.status !== "active" || !currentYear ? child.status
+    : ["active", "withdrawn"].includes(yearStatus.get(child.id) ?? "") ? yearStatus.get(child.id)! : "not enrolled this year";
   const byParent = new Map<string, GuardianDirectoryRecord["children"]>();
   for (const link of links) {
     const child = children.get(link.student_id)!;
     const records = byParent.get(link.parent_id) ?? [];
     records.push({ id: child.id, name: [child.first_name, child.middle_name, child.last_name].filter(Boolean).join(" "),
-      admissionNumber: child.admission_no, status: child.status, relationship: link.relationship, primary: link.is_primary });
+      admissionNumber: child.admission_no, status: childStatus(child), relationship: link.relationship, primary: link.is_primary });
     byParent.set(link.parent_id, records);
   }
   await verifyOffice();

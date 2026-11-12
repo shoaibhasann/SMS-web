@@ -68,7 +68,7 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
   const [filters, setFilters] = useState<Filters>({ yearId: "", month: null, classId: null, sectionId: null });
   const [loaded, setLoaded] = useState<{ key: string; data?: OfficeAttendanceReport; error?: string }>();
   const [pdf, setPdf] = useState<{ key: string; busy?: boolean; saved?: boolean; error?: string }>();
-  const contextRead = useRef<AbortController | null>(null), reportRead = useRef<AbortController | null>(null), pdfRead = useRef<AbortController | null>(null), restored = useRef(false);
+  const contextRead = useRef<AbortController | null>(null), reportRead = useRef<AbortController | null>(null), pdfRead = useRef<AbortController | null>(null), restored = useRef(false), loadedAt = useRef(0);
   const context = catalog?.revision === revision ? catalog.data : undefined, currentCatalog = catalog?.revision === revision ? catalog : undefined;
   const key = `${revision}:${filters.yearId}:${filters.month ?? "default"}:${filters.classId ?? "all"}:${filters.sectionId ?? "all"}`;
   const current = loaded?.key === key ? loaded : undefined, report = context ? current?.data : undefined, currentPdf = pdf?.key === key ? pdf : undefined;
@@ -83,7 +83,8 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
     return () => { contextRead.current?.abort(); reportRead.current?.abort(); pdfRead.current?.abort(); subscription.unsubscribe(); };
   }, [client, userId]);
   useEffect(() => {
-    const update = () => { if (document.visibilityState === "visible") { contextRead.current?.abort(); reportRead.current?.abort(); pdfRead.current?.abort(); setRevision(value => value + 1); } };
+    // Avoid rerunning the school-wide report on every alt-tab; Refresh still reloads on demand.
+    const update = () => { if (document.visibilityState === "visible" && Date.now() - loadedAt.current >= 5 * 60_000) { contextRead.current?.abort(); reportRead.current?.abort(); pdfRead.current?.abort(); setRevision(value => value + 1); } };
     window.addEventListener("focus", update); document.addEventListener("visibilitychange", update);
     return () => { window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
   }, []);
@@ -102,7 +103,7 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
     const controller = new AbortController(); reportRead.current = controller;
     loadOfficeAttendanceReport(client, userId, { schoolId: context.school_id, academicYearId: year.id, month: filters.month, classId: filters.classId, sectionId: filters.sectionId }, controller.signal).then(data => {
       if (controller.signal.aborted) return;
-      verifyOfficeAttendanceContext(data, context); setLoaded({ key, data });
+      verifyOfficeAttendanceContext(data, context); loadedAt.current = Date.now(); setLoaded({ key, data });
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       if (failure instanceof OfficeAttendanceReportError && failure.code === "access") { contextRead.current?.abort(); setCatalog({ revision, error: failure.message }); }
@@ -126,7 +127,7 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
   }
   const cutoff = report ? report.year.end_date < report.server_today ? report.year.end_date : report.server_today : undefined;
   return <div className="space-y-5">
-    <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold text-[var(--primary)]">School administration</p><h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">Official attendance reports</h1><p className="mt-2 max-w-3xl text-sm leading-6 muted">Verified class and school attendance, weighted by eligible pupil-days.</p></div><button type="button" className={control} onClick={refresh} disabled={sessionChanged || !currentCatalog} aria-label="Refresh official school attendance"><RefreshCw size={16} aria-hidden="true" />Refresh</button></header>
+    <header className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-widest text-[var(--primary)]">School administration</p><h1 className="mt-1 text-2xl font-black sm:text-3xl">Official attendance reports</h1><p className="mt-2 max-w-3xl text-sm leading-6 muted">Verified class and school attendance, weighted by eligible pupil-days.</p></div><button type="button" className={control} onClick={refresh} disabled={sessionChanged || !currentCatalog} aria-label="Refresh official school attendance"><RefreshCw size={16} aria-hidden="true" />Refresh</button></header>
     {sessionChanged ? <p role="alert" className="card p-4 text-sm text-red-700 dark:text-red-300">Your sign-in changed. Reopen Reports to check school attendance.</p>
       : !currentCatalog ? <LoadingState variant="form">Checking official report access…</LoadingState>
         : !context ? <section className="card space-y-3 p-4"><p role="alert" className="text-sm text-red-700 dark:text-red-300">{currentCatalog.error}</p><button type="button" className={control} onClick={refresh}>Retry access check</button></section>

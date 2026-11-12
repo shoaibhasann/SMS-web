@@ -1,5 +1,6 @@
 import { createClient as createAuthClient, type SupabaseClient } from "@supabase/supabase-js";
 import { after } from "next/server";
+import { allowAuthAttempt } from "@/lib/auth/attempt-throttle";
 import { allowedRecoveryOrigin } from "@/lib/auth/recovery";
 import { readStaffMfaStatus } from "@/lib/auth/staff-mfa";
 import { createClient } from "@/lib/supabase/server";
@@ -43,6 +44,10 @@ export async function POST(request: Request) {
   try { body = JSON.parse(raw); } catch { return reply(400); }
   const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
   if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return reply(400);
+  if (body.action !== "request" && (body.action !== "verify" || typeof body.code !== "string" || !/^\d{6,10}$/.test(body.code))) {
+    return reply(400);
+  }
+  if (!await allowAuthAttempt(request, body.action === "request" ? "admin_email_request" : "admin_email_verify", email)) return reply(429);
   const auth = createAuthClient(url, publishableKey, clientOptions);
   const service = createAuthClient(url, serviceKey, clientOptions);
 
@@ -60,7 +65,6 @@ export async function POST(request: Request) {
     });
     return reply(200);
   }
-  if (body.action !== "verify" || typeof body.code !== "string" || !/^\d{6,10}$/.test(body.code)) return reply(400);
 
   let verified = false;
   let installed = false;

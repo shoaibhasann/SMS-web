@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { StaffMfaRequiredError, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { roleLabel } from "@/lib/auth/roles";
+import { modules, roleLabels } from "@/lib/modules";
 
 const { getUser, signOut, unsubscribe, subscribe, replace, refresh, push, shellAccess } = vi.hoisted(() => ({
   getUser: vi.fn(), signOut: vi.fn(), unsubscribe: vi.fn(), subscribe: vi.fn(), replace: vi.fn(), refresh: vi.fn(), push: vi.fn(), shellAccess: vi.fn(),
@@ -71,7 +73,10 @@ describe("AppShell session lifecycle", () => {
     expect(screen.queryByText("Private school content")).not.toBeInTheDocument();
 
     await act(async () => pending.resolve({ userId: "admin-a", profileSchoolId: "school", roles: [{ role: "school_admin", school_id: "school" }] }));
-    expect(screen.getByRole("navigation", { name: "Workspace pages" })).toBeVisible();
+    const nav = screen.getByRole("navigation", { name: "Workspace pages" });
+    expect(nav).toBeVisible();
+    expect(within(nav).getByRole("group", { name: "People" })).toBeInTheDocument();
+    expect(within(within(nav).getByRole("group", { name: "Finance" })).getByRole("link", { name: "Fees" })).toBeInTheDocument();
     expect(screen.getByText("Private school content")).toBeVisible();
   });
 
@@ -189,10 +194,10 @@ describe("AppShell session lifecycle", () => {
   await screen.findByRole("button", { name: "Find a page" });
     await screen.findByText("teacher@example.test");
     fireEvent.click(screen.getByRole("button", { name: "Account options" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Logout" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "Sign out" })[0]);
     expect(await screen.findByRole("alert")).toHaveTextContent("Sign out failed");
     expect(replace).not.toHaveBeenCalled();
-    expect(screen.getAllByRole("button", { name: "Logout" })[0]).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Sign out" })[0]).toBeEnabled();
   });
 
   it("submits one logout even when clicked twice before the response", async () => {
@@ -202,7 +207,7 @@ describe("AppShell session lifecycle", () => {
   await screen.findByRole("button", { name: "Find a page" });
     await screen.findByText("teacher@example.test");
     fireEvent.click(screen.getByRole("button", { name: "Account options" }));
-    const button = screen.getByRole("button", { name: "Logout" });
+    const button = screen.getByRole("button", { name: "Sign out" });
     fireEvent.click(button);
     fireEvent.click(button);
     expect(signOut).toHaveBeenCalledOnce();
@@ -266,6 +271,34 @@ it("keeps receipt navigation outside the teacher workspace", async () => {
 });
 
 it.each([
+  [["teacher", "accountant"], true],
+  [["teacher"], false],
+  [["teacher", "accountant", "school_admin"], false],
+] as const)("lists the other same-school staff role's modules for %j", async (roles, financeVisible) => {
+  // An accountant role at another school never widens this school's navigation.
+  const rows = [...roles.map((role) => ({ role, school_id: "school" })), { role: "accountant", school_id: "other-school" }];
+  shellAccess.mockResolvedValue({ userId: "", profileSchoolId: "school", roles: rows });
+  render(<AppShell role="teacher">Workspace</AppShell>);
+  const nav = await screen.findByRole("navigation", { name: "Workspace pages" });
+  expect(within(nav).getByRole("link", { name: "Attendance" })).toBeInTheDocument();
+  expect(within(nav).queryAllByRole("link", { name: "Invoices & Receipts" })).toHaveLength(financeVisible ? 1 : 0);
+  expect(within(nav).queryAllByRole("link", { name: "Finance Reports" })).toHaveLength(financeVisible ? 1 : 0);
+});
+
+it.each([
+  [["principal", "teacher"], true],
+  [["principal"], false],
+] as const)("adds the teacher modules to a principal's navigation for %j", async (roles, teacherVisible) => {
+  shellAccess.mockResolvedValue({ userId: "", profileSchoolId: "school", roles: roles.map((role) => ({ role, school_id: "school" })) });
+  render(<AppShell role="principal">Workspace</AppShell>);
+  const nav = await screen.findByRole("navigation", { name: "Workspace pages" });
+  expect(within(nav).getByRole("link", { name: "Students" })).toBeInTheDocument();
+  for (const name of ["Exam / Marks", "Result Report", "Profile"]) {
+    await waitFor(() => expect(within(nav).queryAllByRole("link", { name })).toHaveLength(teacherVisible ? 1 : 0));
+  }
+});
+
+it.each([
   ["parent", "/modules/student-leave?view=guardian"],
   ["student", "/modules/student-leave"],
   ["admin", "/modules/student-leave"],
@@ -325,6 +358,19 @@ it.each(["admin", "principal", "teacher"] as const)("offers %s an explicit publi
   render(<AppShell role={role}>Workspace</AppShell>);
   await screen.findByRole("button", { name: "Find a page" });
   for (const link of screen.getAllByRole("link", { name: "Result publication" })) expect(link).toHaveAttribute("href", "/modules/published-results");
+  await screen.findByText("teacher@example.test");
+});
+
+it("names the family adult Guardian in admin navigation and role labels while keeping the parents module and parent role key", async () => {
+  render(<AppShell role="admin">Workspace</AppShell>);
+  await screen.findByRole("button", { name: "Find a page" });
+  const links = screen.getAllByRole("link", { name: "Guardians" });
+  expect(links.length).toBeGreaterThanOrEqual(1);
+  for (const link of links) expect(link).toHaveAttribute("href", "/modules/parents");
+  expect(screen.queryByRole("link", { name: "Parents" })).not.toBeInTheDocument();
+  expect(modules.find((item) => item.key === "parents")?.label).toBe("Guardians");
+  expect(roleLabels.parent).toBe("Guardian");
+  expect(roleLabel("parent")).toBe("Guardian");
   await screen.findByText("teacher@example.test");
 });
 
@@ -391,4 +437,19 @@ it("exposes page search as a named keyboard-accessible action", async () => {
   fireEvent.click(control);
   expect(screen.getByRole("dialog", { name: "Find a page" })).toBeInTheDocument();
   await screen.findByText("teacher@example.test");
+});
+
+it("keeps guardian scope on every guardian sidebar, bottom-bar and search link for a teacher who is also a guardian", async () => {
+  shellAccess.mockResolvedValue({ userId: "mixed", profileSchoolId: "school", roles: [{ role: "teacher", school_id: "school" }, { role: "parent", school_id: "school" }] });
+  render(<AppShell role="parent">Workspace</AppShell>);
+  await screen.findByRole("button", { name: "Find a page" });
+  const moduleLinks = screen.getAllByRole("link").map((link) => link.getAttribute("href") ?? "").filter((href) => href.startsWith("/modules/"));
+  for (const key of ["homework", "classwork", "class-logs", "missed-activities", "notices"]) expect(moduleLinks).toContain(`/modules/${key}?view=guardian`);
+  expect(moduleLinks.filter((href) => !href.includes("view=guardian"))).toEqual([]);
+  const dialog = document.getElementById("workspace-search") as HTMLDialogElement;
+  dialog.showModal = () => dialog.setAttribute("open", "");
+  fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+  const search = within(screen.getByRole("dialog", { name: "Find a page" }));
+  fireEvent.change(search.getByRole("searchbox"), { target: { value: "homework" } });
+  expect(search.getByRole("link", { name: /Homework/ })).toHaveAttribute("href", "/modules/homework?view=guardian");
 });

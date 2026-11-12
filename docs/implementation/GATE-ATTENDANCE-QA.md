@@ -39,6 +39,14 @@ Hosted migration `20261107082956_govern_gate_attendance_ingestion.sql` is applie
 
 Managed Edge function `gate-attendance-events` version 1 is Active. Its deployed downloaded source matches SHA-256 `6097ab54891ba937e67f93a3902fbde90f8f899213708e5409f1840a3060963e`. Platform JWT verification is disabled intentionally because this endpoint verifies its dedicated machine credential; it is not an unauthenticated attendance-write API. Actual live GET returns 405, credential-free POST returns 401 and a Student JWT as Bearer returns 401. The actual synthetic device→register/family workflow plus preparation passes 235 hosted assertions, detailed below.
 
+Redeploy or restore this handler with its gateway setting kept off. `supabase/config.toml` pins `[functions.gate-attendance-events] verify_jwt = false`; also pass the explicit flag from the repository root:
+
+```sh
+npx supabase functions deploy gate-attendance-events --project-ref YOUR_PROJECT_REF --no-verify-jwt
+```
+
+Without it the CLI default re-enables gateway JWT verification and every device POST is rejected with 401 before the handler runs, which looks like revoked credentials. After deploying, confirm the dashboard shows Verify JWT off, GET returns 405 and a credential-free POST returns the handler's own 401 body. Never run `supabase config push` with this minimal file.
+
 The recovery manifest now has 94 sources/24 patches/123 tables/five views. Security advisor INFO entries increase from 50 to 54 for the four private RLS/no-policy deny-all tables. Existing warnings remain five platform-owned internal constructors, five intentional public authenticated SECURITY DEFINER wrappers and disabled leaked-password protection; zero anonymous SECURITY DEFINER grants are present. No advisor-clean or provider-setting activation claim is made.
 
 Advisor references: [private RLS/no-policy](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), [function search paths](https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable), [authenticated definer access](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable) and [leaked-password protection](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).

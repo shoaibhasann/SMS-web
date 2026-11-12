@@ -5,10 +5,11 @@ import { Download, Pencil, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import {
   loadAssessments, loadAssessmentMarks, loadAssessmentStudents, loadAssessmentRoster,
-  markChanges, markDraftHasChanges, saveChangedMarks,
-  type AssessmentRecord as Assessment, type AssessmentMark, type AssessmentStudent,
+  markChanges, markDraftHasChanges, saveChangedMarks, teacherMatchesAssessmentScope,
+  type AssessmentRecord as Assessment, type AssessmentMark, type AssessmentStudent, type TeachingAssignmentScope,
 } from "@/lib/assessments";
-import { studentName } from "@/lib/attendance/types";
+import { loadSchoolManagementAccess, readPages } from "@/lib/attendance/repository";
+import { schoolDate, studentName } from "@/lib/attendance/types";
 import { LoadingState } from "@/components/ui/skeleton";
 
 type Option = { id: string; name: string };
@@ -18,6 +19,8 @@ type AssessmentForm = Omit<Assessment, "id" | "school_id" | "teacher_id" | "upda
   teacher_id: string;
 };
 
+const RESULT_PAGE_SIZE = 100;
+
 const emptyForm = (): AssessmentForm => ({
   academic_year_id: "",
   class_id: "",
@@ -25,7 +28,7 @@ const emptyForm = (): AssessmentForm => ({
   subject_id: "",
   teacher_id: "",
   name: "",
-  assessment_date: new Date().toISOString().slice(0, 10),
+  assessment_date: schoolDate(),
   maximum_marks: 100,
   description: "",
   status: "scheduled",
@@ -50,6 +53,10 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   const latestRequest = useRef(0);
   const latestMarksRequest = useRef(0);
   const mounted = useRef(true);
+  const selectedSchool = useRef("");
+  // null = not chosen yet, so load() defaults to the school's current academic year.
+  const selectedYear = useRef<string | null>(null);
+  const [schools, setSchools] = useState<Option[]>([]);
   const [schoolId, setSchoolId] = useState("");
   const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [marks, setMarks] = useState<AssessmentMark[]>([]);
@@ -59,6 +66,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   const [sections, setSections] = useState<SectionOption[]>([]);
   const [subjects, setSubjects] = useState<Option[]>([]);
   const [teachers, setTeachers] = useState<Option[]>([]);
+  const [assignments, setAssignments] = useState<TeachingAssignmentScope[]>([]);
   const [classNames, setClassNames] = useState<Record<string, string>>({});
   const [sectionNames, setSectionNames] = useState<Record<string, string>>({});
   const [subjectNames, setSubjectNames] = useState<Record<string, string>>({});
@@ -76,6 +84,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   const [sectionFilter, setSectionFilter] = useState("All");
   const [subjectFilter, setSubjectFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [resultPage, setResultPage] = useState({ key: "", page: 0 });
   const [markAssessment, setMarkAssessment] = useState<Assessment | null>(null);
   const [markRoster, setMarkRoster] = useState<AssessmentStudent[]>([]);
   const [markBaseline, setMarkBaseline] = useState<AssessmentMark[]>([]);
@@ -89,6 +98,17 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
     [sections, form.class_id],
   );
 
+  const clearSchoolData = useCallback(() => {
+    setSchoolId(""); setAssessments([]); setMarks([]); setStudents([]); setYears([]); setClasses([]); setSections([]);
+    setSubjects([]); setTeachers([]); setAssignments([]); setClassNames({}); setSectionNames({}); setSubjectNames({}); setTeacherNames({});
+  }, []);
+
+  // Office-created exams must stay reachable by their teacher (preview, marks, publication request).
+  const teacherOptions = useMemo(
+    () => teachers.filter((teacher) => teacher.id === form.teacher_id || teacherMatchesAssessmentScope(assignments, teacher.id, form)),
+    [teachers, assignments, form],
+  );
+
   const load = useCallback(() => {
     const request = ++latestRequest.current;
     const isCurrent = () => mounted.current && request === latestRequest.current;
@@ -100,45 +120,51 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         if (authError) throw authError;
         if (!auth.user) throw new Error("Please sign in again.");
 
-        const { data: roleRows, error: roleError } = await supabase
-          .from("user_roles")
-          .select("role,school_id")
-          .eq("user_id", auth.user.id);
-        if (roleError) throw roleError;
+        const access = await loadSchoolManagementAccess(supabase, "assessments", ["school_admin"]);
+        if (!isCurrent()) return;
+        if (access.userId !== auth.user.id) throw new Error("Your sign-in changed. Reload to verify school access.");
+        const chosen = selectedSchool.current;
+        const resolvedSchoolId = access.schools.some((school) => school.id === chosen) ? chosen
+          : access.schools.length === 1 ? access.schools[0].id : "";
+        setSchools(access.schools);
+        if (!resolvedSchoolId) { selectedSchool.current = ""; clearSchoolData(); return; }
 
-        let resolvedSchoolId = (roleRows ?? []).find((row) =>
-          row.role === "school_admin" && row.school_id,
-        )?.school_id ?? "";
-        if (!resolvedSchoolId && (roleRows ?? []).some((row) => row.role === "super_admin")) {
-          const { data: profile, error: profileError } = await supabase
-            .from("profiles")
-            .select("school_id")
-            .eq("id", auth.user.id)
-            .maybeSingle();
-          if (profileError) throw profileError;
-          resolvedSchoolId = profile?.school_id ?? "";
-        }
-        if (!resolvedSchoolId) throw new Error("Choose a school-linked admin account to manage assessments.");
-
+        const yearResult = await supabase.from("academic_years").select("id,name,is_current").eq("school_id", resolvedSchoolId).order("start_date", { ascending: false });
+        if (yearResult.error) throw yearResult.error;
+        const yearRows = yearResult.data ?? [];
+        const teacherLoad = Promise.resolve(supabase.from("teachers").select("id,full_name").eq("school_id", resolvedSchoolId).order("full_name"));
+        const chosenYear = selectedYear.current;
+        const year = chosenYear === "All" || yearRows.some((row) => row.id === chosenYear) ? chosenYear!
+          : yearRows.find((row) => row.is_current)?.id ?? "All";
         const [
-          yearResult,
           classResult,
           sectionResult,
           subjectResult,
           teacherResult,
+          assignmentRows,
           assessmentRows,
         ] = await Promise.all([
-          supabase.from("academic_years").select("id,name").eq("school_id", resolvedSchoolId).order("start_date", { ascending: false }),
           supabase.from("classes").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("sort_order"),
           supabase.from("sections").select("id,name,class_id").eq("school_id", resolvedSchoolId).order("name"),
           supabase.from("subjects").select("id,name").eq("school_id", resolvedSchoolId).eq("is_active", true).order("name"),
-          supabase.from("teachers").select("id,full_name").eq("school_id", resolvedSchoolId).order("full_name"),
-          loadAssessments(supabase, resolvedSchoolId),
+          teacherLoad,
+          // Same scoping as lib/assignments/repository.ts: assignments of this school's teachers, 100 ids per request.
+          teacherLoad.then(async ({ data, error }) => {
+            if (error) throw error;
+            const teacherIds = (data ?? []).map((row) => row.id);
+            const rows: TeachingAssignmentScope[] = [];
+            for (let offset = 0; offset < teacherIds.length; offset += 100) {
+              rows.push(...await readPages<TeachingAssignmentScope>((from, to) => supabase.from("teacher_subject_assignments")
+                .select("teacher_id,academic_year_id,class_id,section_id,subject_id", { count: "exact" })
+                .in("teacher_id", teacherIds.slice(offset, offset + 100)).order("id").range(from, to), "Teaching assignments could not be loaded"));
+            }
+            return rows;
+          }),
+          loadAssessments(supabase, resolvedSchoolId, { academicYear: year === "All" ? undefined : year }),
         ]);
-        const failed = [yearResult, classResult, sectionResult, subjectResult, teacherResult].find((result) => result.error);
+        const failed = [classResult, sectionResult, subjectResult, teacherResult].find((result) => result.error);
         if (failed?.error) throw failed.error;
 
-        const yearRows = yearResult.data ?? [];
         const classRows = classResult.data ?? [];
         const sectionRows = sectionResult.data ?? [];
         const subjectRows = subjectResult.data ?? [];
@@ -146,7 +172,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         const assessmentIds = assessmentRows.map((row) => row.id);
         let loadedMarks: AssessmentMark[] = [];
         let loadedStudents: StudentOption[] = [];
-        if (assessmentIds.length) {
+        if (mode === "results" && assessmentIds.length) {
           loadedMarks = await loadAssessmentMarks(supabase, assessmentIds);
           const studentIds = [...new Set(loadedMarks.map((row) => row.student_id))];
           const studentRows = await loadAssessmentStudents(supabase, resolvedSchoolId, studentIds);
@@ -155,6 +181,8 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         }
         if (!isCurrent()) return;
         setSchoolId(resolvedSchoolId);
+        selectedYear.current = year;
+        setYearFilter(year);
         setYears(yearRows);
         setClasses(classRows);
         setSections(sectionRows);
@@ -164,6 +192,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         setSectionNames(Object.fromEntries(sectionRows.map((row) => [row.id, row.name])));
         setSubjectNames(Object.fromEntries(subjectRows.map((row) => [row.id, row.name])));
         setTeacherNames(Object.fromEntries(teacherRows.map((row) => [row.id, row.full_name ?? "Teacher"])));
+        setAssignments(assignmentRows);
         setAssessments(assessmentRows);
         setMarks(loadedMarks);
         setStudents(loadedStudents);
@@ -180,7 +209,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
       setError("Assessment data could not be loaded. Please refresh or contact your administrator.");
       setLoading(false);
     });
-  }, [supabase]);
+  }, [supabase, clearSchoolData, mode]);
 
   useEffect(() => {
     mounted.current = true;
@@ -213,6 +242,8 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
     }]));
   }, [markBaseline, markRoster, markValues]);
   const markDirty = markDraftHasChanges(markRoster, markDraft, markBaseline);
+  const assessmentById = useMemo(() => new Map(assessments.map((assessment) => [assessment.id, assessment])), [assessments]);
+  const studentNames = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
 
   async function openMarks(assessment: Assessment) {
     if (markWriteInFlight.current) return;
@@ -292,9 +323,12 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   );
   const visibleAssessmentIds = new Set(visibleAssessments.map((assessment) => assessment.id));
   const visibleMarks = marks.filter((mark) => visibleAssessmentIds.has(mark.assessment_id));
+  const resultFilterKey = JSON.stringify([search, yearFilter, examFilter, classFilter, sectionFilter, subjectFilter, statusFilter, schoolId]);
+  const resultPageIndex = resultPage.key === resultFilterKey ? Math.min(resultPage.page, Math.max(0, Math.ceil(visibleMarks.length / RESULT_PAGE_SIZE) - 1)) : 0;
+  const pagedMarks = visibleMarks.slice(resultPageIndex * RESULT_PAGE_SIZE, (resultPageIndex + 1) * RESULT_PAGE_SIZE);
   const resultPercentage = visibleMarks.length
     ? Math.round(visibleMarks.reduce((sum, mark) => {
-        const assessment = assessments.find((row) => row.id === mark.assessment_id);
+        const assessment = assessmentById.get(mark.assessment_id);
         return sum + (assessment ? Number(mark.marks_obtained) / Number(assessment.maximum_marks) * 100 : 0);
       }, 0) / visibleMarks.length)
     : 0;
@@ -302,6 +336,14 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!schoolId || !form.name.trim()) return;
+    const original = assessments.find((row) => row.id === editingId);
+    const scopeChanged = !original || (["teacher_id", "academic_year_id", "class_id", "section_id", "subject_id"] as const)
+      .some((field) => (original[field] ?? null) !== (form[field] || null));
+    if (scopeChanged && !teacherMatchesAssessmentScope(assignments, form.teacher_id, form)) {
+      setMessage("");
+      setError("This teacher has no teaching assignment for the selected year, class, section and subject, so they could not see this assessment or request publication. Choose an assigned teacher or a matching section.");
+      return;
+    }
     setSaving(true);
     setError("");
     setMessage("");
@@ -318,7 +360,11 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
         : await supabase.from("teacher_assessments").insert(payload).select("id").maybeSingle();
       if (result.error) throw result.error;
       if (!result.data) throw new Error("Assessment was not saved. Check your access and try again.");
-      setMessage(editingId ? "Assessment updated." : "Assessment created.");
+      // A saved exam outside the shown year would vanish; follow it to its year.
+      const savedYear = selectedYear.current !== "All" && selectedYear.current !== form.academic_year_id
+        ? years.find((year) => year.id === form.academic_year_id) : undefined;
+      if (savedYear) { selectedYear.current = savedYear.id; setExamFilter("All"); }
+      setMessage(`${editingId ? "Assessment updated." : "Assessment created."}${savedYear ? ` Showing ${savedYear.name}.` : ""}`);
       setEditingId("");
       setForm(emptyForm());
       await load();
@@ -356,7 +402,21 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
     }
   }
 
-  const studentNames = Object.fromEntries(students.map((student) => [student.id, student]));
+  function chooseSchool(nextSchoolId: string) {
+    if (markWriteInFlight.current || nextSchoolId === schoolId) return;
+    if (markAssessment && markDirty && !window.confirm("Discard unsaved marks and switch school?")) return;
+    selectedSchool.current = nextSchoolId;
+    latestMarksRequest.current += 1;
+    setMarkAssessment(null); setMarkRoster([]); setMarkBaseline([]); setMarkValues({});
+    selectedYear.current = null;
+    setEditingId(""); setForm(emptyForm()); setSearch(""); setYearFilter("All"); setExamFilter("All");
+    setClassFilter("All"); setSectionFilter("All"); setSubjectFilter("All"); setStatusFilter("All");
+    setMessage("");
+    clearSchoolData();
+    setSchoolId(nextSchoolId);
+    void load();
+  }
+
   const title = mode === "exams" ? "Exam / Marks" : "Result Report";
 
   return (
@@ -371,6 +431,16 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
 
       {error && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 dark:text-red-300">{error}</div>}
       {message && <div role="status" className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-700 dark:text-emerald-300">{message}</div>}
+
+      <section className="card p-5" aria-label="Assessment school">
+        <label className="block max-w-xl space-y-1.5 text-sm font-medium">School
+          <select value={schoolId} disabled={loading || markSaving || schools.length <= 1} onChange={(event) => chooseSchool(event.target.value)} className="field w-full">
+            <option value="">Choose school</option>{schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
+          </select>
+        </label>
+      </section>
+
+      {schools.length > 1 && !schoolId ? <p className="card p-5 text-sm muted">Choose a school to manage assessments.</p> : <>
 
       {mode === "results" && <div className="grid gap-3 sm:grid-cols-3">
         <article className="card p-4"><p className="text-xs font-semibold muted">Assessments</p><p className="mt-2 text-2xl font-black">{visibleAssessments.length}</p></article>
@@ -398,11 +468,12 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                 <option value="">Select academic year</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}
               </select>
             </label>
-            <label className="space-y-1.5 text-sm font-medium">Teacher
-              <select required value={form.teacher_id} onChange={(event) => setForm({ ...form, teacher_id: event.target.value })} className="field w-full">
-                <option value="">Select teacher</option>{teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
+            <div className="space-y-1.5"><label className="block space-y-1.5 text-sm font-medium">Teacher
+              <select required aria-describedby="assessment-teacher-scope" value={form.teacher_id} onChange={(event) => setForm({ ...form, teacher_id: event.target.value })} className="field w-full">
+                <option value="">Select teacher</option>{teacherOptions.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
               </select>
             </label>
+            <p id="assessment-teacher-scope" className="text-xs muted">Only teachers assigned to the chosen year, class, section and subject are listed.</p></div>
             <label className="space-y-1.5 text-sm font-medium">Class
               <select required value={form.class_id} onChange={(event) => setForm({ ...form, class_id: event.target.value, section_id: null })} className="field w-full">
                 <option value="">Select class</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -445,8 +516,8 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
             <h2 className="text-lg font-bold">{mode === "exams" ? "Submitted Exams / Tests" : "Recorded Results"}</h2>
             {mode === "results" && <button type="button" onClick={() => {
               const rows = visibleMarks.map((mark) => {
-                const assessment = assessments.find((row) => row.id === mark.assessment_id);
-                const student = students.find((item) => item.id === mark.student_id);
+                const assessment = assessmentById.get(mark.assessment_id);
+                const student = studentNames.get(mark.student_id);
                 return {
                   assessment: assessment?.name ?? "",
                   student: student?.name ?? "",
@@ -468,7 +539,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search assessments" className="field" />
-            <select value={yearFilter} onChange={(event) => setYearFilter(event.target.value)} className="field"><option value="All">All academic years</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select>
+            <select aria-label="Filter by academic year" value={yearFilter} disabled={loading} onChange={(event) => { selectedYear.current = event.target.value; setYearFilter(event.target.value); setExamFilter("All"); void load(); }} className="field"><option value="All">All academic years</option>{years.map((year) => <option key={year.id} value={year.id}>{year.name}</option>)}</select>
             <select value={examFilter} onChange={(event) => setExamFilter(event.target.value)} className="field"><option value="All">All exams</option>{assessments.map((assessment) => <option key={assessment.id} value={assessment.id}>{assessment.name}</option>)}</select>
             <select value={classFilter} onChange={(event) => setClassFilter(event.target.value)} className="field"><option value="All">All classes</option>{classes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
             <select value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="field"><option value="All">All sections</option>{sections.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
@@ -494,9 +565,11 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                   <button type="button" onClick={async () => {
                     try {
                       const status = assessment.status === "completed" ? "scheduled" : "completed";
-                      const { error: statusError } = await supabase.from("teacher_assessments").update({ status }).eq("id", assessment.id).eq("school_id", schoolId);
+                      const { data, error: statusError } = await supabase.from("teacher_assessments").update({ status }).eq("id", assessment.id)
+                        .eq("school_id", schoolId).select("id,status,updated_at").maybeSingle();
                       if (statusError) throw statusError;
-                      await load();
+                      if (!data) throw new Error("Assessment status was not updated.");
+                      setAssessments((rows) => rows.map((row) => row.id === data.id ? { ...row, status: data.status, updated_at: data.updated_at } : row));
                     } catch (statusError) {
                       logError("Admin assessment status update failed", statusError);
                       setError("Assessment status could not be updated.");
@@ -515,9 +588,9 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                 <tr><th className="p-3">Assessment</th><th className="p-3">Date</th><th className="p-3">Class / Subject</th><th className="p-3">Student</th><th className="p-3">Marks</th><th className="p-3">Remarks</th></tr>
               </thead>
               <tbody className="divide-y divide-[var(--border)]">
-                {visibleMarks.map((mark) => {
-                  const assessment = assessments.find((row) => row.id === mark.assessment_id);
-                  const student = studentNames[mark.student_id];
+                {pagedMarks.map((mark) => {
+                  const assessment = assessmentById.get(mark.assessment_id);
+                  const student = studentNames.get(mark.student_id);
                   if (!assessment || !student) return null;
                   return <tr key={mark.id}>
                     <td className="p-3 font-semibold">{assessment.name}</td>
@@ -531,6 +604,13 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
                 {visibleMarks.length === 0 && <tr><td className="p-5 muted" colSpan={6}>No marks have been recorded for these filters.</td></tr>}
               </tbody>
             </table>
+            {visibleMarks.length > RESULT_PAGE_SIZE && <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--border)] p-4">
+              <p className="text-xs muted">{resultPageIndex * RESULT_PAGE_SIZE + 1}–{resultPageIndex * RESULT_PAGE_SIZE + pagedMarks.length} of {visibleMarks.length} marks</p>
+              <div className="flex gap-2">
+                <button type="button" aria-label="Previous results page" disabled={resultPageIndex === 0} onClick={() => setResultPage({ key: resultFilterKey, page: resultPageIndex - 1 })} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60">Previous</button>
+                <button type="button" aria-label="Next results page" disabled={(resultPageIndex + 1) * RESULT_PAGE_SIZE >= visibleMarks.length} onClick={() => setResultPage({ key: resultFilterKey, page: resultPageIndex + 1 })} className="rounded-lg border border-[var(--border)] px-3 py-2 text-sm font-semibold disabled:opacity-60">Next</button>
+              </div>
+            </div>}
           </div>
         )}
       </section>
@@ -574,6 +654,7 @@ export function AdminAssessmentWorkspace({ mode }: { mode: "exams" | "results" }
           )}
         </section>
       )}
+      </>}
     </div>
   );
 }

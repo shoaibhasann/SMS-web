@@ -7,7 +7,7 @@ import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import {
-  formatTimetableTime, getFamilyTimetable, getOfficeTimetable, getTeacherTimetable, getTimetableSetup,
+  findStaleTimetablePeriods, formatTimetableTime, getFamilyTimetable, getOfficeTimetable, getTeacherTimetable, getTimetableSetup,
   removeTimetablePeriod, saveTimetablePeriod, timetableDays, TimetableError, validateTimetableDraft,
   type TimetableDraft, type TimetablePeriod, type TimetableSetup, type TimetableView,
 } from "@/lib/timetable";
@@ -192,7 +192,7 @@ function OfficeWeek({ client, schoolId, yearId, classId, sectionId, setup, onLoc
   client: Client; schoolId: string; yearId: string; classId: string; sectionId: string | null; setup: TimetableSetup; onLocked: (value: boolean) => void;
 }) {
   const [refresh, setRefresh] = useState(0);
-  const [result, setResult] = useState<{ refresh: number; value: Load<TimetableView> }>();
+  const [result, setResult] = useState<{ refresh: number; value: Load<TimetableView>; stale?: TimetablePeriod[] }>();
   const [draft, setDraft] = useState<TimetableDraft>();
   const [baseline, setBaseline] = useState<TimetablePeriod | null>(null);
   const [removal, setRemoval] = useState<TimetablePeriod>();
@@ -202,13 +202,18 @@ function OfficeWeek({ client, schoolId, yearId, classId, sectionId, setup, onLoc
   const inFlight = useRef(false);
   const alive = useAlive();
   const current = result?.refresh === refresh ? result.value : undefined;
+  const stale = result?.refresh === refresh ? result.stale ?? [] : [];
   const assignments = setup.assignments.filter((item) => item.academic_year_id === yearId && item.class_id === classId);
   const assignment = assignments.find((item) => item.id === draft?.assignmentId);
   const sections = setup.sections.filter((item) => item.class_id === classId);
 
   useEffect(() => {
     let active = true;
-    getOfficeTimetable(client, schoolId, yearId, classId, sectionId).then((data) => { if (active) setResult({ refresh, value: { data } }); },
+    getOfficeTimetable(client, schoolId, yearId, classId, sectionId).then(async (data) => {
+      // A failed check only hides the clean-up action; the periods still show as Needs attention.
+      const orphaned = await findStaleTimetablePeriods(client, data.rows).catch(() => []);
+      if (active) setResult({ refresh, value: { data }, stale: orphaned });
+    },
       (error: unknown) => { if (active) setResult({ refresh, value: { error: errorText(error, "The class timetable could not be loaded. Refresh to try again.") } }); });
     return () => { active = false; };
   }, [classId, client, refresh, schoolId, sectionId, yearId]);
@@ -244,10 +249,31 @@ function OfficeWeek({ client, schoolId, yearId, classId, sectionId, setup, onLoc
     finally { inFlight.current = false; if (alive.current) setSaving(false); }
   }
 
+  async function removeStale(rows: TimetablePeriod[]) {
+    const plural = rows.length === 1 ? "" : "s";
+    if (inFlight.current || !window.confirm(`Remove ${rows.length} stale period${plural} whose teaching assignment was removed? Attendance and learning records are preserved.`)) return;
+    inFlight.current = true; setSaving(true); onLocked(true); setNotice(undefined);
+    let removed = 0;
+    try {
+      // Each period goes through the governed, receipted removal with its loaded version.
+      for (const row of rows) { await removeTimetablePeriod(client, schoolId, row, crypto.randomUUID()); removed += 1; }
+      if (alive.current) setNotice({ text: `${removed} stale period${plural} removed from the shared timetable.` });
+    } catch (error) {
+      if (alive.current) setNotice({ error: true, text: `${removed} of ${rows.length} stale periods removed. ${errorText(error, "The rest could not be confirmed. Refresh the timetable and try again.")}` });
+    } finally {
+      inFlight.current = false;
+      if (alive.current) { setSaving(false); onLocked(false); setRefresh((value) => value + 1); }
+    }
+  }
+
   return <div className="space-y-5">
     {notice && <p role={notice.error ? "alert" : "status"} className={`card p-4 text-sm ${notice.error ? "text-red-700 dark:text-red-300" : "text-emerald-800 dark:text-emerald-300"}`}>{notice.text}</p>}
     <div className="flex flex-wrap gap-3"><button type="button" className={primary} disabled={saving || !current?.data} onClick={() => edit()}><Plus size={16} aria-hidden="true" />Add period</button>
       <button type="button" className={button} disabled={saving} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh timetable</button></div>
+    {stale.length > 0 && <section className="card space-y-3 p-5" aria-label="Stale timetable periods">
+      <p className="text-sm text-amber-900 dark:text-amber-200">{stale.length} period{stale.length === 1 ? " still uses" : "s still use"} a teaching assignment that was removed. {stale.length === 1 ? "It is" : "They are"} hidden from teachers and families but still reserve the teacher&apos;s time.</p>
+      <button type="button" className={`${button} text-red-700 dark:text-red-300`} disabled={saving || Boolean(draft || removal)} onClick={() => void removeStale(stale)}><Trash2 size={16} aria-hidden="true" />Remove stale periods</button>
+    </section>}
     {draft && <section className="card p-5" aria-labelledby="timetable-editor-heading"><div className="flex items-start justify-between gap-3"><div><h2 id="timetable-editor-heading" className="text-lg font-bold">{baseline ? "Edit period" : "New period"}</h2><p className="mt-1 text-sm muted">Times are in IST. Saving shares this period immediately.</p></div><button type="button" className={button} disabled={saving} onClick={clear}><X size={16} aria-hidden="true" />Cancel draft</button></div>
       <form className="mt-5 space-y-4" onSubmit={(event) => void save(event)}>
         <div className="grid gap-4 sm:grid-cols-2">

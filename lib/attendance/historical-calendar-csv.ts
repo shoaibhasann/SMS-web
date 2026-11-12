@@ -1,5 +1,5 @@
 import { readCsvRows, validCsvCell } from "@/lib/csv";
-import { validCalendarDate } from "./calendar";
+import { csvCalendarDate, validCalendarDate } from "./calendar";
 
 export const historicalCalendarCsvMaxRows = 366;
 export const historicalCalendarCsvMaxBytes = 64 * 1024;
@@ -16,12 +16,13 @@ export function parseHistoricalCalendarCsv(text: string): HistoricalCalendarCsvR
   }
   if (!source.length || source.length > historicalCalendarCsvMaxRows) throw new Error(`Include between 1 and ${historicalCalendarCsvMaxRows} dated records.`);
   const rows = source.map((cells, index) => {
-    const [day = "", status = "", label = ""] = cells.map(value => value.trim());
+    const [source = "", decision = "", label = ""] = cells.map(value => value.trim());
+    const iso = csvCalendarDate(source), day = iso ?? source, status = decision.toLowerCase();
     let issue: string | undefined;
     if (cells.length !== 3) issue = "Expected three columns.";
     else if (cells.some(value => !validCsvCell(value, historicalCalendarCsvMaxBytes))) issue = "Remove control characters from this row.";
-    else if (!validCalendarDate(day)) issue = "Use a real date in YYYY-MM-DD format.";
-    else if (status !== "working" && status !== "holiday") issue = "Use working or holiday exactly.";
+    else if (!iso) issue = "Use a real date in YYYY-MM-DD or DD-MM-YYYY format.";
+    else if (status !== "working" && status !== "holiday") issue = "Use working or holiday.";
     else if (!label || !validCsvCell(label, 120)) issue = "Enter a calendar label of 1–120 characters.";
     return { rowNumber: index + 1, day, status, label, issue };
   });

@@ -14,7 +14,7 @@ Use dedicated MFA QA accounts supplied privately. Do not enroll a shared founder
 
 ## School rollout
 
-- [ ] MFA-06 — Admin → Settings → Staff authenticator policy. Counts show distinct active staff, enrolled staff and enrollment gaps; multiple roles must not count one person twice.
+- [ ] MFA-06 — Admin → Settings → Staff authenticator policy. Counts show distinct active staff, enrolled staff and enrollment gaps; multiple roles must not count one person twice. Under the counts, "Staff still to enroll" names each gap once with its staff roles and reason (Not enrolled, Email or phone not confirmed, Account blocked, Account deleted); its length matches "Still needed" (first 200 shown for larger gaps).
 - [ ] MFA-07 — Enabling is blocked until every active staff account has a verified authenticator. The acting Admin must also complete authenticator verification; a password-only session cannot change the policy.
 - [ ] MFA-08 — On a fully prepared QA school, enable with a reason. Reload and verify saved revision/history. A Principal can read the policy but cannot change it; Teacher/Finance/Reception/family roles cannot manage it.
 - [ ] MFA-09 — Open the policy in two Admin sessions. Save once, then attempt the stale save. It must request a reload instead of overwriting the newer choice. An identical uncertain retry must not create another event.

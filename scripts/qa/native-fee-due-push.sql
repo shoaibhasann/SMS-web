@@ -3,6 +3,15 @@ begin;
 set local lock_timeout = '3s';
 set local statement_timeout = '25s';
 
+do $window$
+begin
+  -- Due-today reminders queue only from 08:00 IST; fail clearly instead of on an empty queue.
+  if (statement_timestamp() at time zone 'Asia/Kolkata')::time < time '08:00' then
+    raise exception 'Run the fee-due push QA fixture after 08:00 IST.';
+  end if;
+end;
+$window$;
+
 create function pg_temp.fee_push_qa_actor(actor_id uuid, session_id uuid, path text)
 returns void language plpgsql as $actor$
 begin
@@ -110,7 +119,8 @@ begin
     -- The scoped enqueuer and direct leases leave the shared hosted worker queue untouched.
     perform app_private.enqueue_family_fee_due_push(20,school);
     perform app_private.enqueue_family_fee_due_push(20,school);
-    if (select count(*) from app_private.family_push_jobs job where job.school_id=school) <> 4
+    -- Paid fixture receipts also queue fee_payment jobs; this fixture covers fee_due only.
+    if (select count(*) from app_private.family_push_jobs job where job.school_id=school and job.kind='fee_due') <> 4
       or (select count(*) from app_private.family_push_jobs job where job.school_id=school
         and job.kind='fee_due' and job.event_id in (due_fee,partial_fee)
         and job.user_id in (guardian_user,student_user) and job.expires_at=next_midnight) <> 4
@@ -118,7 +128,7 @@ begin
         group by job.event_id,job.device_id having count(*)>1)
     then raise exception 'Due-today scope, opt-in, midnight expiry or fee/device deduplication differed.'; end if;
     update app_private.family_push_jobs set status='leased',lease_id=lease,lease_until=statement_timestamp()+interval '1 minute'
-      where school_id=school;
+      where school_id=school and kind='fee_due';
 
     insert into public.fee_payments(id,school_id,student_fee_id,student_id,receipt_no,amount,payment_method,status,paid_at)
       values(settlement,school,due_fee,pupil,'QA-FEE-PUSH-'||settlement::text,1000,'cash','paid',statement_timestamp());
@@ -129,7 +139,7 @@ begin
 
     perform set_config('role','none',true);
     delete from public.student_parents where parent_id=guardian_record and student_id=pupil;
-    for dispatch_job in select id,event_id,recipient_role from app_private.family_push_jobs where school_id=school
+    for dispatch_job in select id,event_id,recipient_role from app_private.family_push_jobs where school_id=school and kind='fee_due'
     loop
       perform set_config('role','service_role',true);
       perform set_config('request.jwt.claim.sub','',true);

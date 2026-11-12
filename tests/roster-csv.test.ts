@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { parseRosterCsv, rosterCsvTemplate } from "@/lib/students/roster-csv";
+import { parseRosterCsv } from "@/lib/students/roster-csv";
 
-const header = rosterCsvTemplate.split("\n")[0];
+// Legacy three-column files keep importing; the five-column template is covered in roster-csv-identity.test.ts.
+const header = "admission_number,first_name,last_name";
 
 describe("student CSV preview", () => {
   it("parses a spreadsheet export with BOM, CRLF, escaped quotes and optional last names", () => {
