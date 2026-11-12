@@ -67,6 +67,8 @@ async function addUser(user: string, school: string | null, role: string | null,
 beforeAll(async () => {
   db = await createRecoveryDatabase();
   await seedRecoveryData(db);
+  // Today's coverage and marks must fall inside the seeded academic years whatever the date the suite runs on.
+  await db.query("update public.academic_years set start_date=least(start_date,current_date-30),end_date=greatest(end_date,current_date+30) where id = any($1)", [[id.yearA, id.yearB]]);
   await addUser(extra.principalA, id.schoolA, "principal");
   await addUser(extra.accountantA, id.schoolA, "accountant");
   await addUser(extra.receptionA, id.schoolA, "reception_staff");
