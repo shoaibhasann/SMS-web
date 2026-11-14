@@ -37,6 +37,16 @@ type LoadState = {
   error: string | null;
 };
 
+// Selected-status colours; each choice also carries its word, so colour never says it alone.
+const statusTone: Record<AttendanceStatus, string> = {
+  present: "border-emerald-700 bg-emerald-700 text-white",
+  absent: "border-red-700 bg-red-700 text-white",
+  late: "border-amber-400 bg-amber-400 text-slate-950",
+  half_day: "border-violet-700 bg-violet-700 text-white",
+  leave: "border-sky-700 bg-sky-700 text-white",
+  holiday: "border-slate-600 bg-slate-600 text-white",
+};
+
 // 22023 on a Holiday write is the DB guard refusing pupil Holiday marks on a configured working day.
 function holidayRefused(code: string | undefined, statuses: (AttendanceStatus | undefined)[]) {
   return code === "22023" && statuses.includes("holiday")
@@ -316,18 +326,30 @@ function ScopedAttendanceEditor({
             </label>
           )}
           <div className="rounded-xl border border-[var(--border)] sm:max-h-96 sm:overflow-auto">
-            {visibleStudents.length ? visibleStudents.map((student) => (
-              <div key={student.id} className="flex items-center gap-3 border-b border-[var(--border)] p-3 last:border-0">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">{studentName(student)}</p>
-                  <p className="text-xs muted">{student.admission_no} · Roll {student.roll_no || "—"}</p>
+            {visibleStudents.length ? visibleStudents.map((student) => {
+              const name = studentName(student);
+              const current = draft[student.id] ?? snapshot?.entries[student.id]?.status;
+              const rowDisabled = saving || !canEdit || (!canMarkHoliday && snapshot?.entries[student.id]?.status === "holiday")
+                || (historical && dirty && !dirtyIds.includes(student.id));
+              return (
+                <div key={student.id} className="flex flex-col gap-3 border-b border-[var(--border)] p-3 last:border-0 md:flex-row md:items-center">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{name}</p>
+                    <p className="text-xs muted">{student.admission_no} · Roll {student.roll_no || "—"}{current ? "" : " · Unmarked"}</p>
+                  </div>
+                  <div role="radiogroup" aria-label={`Attendance for ${name}`} className="flex gap-1.5 md:flex-wrap">
+                    {attendanceStatuses.filter((status) => status !== "holiday" || canChooseHoliday || current === "holiday").map((status) => (
+                      <label key={status} className={`inline-flex min-h-11 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-semibold md:flex-none md:px-3 md:text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${current === status
+                        ? statusTone[status] : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"}`}>
+                        <input type="radio" name={`attendance-${student.id}`} value={status} checked={current === status}
+                          disabled={rowDisabled || (status === "holiday" && !canChooseHoliday)} onChange={() => mark(student.id, status)} className="sr-only" />
+                        {attendanceLabels[status]}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <select aria-label={`Attendance for ${studentName(student)}`} value={draft[student.id] ?? snapshot?.entries[student.id]?.status ?? ""} disabled={saving || !canEdit || !canMarkHoliday && snapshot?.entries[student.id]?.status === "holiday" || (historical && dirty && !dirtyIds.includes(student.id))} onChange={(event) => mark(student.id, event.target.value as AttendanceStatus)} className="field w-auto min-w-32">
-                  <option value="" disabled>Unmarked</option>
-                  {attendanceStatuses.map((status) => <option key={status} value={status} disabled={status === "holiday" && !canChooseHoliday}>{attendanceLabels[status]}</option>)}
-                </select>
-              </div>
-            )) : <p className="p-5 text-sm muted">{students.length ? "No students match your search." : "No students found for this class and section on the selected date."}</p>}
+              );
+            }) : <p className="p-5 text-sm muted">{students.length ? "No students match your search." : "No students found for this class and section on the selected date."}</p>}
           </div>
         </>
       )}

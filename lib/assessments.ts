@@ -205,10 +205,13 @@ export function rankAssessmentMarks(assessments: AssessmentRecord[], marks: Asse
       rankById.set(group[index].id, rank);
     }
   }
+  // Rows read like a result sheet: assessments in the given order, then rank, then roll number.
+  const assessmentOrder = new Map(assessments.map((row, index) => [row.id, index]));
   return marks.map((mark) => {
     const assessment = assessmentById.get(mark.assessment_id)!;
     return { assessment, mark, student: studentById.get(mark.student_id)!, rank: rankById.get(mark.id)!, percentage: Number(mark.marks_obtained) / Number(assessment.maximum_marks) * 100 };
-  });
+  }).sort((a, b) => assessmentOrder.get(a.assessment.id)! - assessmentOrder.get(b.assessment.id)! || a.rank - b.rank
+    || String(a.student.roll_no ?? "").localeCompare(String(b.student.roll_no ?? ""), undefined, { numeric: true }) || a.mark.id.localeCompare(b.mark.id));
 }
 
 export type TeachingAssignmentScope = {

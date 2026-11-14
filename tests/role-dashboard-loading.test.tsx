@@ -202,7 +202,7 @@ describe("dashboard loading presentation", () => {
     const { container } = render(<RoleDashboard role="teacher" schoolId="school" userId="pending-teacher" />);
     expect(container.querySelector('[data-skeleton="dashboard"]')).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Loading your teaching dashboard");
-    expect(screen.queryByText("No assigned class teacher section")).not.toBeInTheDocument();
+    expect(screen.queryByText(/No class teacher section is assigned/)).not.toBeInTheDocument();
     expect(screen.queryByText("No teaching activity recorded for today.")).not.toBeInTheDocument();
   });
 });
@@ -218,7 +218,9 @@ describe("student and parent attendance", () => {
       subject_id: "source-subject", is_class_teacher: true, class_name: "Covered Class", section_name: "A", subject_name: "English",
       coverage_id: "coverage", starts_on: "2026-11-05", ends_on: "2026-11-07" }]);
     render(<RoleDashboard role="teacher" schoolId="school" userId="substitute-user" />);
-    await screen.findByRole("option", { name: "Covered Class A · Temporary attendance coverage" });
+    await screen.findByText("Covered Class A");
+    expect(screen.getByText("Temporary cover")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Attendance class" })).not.toBeInTheDocument();
     await waitFor(() => expect(attendanceEditor).toHaveBeenLastCalledWith(expect.objectContaining({
       context: { schoolId: "school", academicYearId: "year", classId: "covered-class", sectionId: "covered-section" },
       reviewOnlyHistory: true, dateLimits: { start: "2026-11-05", end: "2026-11-07" },
@@ -432,7 +434,7 @@ describe("teacher dashboard attendance draft", () => {
       return result([]);
     };
     render(<RoleDashboard role="teacher" schoolId="school" userId="teacher-user" />);
-    await screen.findByRole("option", { name: "Class 6 A · Class teacher" });
+    await screen.findByText("Class 6 A");
     await waitFor(() => expect(lastEditor().context).not.toBeNull());
     act(() => lastEditor().onLockChange(true));
   }
@@ -450,7 +452,7 @@ describe("teacher dashboard attendance draft", () => {
     await openDirtyDraft();
     const teacherReads = queries.filter((query) => query.table === "teachers").length;
     await act(async () => { fireEvent.focus(window); });
-    expect(await screen.findByRole("option", { name: "Class 7 B · Temporary attendance coverage" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /Class 7 B/ })).toBeInTheDocument();
     expect(lastEditor().context).toMatchObject({ classId: "class-a", sectionId: "section-a" });
     expect(queries.filter((query) => query.table === "teachers")).toHaveLength(teacherReads);
   });

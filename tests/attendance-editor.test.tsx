@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AttendanceEditor } from "../components/academic/attendance-editor";
+import { statusOf, rowLocked, statusChoice, chooseStatus } from "./attendance-register-helpers";
 import {
   attendanceContextKey,
   schoolDate,
@@ -111,12 +112,9 @@ function register() {
   return screen.getByRole("region", { name: "Attendance editor" });
 }
 
-function attendance(name: string) {
-  return screen.getByRole("combobox", { name: `Attendance for ${name}` });
-}
 
 async function loaded() {
-  await screen.findByRole("combobox", { name: "Attendance for Aarav" });
+  await screen.findByRole("radiogroup", { name: "Attendance for Aarav" });
 }
 
 describe("AttendanceEditor", () => {
@@ -133,8 +131,8 @@ describe("AttendanceEditor", () => {
     expect(date).toHaveAttribute("min", dateLimits.start);
     expect(date).toHaveAttribute("max", dateLimits.end);
     expect(repository.load).toHaveBeenLastCalledWith(context, dateLimits.end);
-    expect(attendance("Aarav")).toHaveValue("absent");
-    expect(attendance("Aarav")).toBeDisabled();
+    expect(statusOf("Aarav")).toBe("absent");
+    expect(rowLocked("Aarav")).toBe(true);
     expect(screen.queryByRole("button", { name: /Save Attendance|Request correction|Mark holiday/ })).not.toBeInTheDocument();
 
     fireEvent.change(date, { target: { value: "2025-03-31" } });
@@ -160,8 +158,8 @@ describe("AttendanceEditor", () => {
     const pastDay = schoolDate(new Date(Date.now() - 86_400_000));
     fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: pastDay } });
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
-    expect(attendance("Anaya")).toBeDisabled();
+    await chooseStatus(user, "Aarav", "late");
+    expect(rowLocked("Anaya")).toBe(true);
     const submit = screen.getByRole("button", { name: "Request correction" });
     expect(submit).toBeDisabled();
     await user.type(screen.getByLabelText("Correction reason"), "Gate register confirms late arrival.");
@@ -176,7 +174,7 @@ describe("AttendanceEditor", () => {
       context, pastDay, { studentId: "a", status: "late", expected: { student_id: "a", status: "absent", remarks: "Guardian informed" } },
       "Gate register confirms late arrival.",
     ]);
-    expect(attendance("Aarav")).toHaveValue("absent");
+    expect(statusOf("Aarav")).toBe("absent");
     expect(currentDay.save).not.toHaveBeenCalled();
   });
 
@@ -185,10 +183,10 @@ describe("AttendanceEditor", () => {
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
 
-    expect(attendance("Aarav")).toHaveValue("absent");
-    expect(attendance("Anaya")).toHaveValue("holiday");
-    expect(attendance("Kabir")).toHaveValue("");
-    expect(attendance("Diya")).toHaveValue("");
+    expect(statusOf("Aarav")).toBe("absent");
+    expect(statusOf("Anaya")).toBe("holiday");
+    expect(statusOf("Kabir")).toBe("");
+    expect(statusOf("Diya")).toBe("");
     expect(screen.getByText("4 students · 2 marked · 2 unmarked. Only changed records are saved.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Attendance" })).toBeDisabled();
     expect(repository.save).not.toHaveBeenCalled();
@@ -201,9 +199,9 @@ describe("AttendanceEditor", () => {
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
 
-    await user.selectOptions(attendance("Aarav"), "late");
-    await user.selectOptions(attendance("Anaya"), "present");
-    await user.selectOptions(attendance("Anaya"), "holiday");
+    await chooseStatus(user, "Aarav", "late");
+    await chooseStatus(user, "Anaya", "present");
+    await chooseStatus(user, "Anaya", "holiday");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
 
     await screen.findByText("Attendance saved for 1 student.");
@@ -224,13 +222,13 @@ describe("AttendanceEditor", () => {
     const { repository, read } = persistedRepository();
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
-    await user.selectOptions(attendance("Diya"), "absent");
+    await chooseStatus(user, "Diya", "absent");
     await user.click(screen.getByRole("button", { name: "Mark unmarked present" }));
 
-    expect(attendance("Aarav")).toHaveValue("absent");
-    expect(attendance("Anaya")).toHaveValue("holiday");
-    expect(attendance("Kabir")).toHaveValue("present");
-    expect(attendance("Diya")).toHaveValue("absent");
+    expect(statusOf("Aarav")).toBe("absent");
+    expect(statusOf("Anaya")).toBe("holiday");
+    expect(statusOf("Kabir")).toBe("present");
+    expect(statusOf("Diya")).toBe("absent");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     await screen.findByText("Attendance saved for 2 students.");
     expect(repository.save.mock.calls[0][3].map((change) => change.studentId).sort()).toEqual(["c", "d"]);
@@ -245,7 +243,7 @@ describe("AttendanceEditor", () => {
     await loaded();
     await waitFor(() => expect(screen.getByRole("button", { name: "Change class" })).toBeEnabled());
     const date = schoolDate();
-    await user.selectOptions(attendance("Aarav"), "present");
+    await chooseStatus(user, "Aarav", "present");
 
     expect(screen.getByLabelText("Attendance date")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Change class" })).toBeDisabled();
@@ -257,7 +255,7 @@ describe("AttendanceEditor", () => {
     expect(leaving.defaultPrevented).toBe(true);
 
     await user.click(screen.getByRole("button", { name: "Discard changes and reload" }));
-    await waitFor(() => expect(attendance("Aarav")).toHaveValue("absent"));
+    await waitFor(() => expect(statusOf("Aarav")).toBe("absent"));
     expect(repository.save).not.toHaveBeenCalled();
     expect(repository.load).toHaveBeenCalledTimes(2);
     expect(screen.getByLabelText("Attendance date")).toBeEnabled();
@@ -276,11 +274,11 @@ describe("AttendanceEditor", () => {
     repository.save.mockRejectedValueOnce(new Error("Connection interrupted."));
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
+    await chooseStatus(user, "Aarav", "late");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     await screen.findByText(/Connection interrupted.*Your edits are kept/);
 
-    expect(attendance("Aarav")).toHaveValue("late");
+    expect(statusOf("Aarav")).toBe("late");
     expect(screen.getByLabelText("Attendance date")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Save Attendance" })).toBeEnabled();
     expect(read(context, schoolDate()).entries.a.status).toBe("absent");
@@ -296,7 +294,7 @@ describe("AttendanceEditor", () => {
     repository.save.mockImplementationOnce(() => pending.promise);
     render(<ParentControls repository={repository} />);
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
+    await chooseStatus(user, "Aarav", "late");
     const save = screen.getByRole("button", { name: "Save Attendance" });
     act(() => {
       fireEvent.click(save);
@@ -305,7 +303,7 @@ describe("AttendanceEditor", () => {
 
     expect(repository.save).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText("Attendance date")).toBeDisabled();
-    for (const select of screen.getAllByRole("combobox")) expect(select).toBeDisabled();
+    for (const choice of screen.getAllByRole("radio")) expect(choice).toBeDisabled();
     for (const name of ["Mark unmarked present", "Mark holiday", "Discard changes and reload", "Change class", "Cancel editor", "Saving attendance…"]) {
       expect(screen.getByRole("button", { name })).toBeDisabled();
     }
@@ -316,7 +314,7 @@ describe("AttendanceEditor", () => {
     });
     await screen.findByText("Attendance saved for 1 student.");
     await waitFor(() => expect(screen.getByRole("button", { name: "Change class" })).toBeEnabled());
-    expect(attendance("Aarav")).toBeEnabled();
+    expect(rowLocked("Aarav")).toBe(false);
     expect(screen.getByLabelText("Attendance date")).toBeEnabled();
   });
 
@@ -332,13 +330,13 @@ describe("AttendanceEditor", () => {
     latest.entries.a.status = "late";
     await act(async () => { newer.resolve(latest); });
     await loaded();
-    expect(attendance("Aarav")).toHaveValue("late");
+    expect(statusOf("Aarav")).toBe("late");
 
     const stale = initialSnapshot();
     stale.entries.a.status = "holiday";
     await act(async () => { older.resolve(stale); });
     expect(screen.getByLabelText("Attendance date")).toHaveValue("2026-10-01");
-    expect(attendance("Aarav")).toHaveValue("late");
+    expect(statusOf("Aarav")).toBe("late");
     expect(repository.save).not.toHaveBeenCalled();
   });
 
@@ -353,7 +351,7 @@ describe("AttendanceEditor", () => {
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reload register" }));
     await loaded();
-    expect(attendance("Aarav")).toHaveValue("absent");
+    expect(statusOf("Aarav")).toBe("absent");
     expect(repository.save).not.toHaveBeenCalled();
   });
 
@@ -376,12 +374,12 @@ describe("AttendanceEditor", () => {
     await user.click(screen.getByRole("button", { name: "Mark holiday" }));
     expect(repository.save).not.toHaveBeenCalled();
     expect(read(context, schoolDate()).entries.a.status).toBe("absent");
-    for (const name of ["Aarav", "Anaya", "Kabir", "Diya"]) expect(attendance(name)).toHaveValue("holiday");
+    for (const name of ["Aarav", "Anaya", "Kabir", "Diya"]) expect(statusOf(name)).toBe("holiday");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     await screen.findByText("Attendance saved for 3 students.");
     expect(repository.save.mock.calls[0][3].map((change) => change.studentId).sort()).toEqual(["a", "c", "d"]);
 
-    await user.selectOptions(attendance("Kabir"), "present");
+    await chooseStatus(user, "Kabir", "present");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     await screen.findByText("Attendance saved for 1 student.");
     expect(repository.save.mock.calls[1][3]).toEqual([{
@@ -401,8 +399,8 @@ describe("AttendanceEditor", () => {
     }));
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
-    await user.selectOptions(attendance("Anaya"), "absent");
+    await chooseStatus(user, "Aarav", "late");
+    await chooseStatus(user, "Anaya", "absent");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     const failure = await screen.findByText(/1 saved; 1 could not be saved.*Your remaining edits are kept/);
     expect(failure).toHaveAttribute("role", "alert");
@@ -412,7 +410,7 @@ describe("AttendanceEditor", () => {
     expect(failure.parentElement).toHaveClass("sticky", "lg:bottom-0");
     expect(read(context, schoolDate()).entries.a.status).toBe("late");
     expect(read(context, schoolDate()).entries.b.status).toBe("holiday");
-    expect(attendance("Anaya")).toHaveValue("absent");
+    expect(statusOf("Anaya")).toBe("absent");
     expect(screen.getByText(/1 unsaved change\./)).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
@@ -430,19 +428,19 @@ describe("AttendanceEditor", () => {
     repository.save.mockImplementationOnce(() => pending.promise);
     const view = render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
+    await chooseStatus(user, "Aarav", "late");
     await user.click(screen.getByRole("button", { name: "Save Attendance" }));
     const freshRoster = initialSnapshot();
     freshRoster.students.push({ id: "e", first_name: "Reyansh", admission_no: "A-5" });
     store.set(key(context, schoolDate()), structuredClone(freshRoster));
     repository.load.mockResolvedValueOnce(freshRoster);
     view.rerender(<AttendanceEditor context={context} userId={userId} repository={repository} rosterVersion={1} />);
-    await screen.findByRole("combobox", { name: "Attendance for Reyansh" });
+    await screen.findByRole("radiogroup", { name: "Attendance for Reyansh" });
     await act(async () => { pending.resolve(commit(context, schoolDate(), repository.save.mock.calls[0][3])); });
-    await screen.findByRole("combobox", { name: "Attendance for Reyansh" });
+    await screen.findByRole("radiogroup", { name: "Attendance for Reyansh" });
     expect(screen.queryByText("Loading attendance register…")).not.toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Attendance for Reyansh" })).toBeInTheDocument();
-    expect(attendance("Aarav")).toHaveValue("late");
+    expect(screen.getByRole("radiogroup", { name: "Attendance for Reyansh" })).toBeInTheDocument();
+    expect(statusOf("Aarav")).toBe("late");
   });
 });
 
@@ -478,11 +476,11 @@ describe("historical correction request conflicts", () => {
     await loaded();
     fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: pastDay } });
     await loaded();
-    await user.selectOptions(attendance("Aarav"), "late");
+    await chooseStatus(user, "Aarav", "late");
     await user.type(screen.getByLabelText("Correction reason"), "Gate register confirms late arrival.");
     await user.click(screen.getByRole("button", { name: "Request correction" }));
     await screen.findByText(/Attendance changed before the correction could be requested/);
-    expect(attendance("Aarav")).toHaveValue("late");
+    expect(statusOf("Aarav")).toBe("late");
     expect(screen.getByLabelText("Correction reason")).toHaveValue("Gate register confirms late arrival.");
     expect(screen.getByRole("button", { name: "Request correction" })).toBeDisabled();
     expect(onCorrectionRequested).not.toHaveBeenCalled();
@@ -493,8 +491,8 @@ describe("historical correction request conflicts", () => {
     changed.entries.a = { ...changed.entries.a, status: "present", revision: 1 };
     store.set(key(context, pastDay), changed);
     await user.click(screen.getByRole("button", { name: "Discard changes and reload" }));
-    await waitFor(() => expect(attendance("Aarav")).toHaveValue("present"));
-    await user.selectOptions(attendance("Aarav"), "late");
+    await waitFor(() => expect(statusOf("Aarav")).toBe("present"));
+    await chooseStatus(user, "Aarav", "late");
     await user.type(screen.getByLabelText("Correction reason"), "New request after checking the latest mark.");
     await user.click(screen.getByRole("button", { name: "Request correction" }));
     await screen.findByText(/Correction requested\./);
@@ -516,8 +514,8 @@ describe("server-governed school calendar controls", () => {
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
     expect(screen.getByText(/School holiday. No daily register is required/)).toBeInTheDocument();
-    expect(attendance("Aarav")).toHaveValue("absent");
-    expect(attendance("Aarav")).toBeDisabled();
+    expect(statusOf("Aarav")).toBe("absent");
+    expect(rowLocked("Aarav")).toBe(true);
     expect(screen.queryByRole("button", { name: "Save Attendance" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mark holiday" })).not.toBeInTheDocument();
     expect(repository.save).not.toHaveBeenCalled();
@@ -528,11 +526,11 @@ describe("server-governed school calendar controls", () => {
     render(<AttendanceEditor context={context} userId={userId} repository={repository} />);
     await loaded();
     expect(screen.queryByRole("button", { name: "Mark holiday" })).not.toBeInTheDocument();
-    expect(attendance("Anaya")).toHaveValue("holiday");
-    expect(attendance("Anaya")).toBeDisabled();
-    expect(attendance("Aarav").querySelector('option[value="holiday"]')).toBeDisabled();
-    await user.selectOptions(attendance("Aarav"), "present");
-    expect(attendance("Aarav")).toHaveValue("present");
+    expect(statusOf("Anaya")).toBe("holiday");
+    expect(rowLocked("Anaya")).toBe(true);
+    expect(statusChoice("Aarav", "holiday")).not.toBeInTheDocument();
+    await chooseStatus(user, "Aarav", "present");
+    expect(statusOf("Aarav")).toBe("present");
     expect(repository.save).not.toHaveBeenCalled();
   });
   it("renders past history read-only when the server closes the Teacher correction window", async () => {
@@ -545,7 +543,7 @@ describe("server-governed school calendar controls", () => {
     const past = schoolDate(new Date(Date.now() - 86_400_000));
     fireEvent.change(screen.getByLabelText("Attendance date"), { target: { value: past } });
     await screen.findByText(/Teacher correction requests are unavailable under the current school policy/);
-    expect(attendance("Aarav")).toBeDisabled();
+    expect(rowLocked("Aarav")).toBe(true);
     expect(screen.queryByRole("button", { name: "Request correction" })).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Reload register" }));
     expect(requestCorrection).not.toHaveBeenCalled();
