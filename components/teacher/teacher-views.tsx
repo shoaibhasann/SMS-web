@@ -848,13 +848,21 @@ function ResultReportView() {
   const error = setupError || (report?.scope === reportScope ? report.error : "");
   const reportLoading = loading || Boolean(context && (report?.scope !== reportScope || report.loading));
   const years = [...new Set(assessments.map((assessment) => assessment.academic_year_id))];
-  const visibleSections = sections.filter((section) => classId === "all" || section.class_id === classId);
+  // Offer only the classes, sections and subjects of assessments this teacher can see, not the whole school.
+  const used = (pick: (row: AssessmentRecord) => string | null) => new Set(assessments.map(pick));
+  const usedClasses = used((row) => row.class_id), usedSections = used((row) => row.section_id), usedSubjects = used((row) => row.subject_id);
+  const className = new Map(classes.map((item) => [item.id, item.name]));
+  const sectionName = new Map(sections.map((item) => [item.id, item.name]));
+  const subjectName = new Map(subjects.map((item) => [item.id, item.name]));
+  const visibleSections = sections.filter((section) => usedSections.has(section.id) && (classId === "all" || section.class_id === classId));
   const filterOptions = [
     { label: "Academic Year", allLabel: "All Years", value: academicYear, onChange: setAcademicYear, options: years.map((value) => ({ value, label: yearNames[value] ?? value })) },
-    { label: "Exam", allLabel: "All Exams", value: assessmentId, onChange: setAssessmentId, options: assessments.map((assessment) => ({ value: assessment.id, label: assessment.name })) },
-    { label: "Class", allLabel: "All Classes", value: classId, onChange: (value: string) => { setClassId(value); setSectionId("all"); }, options: classes.map((item) => ({ value: item.id, label: item.name })) },
-    { label: "Section", allLabel: "All Sections", value: sectionId, onChange: setSectionId, options: visibleSections.map((item) => ({ value: item.id, label: item.name })) },
-    { label: "Subject", allLabel: "All Subjects", value: subjectId, onChange: setSubjectId, options: subjects.map((item) => ({ value: item.id, label: item.name })) },
+    { label: "Exam", allLabel: "All Exams", value: assessmentId, onChange: setAssessmentId, options: assessments.map((assessment) => ({ value: assessment.id,
+      label: [assessment.name, [className.get(assessment.class_id), assessment.section_id && sectionName.get(assessment.section_id)].filter(Boolean).join(" "), subjectName.get(assessment.subject_id)].filter(Boolean).join(" · ") })) },
+    { label: "Class", allLabel: "All Classes", value: classId, onChange: (value: string) => { setClassId(value); setSectionId("all"); }, options: classes.filter((item) => usedClasses.has(item.id)).map((item) => ({ value: item.id, label: item.name })) },
+    { label: "Section", allLabel: "All Sections", value: sectionId, onChange: setSectionId, options: visibleSections.map((item) => ({ value: item.id,
+      label: classId === "all" ? `${className.get(item.class_id) ?? "Class"} · ${item.name}` : item.name })) },
+    { label: "Subject", allLabel: "All Subjects", value: subjectId, onChange: setSubjectId, options: subjects.filter((item) => usedSubjects.has(item.id)).map((item) => ({ value: item.id, label: item.name })) },
   ];
   const visibleRows = report?.scope === reportScope ? report.rows : [];
 

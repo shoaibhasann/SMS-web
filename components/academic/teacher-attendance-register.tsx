@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { AttendanceClassBadge, AttendanceClassPicker } from "@/components/academic/attendance-class-choice";
 import { AttendanceCorrectionQueue } from "@/components/academic/attendance-correction-queue";
 import { createClient } from "@/lib/supabase/client";
 import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
@@ -82,6 +83,11 @@ export function TeacherAttendanceRegister() {
     setAccessLoaded(false); setAccessRevision((value) => value + 1);
   }
 
+  function openRegister(id: string) {
+    setSelectedId(id); setRegister(null); setLoadError(""); setAttendanceLocked(null);
+    setRegistrationOpen(false); setStudentName(""); setRegistrationMessage("");
+  }
+
   const accessUnverified = useAttendanceAccessRevalidation({ client, enabled: accessLoaded, assignments: choices, locked: editorLock === true,
     onChanged: (current) => {
       // Keep the open register (and its draft) when only other scopes changed.
@@ -125,24 +131,24 @@ export function TeacherAttendanceRegister() {
 
   return (
     <div className="space-y-5">
-      <header className="card flex flex-wrap items-center justify-between gap-4 p-5">
-        <div>
+      <header className="card flex flex-wrap items-start justify-between gap-4 p-5">
+        <div className="space-y-2">
           <h1 className="text-2xl font-black sm:text-3xl">Attendance Register</h1>
-          <p className="mt-1 text-sm muted">{register.teacherName} · {register.className} / {register.sectionName}</p>
-          {register.assignment.coverage_id && <p className="mt-1 text-sm font-semibold text-blue-700 dark:text-blue-300">Temporary attendance coverage · {register.assignment.starts_on && formatDate(register.assignment.starts_on)} through {register.assignment.ends_on && formatDate(register.assignment.ends_on)} IST</p>}
+          <AttendanceClassBadge label={`${register.className} / ${register.sectionName}`} coverage={Boolean(register.assignment.coverage_id)} />
+          <p className="text-sm muted">{register.teacherName}</p>
+          {register.assignment.coverage_id && <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">Temporary attendance coverage · {register.assignment.starts_on && formatDate(register.assignment.starts_on)} through {register.assignment.ends_on && formatDate(register.assignment.ends_on)} IST</p>}
         </div>
-        {mayRegister && <button type="button" onClick={() => setRegistrationOpen((value) => !value)} disabled={attendanceLocked || registering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{registrationOpen ? "Cancel registration" : "Register Student"}</button>}
+        <div className="flex flex-wrap gap-2">
+          {mayRegister && <button type="button" onClick={() => setRegistrationOpen((value) => !value)} disabled={attendanceLocked || registering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50">{registrationOpen ? "Cancel registration" : "Register Student"}</button>}
+          <button type="button" disabled={attendanceLocked || registering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50" onClick={refreshAccess}>Refresh attendance access</button>
+        </div>
       </header>
       {accessUnverified && <p role="status" className="rounded-xl border border-amber-500/40 p-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your unsaved marks are kept and the check will retry. Save once the connection returns.</p>}
-      <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-end">
-        <label className="block w-full min-w-0 space-y-2 text-sm font-semibold sm:flex-1">Attendance class
-          <select className="field" value={register.assignment.id} disabled={attendanceLocked || registering} onChange={(event) => {
-            setSelectedId(event.target.value); setRegister(null); setLoadError(""); setAttendanceLocked(null);
-            setRegistrationOpen(false); setStudentName(""); setRegistrationMessage("");
-          }}>{choices.map((item) => <option key={item.id} value={item.id}>{item.class_name} / {item.section_name}{item.coverage_id ? " · Temporary coverage" : " · Class teacher"}</option>)}</select>
-        </label>
-        <button type="button" disabled={attendanceLocked || registering} className="min-h-11 w-full rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold sm:w-auto" onClick={refreshAccess}>Refresh attendance access</button>
-      </div>
+      {choices.length > 1 && <section className="card space-y-3 p-4" aria-label="Your registers">
+        <p className="text-sm font-semibold">You can mark attendance for {choices.length} classes</p>
+        <AttendanceClassPicker value={register.assignment.id} disabled={attendanceLocked || registering} onChange={openRegister}
+          options={choices.map((item) => ({ id: item.id, label: `${item.class_name} / ${item.section_name}`, coverage: Boolean(item.coverage_id) }))} />
+      </section>}
       {registrationOpen && mayRegister && (
         <form onSubmit={registerStudent} className="card space-y-3 p-5">
           <label className="block text-sm font-semibold">Student name

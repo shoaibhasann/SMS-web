@@ -25,6 +25,7 @@ import { createClient } from "@/lib/supabase/client";
 import { roleLabel, type UiRole } from "@/lib/auth/roles";
 import { getNavigationModules } from "@/lib/modules";
 import { AttendanceEditor } from "@/components/academic/attendance-editor";
+import { AttendanceClassBadge, AttendanceClassPicker } from "@/components/academic/attendance-class-choice";
 import { loadEffectiveAttendanceAssignments, type EffectiveAttendanceAssignment } from "@/lib/assignments/attendance-coverage";
 import { hasAttendanceScope, useAttendanceAccessRevalidation } from "@/lib/assignments/use-attendance-access";
 import { AdminFinanceWorkspace } from "@/components/admin/admin-finance-workspace";
@@ -391,6 +392,8 @@ function TeacherDashboard({ userId }: { userId: string }) {
     () => classTeacherAssignments.find((a) => a.id === selectedAssignment),
     [classTeacherAssignments, selectedAssignment]
   );
+  const attendanceOptions = classTeacherAssignments.filter((assignment) => assignment.section_id)
+    .map((a) => ({ id: a.id, label: `${a.className} ${a.sectionName}`, coverage: Boolean(a.coverage_id) }));
 
   function refresh() {
     setBusy(true);
@@ -882,19 +885,12 @@ function TeacherDashboard({ userId }: { userId: string }) {
         <div className="mt-6 border-t border-[var(--border)] pt-5">
           <div className="grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
             <div>
-              <label className="block text-sm font-semibold">Attendance class
-                <select
-                  value={selectedAssignment}
-                  disabled={attendanceLocked || busy}
-                  onChange={(e) => setSelectedAssignment(e.target.value)}
-                  className="field mt-2"
-                >
-                  {!selectedAssignment && <option value="">No assigned class teacher section</option>}
-                  {classTeacherAssignments.filter((assignment) => assignment.section_id).map((a) => (
-                    <option key={a.id} value={a.id}>{a.className} {a.sectionName}{a.coverage_id ? " · Temporary attendance coverage" : " · Class teacher"}</option>
-                  ))}
-                </select>
-              </label>
+              <p className="text-sm font-semibold">Attendance class</p>
+              <div className="mt-2">
+                {!attendanceOptions.length ? <p className="text-sm muted">No class teacher section is assigned to you yet. Ask the school office.</p>
+                  : attendanceOptions.length === 1 ? <AttendanceClassBadge label={attendanceOptions[0].label} coverage={attendanceOptions[0].coverage} />
+                    : <AttendanceClassPicker options={attendanceOptions} value={selectedAssignment} disabled={attendanceLocked || busy} onChange={setSelectedAssignment} />}
+              </div>
               <div className="mt-3 space-y-2">
                 {assignments.slice(0, 6).map((a) => (
                   <div key={a.id} className="flex items-center gap-3 rounded-xl bg-[var(--surface-2)] p-3 text-sm">

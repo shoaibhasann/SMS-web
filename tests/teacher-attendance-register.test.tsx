@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttendanceContext } from "../lib/attendance/types";
@@ -126,7 +126,10 @@ describe("TeacherAttendanceRegister wiring", () => {
       rosterVersion: 0,
       onLockChange: expect.any(Function),
     }));
-    expect(screen.getByText("Priya Sharma · Class 6 / A")).toBeInTheDocument();
+    expect(screen.getByText("Class teacher")).toBeInTheDocument();
+    expect(screen.getByText("Class 6 / A")).toBeInTheDocument();
+    expect(screen.getByText("Priya Sharma")).toBeInTheDocument();
+    expect(screen.queryByRole("radiogroup", { name: "Attendance class" })).not.toBeInTheDocument();
     expect(queries.find((query) => query.table === "teachers")?.filters).toEqual([["profile_id", "auth-teacher"]]);
     expect(queries.find((query) => query.table === "academic_years")?.filters).toEqual([["school_id", "school-a"], ["is_current", true]]);
     expect(effectiveAssignments).toHaveBeenCalledWith(client);
@@ -181,9 +184,11 @@ describe("TeacherAttendanceRegister wiring", () => {
     effectiveAssignments.mockResolvedValue([permanentAssignment, coverageAssignment]);
     render(<TeacherAttendanceRegister />);
     await user.click(await screen.findByRole("button", { name: "Load saved register" }));
-    await user.selectOptions(screen.getByRole("combobox", { name: "Attendance class" }), "covered-assignment");
-    await screen.findByText("Priya Sharma · Class 7 / B");
-    expect(editorBoundary).toHaveBeenLastCalledWith(expect.objectContaining({ context: { ...expectedContext, classId: "class-covered", sectionId: "section-covered" } }));
+    const picker = screen.getByRole("radiogroup", { name: "Attendance class" });
+    expect(within(picker).getByRole("radio", { name: /Class 6 \/ A/ })).toBeChecked();
+    await user.click(within(picker).getByRole("radio", { name: /Class 7 \/ B/ }));
+    await waitFor(() => expect(editorBoundary).toHaveBeenLastCalledWith(expect.objectContaining({ context: { ...expectedContext, classId: "class-covered", sectionId: "section-covered" } })));
+    expect(within(screen.getByRole("radiogroup", { name: "Attendance class" })).getByRole("radio", { name: /Class 7 \/ B/ })).toBeChecked();
     expect(screen.queryByRole("button", { name: "Register Student" })).not.toBeInTheDocument();
   });
 
@@ -207,7 +212,7 @@ describe("TeacherAttendanceRegister wiring", () => {
     fireEvent.focus(window);
     await waitFor(() => expect(effectiveAssignments).toHaveBeenCalledTimes(2));
     expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
-    expect(screen.getByRole("combobox", { name: "Attendance class" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Refresh attendance access" })).toBeDisabled();
   });
 
   it("clears revoked access on the next periodic check even when attendance edits were open", async () => {
@@ -253,7 +258,7 @@ describe("TeacherAttendanceRegister wiring", () => {
     effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
     render(<TeacherAttendanceRegister />);
     await screen.findByRole("region", { name: "Attendance editor boundary" });
-    expect(screen.getByRole("combobox", { name: "Attendance class" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Refresh attendance access" })).toBeDisabled();
     await act(async () => { vi.advanceTimersByTime(30_000); });
     expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
     expect(screen.queryByText(/unsaved marks are kept/)).not.toBeInTheDocument();
@@ -279,7 +284,7 @@ describe("TeacherAttendanceRegister wiring", () => {
     await screen.findByRole("region", { name: "Attendance editor boundary" });
     fireEvent.change(screen.getByLabelText("Selected register date"), { target: { value: "2026-11-06" } });
     await act(async () => { vi.advanceTimersByTime(30_000); });
-    expect(await screen.findByRole("option", { name: "Class 7 / B · Temporary coverage" })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /Class 7 \/ B/ })).toBeInTheDocument();
     expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
     expect(getUser).toHaveBeenCalledTimes(1);
   });

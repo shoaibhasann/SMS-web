@@ -178,6 +178,14 @@ describe("complete filtered result reads", () => {
     await expect(loadAssessmentMarks(mock.api, ["exam-a"])).rejects.toThrow(/completeness could not be verified/i);
   });
 
+  it("returns rows like a result sheet: assessment order, then rank, then roll number", () => {
+    const marks = [mark("pupil-c", 12), mark("pupil-b", 18), mark("pupil-a", 18), { ...mark("pupil-a", 5), id: "mark-b-pupil-a", assessment_id: "exam-b" }];
+    const pupils = [{ ...pupil("pupil-a"), roll_no: "2" }, { ...pupil("pupil-b"), roll_no: "1" }, { ...pupil("pupil-c"), roll_no: "10" }];
+    expect(rankAssessmentMarks([exam(), exam("exam-b")], marks, pupils).map((row) => [row.assessment.id, row.rank, row.student.id])).toEqual([
+      ["exam-a", 1, "pupil-b"], ["exam-a", 1, "pupil-a"], ["exam-a", 3, "pupil-c"], ["exam-b", 1, "pupil-a"],
+    ]);
+  });
+
   it("rejects incomplete student mappings and uses competition ranks for ties", async () => {
     const mock = client({ students: [{ ...pupil(), school_id: "school-a" }] });
     await expect(loadAssessmentStudents(mock.api, "school-a", ["pupil-a", "pupil-b"])).rejects.toThrow(/student details/);
