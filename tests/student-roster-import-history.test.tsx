@@ -35,7 +35,6 @@ describe('student CSV import history', () => {
     save.mockResolvedValueOnce(1);
     render(<StudentRosterImport {...props} />);
     expect(await screen.findByText('No student CSV imports for this school.')).toBeInTheDocument();
-    await userEvent.click(screen.getByText('Import students from CSV'));
     const file = new File([csv], 'students.csv', { type: 'text/csv' });
     Object.defineProperty(file, 'arrayBuffer', { value: () => Promise.resolve(new TextEncoder().encode(csv).buffer) });
     fireEvent.change(screen.getByLabelText('Student CSV file'), { target: { files: [file] } });
