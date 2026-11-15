@@ -1,5 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ParentDirectoryWorkspace } from "../components/admin/parent-directory-workspace";
 import { StudentRosterWorkspace } from "../components/admin/student-roster-workspace";
 
@@ -26,6 +26,7 @@ const guardian = (n: number) => ({ id: id(10 + n), name: `Guardian ${n}`, code: 
 const student = { id: id(100), first_name: "Existing pupil", middle_name: null, last_name: null, admission_no: "ADM-EXISTING", roll_no: "1", enrollment_id: id(200) };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 function authChange() { for (const callback of api.listeners) callback("SIGNED_OUT", null); }
+const showModal = HTMLDialogElement.prototype.showModal;
 
 beforeEach(() => {
   vi.clearAllMocks(); api.listeners.clear(); window.localStorage.clear();
@@ -34,7 +35,13 @@ beforeEach(() => {
   api.setup.mockResolvedValue({ year: { id: yearId, name: "Current year", start_date: "2026-04-01", end_date: "2027-03-31", is_current: true }, years: [],
     classes: [{ id: classId, name: "Grade 6" }], sections: [{ id: sectionId, name: "A", class_id: classId }] });
   api.enrolled.mockResolvedValue([student]); api.admit.mockResolvedValue(id(300));
+  // jsdom has no modal dialogs: open it and let close() fire the close event like a browser.
+  HTMLDialogElement.prototype.showModal = function () {
+    this.open = true;
+    this.close = () => { this.open = false; this.dispatchEvent(new Event("close")); };
+  };
 });
+afterEach(() => { HTMLDialogElement.prototype.showModal = showModal; });
 
 describe("real school guardian directory", () => {
   it("ignores old browser demo records and searches real child/admission/mobile records without edit controls", async () => {
@@ -108,6 +115,9 @@ describe("real school guardian directory", () => {
 describe("dedicated real admissions view", () => {
   async function open() {
     render(<StudentRosterWorkspace userId={userId} view="admissions" />);
+    expect(screen.queryByRole("textbox", { name: "Admission number" })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Admit a student" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Admit a student" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Admission number" })).toBeEnabled());
     fireEvent.change(screen.getByRole("textbox", { name: "Admission number" }), { target: { value: "ADM-NEW" } });
     fireEvent.change(screen.getByRole("textbox", { name: "First name" }), { target: { value: "New pupil" } });
@@ -125,7 +135,8 @@ describe("dedicated real admissions view", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Student admitted and enrolled");
     expect(api.admit).toHaveBeenCalledWith(expect.anything(), { schoolId, academicYearId: yearId, classId, sectionId },
       { admissionNumber: "ADM-NEW", firstName: "New pupil", lastName: "" }, { userId, signal: expect.any(AbortSignal) });
-    expect(screen.getByRole("textbox", { name: "Admission number" })).toHaveValue("");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Admission number", hidden: true })).toHaveValue("");
     await waitFor(() => expect(api.enrolled).toHaveBeenCalledTimes(2));
   });
 
@@ -136,8 +147,13 @@ describe("dedicated real admissions view", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Admission could not be confirmed");
     expect(screen.getByRole("button", { name: "Admit student" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "Admission number" })).toHaveValue("ADM-NEW");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("button", { name: "Admit a student" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Reload roster" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Admit student" })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Admit a student" })).toBeEnabled());
+    fireEvent.click(screen.getByRole("button", { name: "Admit a student" }));
+    expect(screen.getByRole("button", { name: "Admit student" })).toBeEnabled();
+    expect(screen.getByRole("textbox", { name: "Admission number" })).toHaveValue("ADM-NEW");
     expect(api.admit).toHaveBeenCalledTimes(1);
   });
 
@@ -158,6 +174,31 @@ describe("dedicated real admissions view", () => {
     await act(async () => { pending.resolve(id(300)); await pending.promise; });
     expect(screen.queryByText("Student admitted and enrolled.")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Admission number" })).not.toBeInTheDocument();
+  });
+
+  it("opens admission and CSV import as modal dialogs from links and holds the import dialog while its save is unresolved", async () => {
+    render(<StudentRosterWorkspace userId={userId} />);
+    expect(await screen.findByText("Existing pupil")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Admit a student" }));
+    const admit = screen.getByRole("dialog", { name: "Admit a student" });
+    expect(within(admit).getByRole("textbox", { name: "First name" })).toBeEnabled();
+    fireEvent.click(within(admit).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Import students from CSV" }));
+    const upload = screen.getByRole("dialog", { name: "Import students from CSV" });
+    expect(within(upload).getByText("Reviewed student CSV import")).toBeInTheDocument();
+    const { onBusyChange } = api.import.mock.calls[0][0] as { onBusyChange: (busy: boolean) => void };
+    act(() => onBusyChange(true));
+    expect(within(upload).getByRole("button", { name: "Close" })).toBeDisabled();
+    expect(fireEvent(upload, new Event("cancel", { cancelable: true }))).toBe(false);
+    expect(screen.getByRole("button", { name: "Admit a student" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Import students from CSV" })).toBeEnabled();
+    expect((api.import.mock.lastCall?.[0] as { onBusyChange: unknown }).onBusyChange).toBe(onBusyChange);
+    act(() => onBusyChange(false));
+    fireEvent.click(within(upload).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("preserves full placement/withdrawal controls in the existing Students view", async () => {
