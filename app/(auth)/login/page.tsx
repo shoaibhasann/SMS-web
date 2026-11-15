@@ -9,12 +9,16 @@ import { createClient } from "@/lib/supabase/client";
 import { AdminEmailOtpForm } from "@/components/auth/admin-email-otp-form";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
 import { BrandLogo } from "@/components/ui/brand-logo";
-import { dashboardStepUpPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { guardianEmailContinuation } from "@/lib/auth/redirect";
+import { mfaPath, readStaffMfaStatus, safeLoginNext } from "@/lib/auth/staff-mfa";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 const methods = [["email", "Email & password"], ["mobile", "Guardian mobile"], ["admin-code", "Admin email code"]] as const;
 const emailCodeEnabled = process.env.NEXT_PUBLIC_ADMIN_EMAIL_OTP_ENABLED === "true";
 
 const callbackErrors = new Set(["auth_callback_failed", "auth_callback_missing_code"]);
+// Where a protected page sent the visitor (allowlisted, fragment-free). Read on demand so /login stays static.
+const nextPath = () => safeLoginNext(new URLSearchParams(window.location.search).get("next"));
 
 // Allowlisted codes only: the URL value is never echoed.
 function CallbackNotice() {
@@ -109,7 +113,7 @@ export default function LoginPage() {
         setLoading(false);
         return;
       }
-      router.replace("/dashboard");
+      router.replace(nextPath());
       router.refresh();
     } catch {
       setError("We couldn’t connect. Check your connection and try again.");
@@ -126,7 +130,7 @@ export default function LoginPage() {
     const status = await readStaffMfaStatus(supabase, resumeUserId, controller.signal).catch(() => null);
     resumeAttempt.current = null;
     if (!controller.signal.aborted && status?.action === "challenge" && status.current_aal === "aal1") {
-      router.replace(dashboardStepUpPath);
+      router.replace(`${mfaPath(nextPath())}&stepup=1`);
       return;
     }
     if (!controller.signal.aborted) setResumeUserId(undefined);
@@ -141,9 +145,12 @@ export default function LoginPage() {
     dismissCallback();
 
     try {
+      // The default stays query-free so existing Redirect URL allowlist entries keep matching; the callback
+      // treats guardianEmailContinuation as a contact change, so never forward it from here.
+      const next = nextPath();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/auth/callback` },
+        options: { redirectTo: `${window.location.origin}/auth/callback${next === "/dashboard" || next === guardianEmailContinuation ? "" : `?next=${encodeURIComponent(next)}`}` },
       });
       if (error) {
         setError("Google sign-in couldn’t open. Please try again.");
@@ -195,16 +202,16 @@ export default function LoginPage() {
             <h1 id="login-heading" className="login-heading">Welcome back</h1>
             <p className="login-intro">Sign in to your school workspace.</p>
 
-            <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}>
+            <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}><SlidingIndicator className="rounded-lg bg-[var(--surface)] shadow-sm [--slider-disabled-opacity:.6]" />
               {(emailCodeEnabled ? methods : methods.slice(0, 2)).map(([value, title]) => <button key={value} type="button"
                 aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); dismissCallback(); }}
                 className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{title}</button>)}
             </div>
 
             {method === "admin-code" ? <AdminEmailOtpForm onBusyChange={setCodeBusy} onVerified={() => {
-              window.location.replace("/dashboard");
+              window.location.replace(nextPath());
             }} /> : method === "mobile" ? <GuardianPhoneOtpForm purpose="login" onBusyChange={setCodeBusy} onVerified={() => {
-              router.replace("/dashboard"); router.refresh();
+              router.replace(nextPath()); router.refresh();
             }} /> : <>
             <form onSubmit={signIn} className="login-form" aria-busy={busy}>
               <div>

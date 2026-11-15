@@ -1,20 +1,21 @@
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
 import { RoleDashboard } from "../components/dashboard/role-dashboard";
 import { canAccessModule, getNavigationModules, getTeacherNavigationModules, getVisibleModules, modules, resolveModuleRole } from "../lib/modules";
 import { resolveUiRole } from "../lib/auth/roles";
 
-const { getUser, readRoles, readProfile, onAuthStateChange, routeSecurity } = vi.hoisted(() => ({
-  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(), routeSecurity: vi.fn(),
+const { getUser, readRoles, readProfile, onAuthStateChange, routeSecurity, replace } = vi.hoisted(() => ({
+  getUser: vi.fn(), readRoles: vi.fn(), readProfile: vi.fn(), onAuthStateChange: vi.fn(), routeSecurity: vi.fn(), replace: vi.fn(),
 }));
 let currentModule = "";
 vi.mock("@/lib/auth/staff-mfa", async (original) => ({ ...await original<typeof import("@/lib/auth/staff-mfa")>(), readStaffMfaStatus: routeSecurity }));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: currentModule }),
   useSearchParams: () => new URLSearchParams(),
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace }),
+  notFound: () => { throw new Error("NEXT_HTTP_ERROR_FALLBACK;404"); },
 }));
 vi.mock("@/lib/supabase/client", () => ({
   createClient: () => ({
@@ -68,12 +69,20 @@ describe("role navigation lists only implemented workspaces", () => {
     ["reception_staff", "students"], ["reception_staff", "events"], ["reception_staff", "documents"],
     ["principal", "library"], ["principal", "exams"], ["accountant", "students"], ["accountant", "reports"],
     ["student", "fees"], ["student", "profile"], ["parent", "events"],
-  ])("keeps %s on /modules/%s inside the shell instead of the dead-end placeholder", async (role, module) => {
+  ])("sends %s on /modules/%s to the dashboard instead of the dead-end placeholder", async (role, module) => {
     rolesFor(role); currentModule = module;
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access to this module.");
-    expect(screen.getByRole("main", { name: /shell$/ })).toContainElement(screen.getByRole("alert"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.queryByRole("main", { name: /shell$/ })).not.toBeInTheDocument();
     expect(screen.queryByText("This module is ready for its dedicated management screen.")).not.toBeInTheDocument();
+  });
+
+  it("hands an unknown /modules slug to the app 404 before any auth read", () => {
+    currentModule = "not-a-module";
+    expect(() => render(<ModulePage />)).toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+    expect(routeSecurity).not.toHaveBeenCalled();
+    expect(getUser).not.toHaveBeenCalled();
+    expect(onAuthStateChange).not.toHaveBeenCalled();
   });
 
   it("shows Reception only working dashboard tiles", () => {
@@ -95,7 +104,7 @@ describe("teacher fee module", () => {
   it("denies /modules/fees for a teacher instead of claiming there are no records", async () => {
     rolesFor("teacher"); currentModule = "fees";
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access to this module.");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Teacher module view" })).not.toBeInTheDocument();
   });
 });
@@ -148,7 +157,8 @@ describe("staff with several roles", () => {
   it("still denies /modules/exams to a principal who does not teach", async () => {
     rolesFor("principal"); currentModule = "exams";
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access to this module.");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.queryByRole("main", { name: /shell$/ })).not.toBeInTheDocument();
   });
 
   it.each([["invoices", "Office finance workspace", "finance"], ["fees", "Office finance workspace", "finance"], ["exams", "Teacher module view", "teacher"]])(
