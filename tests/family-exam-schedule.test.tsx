@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -14,7 +14,7 @@ let query: URLSearchParams;
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: "exams" }), useSearchParams: () => query, useRouter: () => router,
 }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess: readAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: readAccess }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: onAuth } }) }));
 vi.mock("@/lib/notifications/family", async (original) => ({
   ...await original<typeof import("../lib/notifications/family")>(),
@@ -157,5 +157,18 @@ describe("family exam schedule", () => {
     expect(await screen.findByText("This exam is no longer available.")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: other.name })).not.toBeInTheDocument();
     expect(loadList).not.toHaveBeenCalled();
+  });
+
+  it("keeps the shown exam on focus and tab return, ignoring a replayed initial session but not a sign-out", async () => {
+    render(<FamilyExamSchedule assessmentId={exam.id} role="student" userId={actor} />);
+    const heading = await screen.findByRole("heading", { name: exam.name });
+    fireEvent(window, new Event("focus"));
+    fireEvent(document, new Event("visibilitychange"));
+    await act(async () => onAuth.mock.calls.at(-1)![0]("INITIAL_SESSION", null));
+    expect(loadExam).toHaveBeenCalledOnce();
+    expect(screen.getByRole("heading", { name: exam.name })).toBe(heading);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await act(async () => onAuth.mock.calls.at(-1)![0]("SIGNED_OUT", null));
+    expect(screen.getByRole("alert")).toHaveTextContent("Your sign-in changed.");
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -13,7 +13,7 @@ let query: URLSearchParams;
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: "homework" }), useSearchParams: () => query, useRouter: () => router,
 }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess: readAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: readAccess }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: onAuth } }) }));
 vi.mock("@/lib/notifications/family", async (original) => ({
   ...await original<typeof import("../lib/notifications/family")>(), loadFamilyHomework: load,
@@ -165,6 +165,17 @@ describe("exact homework links", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Homework could not be loaded.");
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByRole("heading", { name: first.title })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the homework on focus and tab return and ignores a replayed initial session", async () => {
+    render(<FamilyHomeworkDetail activityId={first.id} userId={actor} role="parent" />);
+    const heading = await screen.findByRole("heading", { name: first.title });
+    fireEvent(window, new Event("focus"));
+    fireEvent(document, new Event("visibilitychange"));
+    await act(async () => onAuth.mock.calls.at(-1)![0]("INITIAL_SESSION", null));
+    expect(load).toHaveBeenCalledOnce();
+    expect(screen.getByRole("heading", { name: first.title })).toBe(heading);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

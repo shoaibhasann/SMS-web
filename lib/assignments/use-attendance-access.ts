@@ -17,21 +17,19 @@ export function hasAttendanceScope(rows: EffectiveAttendanceAssignment[], select
 
 /**
  * Revalidate authorization without disturbing a clean or dirty register while access is unchanged.
- * While `locked` (unsaved, saving or loading edits), a failed check keeps the register and returns
- * `true` until a later check succeeds; only a returned list without the selected scope revokes it.
+ * A failed check keeps the register and returns `true` until a later check succeeds; only a
+ * returned list without the selected scope revokes it.
  */
-export function useAttendanceAccessRevalidation({ client, enabled, assignments, locked, onChanged, onUnavailable }: {
+export function useAttendanceAccessRevalidation({ client, enabled, assignments, onChanged }: {
   client: SupabaseClient;
   enabled: boolean;
   assignments: EffectiveAttendanceAssignment[];
-  locked: boolean;
   onChanged: (current: EffectiveAttendanceAssignment[]) => void;
-  onUnavailable: () => void;
 }) {
-  const callbacks = useRef({ onChanged, onUnavailable, locked });
+  const callbacks = useRef({ onChanged });
   const [unverified, setUnverified] = useState(false);
   const signature = scopeSignature(assignments);
-  useEffect(() => { callbacks.current = { onChanged, onUnavailable, locked }; }, [onChanged, onUnavailable, locked]);
+  useEffect(() => { callbacks.current = { onChanged }; }, [onChanged]);
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
@@ -45,9 +43,7 @@ export function useAttendanceAccessRevalidation({ client, enabled, assignments, 
         setUnverified(false);
         if (scopeSignature(current) !== signature) callbacks.current.onChanged(current);
       } catch {
-        if (controller.signal.aborted) return;
-        if (callbacks.current.locked) setUnverified(true);
-        else { setUnverified(false); callbacks.current.onUnavailable(); }
+        if (!controller.signal.aborted) setUnverified(true);
       } finally { pending = false; }
     };
     const refresh = () => { void check(); };

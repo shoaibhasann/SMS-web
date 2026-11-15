@@ -55,18 +55,6 @@ function OwnSchoolLateAlertSettings({ client, schoolId, userId, onLock }: Props 
   }, [client, userId, schoolId, revision, blocked, sessionChanged, invalidate]);
 
   useEffect(() => {
-    if (sessionChanged) return;
-    const refresh = () => {
-      if (document.visibilityState !== "visible") return;
-      read.current?.abort(); write.current?.abort(); write.current = null; setSaving(false); setBlocked(undefined); setRevision(value => value + 1);
-      if (intent) setNotice({ error: true, text: "The previous save may already have completed. Its exact request is retained; check the refreshed policy and retry the same save to confirm it." });
-      else { setDraft(undefined); setNotice(dirty ? { error: false, text: "Saved policy refreshed. Unsaved Late alert changes were cleared when you returned." } : undefined); }
-    };
-    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", refresh);
-    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [dirty, intent, sessionChanged]);
-
-  useEffect(() => {
     if (!dirty && !locked) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", warn); return () => window.removeEventListener("beforeunload", warn);

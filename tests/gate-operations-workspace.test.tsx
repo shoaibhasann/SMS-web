@@ -116,16 +116,16 @@ describe("School gate operations workspace", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Gate access must be checked"); expect(screen.queryByRole("region", { name: "Gate event receipts" })).not.toBeInTheDocument(); expect(screen.queryByText(pupil.student_name)).not.toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Retry same gate action" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Retry gate access" })); await ready();
   });
-  it("clears credentials on returning focus and rechecks saved device access", async () => {
-    setup.mockResolvedValue(emptySetup()); render(<GateOperationsWorkspace {...props} />); await ready(); fillDevice(); setup.mockResolvedValue(gateSetup()); fireEvent.click(screen.getByRole("button", { name: "Register device" })); await screen.findByLabelText("Device secret"); const priorLoads = setup.mock.calls.length;
-    act(() => window.dispatchEvent(new Event("focus"))); expect(screen.queryByLabelText("Device secret")).not.toBeInTheDocument(); expect(screen.getByRole("alert")).toHaveTextContent("one-time secret was cleared"); await waitFor(() => expect(setup.mock.calls.length).toBeGreaterThan(priorLoads));
+  it("keeps the one-time secret and loaded setup when focus or visibility returns", async () => {
+    setup.mockResolvedValue(emptySetup()); const { container } = render(<GateOperationsWorkspace {...props} />); await ready(); fillDevice(); setup.mockResolvedValue(gateSetup()); fireEvent.click(screen.getByRole("button", { name: "Register device" })); const field = await screen.findByLabelText("Device secret"); await ready(); const loads = setup.mock.calls.length + events.mock.calls.length;
+    act(() => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+    expect(screen.getByLabelText("Device secret")).toBe(field); expect(field).toHaveValue(secret); expect(screen.queryByRole("alert")).not.toBeInTheDocument(); expect(container.querySelector("[data-skeleton]")).not.toBeInTheDocument(); expect(setup.mock.calls.length + events.mock.calls.length).toBe(loads);
   });
-  it("keeps a new focused-session action guarded when an aborted old write settles late", async () => {
-    setup.mockResolvedValue(emptySetup()); const old = pending<{ revoked_at: null }>(), fresh = pending<{ revoked_at: null }>(); save.mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
-    render(<GateOperationsWorkspace {...props} />); await ready(); fillDevice(); fireEvent.click(screen.getByRole("button", { name: "Register device" })); const oldSignal = save.mock.calls[0][3] as AbortSignal;
-    act(() => window.dispatchEvent(new Event("focus"))); expect(oldSignal.aborted).toBe(true); await ready(); fillDevice(); fireEvent.click(screen.getByRole("button", { name: "Register device" })); const freshSignal = save.mock.calls[1][3] as AbortSignal;
-    await act(async () => old.resolve({ revoked_at: null })); expect(freshSignal.aborted).toBe(false); expect(screen.queryByLabelText("Device secret")).not.toBeInTheDocument(); expect(screen.getByRole("button", { name: "Registering…" })).toBeDisabled();
-    await act(async () => fresh.resolve({ revoked_at: null })); expect(await screen.findByLabelText("Device secret")).toHaveValue(secret); expect(save).toHaveBeenCalledTimes(2);
+  it("keeps a pending device write running when focus or visibility returns", async () => {
+    setup.mockResolvedValue(emptySetup()); const result = pending<{ revoked_at: null }>(); save.mockReturnValue(result.promise);
+    render(<GateOperationsWorkspace {...props} />); await ready(); fillDevice(); fireEvent.click(screen.getByRole("button", { name: "Register device" })); const signal = save.mock.calls[0][3] as AbortSignal;
+    act(() => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); }); expect(signal.aborted).toBe(false); expect(screen.getByRole("button", { name: "Registering…" })).toBeDisabled(); expect(screen.getByLabelText("Device name")).toHaveValue("Main gate");
+    setup.mockResolvedValue(gateSetup()); await act(async () => result.resolve({ revoked_at: null })); expect(await screen.findByLabelText("Device secret")).toHaveValue(secret); expect(save).toHaveBeenCalledTimes(1);
   });
   it("clears a confirmed secret when the post-save access check fails", async () => {
     setup.mockResolvedValueOnce(emptySetup()); const refresh = pending<GateSetup>(); setup.mockReturnValueOnce(refresh.promise); render(<GateOperationsWorkspace {...props} />); await ready(); fillDevice(); fireEvent.click(screen.getByRole("button", { name: "Register device" })); await screen.findByLabelText("Device secret");

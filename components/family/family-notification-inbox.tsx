@@ -69,18 +69,12 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
   useEffect(() => {
     if (sessionChanged) return;
     const refresh = () => { setCursor(null); setRevision((value) => value + 1); };
-    const visible = () => { if (document.visibilityState === "visible") refresh(); };
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ userId?: unknown; role?: unknown; keepCursor?: unknown }>).detail;
       if (detail?.userId === userId && detail.role === role) { if (detail.keepCursor === true) setRevision((value) => value + 1); else refresh(); }
     };
-    document.addEventListener("visibilitychange", visible);
-    window.addEventListener("focus", refresh);
     window.addEventListener(familyNotificationsChangedEvent, changed);
-    return () => {
-      document.removeEventListener("visibilitychange", visible); window.removeEventListener("focus", refresh);
-      window.removeEventListener(familyNotificationsChangedEvent, changed);
-    };
+    return () => window.removeEventListener(familyNotificationsChangedEvent, changed);
   }, [role, userId, sessionChanged]);
 
   function refresh() { setMarkError(undefined); setCursor(null); setRevision((value) => value + 1); }

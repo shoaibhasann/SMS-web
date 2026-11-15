@@ -70,7 +70,7 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
   const [filters, setFilters] = useState<Filters>({ yearId: "", month: null, classId: null, sectionId: null });
   const [loaded, setLoaded] = useState<{ key: string; data?: OfficeAttendanceReport; error?: string }>();
   const [pdf, setPdf] = useState<{ key: string; busy?: boolean; saved?: boolean; error?: string }>();
-  const contextRead = useRef<AbortController | null>(null), reportRead = useRef<AbortController | null>(null), pdfRead = useRef<AbortController | null>(null), restored = useRef(false), loadedAt = useRef(0);
+  const contextRead = useRef<AbortController | null>(null), reportRead = useRef<AbortController | null>(null), pdfRead = useRef<AbortController | null>(null), restored = useRef(false);
   const context = catalog?.revision === revision ? catalog.data : undefined, currentCatalog = catalog?.revision === revision ? catalog : undefined;
   const key = `${revision}:${filters.yearId}:${filters.month ?? "default"}:${filters.classId ?? "all"}:${filters.sectionId ?? "all"}`;
   const current = loaded?.key === key ? loaded : undefined, report = context ? current?.data : undefined, currentPdf = pdf?.key === key ? pdf : undefined;
@@ -84,12 +84,6 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
     });
     return () => { contextRead.current?.abort(); reportRead.current?.abort(); pdfRead.current?.abort(); subscription.unsubscribe(); };
   }, [client, userId]);
-  useEffect(() => {
-    // Avoid rerunning the school-wide report on every alt-tab; Refresh still reloads on demand.
-    const update = () => { if (document.visibilityState === "visible" && Date.now() - loadedAt.current >= 5 * 60_000) { contextRead.current?.abort(); reportRead.current?.abort(); pdfRead.current?.abort(); setRevision(value => value + 1); } };
-    window.addEventListener("focus", update); document.addEventListener("visibilitychange", update);
-    return () => { window.removeEventListener("focus", update); document.removeEventListener("visibilitychange", update); };
-  }, []);
   useEffect(() => {
     if (sessionChanged) return;
     const controller = new AbortController(); contextRead.current = controller;
@@ -105,7 +99,7 @@ function OwnOfficialAttendanceReports({ client, userId, role }: Props & { client
     const controller = new AbortController(); reportRead.current = controller;
     loadOfficeAttendanceReport(client, userId, { schoolId: context.school_id, academicYearId: year.id, month: filters.month, classId: filters.classId, sectionId: filters.sectionId }, controller.signal).then(data => {
       if (controller.signal.aborted) return;
-      verifyOfficeAttendanceContext(data, context); loadedAt.current = Date.now(); setLoaded({ key, data });
+      verifyOfficeAttendanceContext(data, context); setLoaded({ key, data });
     }).catch((failure: unknown) => {
       if (controller.signal.aborted) return;
       if (failure instanceof OfficeAttendanceReportError && failure.code === "access") { contextRead.current?.abort(); setCatalog({ revision, error: failure.message }); }

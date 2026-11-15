@@ -5,15 +5,14 @@ import { getCurrentTeacherAssignments, type TeachingAssignment } from "./academi
 import { academicAssignmentSignature } from "./academic-permissions";
 
 /** Keep authoring controls aligned with live grants without clearing unchanged drafts. */
-export function useAcademicAssignmentRevalidation({ enabled, assignments, onChanged, onUnavailable }: {
+export function useAcademicAssignmentRevalidation({ enabled, assignments, onChanged }: {
   enabled: boolean;
   assignments: TeachingAssignment[];
   onChanged: (assignments: TeachingAssignment[]) => void;
-  onUnavailable: () => void;
 }) {
-  const callbacks = useRef({ onChanged, onUnavailable });
+  const callbacks = useRef({ onChanged });
   const signature = academicAssignmentSignature(assignments);
-  useEffect(() => { callbacks.current = { onChanged, onUnavailable }; }, [onChanged, onUnavailable]);
+  useEffect(() => { callbacks.current = { onChanged }; }, [onChanged]);
   useEffect(() => {
     if (!enabled) return;
     let active = true;
@@ -25,7 +24,7 @@ export function useAcademicAssignmentRevalidation({ enabled, assignments, onChan
         const next = await getCurrentTeacherAssignments({ currentYearOnly: true });
         if (active && academicAssignmentSignature(next) !== signature) callbacks.current.onChanged(next);
       } catch {
-        if (active) callbacks.current.onUnavailable();
+        // Keep the page as it is and let the next check retry; a revoked grant arrives as a changed list, and RLS rejects unauthorized writes.
       } finally { pending = false; }
     };
     const refresh = () => { void check(); };

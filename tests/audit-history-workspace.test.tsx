@@ -142,13 +142,12 @@ describe("read-only school audit workspace", () => {
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 
-  it("refreshes real history on returning to the page and cleans up subscriptions", async () => {
+  it("keeps loaded history on returning to the page and cleans up subscriptions", async () => {
     const unsubscribe = vi.fn(); subscribe.mockReturnValue({ data: { subscription: { unsubscribe } } });
-    const view = render(<AuditHistoryWorkspace userId="admin" />); await screen.findByText("Leave requested");
-    fireEvent.focus(window);
-    await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
+    const view = render(<AuditHistoryWorkspace userId="admin" />); const row = await screen.findByText("Leave requested");
+    fireEvent.focus(window); fireEvent(document, new Event("visibilitychange"));
+    expect(screen.getByText("Leave requested")).toBe(row); expect(view.container.querySelector("[data-skeleton]")).not.toBeInTheDocument(); expect(list).toHaveBeenCalledTimes(1);
     view.unmount(); expect(unsubscribe).toHaveBeenCalledTimes(1);
-    fireEvent.focus(window); expect(list).toHaveBeenCalledTimes(2);
   });
 
   it("does not request school history when access is denied and allows an explicit retry", async () => {

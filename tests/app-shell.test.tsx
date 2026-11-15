@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppShell } from "../components/layout/app-shell";
 import { StaffMfaRequiredError, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { SchoolAccessDeniedError } from "@/lib/auth/access";
 import { roleLabel } from "@/lib/auth/roles";
 import { modules, roleLabels } from "@/lib/modules";
 
@@ -10,7 +11,7 @@ const { getUser, signOut, unsubscribe, subscribe, replace, refresh, push, shellA
 }));
 const shellRouter = { replace, refresh, push };
 vi.mock("next/navigation", () => ({ usePathname: () => "/dashboard", useRouter: () => shellRouter }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess: shellAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: shellAccess }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { getUser, signOut, onAuthStateChange: subscribe } }) }));
 vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <span>Theme options</span> }));
 vi.mock("@/components/notifications/family-notification-bell", () => ({
@@ -80,7 +81,7 @@ describe("AppShell session lifecycle", () => {
     expect(screen.getByText("Private school content")).toBeVisible();
   });
 
-  it("replaces protected shell controls during a recheck and preserves verified in-progress input", async () => {
+  it("keeps the verified page and in-progress input while it re-checks access on return to the tab", async () => {
     const access = { userId: "admin-a", profileSchoolId: "school", roles: [{ role: "school_admin", school_id: "school" }] };
     getUser.mockResolvedValue({ data: { user: { id: "admin-a", email: "admin-a@example.test" } }, error: null });
     shellAccess.mockResolvedValueOnce(access);
@@ -91,20 +92,39 @@ describe("AppShell session lifecycle", () => {
     fireEvent.change(input, { target: { value: "Unsaved note" } });
 
     const pending = deferred<typeof access>();
-    shellAccess.mockReturnValueOnce(pending.promise);
+    shellAccess.mockReturnValue(pending.promise);
     fireEvent.focus(window);
-    expect(screen.getByRole("status")).toHaveTextContent("Verifying current account access…");
-    expect(container.querySelector('[data-skeleton="sidebar"]')).toBeInTheDocument();
-    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Account options" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(fireEvent.keyDown(window, { key: "k", ctrlKey: true })).toBe(true);
-    expect(input).not.toBeVisible();
+    // Supabase repeats SIGNED_IN for the same user every time the tab becomes visible.
+    act(() => authChanged("SIGNED_IN", { user: { id: "admin-a", email: "admin-a@example.test" } }));
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(screen.queryByText("Verifying current account access…")).not.toBeInTheDocument();
+    expect(container.querySelector('[data-skeleton="sidebar"]')).not.toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: "Workspace pages" })).toBeVisible();
+    expect(input).toBeVisible();
 
     await act(async () => pending.resolve(access));
     expect(screen.getByRole("textbox", { name: "Attendance note" })).toBe(input);
     expect(input).toHaveValue("Unsaved note");
-    expect(container.querySelector('[data-skeleton="sidebar"]')).not.toBeInTheDocument();
+  });
+
+  it("keeps the verified page when a background re-check cannot reach the server", async () => {
+    render(<AppShell role="teacher">Protected teacher workspace</AppShell>);
+    await screen.findByRole("button", { name: "Find a page" });
+    shellAccess.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    fireEvent.focus(window);
+    await waitFor(() => expect(shellAccess).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(screen.getByText("Protected teacher workspace")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Account security unavailable" })).not.toBeInTheDocument();
+  });
+
+  it("still replaces the page when a re-check on return finds the account inactive", async () => {
+    render(<AppShell role="teacher">Protected teacher workspace</AppShell>);
+    await screen.findByRole("button", { name: "Find a page" });
+    shellAccess.mockRejectedValueOnce(new SchoolAccessDeniedError("Your school account is inactive or unavailable."));
+    fireEvent.focus(window);
+    await screen.findByRole("heading", { name: "Account security unavailable" });
+    expect(screen.queryByText("Protected teacher workspace")).not.toBeInTheDocument();
   });
 
   it("removes the protected content when a recheck finds no session before redirecting", async () => {

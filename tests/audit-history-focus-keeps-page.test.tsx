@@ -25,22 +25,18 @@ it("keeps the current page when the window regains focus; only Refresh history r
   render(<AuditHistoryWorkspace userId="admin" />);
   await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled());
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
-  await screen.findByText("Second page event");
+  const row = await screen.findByText("Second page event");
 
   fireEvent.focus(window);
-  await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
-  expect(list.mock.lastCall?.[3]).toEqual(cursor);
-  expect(await screen.findByText("Second page event")).toBeInTheDocument();
+  fireEvent(document, new Event("visibilitychange"));
+  expect(screen.getByText("Second page event")).toBe(row);
   expect(screen.getByText(/Page 2/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
-
-  fireEvent(document, new Event("visibilitychange"));
-  await waitFor(() => expect(list).toHaveBeenCalledTimes(4));
-  expect(list.mock.lastCall?.[3]).toEqual(cursor);
-  expect(await screen.findByText(/Page 2/)).toBeInTheDocument();
+  expect(document.querySelector("[data-skeleton]")).not.toBeInTheDocument();
+  expect(list).toHaveBeenCalledTimes(2);
 
   fireEvent.click(screen.getByRole("button", { name: "Refresh history" }));
-  await waitFor(() => expect(list).toHaveBeenCalledTimes(5));
+  await waitFor(() => expect(list).toHaveBeenCalledTimes(3));
   expect(list.mock.lastCall?.[3]).toBeNull();
   expect(await screen.findByText(/Page 1/)).toBeInTheDocument();
 });

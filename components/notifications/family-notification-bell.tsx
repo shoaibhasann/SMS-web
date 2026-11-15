@@ -35,14 +35,12 @@ function OwnFamilyNotificationBell({ userId, role, className }: { userId: string
   useEffect(() => {
     if (sessionChanged) return;
     const refresh = () => setVersion((value) => value + 1);
-    const visible = () => { if (document.visibilityState === "visible") refresh(); };
     const changed = (event: Event) => {
       const detail = (event as CustomEvent<{ userId?: unknown; role?: unknown }>).detail;
       if (detail?.userId === userId && detail.role === role) refresh();
     };
-    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", visible);
     window.addEventListener(familyNotificationsChangedEvent, changed);
-    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", visible); window.removeEventListener(familyNotificationsChangedEvent, changed); };
+    return () => window.removeEventListener(familyNotificationsChangedEvent, changed);
   }, [role, userId, sessionChanged]);
 
   if (sessionChanged) return null;

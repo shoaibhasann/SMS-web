@@ -88,16 +88,12 @@ export function TeacherAttendanceRegister() {
     setRegistrationOpen(false); setStudentName(""); setRegistrationMessage("");
   }
 
-  const accessUnverified = useAttendanceAccessRevalidation({ client, enabled: accessLoaded, assignments: choices, locked: editorLock === true,
+  const accessUnverified = useAttendanceAccessRevalidation({ client, enabled: accessLoaded, assignments: choices,
     onChanged: (current) => {
       // Keep the open register (and its draft) when only other scopes changed.
       const year = register?.context.academicYearId;
       if (register && hasAttendanceScope(current, register.assignment)) setChoices(current.filter((item) => item.academic_year_id === year));
       else refreshAccess();
-    },
-    onUnavailable: () => {
-      setRegister(null); setChoices([]); setRegistrationOpen(false);
-      setLoadError("Your attendance access could not be verified. Refresh to check your access.");
     },
   });
 
@@ -143,7 +139,7 @@ export function TeacherAttendanceRegister() {
           <button type="button" disabled={attendanceLocked || registering} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50" onClick={refreshAccess}>Refresh attendance access</button>
         </div>
       </header>
-      {accessUnverified && <p role="status" className="rounded-xl border border-amber-500/40 p-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your unsaved marks are kept and the check will retry. Save once the connection returns.</p>}
+      {accessUnverified && <p role="status" className="rounded-xl border border-amber-500/40 p-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your register is kept and we will try again shortly.</p>}
       {choices.length > 1 && <section className="card space-y-3 p-4" aria-label="Your registers">
         <p className="text-sm font-semibold">You can mark attendance for {choices.length} classes</p>
         <AttendanceClassPicker value={register.assignment.id} disabled={attendanceLocked || registering} onChange={openRegister}
