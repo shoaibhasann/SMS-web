@@ -10,6 +10,7 @@ import {
   type FeeBatchKind, type FeeBatchPayload, type FeeBatchPreview, type FeeBatchReceipt,
 } from "@/lib/finance/fee-batches";
 import { LoadingState } from "@/components/ui/skeleton";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type Structure = { id: string; name: string; amount: number; frequency: string; academic_year_id: string; class_id: string | null };
 type ClassOption = { id: string; name: string; is_active: boolean };
@@ -334,7 +335,7 @@ function ScopedFeeBatchWorkspace({ client, schoolId, academicYearId, userId, str
           <button ref={retryButton} type="button" className={primaryClass} disabled={posting || disabled} onClick={() => void post()}>{posting ? "Recovering batch…" : "Retry same batch"}</button>
         </div>}
         {!attempt && <>
-        <div role="group" aria-label="Fee batch type" className="flex flex-wrap gap-2">
+        <div role="group" aria-label="Fee batch type" className="flex flex-wrap gap-2"><SlidingIndicator className="rounded-xl border border-blue-600 bg-blue-500/10 [--slider-disabled-opacity:.5]" />
           {([["monthly", "Monthly demands"], ["opening", "Opening balances"]] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={kind === value} disabled={locked}
             onClick={() => { setKind(value); clearPreview(); }} className={`${buttonClass} ${kind === value ? "border-blue-600 bg-blue-500/10 text-blue-800 dark:text-blue-200" : ""}`}>{label}</button>)}
         </div>
