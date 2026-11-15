@@ -20,7 +20,7 @@ type Client = ReturnType<typeof createClient>;
 type Role = "teacher" | "admin" | "principal" | "parent" | "student";
 type Load<T> = { data: T; error?: never } | { data?: never; error: string };
 type Notice = { error: boolean; text: string };
-type TeacherPreview = { kind: "source"; source: PublicationPreview } | { kind: "pending" };
+type TeacherPreview = { kind: "source"; source: PublicationPreview } | { kind: "pending" | "published" };
 type SchoolAccess = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50";
 const primary = `${button} border-transparent bg-[var(--primary)] text-white dark:text-slate-950`;
@@ -84,18 +84,33 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
     let active = true;
     async function loadPreview() {
       try {
+        let publishedId: string | undefined;
         for (let offset = 0; active; offset += publicationPageSize) {
-          const page = await listResultSubmissions(client, null, "pending", offset);
+          const page = await listResultSubmissions(client, null, null, offset);
           if (!active) return;
-          if (page.rows.some((row) => row.assessment_id === selectedId)) {
+          // Requests are ordered newest first, and an assessment can have only one pending request.
+          const latest = page.rows.find((row) => row.assessment_id === selectedId && (row.status === "pending" || row.status === "published"));
+          if (latest?.status === "pending") {
             setPreview({ key, value: { data: { kind: "pending" } } });
             return;
+          }
+          if (latest?.status === "published") {
+            publishedId = latest.id;
+            break;
           }
           if (offset + page.rows.length >= page.total_count) break;
           if (page.rows.length !== publicationPageSize) throw new Error("The request list changed while loading.");
         }
-        const source = await previewPublication(client, selectedId);
-        if (active) setPreview({ key, value: { data: { kind: "source", source } } });
+        const [source, published] = await Promise.all([
+          previewPublication(client, selectedId),
+          publishedId ? getResultSubmission(client, publishedId) : null,
+        ]);
+        if (!active) return;
+        if (published && (published.status !== "published" || published.assessment_id !== selectedId || published.school_id !== source.metadata.school_id)) {
+          throw new Error("The published snapshot does not match the selected assessment.");
+        }
+        const data: TeacherPreview = published?.source_token === source.source_token ? { kind: "published" } : { kind: "source", source };
+        setPreview({ key, value: { data } });
       } catch (error) {
         if (active) setPreview({ key, value: { error: errorText(error, "The publication status and source preview could not be checked. Refresh assessments to try again.") } });
       }
@@ -147,7 +162,9 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
                 <p className="text-xs leading-relaxed muted">Review every pupil and score. Missing marks are unmarked; a score of zero is valid.</p>
                 <div className="flex flex-wrap gap-3"><button type="button" className={primary} disabled={busy || !source.can_submit} onClick={() => void submit()}><Send size={16} aria-hidden="true" />{saving ? "Requesting publication…" : "Request publication"}</button>
                   <button type="button" className={button} disabled={busy} onClick={refreshPreview}><RefreshCw size={15} aria-hidden="true" />Refresh source preview</button></div>
-              </> : <p className="text-sm muted">This assessment is pending review. Track its status in My publication requests below.</p>}
+              </> : <p className="text-sm muted">{currentPreview.data?.kind === "published"
+                ? "This assessment is published. Open the saved result in My publication requests below."
+                : "This assessment is pending review. Track its status in My publication requests below."}</p>}
     </section>
     <SubmissionList key={listRefresh} client={client} schoolId={null} userId={userId} teacher externalBusy={saving}
       headingRef={requestsHeading} notice={notice?.error === false ? notice : undefined} onBusyChange={setDetailBusy} onRefresh={refreshPreview} />

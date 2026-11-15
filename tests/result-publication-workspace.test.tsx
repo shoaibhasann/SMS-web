@@ -89,6 +89,11 @@ describe("independent result publication UI", () => {
     expect(screen.queryByText("0 / 100")).not.toBeInTheDocument();
 
     saved.submissions[0] = published();
+    await user.click(screen.getByRole("button", { name: "Refresh requests" }));
+    await screen.findByText(/This assessment is published/);
+    expect(screen.queryByRole("button", { name: "Request publication" })).not.toBeInTheDocument();
+    expect(screen.queryByText("0 / 100")).not.toBeInTheDocument();
+
     saved.changeSource();
     await user.click(screen.getByRole("button", { name: "Refresh requests" }));
     expect(await screen.findByRole("button", { name: "Request publication" })).toBeEnabled();
@@ -104,7 +109,7 @@ describe("independent result publication UI", () => {
     render(<ResultPublicationWorkspace role="teacher" userId="teacher" />);
 
     await screen.findByText(/This assessment is pending review/);
-    expect(mocks.rpc).toHaveBeenCalledWith("list_assessment_result_submissions", { p_school_id: null, p_status: "pending", p_offset: 50 });
+    expect(mocks.rpc).toHaveBeenCalledWith("list_assessment_result_submissions", { p_school_id: null, p_status: null, p_offset: 50 });
     expect(screen.queryByRole("button", { name: "Request publication" })).not.toBeInTheDocument();
   });
   it("retries a lost request acknowledgement with the same source and intent", async () => {
