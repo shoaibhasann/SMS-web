@@ -166,7 +166,8 @@ function OwnSchoolAttendanceCalendar({ client, userId, schoolId, onLock }: Props
 
 function MonthGrid({ calendar }: { calendar: CalendarRecord }) {
   const leading = new Date(`${calendar.from}T00:00:00Z`).getUTCDay(), cells = [...Array<null>(leading).fill(null), ...calendar.days];
-  return <div className="overflow-x-auto p-3"><table className="w-full min-w-[26rem] table-fixed text-center text-xs" aria-label="School working and closed days"><thead><tr>{weekdayLabels.map(day => <th scope="col" key={day} className="pb-2 font-semibold muted">{day}</th>)}</tr></thead>
+  // relative keeps the cells' sr-only labels inside this scroller; without it they widen the page on phones.
+  return <div className="relative overflow-x-auto p-3"><table className="w-full min-w-[26rem] table-fixed text-center text-xs" aria-label="School working and closed days"><thead><tr>{weekdayLabels.map(day => <th scope="col" key={day} className="pb-2 font-semibold muted">{day}</th>)}</tr></thead>
     <tbody>{Array.from({ length: Math.ceil(cells.length / 7) }, (_, week) => <tr key={week}>{Array.from({ length: 7 }, (_, dayIndex) => {
       const day = cells[week * 7 + dayIndex];
       return <td key={dayIndex} className="p-0.5 align-top">{day && <div className={`min-h-16 rounded-lg border p-1 sm:p-1.5 ${day.day === calendar.server_today ? "border-[var(--primary)]" : "border-[var(--border)]"} ${day.configured && day.is_working === false ? "bg-amber-500/10" : "bg-[var(--surface-2)]"}`} title={day.label ?? undefined}>
