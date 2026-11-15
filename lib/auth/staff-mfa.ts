@@ -84,6 +84,14 @@ export function safeMfaNext(next: string | null): string {
     ? value : "/dashboard";
 }
 export const mfaPath = (next: string) => `/mfa?next=${encodeURIComponent(safeMfaNext(next))}`;
+/** Where sign-in may return to: pages inside the app. Invitation routes need their #token and /activate is a dead end, so they fall back to /dashboard. */
+export function safeLoginNext(next: string | null): string {
+  const value = safeMfaNext(next);
+  const pathname = value.split("?", 1)[0];
+  return pathname === "/account/settings" || /^\/modules\/[a-z0-9-]+$/.test(pathname) ? value : "/dashboard";
+}
+/** Sign-in that returns to next afterwards; the default destination (/dashboard) needs no query. */
+export const loginPath = (next: string) => { const path = safeLoginNext(next); return path === "/dashboard" ? "/login" : `/login?next=${encodeURIComponent(path)}`; };
 export const dashboardStepUpPath = `${mfaPath("/dashboard")}&stepup=1`;
 
 function providerError(error: { code?: string; status?: number } | null, fallback = "Authenticator verification could not be confirmed. Retry verification before continuing.") {

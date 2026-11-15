@@ -5,7 +5,7 @@ import { AppShell } from "@/components/layout/app-shell";
 import { readActiveSchoolAccess } from "@/lib/auth/access";
 import { resolveUiRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+import { loginPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 
 export default async function AccountSettingsPage() {
   const client = await createClient();
@@ -19,7 +19,7 @@ export default async function AccountSettingsPage() {
       <Link href="/login" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 dark:text-blue-300">Return to sign in</Link>
     </section></main>;
   }
-  if (!access) redirect("/login");
+  if (!access) redirect(loginPath("/account/settings"));
   const role = resolveUiRole(access.roles);
   if (!role) redirect("/activate");
   return <AppShell key={access.userId} userId={access.userId} role={role}><AccountSettings userId={access.userId} role={role}

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -355,7 +355,8 @@ describe("guardian invitation administration", () => {
   it("blocks direct access for non-management roles", async () => {
     rows.user_roles = [{ id: "role-1", user_id: actorId, school_id: "north", role: "parent" }];
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(guardianRouter.replace).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.queryByRole("main", { name: "parent" })).not.toBeInTheDocument();
     expect(rpc).not.toHaveBeenCalled();
   });
 });
