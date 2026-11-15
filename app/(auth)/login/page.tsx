@@ -10,6 +10,7 @@ import { AdminEmailOtpForm } from "@/components/auth/admin-email-otp-form";
 import { GuardianPhoneOtpForm } from "@/components/auth/phone-otp-form";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { dashboardStepUpPath, readStaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 const methods = [["email", "Email & password"], ["mobile", "Guardian mobile"], ["admin-code", "Admin email code"]] as const;
 const emailCodeEnabled = process.env.NEXT_PUBLIC_ADMIN_EMAIL_OTP_ENABLED === "true";
@@ -195,7 +196,7 @@ export default function LoginPage() {
             <h1 id="login-heading" className="login-heading">Welcome back</h1>
             <p className="login-intro">Sign in to your school workspace.</p>
 
-            <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}>
+            <div role="group" aria-label="Sign-in method" className={`mt-5 grid ${emailCodeEnabled ? "grid-cols-3" : "grid-cols-2"} gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1`}><SlidingIndicator className="rounded-lg bg-[var(--surface)] shadow-sm [--slider-disabled-opacity:.6]" />
               {(emailCodeEnabled ? methods : methods.slice(0, 2)).map(([value, title]) => <button key={value} type="button"
                 aria-pressed={method === value} disabled={busy} onClick={() => { setMethod(value); setError(""); dismissCallback(); }}
                 className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{title}</button>)}

@@ -12,6 +12,7 @@ import { MAX_PASSWORD_BYTES, MIN_PASSWORD_LENGTH, passwordProblem } from "@/lib/
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { acceptGuardianRecovery, GuardianRecoveryError, loadGuardianRecoveryClaim, type GuardianRecoveryClaim } from "@/lib/guardian-invitations/recovery";
 import { GuardianPhoneOtpForm } from "./phone-otp-form";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 const primaryButton = "login-submit";
 const textButton = "inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 underline underline-offset-4 dark:text-blue-300 disabled:opacity-50";
@@ -269,7 +270,7 @@ function SchoolInviteForm({ token, kind }: { token: string; kind: InvitationKind
         </div>
       ) : (
         <>
-        {kind === "recovery" && <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1" role="group" aria-label="Replacement sign-in method">{([["email", "Email and password"], ["phone", "Mobile OTP"]] as const).map(([value, label]) => <button key={value} type="button" disabled={pending} aria-pressed={method === value} onClick={() => setMethod(value)}
+        {kind === "recovery" && <div className="grid grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1" role="group" aria-label="Replacement sign-in method"><SlidingIndicator className="rounded-lg bg-[var(--surface)] shadow-sm" />{([["email", "Email and password"], ["phone", "Mobile OTP"]] as const).map(([value, label]) => <button key={value} type="button" disabled={pending} aria-pressed={method === value} onClick={() => setMethod(value)}
           className={`min-h-11 rounded-lg px-2 py-2 text-xs font-semibold transition ${method === value ? "bg-[var(--surface)] text-[var(--text)] shadow-sm" : "muted"}`}>{label}</button>)}</div>}
         {kind === "recovery" && method === "phone" ? <GuardianPhoneOtpForm purpose="recovery" disabled={pending} onVerified={user => { setAccount(user); setError(""); }} /> : <form className="space-y-4" onSubmit={authenticate}>
           <p className="text-sm muted">Use the email address your school invited. New accounts need email confirmation before accepting.</p>
