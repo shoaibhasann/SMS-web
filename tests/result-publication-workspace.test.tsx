@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ResultPublicationWorkspace } from "@/components/academic/result-publication-workspace";
@@ -127,12 +127,39 @@ describe("independent result publication UI", () => {
   });
   it("publishes an independently reviewed snapshot and reloads the terminal decision", async () => {
     const saved = store([resultDetail()]); render(<ResultPublicationWorkspace role="principal" userId="admin" />); const user = userEvent.setup();
-    await user.click(await screen.findByRole("button", { name: "Open result snapshot" })); await screen.findByRole("button", { name: "Publish result snapshot" });
-    await user.type(screen.getByLabelText("Review reason", { exact: true }), "Every pupil score reviewed");
-    expect(screen.getByLabelText("Review reason", { exact: true })).toHaveAccessibleName("Review reason"); expect(screen.getByLabelText("School")).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Publish result snapshot" })); await screen.findByText(/Result snapshot published/);
+    await user.click(await screen.findByRole("button", { name: "Open result snapshot" }));
+    const snapshot = within(screen.getByRole("dialog", { name: "Saved result snapshot" }));
+    await user.type(await snapshot.findByLabelText("Review reason", { exact: true }), "Every pupil score reviewed");
+    expect(snapshot.getByLabelText("Review reason", { exact: true })).toHaveAccessibleName("Review reason"); expect(screen.getByLabelText("School")).toBeDisabled();
+    await user.click(snapshot.getByRole("button", { name: "Publish result snapshot" })); await snapshot.findByText(/Result snapshot published/);
     expect(saved.submissions[0]).toMatchObject({ status: "published", reviewed_by: "admin", review_note: "Every pupil score reviewed", revision: 1 });
+    await screen.findByText("No publication requests on this page.");
+    await user.click(snapshot.getByRole("button", { name: "Close result details" }));
+    expect(screen.getByRole("heading", { name: "Result publication requests" })).toHaveFocus();
     expect(screen.getByLabelText("Request status")).toBeEnabled(); await user.selectOptions(screen.getByLabelText("Request status"), "published"); expect((await screen.findAllByText("Published · Revision 1")).length).toBeGreaterThan(0);
+  });
+  it("focuses the snapshot on open and confirms discarding a draft before closing", async () => {
+    store([resultDetail()]);
+    render(<ResultPublicationWorkspace role="principal" userId="admin" />);
+    const user = userEvent.setup();
+    const trigger = await screen.findByRole("button", { name: "Open result snapshot" });
+    await user.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "Saved result snapshot" });
+    expect(within(dialog).getByRole("heading", { name: "Saved result snapshot" })).toHaveFocus();
+    const reason = await within(dialog).findByLabelText("Review reason");
+    await user.type(reason, "Unsaved review");
+
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    try {
+      fireEvent(dialog, new Event("cancel", { cancelable: true }));
+      expect(dialog).toBeInTheDocument();
+      expect(reason).toHaveValue("Unsaved review");
+      await user.click(within(dialog).getByRole("button", { name: "Close result details" }));
+      expect(dialog).not.toBeInTheDocument();
+      expect(trigger).toHaveFocus();
+    } finally {
+      confirm.mockRestore();
+    }
   });
   it("keeps the review reason after an unknown acknowledgement and retries the same decision", async () => {
     const saved = store([resultDetail()]); saved.loseReview(); render(<ResultPublicationWorkspace role="admin" userId="admin" />); const user = userEvent.setup();
