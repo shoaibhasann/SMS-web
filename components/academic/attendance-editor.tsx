@@ -338,9 +338,10 @@ function ScopedAttendanceEditor({
                     <p className="text-xs muted">{student.admission_no} · Roll {student.roll_no || "—"}{current ? "" : " · Unmarked"}</p>
                   </div>
                   {/* Pills are relative so their sr-only radios stay inside the scrolling list instead of stretching the page. */}
-                  <div role="radiogroup" aria-label={`Attendance for ${name}`} className="flex gap-1.5 md:flex-wrap">
+                  {/* Phones: equal pills in a grid whose cells are never narrower than "Present"/"Holiday" (44px at 11px + padding), so a label wraps between words or moves to the next row instead of splitting mid-word. */}
+                  <div role="radiogroup" aria-label={`Attendance for ${name}`} className="grid grid-cols-[repeat(auto-fit,minmax(3.125rem,1fr))] gap-1 md:flex md:flex-wrap md:gap-1.5">
                     {attendanceStatuses.filter((status) => status !== "holiday" || canChooseHoliday || current === "holiday").map((status) => (
-                      <label key={status} className={`relative inline-flex min-h-11 min-w-0 flex-1 cursor-pointer items-center justify-center rounded-lg border px-1 text-center text-xs font-semibold md:flex-none md:px-3 md:text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${current === status
+                      <label key={status} className={`relative inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border px-0.5 text-center text-[11px] font-semibold break-normal md:flex-none md:px-3 md:text-sm has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-blue-600 has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${current === status
                         ? statusTone[status] : "border-[var(--border)] bg-[var(--surface)] hover:bg-[var(--surface-2)]"}`}>
                         <input type="radio" name={`attendance-${student.id}`} value={status} checked={current === status}
                           disabled={rowDisabled || (status === "holiday" && !canChooseHoliday)} onChange={() => mark(student.id, status)} className="sr-only" />
