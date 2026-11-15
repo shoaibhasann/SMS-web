@@ -68,9 +68,9 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
   const [response, setResponse] = useState<{ key: string; schoolId: string; record?: Monitor; error?: string }>();
   const [sessionChanged, setSessionChanged] = useState(false);
   const key = `${schoolId}:${refreshVersion}:${version}`;
-  const record = response?.key === key ? response.record : undefined;
+  // Keep this school's last progress on screen while a refresh loads.
+  const record = response?.schoolId === schoolId ? response.record : undefined;
   const error = response?.key === key ? response.error : undefined;
-  const editorRecord = response?.schoolId === schoolId ? response.record : undefined;
   const headingId = useId();
   const refresh = useCallback(() => setVersion((value) => value + 1), []);
 
@@ -116,7 +116,7 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
   const pending = record?.sections.filter((section) => section.is_pending).length ?? 0;
 
   return (
-    <section className="card overflow-hidden" aria-labelledby={headingId} aria-busy={!sessionChanged && !record && !error}>
+    <section className="card overflow-hidden" aria-labelledby={headingId} aria-busy={!sessionChanged && response?.key !== key}>
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] p-4">
         <div className="flex items-start gap-3">
           <CalendarCheck size={21} className="mt-1 shrink-0 text-[var(--primary)]" aria-hidden="true" />
@@ -169,7 +169,7 @@ export function AttendanceSubmissionMonitor({ schoolId, userId, settings = false
                 <Link href="/modules/attendance" className="inline-flex min-h-11 items-center text-sm font-semibold text-blue-700 dark:text-blue-300">Open Attendance</Link>
               </footer>}
             </>}
-      {settings && !sessionChanged && editorRecord?.can_edit && <CutoffEditor key={schoolId} client={client} schoolId={schoolId} record={editorRecord}
+      {settings && !sessionChanged && record?.can_edit && <CutoffEditor key={schoolId} client={client} schoolId={schoolId} record={record}
         disabled={disabled || Boolean(error)} onSaved={refresh} onBusyChange={onBusyChange} />}
     </section>
   );

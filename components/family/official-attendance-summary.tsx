@@ -73,12 +73,6 @@ function OwnOfficialAttendanceSummary({ client, userId, student, role, loading, 
   }, [client, userId]);
   useEffect(() => () => { pdfRead.current?.abort(); pdfRead.current = null; }, [key]);
   useEffect(() => {
-    if (!studentId || sessionChanged) return;
-    const refresh = () => { if (document.visibilityState === "visible") { pdfRead.current?.abort(); setRevision(value => value + 1); } };
-    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", refresh);
-    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [studentId, sessionChanged]);
-  useEffect(() => {
     if (!studentId || !schoolId || sessionChanged || loading) return;
     const controller = new AbortController(); read.current = controller;
     const target = { id: studentId, school_id: schoolId };

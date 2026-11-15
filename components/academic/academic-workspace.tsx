@@ -554,10 +554,6 @@ function AcademicWorkspaceView({ module, scopedRole }: { module: string; scopedR
       }
       void loadWorkspace();
     },
-    onUnavailable: () => {
-      setAssignments([]); setLogs([]); setActivities([]); setMessage("");
-      setErrorMessage("Teaching access could not be verified. Your unsaved draft is kept; saving is blocked until access is re-checked.");
-    },
   });
   const filteredLogs = module === "class-logs" ? logs.filter((log) =>
     (filterClass === "all" || log.class_id === filterClass) &&

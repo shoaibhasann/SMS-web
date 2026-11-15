@@ -443,7 +443,7 @@ describe("teacher dashboard attendance draft", () => {
     effectiveAssignments.mockResolvedValueOnce([classTeacher]).mockRejectedValueOnce(new Error("offline"));
     await openDirtyDraft();
     await act(async () => { fireEvent.focus(window); });
-    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(/Your register is kept/)).toHaveAttribute("role", "status");
     expect(lastEditor().context).toMatchObject({ classId: "class-a", sectionId: "section-a" });
   });
 

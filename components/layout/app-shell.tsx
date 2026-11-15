@@ -8,7 +8,7 @@ import { canAccessModule, getNavigationModules, type getVisibleModules, roleLabe
 import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
 import { toUiRole, type UiRole } from "@/lib/auth/roles";
-import { readActiveSchoolAccess } from "@/lib/auth/access";
+import { readActiveSchoolAccess, SchoolAccessDeniedError } from "@/lib/auth/access";
 import { loginPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { BrandLogo } from "@/components/ui/brand-logo";
@@ -121,11 +121,12 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
   const shortcut = useSyncExternalStore(() => () => {}, () => /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘ K" : "Ctrl K", () => "Ctrl K");
 
   useEffect(() => {
-    let active = true, generation = 0;
+    let active = true, generation = 0, verified = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    async function check() {
+    // quiet: re-verify behind the page already shown (e.g. returning to the tab); only a real change replaces it.
+    async function check(quiet = false) {
       const version = ++generation;
-      setSecurity("checking");
+      if (!quiet || !verified) setSecurity("checking");
       try {
         const access = await readActiveSchoolAccess(supabase).catch((failure: unknown) => {
           if (overviewSchoolId && path === "/dashboard" && role === "admin" && failure instanceof StaffMfaRequiredError
@@ -150,6 +151,7 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
         if (accessFingerprint.current && fingerprint !== accessFingerprint.current) { setAccountChanged(true); return; }
         accessFingerprint.current = fingerprint;
         setSchoolRoles(access.roles.filter((row) => row.school_id === access.profileSchoolId).map((row) => toUiRole(row.role)));
+        verified = true;
         setVerifiedOnce(true);
         setSecurity("ready");
       } catch (failure) {
@@ -158,18 +160,22 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
           setSecurity("error");
           router.replace(mfaPath(`${window.location.pathname}${window.location.search}`)); return;
         }
-        setSecurity("error");
+        // A read that failed behind the verified page keeps it; a definite "no" still replaces it.
+        if (!quiet || !verified || failure instanceof SchoolAccessDeniedError) setSecurity("error");
       }
     }
-    const focus = () => { void check(); };
-    const visible = () => { if (document.visibilityState === "visible") void check(); };
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    const focus = () => { void check(true); };
+    const visible = () => { if (document.visibilityState === "visible") void check(true); };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "INITIAL_SESSION") return;
-      generation += 1; setSecurity("checking"); clearTimeout(timer);
+      // Supabase repeats SIGNED_IN / TOKEN_REFRESHED for the same user every time the tab becomes visible.
+      const quiet = event !== "SIGNED_OUT" && !!accountOwner.current && session?.user.id === accountOwner.current;
+      generation += 1; clearTimeout(timer);
+      if (!quiet) setSecurity("checking");
       // Signing out is not a way back to this page: go to a clean sign-in (a silent session loss in check() keeps next).
       if (event === "SIGNED_OUT") { setSecurity("error"); router.replace("/login"); return; }
       // Never await Auth inside its own event callback.
-      timer = setTimeout(() => { void check(); }, 0);
+      timer = setTimeout(() => { void check(quiet); }, 0);
     });
     window.addEventListener("focus", focus); document.addEventListener("visibilitychange", visible);
     void check();

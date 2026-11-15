@@ -476,11 +476,6 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
       }
       void load();
     },
-    onUnavailable: () => {
-      // Clearing assignments blocks saving; the draft stays until a successful check confirms revocation.
-      setAssignments([]); setEntries([]); setPendingDelete(null);
-      setError("Teaching access could not be verified. Your unsaved draft is kept; saving is blocked until access is re-checked.");
-    },
   });
 
   return (

@@ -6,7 +6,7 @@ import { StaffMfaError } from "@/lib/auth/staff-mfa";
 const { readActiveSchoolAccess, signOut, replace, refresh } = vi.hoisted(() => ({
   readActiveSchoolAccess: vi.fn(), signOut: vi.fn(), replace: vi.fn(), refresh: vi.fn(),
 }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: readActiveSchoolAccess }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({}) }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { signOut } }) }));
 vi.mock("next/navigation", () => ({ redirect: (url: string) => { throw new Error(`redirect:${url}`); }, useRouter: () => ({ replace, refresh }) }));

@@ -47,12 +47,6 @@ function OwnGateAlertPreferences({ userId }: { userId: string }) {
     });
     return () => { controller.abort(); if (read.current === controller) read.current = null; };
   }, [client, userId, revision, sessionChanged]);
-  useEffect(() => {
-    const refresh = () => { if (!write.current && !sessionChanged && !dirty) { setDraft([]); setRevision(value => value + 1); } };
-    const visible = () => { if (document.visibilityState === "visible") refresh(); };
-    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", visible);
-    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", visible); };
-  }, [sessionChanged, dirty]);
 
   async function save(event: FormEvent, next: GateAlertPreference) {
     event.preventDefault();

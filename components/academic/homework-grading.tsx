@@ -35,7 +35,7 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
   const feedbackId = useId();
   const maxHintId = useId();
 
-  const load = useCallback(async (mode: "manual" | "background" | "saved" = "manual") => {
+  const load = useCallback(async (mode: "manual" | "saved" = "manual") => {
     const version = ++loadVersion.current;
     readController.current?.abort();
     const controller = new AbortController(); readController.current = controller;
@@ -45,10 +45,6 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
       if (controller.signal.aborted || version !== loadVersion.current) return;
       const next = selected.current ? current.students.find((row) => row.submission?.id === selected.current?.id)?.submission : undefined;
       setRoster(current);
-      if (selected.current && dirty.current && mode === "background" && next?.revision !== selected.current.revision) {
-        setConflict(true); setError("This submission changed in another session. Your draft is kept; refresh its status before trying again.");
-        return;
-      }
       if (selected.current && !next) {
         selected.current = undefined; setTarget(undefined); setMarks(""); setFeedback(""); dirty.current = false; request.current = undefined;
       } else if (next) {
@@ -76,14 +72,6 @@ export function TeacherHomeworkGrading({ activityId, userId }: { activityId: str
     });
     return () => { subscription.unsubscribe(); readController.current?.abort(); writeController.current?.abort(); downloadController.current?.abort(); loadVersion.current += 1; };
   }, [client, userId, open]);
-
-  useEffect(() => {
-    if (!open || sessionChanged) return;
-    const refresh = () => { if (!inFlight.current && !request.current && document.visibilityState !== "hidden") void load("background"); };
-    window.addEventListener("focus", refresh); document.addEventListener("visibilitychange", refresh);
-    const interval = window.setInterval(refresh, 30_000);
-    return () => { readController.current?.abort(); window.clearInterval(interval); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [load, open, sessionChanged]);
 
   function select(submission: HomeworkSubmission) {
     selected.current = submission; setTarget(submission); setMarks(submission.marks === null ? "" : String(submission.marks));
