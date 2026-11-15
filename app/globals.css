@@ -46,8 +46,10 @@
   .account-primary:hover:not(:disabled), .btn-primary:hover:not(:disabled) { background-color: var(--account-action-hover); }
   .account-primary:focus-visible, .btn-primary:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .account-primary:disabled, .btn-primary:disabled { cursor: not-allowed; opacity: .6; }
-  .account-menu-action:hover:not(:disabled) {
-    background-color: color-mix(in srgb, var(--primary) 12%, var(--surface));
+  @media (hover: hover) { /* touch browsers keep :hover on the last tapped row */
+    .account-menu-action:hover:not(:disabled) {
+      background-color: color-mix(in srgb, var(--primary) 12%, var(--surface));
+    }
   }
 
   /* Shared buttons, status badges, notices and empty states. */
@@ -73,6 +75,19 @@
 @keyframes account-menu-enter {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+/* Tab groups with a SlidingIndicator (components/ui/sliding-indicator.tsx). Unlayered on purpose,
+   so the hand-over beats each button's own aria-pressed utilities. */
+[data-slider] { position: relative; isolation: isolate; }
+[data-slider="ready"] > [aria-pressed="true"] { background-color: transparent; border-color: transparent; box-shadow: none; transition-property: color; }
+[data-slider]:has(> [aria-pressed="true"]:disabled) > [data-sliding-indicator] { opacity: var(--slider-disabled-opacity, 1); } /* opt-in: groups whose buttons dim set it */
+@media (prefers-reduced-motion: no-preference) {
+  [data-slider] > button { transition-property: color, background-color, border-color; transition-duration: .3s; transition-timing-function: cubic-bezier(.2, .8, .2, 1); }
+}
+@media (forced-colors: active) {
+  [data-slider] > [data-sliding-indicator] { background: Highlight; forced-color-adjust: none; }
+  [data-slider="ready"] > [aria-pressed="true"] { color: HighlightText; forced-color-adjust: none; }
+  [data-slider="ready"] > [aria-pressed="true"]:focus-visible { outline-color: CanvasText; }
 }
 .glass{background:color-mix(in srgb,var(--surface) 84%,transparent);backdrop-filter:blur(18px);border:1px solid var(--border)}
 .gradient{background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff}

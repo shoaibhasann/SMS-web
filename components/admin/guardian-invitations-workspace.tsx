@@ -23,6 +23,7 @@ import { GuardianRecoveryWorkspace } from "./guardian-recovery-workspace";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
 import { normalizeIndianMobile } from "@/lib/auth/phone";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
@@ -103,7 +104,7 @@ export function GuardianInvitationsWorkspace({ userId }: { userId: string }) {
           setAttempt((value) => value + 1);
         }} />
         : <>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Guardian workflows">{([["invites", "Invitations and child access"], ["recovery", "Account recovery"]] as const).map(([key, title]) => <button key={key} type="button" aria-pressed={view === key} disabled={busy} className={`${button} ${view === key ? "bg-[var(--surface-2)] text-[var(--primary)]" : ""}`} onClick={() => setView(key)}>{title}</button>)}</div>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Guardian workflows"><SlidingIndicator className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] [--slider-disabled-opacity:.6]" />{([["invites", "Invitations and child access"], ["recovery", "Account recovery"]] as const).map(([key, title]) => <button key={key} type="button" aria-pressed={view === key} disabled={busy} className={`${button} ${view === key ? "bg-[var(--surface-2)] text-[var(--primary)]" : ""}`} onClick={() => setView(key)}>{title}</button>)}</div>
           <section className="card p-4">
             <label className={label}>School
               <select className="field" value={schoolId} disabled={busy || schools.length === 1}

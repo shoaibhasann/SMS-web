@@ -12,6 +12,7 @@ import {
   type FamilyNotification, type FamilyNotificationCursor, type FamilyNotificationInbox as Inbox,
   type FamilyNotificationRole,
 } from "@/lib/notifications/family";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type Props = { userId: string; role: FamilyNotificationRole; summary?: boolean };
 type Result = { inbox: Inbox } | { error: string };
@@ -115,7 +116,7 @@ function OwnFamilyNotificationInbox({ userId, role, summary = false }: Props) {
         disabled={!result || sessionChanged || !!pendingMark} onClick={refresh}><RefreshCw size={15} aria-hidden="true" />Refresh</button>
     </header>
     {!summary && !sessionChanged && <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] px-4 py-2">
-      <div role="group" aria-label="Filter notifications" className="inline-flex rounded-xl border border-[var(--border)] p-0.5">
+      <div role="group" aria-label="Filter notifications" className="inline-flex rounded-xl border border-[var(--border)] p-0.5"><SlidingIndicator className="rounded-[10px] bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] [--slider-disabled-opacity:.5]" />
         {(["All", "Unread"] as const).map((option) => <button key={option} type="button" aria-pressed={filter === option} disabled={!!pendingMark}
           onClick={() => { setFilter(option); setCursor(null); setMarkError(undefined); }}
           className="min-h-11 rounded-[10px] px-3 text-sm font-semibold aria-pressed:bg-[color-mix(in_srgb,var(--primary)_12%,var(--surface))] aria-pressed:text-[color-mix(in_srgb,var(--primary)_80%,var(--text))] disabled:opacity-50">{option}</button>)}

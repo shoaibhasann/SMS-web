@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AccountMenu } from "@/components/layout/account-menu";
 
-vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <select aria-label="Color theme"><option>System</option><option>Dark</option></select> }));
+vi.mock("@/components/ui/theme-toggle", () => ({ ThemeToggle: () => <div role="radiogroup" aria-label="Color theme" /> }));
 const props = { identity: <span>QA Principal</span>, name: "QA Principal", email: "qa@example.test", onLogout: vi.fn(), signingOut: false };
 
 describe("header account disclosure", () => {
@@ -13,9 +13,9 @@ describe("header account disclosure", () => {
     fireEvent.click(screen.getByRole("button", { name: "Account options" }));
     const options = within(screen.getByRole("group", { name: "Account options" }));
     expect(options.getByRole("link", { name: "Account settings" })).toHaveAttribute("href", "/account/settings");
-    expect(options.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(options.queryByRole("radiogroup")).not.toBeInTheDocument();
     fireEvent.click(options.getByRole("button", { name: "Appearance" }));
-    expect(options.getByRole("combobox", { name: "Color theme" })).toBeInTheDocument();
+    expect(options.getByRole("radiogroup", { name: "Color theme" })).toBeInTheDocument();
     fireEvent.click(options.getByRole("button", { name: "Sign out" }));
     expect(props.onLogout).toHaveBeenCalledOnce();
   });

@@ -10,6 +10,7 @@ import { loadAdminAttendanceAccess, loadAdminAttendanceSetup } from "@/lib/atten
 import { schoolDate } from "@/lib/attendance/types";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type Client = ReturnType<typeof createClient>;
 type Access = Awaited<ReturnType<typeof loadAdminAttendanceAccess>>;
@@ -84,7 +85,7 @@ export function AdminAttendanceWorkspace({ principal = false }: { principal?: bo
                 {schools.map((school) => <option key={school.id} value={school.id}>{school.name}</option>)}
               </select>
             </label>
-            {schoolId && <div role="group" aria-label="Attendance workspace" className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1">
+            {schoolId && <div role="group" aria-label="Attendance workspace" className="inline-flex flex-wrap gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-1"><SlidingIndicator className="rounded-lg bg-[var(--primary)]" />
               {([["register", "Daily register"], ["gate", "Gate operations"]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={view === value}
                 disabled={scopeLocked} onClick={() => setView(value)} className={`min-h-11 rounded-lg px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 ${view === value ? "bg-[var(--primary)] text-white dark:text-[var(--bg)]" : "muted hover:bg-[var(--surface)]"}`}>{label}</button>)}
             </div>}

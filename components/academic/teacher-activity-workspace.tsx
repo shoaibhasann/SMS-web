@@ -19,6 +19,7 @@ import { TeacherHomeworkGrading } from "@/components/academic/homework-grading";
 import { useAcademicAssignmentRevalidation } from "@/lib/use-academic-access";
 import { LoadingState } from "@/components/ui/skeleton";
 import { schoolDate } from "@/lib/attendance/types";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type ActivityModule = "classwork" | "homework";
 
@@ -567,7 +568,7 @@ function TeacherAcademicActivityView({ module }: { module: ActivityModule }) {
         {module === "homework" && assignments.length > 0 && (
           <div className="border-t border-[var(--border)] pt-4">
             <h3 className="text-sm font-bold">My Assigned Classes</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2"><SlidingIndicator className="rounded-full border border-blue-500 bg-blue-500/10" />
               {assignments.map((assignment) => (
                 <button key={assignment.id} type="button" disabled={Boolean(editingActivityId) || saving} onClick={() => selectAssignment(assignment)}
                   aria-pressed={assignment.id === selectedAssignment?.id}
