@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import Link from "next/link";
-import { Check, FileCheck2, Printer, RefreshCw, Send, X } from "lucide-react";
+import { ArrowLeft, Check, FileCheck2, Printer, RefreshCw, Send, X } from "lucide-react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { studentName } from "@/lib/attendance/types";
@@ -45,16 +45,18 @@ function ResultSession({ role, userId, ...link }: { role: Role; userId: string }
     });
     return () => subscription.unsubscribe();
   }, [client, userId]);
+  if (role === "parent" || role === "student") {
+    return sessionChanged ? <ErrorMessage text="Your sign-in changed. Reload this page to verify results access." />
+      : <FamilyResultAccess client={client} role={role} userId={userId} {...link} />;
+  }
   return <div className="space-y-6">
     <header><p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-blue-700 dark:text-blue-300"><FileCheck2 size={15} aria-hidden="true" /> Reviewed school results</p>
       <h1 className="mt-2 text-3xl font-black tracking-tight">{role === "teacher" ? "Result publication" : "Published assessment results"}</h1>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed muted">{role === "teacher" ? "Check an exam’s marks, then send them to the principal or office for approval. Families see a result only after it is approved."
-        : role === "admin" || role === "principal" ? "Review frozen result snapshots before sharing each pupil’s result with their permitted family."
-          : "Read and print the latest school-published result for each assessment. Original class and session details stay with the saved result."}</p></header>
+        : "Review frozen result snapshots before sharing each pupil’s result with their permitted family."}</p></header>
     {sessionChanged ? <ErrorMessage text="Your sign-in changed. Reload this page to verify results access." />
       : role === "teacher" ? <TeacherPublications client={client} userId={userId} />
-        : role === "parent" || role === "student" ? <FamilyResultAccess client={client} role={role} userId={userId} {...link} />
-          : <OfficeResults client={client} userId={userId} />}
+        : <OfficeResults client={client} userId={userId} />}
   </div>;
 }
 
@@ -318,6 +320,7 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, pend
 
 function FamilyResultAccess({ client, role, userId, initialChildId, initialAssessmentId }: { client: Client; role: "parent" | "student"; userId: string } & ResultLink) {
   const [attempt, setAttempt] = useState(0), [selected, setSelected] = useState("");
+  const [resultRefresh, setResultRefresh] = useState(0);
   const [access, setAccess] = useState<{ attempt: number; value: Load<FamilyStudent[]> }>();
   const current = access?.attempt === attempt ? access.value : undefined;
   useEffect(() => {
@@ -335,16 +338,51 @@ function FamilyResultAccess({ client, role, userId, initialChildId, initialAsses
     void load(); return () => { active = false; };
   }, [attempt, client, role, userId, initialChildId]);
   const students = current?.data ?? [], student = students.find((row) => row.id === selected);
-  return <><section className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-end sm:justify-between" aria-label="Published result student access">
-    {role === "parent" && students.length ? <div className={`${field} sm:max-w-xl sm:flex-1`}><label htmlFor="result-child">Select child</label><select id="result-child" className="field" value={selected} onChange={(event) => { if (students.some((row) => row.id === event.target.value)) { setSelected(event.target.value); rememberFamilyChild(userId, event.target.value); } }}>{!student && <option value="">Choose linked child</option>}{students.map((row) => <option key={row.id} value={row.id}>{studentName(row)} · {row.admission_no}</option>)}</select></div>
-      : <div><h2 className="font-bold">{student ? studentName(student) : "Linked student access"}</h2>{student && <p className="mt-1 text-sm muted">{student.admission_no}</p>}</div>}
-    <button type="button" className={button} disabled={!current} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh linked students</button></section>
-    {!current ? <LoadingState variant="form" className="text-sm muted">Checking linked student access…</LoadingState> : current.error ? <ErrorMessage text={current.error} /> : !student ? <p className="card p-5 text-sm muted">{initialChildId !== undefined ? "The student in this link is no longer available to this account. Choose a linked child to continue." : "No student is currently linked to this account."}</p>
-      : <FamilyResults key={student.id} client={client} student={student} role={role} assessmentId={student.id === initialChildId ? initialAssessmentId : undefined} />}
-  </>;
+  const assessmentId = student?.id === initialChildId ? initialAssessmentId : undefined;
+  const refreshAccess = () => setAttempt((value) => value + 1);
+  const childPicker = role === "parent" && (students.length > 1 || (!student && students.length > 0)) ? (
+    <div className="flex min-w-0 items-center gap-2">
+      <label htmlFor="result-child" className="shrink-0 text-xs font-semibold muted">Select child</label>
+      <select id="result-child" className="field min-h-11 min-w-0 max-w-72 py-2" value={selected} onChange={(event) => {
+        if (students.some((row) => row.id === event.target.value)) {
+          setSelected(event.target.value);
+          rememberFamilyChild(userId, event.target.value);
+        }
+      }}>
+        {!student && <option value="">Choose linked child</option>}
+        {students.map((row) => <option key={row.id} value={row.id}>{studentName(row)} · {row.admission_no}</option>)}
+      </select>
+    </div>
+  ) : undefined;
+
+  return <section className="space-y-4" aria-label="Student published results">
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="text-2xl font-black tracking-tight sm:text-3xl">Published results</h1>
+      {(childPicker || student) && <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {childPicker}
+        {student && assessmentId !== undefined && <Link className="btn btn-secondary" href={`/modules/results?${new URLSearchParams({ ...(role === "parent" ? { view: "guardian" } : {}), child: student.id })}`}>
+          <ArrowLeft size={15} aria-hidden="true" />All published results
+        </Link>}
+        {student && <button type="button" className="btn btn-secondary size-11 shrink-0 p-0" aria-label="Refresh published results" title="Refresh published results"
+          onClick={() => setResultRefresh((value) => value + 1)}><RefreshCw size={17} aria-hidden="true" /></button>}
+      </div>}
+    </header>
+    {student ? <FamilyResults key={student.id} client={client} student={student} role={role}
+      assessmentId={assessmentId} refresh={resultRefresh} onRefreshAccess={refreshAccess} />
+      : !current ? <LoadingState variant="list" className="text-sm muted">Checking linked student access…</LoadingState> : <div className="space-y-3">
+      {current.error ? <ErrorMessage text={current.error} /> : <p className="card p-4 text-sm muted">{initialChildId !== undefined
+        ? students.length ? "The student in this link is no longer available to this account. Choose a linked child to continue."
+          : "The student in this link is no longer available to this account."
+        : "No student is currently linked to this account."}</p>}
+      <button type="button" className="btn btn-secondary" onClick={refreshAccess}><RefreshCw size={15} aria-hidden="true" />Refresh linked students</button>
+    </div>}
+  </section>;
 }
-function FamilyResults({ client, student, role, assessmentId }: { client: Client; student: FamilyStudent; role: "parent" | "student"; assessmentId?: string }) {
-  const [page, setPage] = useState(0), [refresh, setRefresh] = useState(0), [notice, setNotice] = useState<Notice>();
+
+function FamilyResults({ client, student, role, assessmentId, refresh, onRefreshAccess }: {
+  client: Client; student: FamilyStudent; role: "parent" | "student"; assessmentId?: string; refresh: number; onRefreshAccess: () => void;
+}) {
+  const [page, setPage] = useState(0), [notice, setNotice] = useState<{ key: string; value: Notice }>();
   const [result, setResult] = useState<{ key: string; value: Load<FamilyResultPage> }>();
   const key = `${student.id}:${assessmentId ?? ""}:${page}:${refresh}`, current = result?.key === key ? result.value : undefined;
   useEffect(() => {
@@ -356,22 +394,45 @@ function FamilyResults({ client, student, role, assessmentId }: { client: Client
       (error: unknown) => { if (active) setResult({ key, value: { error: errorText(error, "Published results could not be loaded. Refresh to try again.") } }); });
     return () => { active = false; };
   }, [client, key, page, student.id, student.school_id, role, assessmentId]);
-  return <section className="space-y-5" aria-label="Student published results"><div className="card flex flex-wrap items-center justify-between gap-3 p-5"><div><h2 className="text-lg font-bold">{assessmentId !== undefined ? "Result from notification" : "Published result history"}</h2><p className="mt-1 text-xs leading-relaxed muted">Only the latest published revision of each assessment is shown. Unpublished marks and other pupils’ results stay private.</p></div><button type="button" className={button} onClick={() => { setNotice(undefined); setRefresh((value) => value + 1); }}><RefreshCw size={15} aria-hidden="true" />Refresh published results</button></div>
-    {assessmentId !== undefined && <Link className={button} href={`/modules/results?${new URLSearchParams({ ...(role === "parent" ? { view: "guardian" } : {}), child: student.id })}`}>All published results</Link>}
-    {notice && <Message notice={notice} />}
-    {!current ? <LoadingState variant="table" className="text-sm muted">Loading saved published results…</LoadingState> : current.error ? <ErrorMessage text={current.error} />
-      : !current.data?.rows.length ? <p className="card p-5 text-sm muted">{assessmentId !== undefined ? "This published result is no longer available. Open all published results to see the current history." : "No school-published results on this page. Marks appear only after school review and publication."}</p>
-        : current.data.rows.map((row) => <FamilyResultCard key={row.id} result={row} onPrint={() => { try { printPublishedResult(row); } catch (error) { setNotice({ error: true, text: errorText(error, "The print window could not be opened. Please try again.") }); } }} />)}
-    {current?.data && assessmentId === undefined && <div className="card p-5"><Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={false} onPage={setPage} /></div>}
-  </section>;
+  return <>
+    {notice?.key === key && <Message notice={notice.value} />}
+    {!current ? <LoadingState variant="table" className="text-sm muted">Loading saved published results…</LoadingState> : current.error ? <div className="space-y-3">
+      <ErrorMessage text={current.error} />
+      <button type="button" className="btn btn-secondary" onClick={onRefreshAccess}><RefreshCw size={15} aria-hidden="true" />Refresh linked students</button>
+    </div>
+      : !current.data?.rows.length ? <p className="card p-4 text-sm muted">{assessmentId !== undefined ? "This published result is no longer available. Open all published results to see the current history." : "No school-published results on this page."}</p>
+        : current.data.rows.map((row) => <FamilyResultCard key={row.id} result={row} onPrint={() => {
+          try { printPublishedResult(row); }
+          catch (error) { setNotice({ key, value: { error: true, text: errorText(error, "The print window could not be opened. Please try again.") } }); }
+        }} />)}
+    {current?.data && assessmentId === undefined && (page > 0 || current.data.total_count > publicationPageSize) && <Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={false} onPage={setPage} />}
+  </>;
 }
 function FamilyResultCard({ result, onPrint }: { result: FamilyAssessmentResult; onPrint: () => void }) {
-  return <article className="card space-y-5 p-5" aria-label={`${result.metadata.name} published result`}><div className="flex flex-wrap items-start justify-between gap-3"><SourceHeading source={result.metadata} /><Status status="published" revision={result.revision} /></div>
-    <div className="rounded-xl bg-[var(--surface-2)] p-4"><h3 className="font-bold">{result.student_name}</h3><p className="mt-1 text-xs muted">{result.admission_no}{result.roll_no && ` · Roll ${result.roll_no}`}</p><div className="mt-4 grid grid-cols-2 gap-4"><div><p className="text-xs muted">Marks obtained</p><p className="mt-1 text-2xl font-black tabular-nums">{result.marks_obtained}<span className="text-base font-semibold muted"> / {result.maximum_marks}</span></p></div><div><p className="text-xs muted">Percentage</p><p className="mt-1 text-2xl font-black tabular-nums">{result.percentage.toFixed(2)}%</p></div></div></div>
-    {result.remarks && <div><h4 className="text-sm font-semibold">Teacher remarks</h4><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{result.remarks}</p></div>}
-    <p className="text-xs leading-relaxed muted">Published by {result.publisher_name} · {times.format(new Date(result.published_at))} IST. Original class/session snapshot · Revision {result.revision}.</p>
-    <button type="button" className={button} onClick={onPrint}><Printer size={16} aria-hidden="true" />Print this result</button>
-    <p className="text-xs leading-relaxed muted">This is a single-assessment result. Term grades, pass/fail and class rank are not included.</p>
+  const assessment = result.metadata;
+  return <article className="card overflow-hidden" aria-label={`${assessment.name} published result`}>
+    <div className="space-y-4 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 space-y-1">
+          <h2 className="break-words text-lg font-bold tracking-tight sm:text-xl">{assessment.name}</h2>
+          <p className="text-sm muted">{assessment.subject_name} · <time dateTime={assessment.assessment_date}>{dates.format(new Date(`${assessment.assessment_date}T00:00:00Z`))}</time></p>
+        </div>
+        <Status status="published" revision={result.revision} />
+      </div>
+      <dl className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] divide-x divide-[var(--border)] rounded-xl bg-[var(--surface-2)] py-3 sm:py-4">
+        <div className="min-w-0 px-3 sm:px-5"><dt className="text-xs font-semibold muted">Marks obtained</dt><dd className="mt-1 break-words text-2xl font-black tabular-nums sm:text-3xl">{result.marks_obtained}<span className="text-base font-semibold muted"> / {result.maximum_marks}</span></dd></div>
+        <div className="min-w-0 px-3 sm:px-5"><dt className="text-xs font-semibold muted">Percentage</dt><dd className="mt-1 break-words text-2xl font-black tabular-nums sm:text-3xl">{result.percentage.toFixed(2)}%</dd></div>
+      </dl>
+      <div className="min-w-0 space-y-1 text-sm [overflow-wrap:anywhere]">
+        <p><span className="font-semibold">{result.student_name}</span> <span className="muted">· {result.admission_no}{result.roll_no && ` · Roll ${result.roll_no}`}</span></p>
+        <p className="text-xs muted">{assessment.class_name}{assessment.section_name ? ` / ${assessment.section_name}` : " / Whole class"} · {assessment.academic_year_name}</p>
+      </div>
+      {result.remarks && <div><h3 className="text-sm font-semibold">Teacher remarks</h3><p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">{result.remarks}</p></div>}
+    </div>
+    <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[var(--border)] px-4 py-3 sm:px-5">
+      <p className="min-w-0 text-xs leading-relaxed muted">Published by {result.publisher_name} · {times.format(new Date(result.published_at))} IST</p>
+      <button type="button" className="btn btn-secondary" onClick={onPrint}><Printer size={16} aria-hidden="true" />Print this result</button>
+    </footer>
   </article>;
 }
 function SourceHeading({ source }: { source: PublicationMetadata }) {

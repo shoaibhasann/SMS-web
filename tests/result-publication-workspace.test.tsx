@@ -189,7 +189,13 @@ describe("independent result publication UI", () => {
     store([published()]); const user = userEvent.setup(), view = render(<ResultPublicationWorkspace role="parent" userId="guardian" />);
     const first = await screen.findByRole("article", { name: "November science assessment published result" }); expect(first).toHaveTextContent("QA Anya"); expect(first).not.toHaveTextContent("QA Kabir");
     expect(screen.queryByRole("button", { name: "Publish result snapshot" })).not.toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText("Select child", { exact: true }), "child-b"); const second = await screen.findByRole("article", { name: "November science assessment published result" }); expect(second).toHaveTextContent("QA Kabir"); expect(second).toHaveTextContent("0");
+    const childPicker = screen.getByLabelText("Select child", { exact: true });
+    childPicker.focus();
+    await user.selectOptions(childPicker, "child-b");
+    const second = await screen.findByRole("article", { name: "November science assessment published result" });
+    expect(second).toHaveTextContent("QA Kabir");
+    expect(second).toHaveTextContent("0");
+    expect(childPicker).toHaveFocus();
     view.unmount(); render(<ResultPublicationWorkspace role="parent" userId="guardian" />); expect(await screen.findByLabelText("Select child")).toHaveValue("child-b");
     const blocked = vi.spyOn(window, "open").mockReturnValue(null); try { await user.click(await screen.findByRole("button", { name: "Print this result" })); expect(await screen.findByRole("alert")).toHaveTextContent("print window was blocked"); } finally { blocked.mockRestore(); }
   });
@@ -197,6 +203,7 @@ describe("independent result publication UI", () => {
     const saved = store([published()]); render(<ResultPublicationWorkspace role="parent" userId="guardian" />); const user = userEvent.setup();
     await screen.findByRole("article"); saved.deny("child-a"); await user.click(screen.getByRole("button", { name: "Refresh published results" })); expect(await screen.findByRole("alert")).toHaveTextContent("access or teaching assignment"); expect(screen.queryByRole("article")).not.toBeInTheDocument();
     vi.mocked(loadFamilyStudents).mockResolvedValue([childB]); await user.click(screen.getByRole("button", { name: "Refresh linked students" })); expect(await screen.findByRole("article")).toHaveTextContent("QA Kabir");
+    expect(screen.queryByLabelText("Select child")).not.toBeInTheDocument();
   });
   it("ignores a late previous-child response and a late response after account change", async () => {
     store([published()]); const original = mocks.rpc.getMockImplementation()!; let resolve!: (value: Reply) => void;
@@ -214,6 +221,26 @@ describe("independent result publication UI", () => {
 });
 
 describe("notification result links", () => {
+  it("shows the student’s score directly with history, refresh and print controls", async () => {
+    const child = { ...childA, id: resultUuid(20) }, assessmentId = resultUuid(21);
+    vi.mocked(loadFamilyStudents).mockResolvedValue([child]);
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "student" } }, error: null });
+    mocks.rpc.mockResolvedValue({ data: familyResult({
+      student_id: child.id, assessment_id: assessmentId, metadata: resultMetadata({ assessment_id: assessmentId, maximum_marks: 20 }),
+      marks_obtained: 14, maximum_marks: 20, percentage: 70,
+    }), error: null });
+    render(<ResultPublicationWorkspace role="student" userId="student" initialChildId={child.id} initialAssessmentId={assessmentId} />);
+
+    const card = await screen.findByRole("article", { name: "November science assessment published result" });
+    expect(card).toHaveTextContent("14 / 20");
+    expect(card).toHaveTextContent("70.00%");
+    expect(screen.getAllByText(child.first_name)).toHaveLength(1);
+    expect(screen.queryByText("Result from notification")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh linked students" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "All published results" })).toHaveAttribute("href", `/modules/results?child=${child.id}`);
+    expect(screen.getByRole("button", { name: "Refresh published results" })).toBeEnabled();
+    expect(within(card).getByRole("button", { name: "Print this result" })).toBeEnabled();
+  });
   it("selects the exact authorized child and fetches a bounded target instead of scanning the first page", async () => {
     const child = { ...childB, id: resultUuid(20) }, assessmentId = resultUuid(21);
     vi.mocked(loadFamilyStudents).mockResolvedValue([childA, child]);
