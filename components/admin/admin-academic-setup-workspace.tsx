@@ -7,6 +7,7 @@ import { addAcademicSetupRecord, loadAcademicSetup, type AcademicSetup, type Aca
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import { createClient } from "@/lib/supabase/client";
 import { LoadingState } from "@/components/ui/skeleton";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 const tabs = [
   { key: "years", label: "Academic years", name: "academic year" },
@@ -158,7 +159,7 @@ function SchoolAcademicSetup({ client, schoolId, userId, saving, setSaving }: {
   return (
     <section className="card space-y-4 p-4 sm:p-6" aria-label="School academic setup">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" aria-label="Record type">
+        <div className="flex flex-wrap gap-2" aria-label="Record type"><SlidingIndicator className="rounded-xl border border-[var(--border)] bg-blue-700 [--slider-disabled-opacity:.6]" />
           {tabs.map((tab) => (
             <button key={tab.key} type="button" aria-pressed={selectedTab.key === tab.key} disabled={saving}
               className="rounded-xl border border-[var(--border)] px-3 py-2 text-sm font-semibold aria-pressed:bg-blue-700 aria-pressed:text-white disabled:opacity-60"

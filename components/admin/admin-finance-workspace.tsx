@@ -15,6 +15,7 @@ import { getOfficeFinanceSummary, listOfficeFeeReceipts, loadOfficeFeePositions,
 import { manualPaymentMethods as paymentMethods, manualPaymentLabel as paymentLabel } from "@/lib/finance/payment-methods";
 import { downloadFeeDocumentCsv, formatIstDateTime, formatSchoolDay, printFeeDocument, statusTone, type FeeDocument } from "@/lib/finance/fee-print";
 import { LoadingState, Skeleton } from "@/components/ui/skeleton";
+import { SlidingIndicator } from "@/components/ui/sliding-indicator";
 
 type FeeRecord = FeeLedgerRow & { id: string };
 type PaymentRecord = OfficeFeeReceipt;
@@ -677,7 +678,7 @@ export function AdminFinanceWorkspace({ mode, initialReceiptNo = "", initialTab,
         <section className="card overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border)] px-5 py-4">
             <h2 className="flex items-center gap-2 font-bold"><ReceiptText size={17} />Invoices &amp; Receipts</h2>
-            <div role="group" aria-label="Document type" className="flex gap-1 rounded-xl border border-[var(--border)] p-1">
+            <div role="group" aria-label="Document type" className="flex gap-1 rounded-xl border border-[var(--border)] p-1"><SlidingIndicator className="rounded-lg bg-blue-600" />
               <button type="button" aria-pressed={invoiceTab === "invoices"} onClick={() => setInvoiceTab("invoices")} className={`min-h-10 rounded-lg px-3 py-2 text-sm ${invoiceTab === "invoices" ? "bg-blue-600 text-white" : "muted"}`}>Invoices</button>
               <button type="button" aria-pressed={invoiceTab === "receipts"} onClick={() => setInvoiceTab("receipts")} className={`min-h-10 rounded-lg px-3 py-2 text-sm ${invoiceTab === "receipts" ? "bg-blue-600 text-white" : "muted"}`}>Receipts</button>
             </div>
