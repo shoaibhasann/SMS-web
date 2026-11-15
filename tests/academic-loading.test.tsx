@@ -7,6 +7,12 @@ import { AcademicWorkspace } from "../components/academic/academic-workspace";
 import { TeacherAcademicActivityWorkspace } from "../components/academic/teacher-activity-workspace";
 import { TeacherModuleView } from "../components/teacher/teacher-views";
 
+// jsdom exposes the open attribute but does not implement native dialog methods.
+Object.defineProperties(HTMLDialogElement.prototype, {
+  showModal: { configurable: true, value(this: HTMLDialogElement) { this.open = true; } },
+  close: { configurable: true, value(this: HTMLDialogElement) { this.open = false; } },
+});
+
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   getSession: vi.fn(),
@@ -212,7 +218,7 @@ describe("academic scope loading", () => {
     expect(within(sectionSelect).queryByRole("option", { name: "A" })).not.toBeInTheDocument();
   });
 
-  it("moves focus to the marks form each time Enter Marks is clicked", async () => {
+  it("opens the marks editor with focused context and returns focus to the exam action on close", async () => {
     const user = userEvent.setup();
     render(<TeacherModuleView module="exams" />);
     const exam = await screen.findByRole("button", { name: /First test.*Open/ });
@@ -221,11 +227,16 @@ describe("academic scope loading", () => {
 
     const enterMarks = screen.getByRole("button", { name: "Enter Marks" });
     await user.click(enterMarks);
-    const heading = screen.getByRole("heading", { name: /First test.*Maximum 20/ });
+    const editor = screen.getByRole("dialog", { name: "First test" });
+    const heading = within(editor).getByRole("heading", { name: "First test" });
     expect(heading).toHaveFocus();
 
+    fireEvent(editor, new Event("cancel", { cancelable: true }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(enterMarks).toHaveFocus();
+
     await user.click(enterMarks);
-    expect(heading).toHaveFocus();
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: "First test" })).toHaveFocus();
   });
 
   it("preserves unsaved marks when deleting a different assessment refreshes the record list", async () => {
@@ -235,12 +246,14 @@ describe("academic scope loading", () => {
     await user.click(screen.getByRole("button", { name: "Enter Marks" }));
     const studentRow = await screen.findByRole("row", { name: /Asha Student/ });
     fireEvent.change(within(studentRow).getByRole("spinbutton"), { target: { value: "18" } });
+    await user.click(screen.getByRole("button", { name: "Close marks editor" }));
     await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
     await screen.findByText("Assessment deleted.");
     await waitFor(() => expect(screen.queryByRole("button", { name: /Second test.*Open/ })).not.toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: /First test.*Open/ }));
+    await user.click(screen.getByRole("button", { name: "Enter Marks" }));
     const retainedRow = screen.getByRole("row", { name: /Asha Student/ });
     expect(within(retainedRow).getByRole("spinbutton")).toHaveValue(18);
     expect(queries.filter((query) => query.table === "teacher_assessment_marks")).toHaveLength(1);
@@ -301,13 +314,15 @@ describe("mark-save conflict feedback", () => {
     expect(within(list).getByRole("textbox", { name: "Remarks for Bina 1002" }).closest("label")).toHaveTextContent("Remarks");
     fireEvent.change(phoneMarks, { target: { value: "17" } });
     expect(within(table).getByRole("spinbutton", { name: "Marks for Bina 1002" })).toHaveValue(17);
-    expect(screen.getAllByText("Scheduled", { selector: ".badge" })[0]).toHaveClass("text-warning");
-    expect(screen.getByText("2 Nov 2026")).toBeInTheDocument();
+    const editor = within(screen.getByRole("dialog", { name: "First test" }));
+    expect(editor.getByText("Scheduled", { selector: ".badge" })).toHaveClass("text-warning");
+    expect(editor.getByText("2 Nov 2026")).toHaveAttribute("datetime", "2026-11-02");
   });
 
   it("focuses Cancel in the delete dialog, keeps Delete reachable by Tab, and closes on Escape", async () => {
     editableMarks();
     const user = await openMarks();
+    await user.click(screen.getByRole("button", { name: "Close marks editor" }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     const dialog = screen.getByRole("alertdialog", { name: "Delete Exam / Test?" });
     expect(dialog).toHaveAccessibleDescription("“First test” and its marks will be permanently removed.");
@@ -325,7 +340,9 @@ describe("mark-save conflict feedback", () => {
     fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Bina 1002" }), { target: { value: "16" } });
     Object.assign(server[0], { marks_obtained: 19, updated_at: "other-session" });
     await user.click(screen.getByRole("button", { name: "Save Marks" }));
-    await screen.findByText("1 changed mark saved.");
+    const editor = screen.getByRole("dialog", { name: "First test" });
+    expect(await within(editor).findByRole("status")).toHaveTextContent("1 changed mark saved.");
+    expect(within(editor).getByRole("link", { name: "Result publication" })).toHaveAttribute("href", "/modules/published-results");
     expect(server.map((mark) => mark.marks_obtained)).toEqual([19, 16]);
     expect(queries.filter((query) => query.table === "teacher_assessment_marks" && query.action === "update")).toHaveLength(1);
     await user.click(screen.getByRole("button", { name: "Reload marks" }));
@@ -386,6 +403,7 @@ describe("mark-save conflict feedback", () => {
     const user = await openMarks();
     fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
     assessments = assessments.filter((row) => row.id !== "exam-a");
+    await user.click(screen.getByRole("button", { name: "Close marks editor" }));
     await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
@@ -401,11 +419,13 @@ describe("mark-save conflict feedback", () => {
     const user = await openMarks();
     fireEvent.change(within(screen.getByRole("table")).getByRole("spinbutton", { name: "Marks for Asha 1001" }), { target: { value: "18" } });
     assessments[0] = { ...assessments[0], subject_id: "subject-b" };
+    await user.click(screen.getByRole("button", { name: "Close marks editor" }));
     await user.click(screen.getByRole("button", { name: /Second test.*Open/ }));
     await user.click(screen.getByRole("button", { name: "Delete" }));
     await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Delete" }));
     await screen.findByText("Assessment deleted.");
     await user.click(screen.getByRole("button", { name: /First test.*Open/ }));
+    await user.click(screen.getByRole("button", { name: "Enter Marks" }));
     expect(await (await marksTable()).findByRole("spinbutton", { name: "Marks for Asha 1001" })).toHaveValue(18);
     expect(screen.getByRole("alert")).toHaveTextContent("assessment context changed");
     expect(screen.getByRole("button", { name: "Save Marks" })).toBeDisabled();
