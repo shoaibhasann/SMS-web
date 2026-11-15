@@ -137,12 +137,20 @@ describe("family notification inbox", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh notifications" }));
     expect(screen.queryByText(first.title)).not.toBeInTheDocument();
     const oldSignal = load.mock.calls[1][2] as AbortSignal;
-    fireEvent(window, new Event("focus"));
+    fireEvent(window, new CustomEvent(familyNotificationsChangedEvent, { detail: { userId: uid, role: "parent" } }));
     expect(oldSignal.aborted).toBe(true);
     await act(async () => fresh.resolve(inbox([])));
     expect(screen.getByText("No notifications available.")).toBeInTheDocument();
     await act(async () => stale.resolve(inbox([first])));
     expect(screen.queryByText(first.title)).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded inbox when the window regains focus or the tab becomes visible", async () => {
+    load.mockResolvedValue(inbox([first])); const { container } = render(<GuardianAttendanceAlerts userId={uid} />);
+    const title = await screen.findByText(first.title);
+    fireEvent(window, new Event("focus")); fireEvent(document, new Event("visibilitychange"));
+    expect(load).toHaveBeenCalledOnce(); expect(screen.getByText(first.title)).toBe(title);
+    expect(container.querySelector('[data-skeleton="list"]')).not.toBeInTheDocument();
   });
 
   it("marks one kind-scoped row once, refreshes the saved count and retains read state after remount", async () => {

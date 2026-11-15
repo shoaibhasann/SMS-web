@@ -47,10 +47,13 @@ describe("student homework submission UI", () => {
     await user.upload(screen.getByLabelText("Homework attachment (optional)"), new File(["%PDF-1.4 QA"], "work.pdf", { type: "application/pdf" }));
     await user.click(screen.getByRole("button", { name: "Submit homework" }));
     await screen.findByText("Response lost");
-    expect(screen.getByRole("textbox", { name: "Your response" })).toHaveValue("My fraction answer");
+    const responseBox = screen.getByRole("textbox", { name: "Your response" });
+    expect(responseBox).toHaveValue("My fraction answer");
     expect(screen.getByText(/Uploaded and ready to submit/)).toBeInTheDocument();
-    await act(async () => { window.dispatchEvent(new Event("focus")); });
+    await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
     expect(mocks.loadMine).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("textbox", { name: "Your response" })).toBe(responseBox);
+    expect(screen.getByText(/Uploaded and ready to submit/)).toBeInTheDocument();
     current = { ...submitted(), file_path: "private/submission.pdf", file_name: "work.pdf", status: "graded", marks: 8, feedback: "Correct method", revision: 1 };
     await user.click(screen.getByRole("button", { name: "Submit homework" }));
     await screen.findByText("Graded");
@@ -197,7 +200,7 @@ it("aborts a student's private download on account switch and suppresses its lat
   expect(screen.queryByText("Aborted")).not.toBeInTheDocument();
 });
 
-it("keeps a teacher's download independent of background reads, then cancels it when the panel closes", async () => {
+it("keeps a teacher's roster and download when the window regains focus, then cancels the download when the panel closes", async () => {
   const user = userEvent.setup();
   currentRoster.students[0].submission = { ...submitted(), file_path: "private/submission.pdf", file_name: "work.pdf" };
   let release!: () => void;
@@ -213,7 +216,8 @@ it("keeps a teacher's download independent of background reads, then cancels it 
   await user.click(screen.getByRole("button", { name: "View submissions" }));
   await user.click(await screen.findByRole("button", { name: "Download attachment · work.pdf" }));
   expect(mocks.download).toHaveBeenLastCalledWith(expect.anything(), "submission-a", "work.pdf", expect.any(AbortSignal));
-  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+  expect(mocks.roster).toHaveBeenCalledTimes(1);
   expect(downloadSignal.aborted).toBe(false);
   await user.click(screen.getByRole("button", { name: "Hide submissions" }));
   expect(downloadSignal.aborted).toBe(true);
@@ -244,6 +248,9 @@ it("keeps a student response on HTTP409 conflict and refreshes its revision befo
   await user.click(screen.getByRole("button", { name: "Update submission" }));
   await screen.findByText(/This submission changed in another session/);
   expect(response).toHaveValue("My corrected answer");
+  expect(screen.getByRole("button", { name: "Update submission" })).toBeDisabled();
+  await act(async () => { window.dispatchEvent(new Event("focus")); document.dispatchEvent(new Event("visibilitychange")); });
+  expect(mocks.loadMine).toHaveBeenCalledTimes(1);
   expect(screen.getByRole("button", { name: "Update submission" })).toBeDisabled();
   current = { ...submitted(), text_response: "Another device's saved answer", revision: 1 };
   await user.click(screen.getByRole("button", { name: "Refresh submission status" }));

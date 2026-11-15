@@ -198,10 +198,14 @@ describe("official family attendance panel", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Academic year" }), { target: { value: previousSummaryYear.id } }); await screen.findByText(/Through year end/);
     fireEvent.change(screen.getByRole("combobox", { name: "Academic year" }), { target: { value: "" } }); expect(await screen.findByText(/2026–2027 · Through/)).toBeInTheDocument();
   });
-  it("refreshes the current child's read on refocus without changing inbox read state", async () => {
-    render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" }); fireEvent.focus(window);
-    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
-    expect(load.mock.calls.every(call => call[2].id === student.id)).toBe(true);
+  it("keeps the shown report and a pending export when the window regains focus or the tab becomes visible", async () => {
+    const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
+    const { container } = render(<OfficialAttendanceSummary {...props} />); const monthly = await screen.findByRole("article", { name: "Monthly attendance" });
+    fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
+    fireEvent.focus(window); fireEvent(document, new Event("visibilitychange"));
+    expect(load).toHaveBeenCalledOnce(); expect(context).toHaveBeenCalledOnce(); expect(signal.aborted).toBe(false);
+    expect(screen.getByRole("article", { name: "Monthly attendance" })).toBe(monthly); expect(container.querySelector('[data-skeleton="cards"]')).not.toBeInTheDocument();
+    await act(async () => pending.resolve(undefined)); expect(screen.getByText(/PDF download started/)).toBeInTheDocument();
   });
   it("downloads the displayed current or archive scope using explicit verified year and month", async () => {
     render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
@@ -236,13 +240,12 @@ describe("official family attendance panel", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Reporting month" }), { target: { value: "2026-10-01" } }); expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
   });
-  it.each(["year", "refresh", "focus", "signout"])("cancels a delayed export after %s changes its verified context", async change => {
+  it.each(["year", "refresh", "signout"])("cancels a delayed export after %s changes its verified context", async change => {
     const pending = deferred<void>(); downloadPdf.mockReturnValueOnce(pending.promise);
     render(<OfficialAttendanceSummary {...props} />); await screen.findByRole("article", { name: "Monthly attendance" });
     fireEvent.click(screen.getByRole("button", { name: "Download PDF" })); const signal = downloadPdf.mock.calls[0][6] as AbortSignal;
     if (change === "year") fireEvent.change(screen.getByRole("combobox", { name: "Academic year" }), { target: { value: previousSummaryYear.id } });
     else if (change === "refresh") fireEvent.click(screen.getByRole("button", { name: "Refresh official attendance" }));
-    else if (change === "focus") fireEvent.focus(window);
     else act(() => authChanged("SIGNED_OUT", null));
     expect(signal.aborted).toBe(true); await act(async () => pending.resolve(undefined)); expect(screen.queryByText(/PDF download started/)).not.toBeInTheDocument();
   });

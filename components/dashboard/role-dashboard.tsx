@@ -402,7 +402,6 @@ function TeacherDashboard({ userId }: { userId: string }) {
   }
 
   const attendanceUnverified = useAttendanceAccessRevalidation({ client: supabase, enabled: !busy && Boolean(teacher), assignments: classTeacherAssignments,
-    locked: attendanceLocked,
     onChanged: (current) => {
       // Keep the open register (and its draft) when only other scopes changed.
       if (currentAssignment && hasAttendanceScope(current, currentAssignment)) {
@@ -410,11 +409,6 @@ function TeacherDashboard({ userId }: { userId: string }) {
         return;
       }
       setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false); refresh();
-    },
-    onUnavailable: () => {
-      setClassTeacherAssignments([]); setSelectedAssignment(""); setAttendanceLocked(false);
-      setTodayAttendanceRows([]); setAttendanceOverviewUnavailable(true);
-      setMessage("Attendance access could not be verified. Reopen this page to check your access.");
     },
   });
 
@@ -905,7 +899,7 @@ function TeacherDashboard({ userId }: { userId: string }) {
             </div>
             <div>
               <h3 className="mb-3 font-semibold">Record attendance</h3>
-              {attendanceUnverified && <p role="status" className="mb-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your unsaved marks are kept and the check will retry. Save once the connection returns.</p>}
+              {attendanceUnverified && <p role="status" className="mb-3 text-sm text-amber-800 dark:text-amber-200">Attendance access could not be re-checked. Your register is kept and we will try again shortly.</p>}
               {currentAssignment?.coverage_id && <p className="mb-3 text-sm muted">Temporary attendance coverage · {currentAssignment.starts_on} through {currentAssignment.ends_on} IST. Previous days are read-only.</p>}
               <fieldset disabled={busy}>
               <AttendanceEditor

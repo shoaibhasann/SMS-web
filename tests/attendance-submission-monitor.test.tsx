@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AttendanceSubmissionMonitor } from "../components/admin/attendance-submission-monitor";
@@ -74,16 +74,22 @@ describe("attendance submission monitor", () => {
     expect(screen.queryByRole("form", { name: "Attendance cutoff settings" })).not.toBeInTheDocument();
   });
 
-  it("lets the admin disable the cutoff and preserves a draft during background refresh", async () => {
+  it("lets the admin disable the cutoff and keeps progress and a draft during background refresh", async () => {
     read.mockResolvedValue(monitor({ cutoff_time: "10:00", revision: 3 }));
     save.mockResolvedValue({ data: { cutoff_time: null, revision: 4 }, error: null });
     const user = userEvent.setup();
-    render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" settings />);
+    const { container } = render(<AttendanceSubmissionMonitor schoolId="school" userId="admin" settings />);
     await user.click(await screen.findByRole("button", { name: "Configure attendance cutoff" }));
     fireEvent.change(screen.getByLabelText("Daily cutoff (IST)"), { target: { value: "" } });
     await user.type(screen.getByLabelText("Change reason"), "Disable for the revised school policy.");
+    const row = screen.getByText("Class 6 · A");
     fireEvent(document, new Event("visibilitychange"));
-    await screen.findByText(/Daily cutoff 10:00/);
+    expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Class 6 · A")).toBe(row);
+    expect(container.querySelector("[data-skeleton]")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("region")).toHaveAttribute("aria-busy", "false"));
+    expect(read).toHaveBeenCalledTimes(2);
+    expect(screen.getByText(/Daily cutoff 10:00/)).toBeInTheDocument();
     expect(screen.getByLabelText("Change reason")).toHaveValue("Disable for the revised school policy.");
     await user.click(screen.getByRole("button", { name: "Save attendance cutoff" }));
     expect(rpc).toHaveBeenCalledWith("update_attendance_submission_cutoff", {

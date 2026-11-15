@@ -265,6 +265,29 @@ describe("verified module authority", () => {
     expect(screen.getByRole("region", { name: "Office advance credit" })).toBe(office);
   });
 
+  it("keeps the workspace when a focus recheck cannot reach the server", async () => {
+    render(<ModulePage />);
+    const office = await screen.findByRole("region", { name: "Office advance credit" });
+    readRoles.mockResolvedValueOnce({ data: null, error: { message: "Failed to fetch" } });
+    fireEvent.focus(window);
+    await waitFor(() => expect(readRoles).toHaveBeenCalledTimes(2));
+    await act(async () => {});
+    expect(screen.getByRole("region", { name: "Office advance credit" })).toBe(office);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the workspace mounted when Supabase repeats SIGNED_IN for the same user", async () => {
+    render(<ModulePage />);
+    const office = await screen.findByRole("region", { name: "Office advance credit" });
+    readRoles.mockResolvedValueOnce({ data: null, error: { message: "Failed to fetch" } });
+    await act(async () => {
+      onAuthStateChange.mock.calls[0][0]("SIGNED_IN", { user: { id: "actor" } });
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    });
+    expect(screen.getByRole("region", { name: "Office advance credit" })).toBe(office);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("removes office content when a disabled account returns to a visible tab", async () => {
     const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     try {

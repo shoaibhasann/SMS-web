@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -13,7 +13,7 @@ let query: URLSearchParams;
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: "invoices" }), useSearchParams: () => query, useRouter: () => router,
 }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess: readAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: readAccess }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: onAuth } }) }));
 vi.mock("@/lib/notifications/family", async (original) => ({
   ...await original<typeof import("../lib/notifications/family")>(), loadFamilyFeeDue: load,
@@ -143,6 +143,17 @@ describe("exact fee due links", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("₹1,23,456.75")).toHaveClass("text-2xl");
     expect(screen.getByText("Balance due")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("keeps the balance on focus and tab return and ignores a replayed initial session", async () => {
+    render(<FamilyFeeDueDetail feeId={fee.id} studentId={fee.student_id} role="parent" userId={actor} />);
+    const balance = await screen.findByText("₹1,23,456.75");
+    fireEvent(window, new Event("focus"));
+    fireEvent(document, new Event("visibilitychange"));
+    await act(async () => onAuth.mock.calls.at(-1)![0]("INITIAL_SESSION", null));
+    expect(load).toHaveBeenCalledOnce();
+    expect(screen.getByText("₹1,23,456.75")).toBe(balance);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

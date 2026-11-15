@@ -62,9 +62,12 @@ describe("linked-child gate preference card", () => {
     expect(screen.getByRole("checkbox", { name: "Exit alerts for Second pupil" })).not.toBeChecked();
     expect(within(screen.getByRole("form", { name: "Gate alerts for Second pupil" })).getByRole("button", { name: "Save" })).toBeDisabled();
   });
-  it("keeps unsaved choices on focus/visibility and confirms an explicit discard", async () => {
+  it("keeps saved and unsaved choices on focus/visibility and confirms an explicit discard", async () => {
     const user = userEvent.setup(); render(<GateAlertPreferences userId={uid} />);
-    await user.click(await screen.findByRole("checkbox", { name: "Arrival alerts for First pupil" }));
+    const checkbox = await screen.findByRole("checkbox", { name: "Arrival alerts for First pupil" });
+    fireEvent(window, new Event("focus")); fireEvent(document, new Event("visibilitychange"));
+    expect(load).toHaveBeenCalledOnce(); expect(screen.getByRole("checkbox", { name: "Arrival alerts for First pupil" })).toBe(checkbox);
+    await user.click(checkbox);
     fireEvent(window, new Event("focus")); fireEvent(document, new Event("visibilitychange"));
     expect(load).toHaveBeenCalledOnce(); expect(screen.getByRole("checkbox", { name: "Arrival alerts for First pupil" })).toBeChecked();
     vi.mocked(window.confirm).mockReturnValueOnce(false);
@@ -111,12 +114,12 @@ describe("linked-child gate preference card", () => {
     await act(async () => pending.resolve({ ...first, arrival: true, version: 1 })); expect(load).toHaveBeenCalledOnce();
     expect(screen.getByRole("alert")).toHaveTextContent("Your sign-in changed"); view.unmount(); expect(unsubscribe).toHaveBeenCalledOnce();
   });
-  it("drops old owner data immediately and cancels stale reads on a focus refresh", async () => {
+  it("drops old owner data immediately and cancels stale reads on a manual refresh", async () => {
     const old = deferred<GateAlertPreference[]>(), latest = deferred<GateAlertPreference[]>();
     load.mockResolvedValueOnce([first]).mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
     const view = render(<GateAlertPreferences userId={uid} />); await screen.findByRole("checkbox", { name: /Arrival alerts for First/ });
     view.rerender(<GateAlertPreferences userId={id(8)} />); expect(screen.queryByText(first.student_name)).not.toBeInTheDocument();
-    const signal = load.mock.calls[1][2] as AbortSignal; fireEvent(window, new Event("focus")); expect(signal.aborted).toBe(true);
+    const signal = load.mock.calls[1][2] as AbortSignal; fireEvent.click(screen.getByRole("button", { name: "Refresh gate preferences" })); expect(signal.aborted).toBe(true);
     await act(async () => latest.resolve([second])); await act(async () => old.resolve([first]));
     expect(screen.queryByText(first.student_name)).not.toBeInTheDocument(); expect(screen.getByText(second.student_name)).toBeInTheDocument();
   });

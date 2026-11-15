@@ -35,10 +35,17 @@ describe("family notification bell", () => {
   it("drops cached counts while refreshing and ignores aborted responses", async () => {
     const old = deferred<number>(), fresh = deferred<number>(); load.mockResolvedValueOnce(9).mockReturnValueOnce(old.promise).mockReturnValueOnce(fresh.promise);
     render(<FamilyNotificationBell userId={uid} role="parent" className="" />); await screen.findByRole("link", { name: "Open notifications, 9 unread" });
-    fireEvent(window, new Event("focus")); expect(screen.queryByRole("link", { name: /9 unread/ })).not.toBeInTheDocument();
-    const signal = load.mock.calls[1][3] as AbortSignal; fireEvent(document, new Event("visibilitychange")); expect(signal.aborted).toBe(true);
+    const hint = () => fireEvent(window, new CustomEvent(familyNotificationsChangedEvent, { detail: { userId: uid, role: "parent" } }));
+    hint(); expect(screen.queryByRole("link", { name: /9 unread/ })).not.toBeInTheDocument();
+    const signal = load.mock.calls[1][3] as AbortSignal; hint(); expect(signal.aborted).toBe(true);
     await act(async () => fresh.resolve(2)); expect(screen.getByRole("link", { name: "Open notifications, 2 unread" })).toBeInTheDocument();
     await act(async () => old.resolve(99)); expect(screen.queryByRole("link", { name: /99 unread/ })).not.toBeInTheDocument();
+  });
+  it("keeps the shown count when the window regains focus or the tab becomes visible", async () => {
+    load.mockResolvedValue(5); render(<FamilyNotificationBell userId={uid} role="parent" className="" />);
+    const bell = await screen.findByRole("link", { name: "Open notifications, 5 unread" });
+    fireEvent(window, new Event("focus")); fireEvent(document, new Event("visibilitychange"));
+    expect(load).toHaveBeenCalledOnce(); expect(screen.getByRole("link", { name: "Open notifications, 5 unread" })).toBe(bell);
   });
   it("hides an old account's bell and aborts pending requests on sign out", async () => {
     const pending = deferred<number>(); load.mockReturnValue(pending.promise);
@@ -53,7 +60,7 @@ describe("family notification bell", () => {
     view.rerender(<FamilyNotificationBell userId={uid} role="student" className="" />);
     expect(screen.getByRole("link", { name: "Open notifications" })).toHaveAttribute("href", "/modules/notifications");
     await act(async () => pending.resolve(3)); await screen.findByRole("link", { name: "Open notifications, 3 unread" });
-    fireEvent(window, new Event("focus")); await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
+    fireEvent(window, new CustomEvent(familyNotificationsChangedEvent, { detail: { userId: uid, role: "student" } })); await waitFor(() => expect(load).toHaveBeenCalledTimes(3));
     expect(screen.getByRole("link", { name: "Open notifications" })).toBeInTheDocument(); expect(screen.queryByText("3")).not.toBeInTheDocument();
   });
 });

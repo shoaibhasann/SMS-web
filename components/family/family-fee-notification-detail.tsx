@@ -52,17 +52,14 @@ function FeeDetail({ id, kind, studentId, role, userId }: TargetProps) {
   useEffect(() => {
     if (!validTarget || sessionChanged) return;
     const controller = new AbortController();
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      // Every Refresh re-subscribes, and auth-js replays INITIAL_SESSION (null while an expired token renews) to it.
+      if (event === "INITIAL_SESSION") return;
       if (!controller.signal.aborted && session?.user.id !== userId) {
         controller.abort();
         setSessionChanged(true);
       }
     });
-    const refreshOnFocus = () => {
-      if (document.visibilityState !== "hidden") setAttempt((value) => value + 1);
-    };
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
 
     async function load() {
       try {
@@ -84,8 +81,6 @@ function FeeDetail({ id, kind, studentId, role, userId }: TargetProps) {
     return () => {
       controller.abort();
       subscription.unsubscribe();
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, [attempt, client, id, item, kind, role, sessionChanged, studentId, userId, validTarget]);
 

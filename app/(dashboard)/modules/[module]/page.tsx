@@ -10,7 +10,7 @@ import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
 import { canAccessModule, modules, resolveModuleRole } from "@/lib/modules";
 import type { UiRole } from "@/lib/auth/roles";
-import { readActiveSchoolAccess } from "@/lib/auth/access";
+import { readActiveSchoolAccess, SchoolAccessDeniedError } from "@/lib/auth/access";
 import { loginPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { TeacherModuleView } from "@/components/teacher/teacher-views";
 import { TeacherAcademicActivityWorkspace } from "@/components/academic/teacher-activity-workspace";
@@ -90,7 +90,9 @@ function ModuleContent() {
     let currentUserId: string | null = null;
     let authTimer: ReturnType<typeof setTimeout> | undefined;
     const modulePath = `/modules/${moduleName}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
-    const loadRole = async () => {
+    // quiet: re-verify behind the page already shown (e.g. returning to the tab); a failed read keeps it,
+    // a definite "no" still clears it.
+    const loadRole = async (quiet = false) => {
       if (!active) return;
       const request = ++generation;
       const isCurrent = () => active && request === generation;
@@ -129,7 +131,7 @@ function ModuleContent() {
           router.replace(mfaPath(modulePath));
           return;
         }
-        if (isCurrent()) setAccess({
+        if (isCurrent() && !(quiet && currentUserId && !(error instanceof SchoolAccessDeniedError))) setAccess({
           key: accessKey,
           role: null,
           userId: null,
@@ -137,8 +139,8 @@ function ModuleContent() {
         });
       }
     };
-    const onFocus = () => { void loadRole(); };
-    const onVisible = () => { if (document.visibilityState === "visible") void loadRole(); };
+    const onFocus = () => { void loadRole(true); };
+    const onVisible = () => { if (document.visibilityState === "visible") void loadRole(true); };
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || event === "INITIAL_SESSION") return;
       generation += 1;
@@ -150,13 +152,14 @@ function ModuleContent() {
         router.replace("/login");
         return;
       }
-      if (session?.user.id !== currentUserId) {
+      const sameUser = !!currentUserId && session?.user.id === currentUserId;
+      if (!sameUser) {
         currentUserId = session?.user.id ?? null;
         setAccess(null);
       }
       // Supabase auth callbacks must finish before starting another Auth read.
       clearTimeout(authTimer);
-      authTimer = setTimeout(() => { void loadRole(); }, 0);
+      authTimer = setTimeout(() => { void loadRole(sameUser); }, 0);
     });
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisible);

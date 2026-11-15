@@ -13,7 +13,7 @@ let query: URLSearchParams;
 vi.mock("next/navigation", () => ({
   useParams: () => ({ module: "invoices" }), useSearchParams: () => query, useRouter: () => router,
 }));
-vi.mock("@/lib/auth/access", () => ({ readActiveSchoolAccess: readAccess }));
+vi.mock("@/lib/auth/access", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/auth/access")>(), readActiveSchoolAccess: readAccess }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ auth: { onAuthStateChange: onAuth } }) }));
 vi.mock("@/lib/notifications/family", async (original) => ({
   ...await original<typeof import("../lib/notifications/family")>(),

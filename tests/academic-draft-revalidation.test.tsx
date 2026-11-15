@@ -66,15 +66,19 @@ async function classLogDraft() {
 }
 
 describe("homework draft during access re-checks", () => {
-  it("keeps the draft and blocks saving when one re-check fails", async () => {
+  it("keeps the draft as it is and retries on the next check when one re-check fails", async () => {
     const details = await homeworkDraft();
+    const field = details();
+    const calls = mocks.assignments.mock.calls.length;
     mocks.assignments.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await refocus();
-    await screen.findByText(/Teaching access could not be verified/);
-    expect(details()).toHaveValue("Long homework draft typed by teacher");
+    await waitFor(() => expect(mocks.assignments).toHaveBeenCalledTimes(calls + 1));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(details()).toBe(field);
     await refocus();
-    await waitFor(() => expect(mocks.assignments.mock.calls.length).toBeGreaterThanOrEqual(4));
-    await waitFor(() => expect(details()).toHaveValue("Long homework draft typed by teacher"));
+    await waitFor(() => expect(mocks.assignments).toHaveBeenCalledTimes(calls + 2));
+    expect(details()).toBe(field);
+    expect(field).toHaveValue("Long homework draft typed by teacher");
   });
 
   it("keeps the draft when an unrelated assignment is added", async () => {
@@ -95,13 +99,18 @@ describe("homework draft during access re-checks", () => {
 });
 
 describe("Daily Log draft during access re-checks", () => {
-  it("keeps the draft when one re-check fails", async () => {
+  it("keeps the draft as it is and retries on the next check when one re-check fails", async () => {
     const topic = await classLogDraft();
+    const field = topic();
+    const calls = mocks.assignments.mock.calls.length;
     mocks.assignments.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await refocus();
-    await screen.findByText(/Teaching access could not be verified/);
+    await waitFor(() => expect(mocks.assignments).toHaveBeenCalledTimes(calls + 1));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await refocus();
-    await waitFor(() => expect(topic()).toHaveValue("Fractions draft typed by teacher"));
+    await waitFor(() => expect(mocks.assignments).toHaveBeenCalledTimes(calls + 2));
+    expect(topic()).toBe(field);
+    expect(field).toHaveValue("Fractions draft typed by teacher");
   });
 
   it("keeps the draft and its class when an unrelated assignment is added", async () => {

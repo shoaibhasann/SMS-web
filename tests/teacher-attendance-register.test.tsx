@@ -234,25 +234,27 @@ describe("TeacherAttendanceRegister wiring", () => {
     await screen.findByRole("region", { name: "Attendance editor boundary" });
     fireEvent.change(screen.getByLabelText("Selected register date"), { target: { value: "2026-11-06" } });
     await act(async () => { vi.advanceTimersByTime(30_000); });
-    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(/Your register is kept/)).toHaveAttribute("role", "status");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
     await act(async () => { vi.advanceTimersByTime(30_000); });
-    await waitFor(() => expect(screen.queryByText(/unsaved marks are kept/)).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(/Your register is kept/)).not.toBeInTheDocument());
     expect(screen.getByLabelText("Selected register date")).toHaveValue("2026-11-06");
   });
 
-  it("still fails closed when a background check fails with no unsaved attendance", async () => {
-    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  it("keeps a clean register with a retry notice when the check on returning to the tab fails", async () => {
     effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
     render(<TeacherAttendanceRegister />);
     fireEvent.click(await screen.findByRole("button", { name: "Load saved register" }));
-    await act(async () => { vi.advanceTimersByTime(30_000); });
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
-    expect(screen.queryByRole("region", { name: "Attendance editor boundary" })).not.toBeInTheDocument();
+    const editor = screen.getByRole("region", { name: "Attendance editor boundary" });
+    fireEvent.focus(window);
+    fireEvent(document, new Event("visibilitychange"));
+    expect(await screen.findByText(/Your register is kept/)).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Attendance editor boundary" })).toBe(editor);
   });
 
-  it("fails closed when a periodic check fails before a clean editor reports its lock state", async () => {
+  it("keeps the register when a periodic check fails before the editor reports its lock state", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     editorMode.silent = true;
     effectiveAssignments.mockResolvedValueOnce([permanentAssignment]).mockRejectedValue(new Error("offline"));
@@ -260,9 +262,9 @@ describe("TeacherAttendanceRegister wiring", () => {
     await screen.findByRole("region", { name: "Attendance editor boundary" });
     expect(screen.getByRole("button", { name: "Refresh attendance access" })).toBeDisabled();
     await act(async () => { vi.advanceTimersByTime(30_000); });
-    expect(await screen.findByRole("alert")).toHaveTextContent("could not be verified");
-    expect(screen.queryByText(/unsaved marks are kept/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Attendance editor boundary" })).not.toBeInTheDocument();
+    expect(await screen.findByText(/Your register is kept/)).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Attendance editor boundary" })).toBeInTheDocument();
   });
 
   it("keeps the register when a periodic check fails while the editor is still loading", async () => {
@@ -272,7 +274,7 @@ describe("TeacherAttendanceRegister wiring", () => {
     await screen.findByRole("region", { name: "Attendance editor boundary" });
     await act(async () => {}); // let the loading editor report its lock
     await act(async () => { vi.advanceTimersByTime(30_000); });
-    expect(await screen.findByText(/unsaved marks are kept/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(/Your register is kept/)).toHaveAttribute("role", "status");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Attendance editor boundary" })).toBeInTheDocument();
   });

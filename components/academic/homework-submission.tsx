@@ -24,7 +24,6 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
   const [sessionChanged, setSessionChanged] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const saved = useRef<HomeworkSubmission | null | undefined>(undefined);
   const dirty = useRef(false);
   const inFlight = useRef(false);
   const loadVersion = useRef(0);
@@ -38,7 +37,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
   const fileId = useId();
   const graded = snapshot?.status === "graded";
 
-  const load = useCallback(async (mode: "manual" | "background" | "saved" = "manual") => {
+  const load = useCallback(async (mode: "manual" | "saved" = "manual") => {
     const version = ++loadVersion.current;
     readController.current?.abort();
     const controller = new AbortController(); readController.current = controller;
@@ -46,13 +45,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
     try {
       const current = await loadMyHomeworkSubmission(client, scope.activityId, scope.studentId, controller.signal);
       if (controller.signal.aborted || version !== loadVersion.current) return;
-      if (mode === "background" && dirty.current && current?.status !== "graded"
-        && (current?.revision ?? null) !== (saved.current?.revision ?? null)) {
-        setConflict(true);
-        setError("This submission changed in another session. Your draft is kept; refresh its status before trying again.");
-        return;
-      }
-      saved.current = current; setSnapshot(current); setConflict(false);
+      setSnapshot(current); setConflict(false);
       if (!dirty.current || mode === "saved" || current?.status === "graded") {
         setResponse(current?.text_response ?? ""); dirty.current = false;
         setFile(undefined); setUploaded(undefined); request.current = undefined;
@@ -64,7 +57,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
       setError("");
     } catch (loadError) {
       if (controller.signal.aborted || version !== loadVersion.current) return;
-      saved.current = undefined; setSnapshot(undefined);
+      setSnapshot(undefined);
       if ((loadError as { code?: string })?.code === "42501") {
         setResponse(""); setFile(undefined); setUploaded(undefined); dirty.current = false; request.current = undefined;
       }
@@ -77,21 +70,12 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
     const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
       if (session?.user.id !== userId) {
         readController.current?.abort(); writeController.current?.abort(); downloadController.current?.abort(); loadVersion.current += 1;
-        saved.current = undefined; setSnapshot(undefined); setResponse(""); setFile(undefined); setUploaded(undefined);
+        setSnapshot(undefined); setResponse(""); setFile(undefined); setUploaded(undefined);
         dirty.current = false; request.current = undefined; setSessionChanged(true);
       }
     });
     return () => { subscription.unsubscribe(); readController.current?.abort(); writeController.current?.abort(); downloadController.current?.abort(); loadVersion.current += 1; };
   }, [client, userId, open]);
-
-  useEffect(() => {
-    if (!open || sessionChanged) return;
-    const refresh = () => { if (!inFlight.current && !request.current && document.visibilityState !== "hidden") void load("background"); };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", refresh);
-    const timer = window.setInterval(refresh, 30_000);
-    return () => { readController.current?.abort(); window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); };
-  }, [load, open, sessionChanged]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -120,7 +104,7 @@ export function StudentHomeworkSubmission({ scope, userId, maxMarks }: { scope: 
       if (!controller.signal.aborted) {
         if (["PT409", "40001", "23505"].includes((submitError as { code?: string })?.code ?? "")) { request.current = undefined; setConflict(true); }
         if ((submitError as { code?: string })?.code === "42501") {
-          saved.current = undefined; setSnapshot(undefined); setResponse(""); setFile(undefined); setUploaded(undefined); dirty.current = false; request.current = undefined;
+          setSnapshot(undefined); setResponse(""); setFile(undefined); setUploaded(undefined); dirty.current = false; request.current = undefined;
         }
         setError(homeworkError(submitError, "Homework could not be submitted. Your response and uploaded attachment are kept for retry."));
       }

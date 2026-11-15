@@ -98,15 +98,6 @@ function SchoolAuditHistory({ client, schoolId }: { client: Client; schoolId: st
     return () => controller.abort();
   }, [client, schoolId, query]);
 
-  useEffect(() => {
-    // Revalidate the page the reviewer is on; only Refresh history / Apply filters restart at page 1.
-    const refresh = () => setQuery((current) => ({ ...current, revision: current.revision + 1 }));
-    const visible = () => { if (document.visibilityState === "visible") refresh(); };
-    window.addEventListener("focus", refresh);
-    document.addEventListener("visibilitychange", visible);
-    return () => { window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", visible); };
-  }, []);
-
   function apply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const error = validateAuditFilters(draft);
