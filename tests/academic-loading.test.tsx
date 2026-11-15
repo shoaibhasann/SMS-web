@@ -212,6 +212,22 @@ describe("academic scope loading", () => {
     expect(within(sectionSelect).queryByRole("option", { name: "A" })).not.toBeInTheDocument();
   });
 
+  it("moves focus to the marks form each time Enter Marks is clicked", async () => {
+    const user = userEvent.setup();
+    render(<TeacherModuleView module="exams" />);
+    const exam = await screen.findByRole("button", { name: /First test.*Open/ });
+    await user.click(exam);
+    expect(exam).toHaveFocus();
+
+    const enterMarks = screen.getByRole("button", { name: "Enter Marks" });
+    await user.click(enterMarks);
+    const heading = screen.getByRole("heading", { name: /First test.*Maximum 20/ });
+    expect(heading).toHaveFocus();
+
+    await user.click(enterMarks);
+    expect(heading).toHaveFocus();
+  });
+
   it("preserves unsaved marks when deleting a different assessment refreshes the record list", async () => {
     const user = userEvent.setup();
     render(<TeacherModuleView module="exams" />);
