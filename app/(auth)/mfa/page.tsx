@@ -7,7 +7,7 @@ import { AccountAuthenticator } from "@/components/account/account-authenticator
 import { LoadingState } from "@/components/ui/skeleton";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { createClient } from "@/lib/supabase/client";
-import { readStaffMfaStatus, safeMfaNext, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
+import { loginPath, readStaffMfaStatus, safeMfaNext, type StaffMfaStatus } from "@/lib/auth/staff-mfa";
 
 const invitationRoutes = ["/guardian-invite", "/guardian-mobile-invite", "/teacher-invite", "/guardian-recover"];
 function withInviteFragment(next: string, fragment: string) {
@@ -37,7 +37,7 @@ function MfaContent() {
     const controller = new AbortController();
     void readStaffMfaStatus(client, undefined, controller.signal).then((result) => {
       if (controller.signal.aborted) return;
-      if (!result || result.action === "sign_in") { router.replace("/login"); return; }
+      if (!result || result.action === "sign_in") { router.replace(loginPath(next)); return; }
       if (!requestedSetup && (result.allowed || (overviewContinuation && result.dashboard_allowed))) {
         router.replace(destination(next));
         router.refresh(); return;

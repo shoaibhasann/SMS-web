@@ -85,13 +85,20 @@ describe("standalone MFA continuation", () => {
     const link = screen.queryByRole("link", { name: "Back to invitation" });
     if (href) expect(link).toHaveAttribute("href", href); else expect(link).not.toBeInTheDocument();
   });
-  it.each([null, {
-    user_id: "owner", allowed: false, action: "sign_in", current_aal: "aal1", verified_totp_count: 0,
-  }])("returns to login without mounting an authenticator when fresh sign-in is required (%j)", async (status) => {
+  const signIn = { user_id: "owner", allowed: false, action: "sign_in", current_aal: "aal1", verified_totp_count: 0 };
+  it.each([
+    // An invitation needs its #token, which never travels through /login, so sign-in starts clean.
+    [null, "setup=1&next=/teacher-invite", "/login"],
+    [signIn, "setup=1&next=/teacher-invite", "/login"],
+    [signIn, "next=%2Fmodules%2Freports", "/login?next=%2Fmodules%2Freports"],
+    [signIn, "next=%2Fdashboard", "/login"],
+    [null, "next=https%3A%2F%2Funtrusted.example%2F", "/login"],
+  ])("returns to login with only the allowlisted continuation, without mounting an authenticator, when fresh sign-in is required (%j %s)", async (status, query, login) => {
+    params = new URLSearchParams(query);
     mocks.status.mockResolvedValue(status);
     render(<MfaPage />);
 
-    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith("/login"));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledExactlyOnceWith(login));
     expect(mocks.authenticator).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "Continue to workspace" })).not.toBeInTheDocument();
   });
