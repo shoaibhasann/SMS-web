@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import Link from "next/link";
 import { Check, FileCheck2, Printer, RefreshCw, Send, X } from "lucide-react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
@@ -192,11 +192,14 @@ function OfficeResults({ client, userId }: { client: Client; userId: string }) {
 
 function SubmissionList({ client, schoolId, userId, teacher = false, externalBusy = false, headingRef, notice, onBusyChange, onRefresh }: {
   client: Client; schoolId: string | null; userId: string; teacher?: boolean; externalBusy?: boolean;
-  headingRef?: Ref<HTMLHeadingElement>; notice?: Notice; onBusyChange: (busy: boolean) => void; onRefresh?: () => void;
+  headingRef?: RefObject<HTMLHeadingElement | null>; notice?: Notice; onBusyChange: (busy: boolean) => void; onRefresh?: () => void;
 }) {
   const [status, setStatus] = useState<PublicationStatus | "">(teacher ? "" : "pending"), [page, setPage] = useState(0), [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState<{ key: string; value: Load<PublicationPage<PublicationSummary>> }>();
   const [selected, setSelected] = useState(""), [detailBusy, setDetailBusy] = useState(false), [detailRefresh, setDetailRefresh] = useState(0);
+  const opener = useRef<HTMLButtonElement>(null);
+  const localHeading = useRef<HTMLHeadingElement>(null);
+  const listHeading = headingRef ?? localHeading;
   const key = `${schoolId}:${status}:${page}:${refresh}`, current = result?.key === key ? result.value : undefined;
   useEffect(() => {
     let active = true;
@@ -204,15 +207,22 @@ function SubmissionList({ client, schoolId, userId, teacher = false, externalBus
       (error: unknown) => { if (active) setResult({ key, value: { error: errorText(error, "Publication requests could not be loaded. Refresh to try again.") } }); });
     return () => { active = false; };
   }, [client, key, page, schoolId, status]);
+  useEffect(() => {
+    const trigger = opener.current;
+    if (selected || !trigger) return;
+    opener.current = null;
+    const target = trigger.isConnected && !trigger.disabled ? trigger : listHeading.current;
+    target?.focus({ preventScroll: true });
+  }, [selected, listHeading]);
   function lock(value: boolean) { setDetailBusy(value); onBusyChange(value); }
   function close() { setSelected(""); lock(false); }
   const busy = externalBusy || detailBusy;
   return <section className="space-y-5" aria-label={teacher ? "My publication requests" : "Result publication review"}>
-    <div className="card space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="scroll-mt-24 text-lg font-bold">{teacher ? "My publication requests" : "Result publication requests"}</h2><button type="button" className={button} disabled={externalBusy} onClick={() => { setRefresh((value) => value + 1); onRefresh?.(); }}><RefreshCw size={15} aria-hidden="true" />Refresh requests</button></div>
+    <div className="card space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 ref={listHeading} tabIndex={-1} className="scroll-mt-24 text-lg font-bold">{teacher ? "My publication requests" : "Result publication requests"}</h2><button type="button" className={button} disabled={externalBusy} onClick={() => { setRefresh((value) => value + 1); onRefresh?.(); }}><RefreshCw size={15} aria-hidden="true" />Refresh requests</button></div>
       {notice && <Message notice={notice} />}
       <div className={`${field} max-w-xs`}><label htmlFor="publication-status">Request status</label><select id="publication-status" className="field" value={status} disabled={busy} onChange={(event) => { setStatus(event.target.value as PublicationStatus | ""); setPage(0); }}><option value="">All requests</option><option value="pending">Pending review</option><option value="published">Published</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option></select></div>
       {!current ? <LoadingState variant="table" className="text-sm muted">Loading saved publication requests…</LoadingState> : current.error ? <ErrorMessage text={current.error} />
-        : !current.data?.rows.length ? <p className="text-sm muted">No publication requests on this page.</p> : <ul className="divide-y divide-[var(--border)]">{current.data.rows.map((row) => <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h3 className="break-words font-semibold">{row.metadata.name}</h3><p className="mt-1 text-xs leading-relaxed muted">{row.metadata.class_name}{row.metadata.section_name && ` / ${row.metadata.section_name}`} · {row.metadata.subject_name} · {row.metadata.academic_year_name}</p><p className="mt-1 text-xs muted">Requested by {row.requester_name} · {times.format(new Date(row.requested_at))} IST</p></div><div className="flex flex-wrap items-center gap-3"><Status status={row.status} revision={row.revision} /><button type="button" className={button} disabled={busy} onClick={() => { setSelected(row.id); setDetailRefresh((value) => value + 1); }}>Open result snapshot</button></div></li>)}</ul>}
+        : !current.data?.rows.length ? <p className="text-sm muted">No publication requests on this page.</p> : <ul className="divide-y divide-[var(--border)]">{current.data.rows.map((row) => <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h3 className="break-words font-semibold">{row.metadata.name}</h3><p className="mt-1 text-xs leading-relaxed muted">{row.metadata.class_name}{row.metadata.section_name && ` / ${row.metadata.section_name}`} · {row.metadata.subject_name} · {row.metadata.academic_year_name}</p><p className="mt-1 text-xs muted">Requested by {row.requester_name} · {times.format(new Date(row.requested_at))} IST</p></div><div className="flex flex-wrap items-center gap-3"><Status status={row.status} revision={row.revision} /><button type="button" className={button} aria-haspopup="dialog" disabled={busy} onClick={(event) => { opener.current = event.currentTarget; setSelected(row.id); setDetailRefresh((value) => value + 1); }}>Open result snapshot</button></div></li>)}</ul>}
       {current?.data && <Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={busy} onPage={setPage} />}
     </div>
     {selected && <SubmissionDetail key={selected} client={client} submissionId={selected} refresh={detailRefresh} userId={userId} teacher={teacher}
@@ -227,7 +237,14 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, pend
   const [attempt, setAttempt] = useState(0), [result, setResult] = useState<{ key: string; value: Load<PublicationDetail>; denied?: boolean }>();
   const [reason, setReason] = useState(""), [saving, setSaving] = useState(false), [notice, setNotice] = useState<Notice>();
   const inFlight = useRef(false), alive = useAlive(), key = `${submissionId}:${attempt}:${refresh}`;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogHeading = useRef<HTMLHeadingElement>(null);
   const current = result?.key === key ? result.value : undefined;
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    dialogHeading.current?.focus();
+  }, []);
   useEffect(() => {
     let active = true;
     getResultSubmission(client, submissionId).then((data) => { if (active) setResult({ key, value: { data } }); },
@@ -255,7 +272,9 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, pend
     finally { inFlight.current = false; if (alive.current) { setSaving(false); onBusyChange(!confirmed && Boolean(reason.trim())); } }
   }
   function close() {
+    if (inFlight.current || disabled) return;
     if (reason.trim() && !window.confirm("Discard the unsaved review reason?")) return;
+    dialogRef.current?.close();
     onClose();
   }
   const detail = current?.data, own = detail?.requested_by === userId || detail?.viewer_entered_marks === true || detail?.snapshot.pupils.some((row) => row.mark_updated_by === userId);
@@ -264,22 +283,37 @@ function SubmissionDetail({ client, submissionId, refresh, userId, teacher, pend
           <div className="flex flex-wrap gap-3">{teacher ? <button type="submit" value="cancelled" className={button} disabled={saving || disabled}><X size={16} aria-hidden="true" />{saving ? "Cancelling…" : "Cancel publication request"}</button> : <><button type="submit" value="published" className={primary} disabled={saving || disabled || detail?.source_matches !== true}><Check size={16} aria-hidden="true" />{saving ? "Saving review…" : "Publish result snapshot"}</button><button type="submit" value="rejected" className={`${button} text-red-700 dark:text-red-300`} disabled={saving || disabled}><X size={16} aria-hidden="true" />Reject publication</button></>}</div>
           <p className="text-xs leading-relaxed muted">A published snapshot is immutable. Publishing a later reviewed revision replaces the family’s latest view without exposing earlier private snapshots.</p>
         </form>;
-  return <section className="card space-y-5 p-5" aria-label="Saved result snapshot"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">Saved result snapshot</h2><div className="flex flex-wrap gap-2"><button type="button" className={button} disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh snapshot status</button><button type="button" className={button} disabled={saving || disabled} onClick={close}><X size={15} aria-hidden="true" />Close result details</button></div></div>
-    {notice && <Message notice={notice} />}
-    {!current ? <LoadingState variant="list" className="text-sm muted">Loading the saved snapshot…</LoadingState> : current.error ? <>
-      <ErrorMessage text={current.error} />
-      {teacher && pendingFallback && <>{result?.denied ? <p className="text-sm muted">Your teaching assignment for this assessment changed, so the frozen snapshot is hidden. You can still cancel your pending request.</p>
-        : <div className="flex flex-wrap items-center gap-3"><p className="text-sm muted">The saved snapshot could not be loaded right now. Retry, or cancel your pending request below.</p><button type="button" className={button} disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Retry loading snapshot</button></div>}{reasonForm}</>}
-    </> : detail && <>
-      <div className="flex flex-wrap items-center justify-between gap-3"><SourceHeading source={detail.snapshot.metadata} /><Status status={detail.status} revision={detail.revision} /></div>
-      <PupilSnapshot pupils={detail.snapshot.pupils} maximum={detail.snapshot.metadata.maximum_marks} />
-      {detail.reviewed_at && <div className="rounded-xl bg-[var(--surface-2)] p-4 text-sm"><p className="font-semibold">{labels[detail.status]}{detail.reviewer_name && ` by ${detail.reviewer_name}`} · {times.format(new Date(detail.reviewed_at))} IST</p><p className="mt-2 whitespace-pre-wrap break-words">{detail.review_note}</p></div>}
-      {detail.status === "pending" && (teacher ? detail.requested_by === userId : true) && <>
-        {detail.source_matches === false && <p role="alert" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">The source marks, roster or assessment changed after this request. It cannot be published. The requester can cancel, refresh the source preview and submit a new snapshot; the school may reject this saved request.</p>}
-        {!teacher && own ? <p className="text-sm muted">An independent reviewer must decide a request you submitted or entered marks for.</p> : reasonForm}
-      </>}
-    </>}
-  </section>;
+  return <dialog
+    ref={dialogRef}
+    aria-labelledby="result-snapshot-title"
+    onCancel={(event) => { event.preventDefault(); close(); }}
+    className="fixed inset-0 m-auto h-dvh max-h-none w-full max-w-none overflow-hidden bg-[var(--surface)] text-[var(--text)] backdrop:bg-slate-950/65 backdrop:backdrop-blur-[3px] md:h-fit md:max-h-[calc(100dvh-3rem)] md:w-[min(58rem,calc(100vw-3rem))] md:rounded-2xl md:border md:border-[var(--border)] md:shadow-2xl"
+  >
+    <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_auto] md:h-auto md:max-h-[calc(100dvh-3rem)]">
+      <header className="flex items-center gap-3 border-b border-[var(--border)] px-4 py-3 sm:px-6 sm:py-4">
+        <span className="hidden size-10 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--primary)] sm:flex"><FileCheck2 size={20} aria-hidden="true" /></span>
+        <h2 ref={dialogHeading} id="result-snapshot-title" tabIndex={-1} className="min-w-0 flex-1 text-base font-bold tracking-tight sm:text-lg">Saved result snapshot</h2>
+        <button type="button" className="btn btn-secondary size-11 shrink-0 p-0" aria-label="Refresh snapshot status" title="Refresh snapshot status" disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={16} aria-hidden="true" /></button>
+        <button type="button" className="btn btn-secondary size-11 shrink-0 p-0" aria-label="Close result details" title="Close result details" disabled={saving || disabled} onClick={close}><X size={18} aria-hidden="true" /></button>
+      </header>
+      <div className="min-h-0 space-y-4 overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:px-6 sm:pt-5">
+        {!current ? <LoadingState variant="list" className="text-sm muted">Loading the saved snapshot…</LoadingState> : current.error ? <>
+          <ErrorMessage text={current.error} />
+          {teacher && pendingFallback && <>{result?.denied ? <p className="text-sm muted">Your teaching assignment for this assessment changed, so the frozen snapshot is hidden. You can still cancel your pending request.</p>
+            : <div className="flex flex-wrap items-center gap-3"><p className="text-sm muted">The saved snapshot could not be loaded right now. Retry, or cancel your pending request below.</p><button type="button" className={button} disabled={saving || disabled} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Retry loading snapshot</button></div>}{reasonForm}</>}
+        </> : detail && <>
+          <div className="flex flex-wrap items-start justify-between gap-3"><SourceHeading source={detail.snapshot.metadata} /><Status status={detail.status} revision={detail.revision} /></div>
+          <PupilSnapshot pupils={detail.snapshot.pupils} maximum={detail.snapshot.metadata.maximum_marks} />
+          {detail.reviewed_at && <div className="rounded-xl bg-[var(--surface-2)] p-4 text-sm"><p className="font-semibold">{labels[detail.status]}{detail.reviewer_name && ` by ${detail.reviewer_name}`} · {times.format(new Date(detail.reviewed_at))} IST</p><p className="mt-2 whitespace-pre-wrap break-words">{detail.review_note}</p></div>}
+          {detail.status === "pending" && (!teacher || detail.requested_by === userId) && <>
+            {detail.source_matches === false && <p role="alert" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200">The source marks, roster or assessment changed after this request. It cannot be published. The requester can cancel, refresh the source preview and submit a new snapshot; the school may reject this saved request.</p>}
+            {!teacher && own ? <p className="text-sm muted">An independent reviewer must decide a request you submitted or entered marks for.</p> : reasonForm}
+          </>}
+        </>}
+      </div>
+      {notice && <footer className="border-t border-[var(--border)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6"><Message notice={notice} /></footer>}
+    </div>
+  </dialog>;
 }
 
 function FamilyResultAccess({ client, role, userId, initialChildId, initialAssessmentId }: { client: Client; role: "parent" | "student"; userId: string } & ResultLink) {

@@ -7,12 +7,6 @@ import { AcademicWorkspace } from "../components/academic/academic-workspace";
 import { TeacherAcademicActivityWorkspace } from "../components/academic/teacher-activity-workspace";
 import { TeacherModuleView } from "../components/teacher/teacher-views";
 
-// jsdom exposes the open attribute but does not implement native dialog methods.
-Object.defineProperties(HTMLDialogElement.prototype, {
-  showModal: { configurable: true, value(this: HTMLDialogElement) { this.open = true; } },
-  close: { configurable: true, value(this: HTMLDialogElement) { this.open = false; } },
-});
-
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
   getSession: vi.fn(),
