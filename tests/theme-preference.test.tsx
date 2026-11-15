@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import LoginPage from "@/app/(auth)/login/page";
@@ -51,22 +51,22 @@ function workspace() {
 
 it("defaults the workspace to System and responds to live device theme changes", () => {
   render(workspace());
-  const control = screen.getByRole("combobox", { name: "Color theme" });
-  expect(control).toHaveValue("system");
+  const control = screen.getByRole("radio", { name: "System" });
+  expect(control).toBeChecked();
   expect(control).toBeEnabled();
   expect(document.documentElement).toHaveClass("light");
-  expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
-    "System (device setting)", "Light", "Dark",
+  expect(within(screen.getByRole("radiogroup", { name: "Color theme" })).getAllByRole("radio").map((radio) => radio.parentElement?.textContent)).toEqual([
+    "System", "Light", "Dark",
   ]);
   control.focus();
   expect(control).toHaveFocus();
 
   changeSystemTheme(true);
   expect(document.documentElement).toHaveClass("dark");
-  expect(control).toHaveAttribute("title", "System theme (dark)");
+  expect(control.parentElement).toHaveAttribute("title", "System theme (dark)");
   changeSystemTheme(false);
   expect(document.documentElement).toHaveClass("light");
-  expect(control).toHaveAttribute("title", "System theme (light)");
+  expect(control.parentElement).toHaveAttribute("title", "System theme (light)");
 });
 
 it("keeps login on the device theme without changing the saved workspace preference", () => {
@@ -88,7 +88,7 @@ it("keeps login on the device theme without changing the saved workspace prefere
   view.rerender(workspace());
   expect(view.container.querySelectorAll("script")).toHaveLength(scripts.length);
   scripts.forEach((script, index) => expect(view.container.querySelectorAll("script")[index]).toBe(script));
-  expect(screen.getByRole("combobox", { name: "Color theme" })).toHaveValue("light");
+  expect(screen.getByRole("radio", { name: "Light" })).toBeChecked();
   expect(document.documentElement).toHaveClass("light");
   expect(localStorage.getItem("theme")).toBe("light");
 
@@ -119,13 +119,13 @@ it("uses the device theme before login hydration without replacing the workspace
 
 it("persists a manual workspace choice across remounts and ignores device changes while overridden", () => {
   const view = render(workspace());
-  fireEvent.change(screen.getByRole("combobox", { name: "Color theme" }), { target: { value: "dark" } });
+  fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
   expect(document.documentElement).toHaveClass("dark");
   expect(localStorage.getItem("theme")).toBe("dark");
   view.unmount();
 
   render(workspace());
-  expect(screen.getByRole("combobox", { name: "Color theme" })).toHaveValue("dark");
+  expect(screen.getByRole("radio", { name: "Dark" })).toBeChecked();
   changeSystemTheme(false);
   expect(document.documentElement).toHaveClass("dark");
 });
@@ -133,11 +133,11 @@ it("persists a manual workspace choice across remounts and ignores device change
 it("restores automatic device tracking when System is selected again", () => {
   localStorage.setItem("theme", "dark");
   render(workspace());
-  const control = screen.getByRole("combobox", { name: "Color theme" });
-  fireEvent.change(control, { target: { value: "system" } });
+  const control = screen.getByRole("radio", { name: "System" });
+  fireEvent.click(control);
   expect(localStorage.getItem("theme")).toBe("system");
   expect(document.documentElement).toHaveClass("light");
   changeSystemTheme(true);
   expect(document.documentElement).toHaveClass("dark");
-  expect(control).toHaveValue("system");
+  expect(control).toBeChecked();
 });
