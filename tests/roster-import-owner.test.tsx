@@ -16,7 +16,6 @@ function file(bytes: Promise<ArrayBuffer> = Promise.resolve(new TextEncoder().en
   Object.defineProperty(selected, 'arrayBuffer', { value: () => bytes }); return selected;
 }
 async function preview() {
-  await userEvent.click(screen.getByText('Import students from CSV'));
   fireEvent.change(screen.getByLabelText('Student CSV file'), { target: { files: [file()] } });
   await screen.findByText('students.csv · 1 student');
 }
@@ -54,7 +53,6 @@ describe('roster CSV ownership and exact retry', () => {
     let finish!: (value: ArrayBuffer) => void; const pending = new Promise<ArrayBuffer>(resolve => { finish = resolve; });
     const props = { client, ownerUserId: 'owner-a', disabled: false, onBusyChange: vi.fn(), onImported: vi.fn() };
     const page = render(<StudentRosterImport {...props} context={context} />);
-    await userEvent.click(screen.getByText('Import students from CSV'));
     fireEvent.change(screen.getByLabelText('Student CSV file'), { target: { files: [file(pending)] } });
     page.rerender(<StudentRosterImport {...props} context={{ ...context, sectionId: 'section-b' }} />);
     await act(async () => finish(new TextEncoder().encode(csv).buffer));

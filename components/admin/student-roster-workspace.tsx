@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Upload, UserPlus, X } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { StudentPlacementDialog, StudentPlacementHistory } from "@/components/admin/student-roster-placements";
 import { StudentDetailsDialog } from "@/components/admin/student-roster-details";
 import { SectionPromotionDialog } from "@/components/admin/student-roster-promotion";
@@ -22,6 +23,43 @@ type SaveState = { message: string; error?: boolean };
 
 const label = "block space-y-2 text-sm font-semibold";
 const button = "min-h-11 rounded-xl border border-[var(--border)] px-4 py-2 text-sm font-semibold disabled:opacity-60";
+const link = "inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm font-semibold text-blue-600 underline-offset-4 hover:underline disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:no-underline dark:text-blue-400";
+const reconcileNote = "Reload the roster before another admission. The previous request may already have saved; keep the same admission number while checking.";
+
+// Stays mounted while closed, so a draft or an unconfirmed import survives closing like the old inline form.
+// showModal() puts it in the top layer, above the sidebar, header and every z-index.
+function RosterDialog({ open, title, locked, wide, onClose, children }: {
+  open: boolean;
+  title: string;
+  locked: boolean;
+  wide?: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+
+  useEffect(() => {
+    const element = dialog.current;
+    if (open && element && !element.open) element.showModal();
+    else if (!open && element?.open) element.close();
+  }, [open]);
+
+  return (
+    <dialog ref={dialog} aria-labelledby={titleId} onClose={onClose}
+      onCancel={(event) => { if (locked) event.preventDefault(); }}
+      className={`fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] ${wide ? "max-w-3xl" : "max-w-lg"} overflow-y-auto rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--text)] shadow-xl backdrop:bg-slate-950/60 sm:p-6`}>
+      <div className="mb-4 flex items-start justify-between gap-3">
+        <h2 id={titleId} className="pt-2 text-lg font-bold">{title}</h2>
+        <button type="button" aria-label="Close" disabled={locked} onClick={() => dialog.current?.close()}
+          className="-mr-2 grid size-11 shrink-0 cursor-pointer place-items-center rounded-xl muted hover:bg-[var(--surface-2)] disabled:cursor-not-allowed disabled:opacity-60">
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
+      {children}
+    </dialog>
+  );
+}
 
 function ReadFailure({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
@@ -185,6 +223,11 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
   const [placementStudent, setPlacementStudent] = useState<RosterStudent>();
   const [promoting, setPromoting] = useState(false);
   const [mustReconcile, setMustReconcile] = useState(false);
+  const [admitOpen, setAdmitOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  // Stable: the import re-subscribes (and aborts its save) whenever this callback changes.
+  const importBusyChange = useCallback((value: boolean) => { setImportBusy(value); onBusyChange(value); }, [onBusyChange]);
   const saveInFlight = useRef(false);
   const operation = useRef<AbortController | null>(null);
 
@@ -223,7 +266,8 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
       setLastName("");
       setDateOfBirth("");
       setRegisteredMobile("");
-      setStatus({ message: "Student admitted and enrolled." });
+      setRosterNotice("Student admitted and enrolled.");
+      setAdmitOpen(false);
       reloadRoster();
     } catch (error: unknown) {
       if (controller.signal.aborted) return;
@@ -237,49 +281,6 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
 
   return (
     <>
-      <form className="card space-y-4 p-4" onSubmit={(event) => void admitStudent(event)}>
-        <h2 className="text-lg font-bold">Admit a student</h2>
-        <fieldset className="grid gap-4 md:grid-cols-3" disabled={busy || mustReconcile || !roster?.data}>
-          <label className={label}>
-            <span>Admission number</span>
-            <input className="field" value={admissionNumber} maxLength={64} required
-              onChange={(event) => setAdmissionNumber(event.target.value)} />
-          </label>
-          <label className={label}>
-            <span>First name</span>
-            <input className="field" value={firstName} maxLength={100} required
-              onChange={(event) => setFirstName(event.target.value)} />
-          </label>
-          <label className={label}>
-            <span>Last name (optional)</span>
-            <input className="field" value={lastName} maxLength={100}
-              onChange={(event) => setLastName(event.target.value)} />
-          </label>
-          <label className={label}>
-            <span>Date of birth (optional)</span>
-            <input className="field" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} />
-          </label>
-          <label className={label}>
-            <span>Registered mobile (optional)</span>
-            <input className="field" type="tel" inputMode="tel" value={registeredMobile} maxLength={20} placeholder="10 digit mobile number"
-              onChange={(event) => setRegisteredMobile(event.target.value)} />
-          </label>
-        </fieldset>
-        <p className="text-sm muted">The pupil needs a date of birth and registered mobile to activate a Student account. You can add them later with Edit details.</p>
-        <button type="submit" className="btn btn-primary"
-          disabled={busy || mustReconcile || !roster?.data || !admissionNumber.trim() || !firstName.trim()}>
-          {busy ? "Saving…" : "Admit student"}
-        </button>
-        {status && <p role={status.error ? "alert" : "status"}
-          className={status.error ? "text-sm text-danger" : "text-sm"}>
-          {status.message}
-        </p>}
-        {mustReconcile && <p className="text-sm leading-6 muted">Reload the roster before another admission. The previous request may already have saved; keep the same admission number while checking.</p>}
-      </form>
-
-      <StudentRosterImport client={client} ownerUserId={userId} context={{ schoolId, academicYearId, classId, sectionId }}
-        disabled={busy || mustReconcile || !roster?.data} onBusyChange={onBusyChange} onImported={reloadRoster} />
-
       <section className="card space-y-4 p-4" aria-label="Current class roster">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-bold">Current class roster</h2>
@@ -290,6 +291,16 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
             <button type="button" className={button} disabled={busy || !roster} onClick={reloadRoster}>Reload roster</button>
           </div>
         </div>
+        <div className="flex flex-wrap gap-x-6">
+          <button type="button" className={link} aria-haspopup="dialog" disabled={busy || mustReconcile}
+            onClick={() => { setRosterNotice(""); setAdmitOpen(true); }}>
+            <UserPlus size={17} aria-hidden="true" /> Admit a student
+          </button>
+          <button type="button" className={link} aria-haspopup="dialog" onClick={() => { setRosterNotice(""); setImportOpen(true); }}>
+            <Upload size={17} aria-hidden="true" /> Import students from CSV
+          </button>
+        </div>
+        {mustReconcile && !admitOpen && <p className="text-sm leading-6 muted">{reconcileNote}</p>}
         {rosterNotice && <p role="status" className="text-sm">{rosterNotice}</p>}
         {!roster ? <LoadingState variant="table" className="text-sm muted">Loading roster…</LoadingState>
           : !roster.data ? <p role="alert" className="text-sm text-danger">{roster.error}</p>
@@ -318,6 +329,53 @@ function SectionRoster({ client, userId, schoolId, academicYearId, classId, sect
           Open guardian invitations
         </Link>
       </section>
+
+      <RosterDialog open={admitOpen} title="Admit a student" locked={busy} onClose={() => setAdmitOpen(false)}>
+        <form className="space-y-4" onSubmit={(event) => void admitStudent(event)}>
+          <fieldset className="grid gap-4 sm:grid-cols-2" disabled={busy || mustReconcile || !roster?.data}>
+            <label className={label}>
+              <span>Admission number</span>
+              <input className="field" value={admissionNumber} maxLength={64} required
+                onChange={(event) => setAdmissionNumber(event.target.value)} />
+            </label>
+            <label className={label}>
+              <span>First name</span>
+              <input className="field" value={firstName} maxLength={100} required
+                onChange={(event) => setFirstName(event.target.value)} />
+            </label>
+            <label className={label}>
+              <span>Last name (optional)</span>
+              <input className="field" value={lastName} maxLength={100}
+                onChange={(event) => setLastName(event.target.value)} />
+            </label>
+            <label className={label}>
+              <span>Date of birth (optional)</span>
+              <input className="field" type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} />
+            </label>
+            <label className={label}>
+              <span>Registered mobile (optional)</span>
+              <input className="field" type="tel" inputMode="tel" value={registeredMobile} maxLength={20} placeholder="10 digit mobile number"
+                onChange={(event) => setRegisteredMobile(event.target.value)} />
+            </label>
+          </fieldset>
+          <p className="text-sm muted">The pupil needs a date of birth and registered mobile to activate a Student account. You can add them later with Edit details.</p>
+          <button type="submit" className="btn btn-primary"
+            disabled={busy || mustReconcile || !roster?.data || !admissionNumber.trim() || !firstName.trim()}>
+            {busy ? "Saving…" : "Admit student"}
+          </button>
+          {status && <p role={status.error ? "alert" : "status"}
+            className={status.error ? "text-sm text-danger" : "text-sm"}>
+            {status.message}
+          </p>}
+          {mustReconcile && <p className="text-sm leading-6 muted">{reconcileNote}</p>}
+        </form>
+      </RosterDialog>
+
+      <RosterDialog open={importOpen} title="Import students from CSV" locked={importBusy} wide onClose={() => setImportOpen(false)}>
+        <StudentRosterImport client={client} ownerUserId={userId} context={{ schoolId, academicYearId, classId, sectionId }}
+          disabled={busy || mustReconcile || !roster?.data} onBusyChange={importBusyChange} onImported={reloadRoster} />
+      </RosterDialog>
+
       {view === "students" && <><StudentWithdrawalHistory client={client} context={{ schoolId, academicYearId, classId, sectionId }}
         currentAcademicYearId={setup.year.id} revision={refresh}
         busy={busy} onBusyChange={onBusyChange}
