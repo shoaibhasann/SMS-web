@@ -713,7 +713,7 @@ function ExamScheduleView() {
           event.preventDefault();
           if (!saving) setMarksEditorId("");
         }}
-        className="m-auto h-dvh max-h-none w-full max-w-none overflow-hidden bg-[var(--surface)] text-[var(--text)] backdrop:bg-slate-950/65 backdrop:backdrop-blur-[3px] md:h-auto md:w-[min(66rem,calc(100vw-3rem))] md:rounded-2xl md:border md:border-[var(--border)] md:shadow-2xl"
+        className="fixed inset-0 m-auto h-dvh max-h-none w-full max-w-none overflow-hidden bg-[var(--surface)] text-[var(--text)] backdrop:bg-slate-950/65 backdrop:backdrop-blur-[3px] md:h-fit md:max-h-[calc(100dvh-3rem)] md:w-[min(66rem,calc(100vw-3rem))] md:rounded-2xl md:border md:border-[var(--border)] md:shadow-2xl"
       >
         {showMarksEditor && selectedAssessment && (
           <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_auto] md:h-auto md:max-h-[calc(100dvh-3rem)]">
