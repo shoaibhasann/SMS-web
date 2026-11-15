@@ -33,6 +33,7 @@ let emitAuth: (event: AuthChangeEvent, session: Session | null) => void;
 
 beforeEach(() => {
   search.params = new URLSearchParams();
+  window.history.replaceState(null, "", "/"); // the page reads ?next from the real URL
   auth.getSession.mockReset().mockResolvedValue({ data: { session: null }, error: null });
   auth.onAuthStateChange.mockReset().mockImplementation((callback: typeof emitAuth) => {
     emitAuth = callback;
@@ -229,6 +230,44 @@ it.each([
   expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
   expect(router.replace).not.toHaveBeenCalled();
   expect(auth.signInWithPassword).not.toHaveBeenCalled();
+});
+
+const continuations = [
+  { query: "?next=%2Fmodules%2Freports", destination: "/modules/reports", callback: "/auth/callback?next=%2Fmodules%2Freports" },
+  { query: "?next=%2F%2Fevil.test", destination: "/dashboard", callback: "/auth/callback" },
+  { query: "?next=https%3A%2F%2Fevil.test", destination: "/dashboard", callback: "/auth/callback" },
+  // /auth/callback reads this continuation as a guardian contact change, so Google never forwards it.
+  { query: "?next=%2Fmodules%2Fprofile%3Fview%3Dguardian%26contact%3Demail", destination: "/modules/profile?view=guardian&contact=email", callback: "/auth/callback" },
+];
+
+it.each(continuations)("returns a password sign-in from /login$query to $destination", async ({ query, destination }) => {
+  window.history.replaceState(null, "", `/login${query}`);
+  render(<LoginPage />);
+  enterCredentials();
+  submitPassword();
+
+  await waitFor(() => expect(router.replace).toHaveBeenCalledExactlyOnceWith(destination));
+  expect(router.refresh).toHaveBeenCalledOnce();
+});
+
+it.each(continuations)("sends Google sign-in from /login$query back through $callback", async ({ query, callback }) => {
+  window.history.replaceState(null, "", `/login${query}`);
+  render(<LoginPage />);
+  fireEvent.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+  await waitFor(() => expect(auth.signInWithOAuth).toHaveBeenCalledExactlyOnceWith({
+    provider: "google", options: { redirectTo: `${window.location.origin}${callback}` },
+  }));
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
+it("resumes an MFA challenge toward the requested continuation", async () => {
+  window.history.replaceState(null, "", "/login?next=%2Fmodules%2Freports");
+  render(<LoginPage />);
+  act(() => { emitAuth("INITIAL_SESSION", ownerSession); });
+  fireEvent.click(await screen.findByRole("button", { name: "Continue with authenticator" }));
+
+  await waitFor(() => expect(router.replace).toHaveBeenCalledExactlyOnceWith("/mfa?next=%2Fmodules%2Freports&stepup=1"));
 });
 
 it("reveals and hides the same password and links to password recovery", () => {

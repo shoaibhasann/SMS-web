@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -134,7 +134,7 @@ describe("family exam schedule", () => {
       expect(await screen.findByRole("region", { name: label })).toBeInTheDocument();
       query = new URLSearchParams({ assessment: exam.id });
       mounted.rerender(<ModulePage />);
-      expect(await screen.findByRole("alert")).toHaveTextContent("This exam view requires a student account.");
+      await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/dashboard"));
       expect(screen.queryByRole("region", { name: label })).not.toBeInTheDocument();
       expect(loadExam).not.toHaveBeenCalled();
       expect(loadList).not.toHaveBeenCalled();

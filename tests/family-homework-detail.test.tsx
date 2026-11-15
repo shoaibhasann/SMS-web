@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -114,7 +114,8 @@ describe("exact homework links", () => {
     });
     query.set("activity", first.id);
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("This homework link requires a student account.");
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.queryByRole("main", { name: /workspace$/ })).not.toBeInTheDocument();
     expect(load).not.toHaveBeenCalled();
   });
 

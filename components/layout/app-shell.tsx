@@ -9,7 +9,7 @@ import { AccountMenu } from "@/components/layout/account-menu";
 import { createClient } from "@/lib/supabase/client";
 import { toUiRole, type UiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess, SchoolAccessDeniedError } from "@/lib/auth/access";
-import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+import { loginPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { BrandLogo } from "@/components/ui/brand-logo";
 import { guardianAttendancePath, guardianNotificationsPath } from "@/lib/attendance/family";
@@ -139,7 +139,7 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
         if (!active || generation !== version) return;
         if (!access) {
           setSecurity("error");
-          router.replace("/login");
+          router.replace(loginPath(`${window.location.pathname}${window.location.search}`));
           return;
         }
         if ((accountOwner.current && access.userId !== accountOwner.current)
@@ -172,6 +172,8 @@ export function AppShell({ children, role, userId, overviewSchoolId }: {
       const quiet = event !== "SIGNED_OUT" && !!accountOwner.current && session?.user.id === accountOwner.current;
       generation += 1; clearTimeout(timer);
       if (!quiet) setSecurity("checking");
+      // Signing out is not a way back to this page: go to a clean sign-in (a silent session loss in check() keeps next).
+      if (event === "SIGNED_OUT") { setSecurity("error"); router.replace("/login"); return; }
       // Never await Auth inside its own event callback.
       timer = setTimeout(() => { void check(quiet); }, 0);
     });

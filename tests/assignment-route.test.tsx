@@ -134,10 +134,10 @@ describe("real office routes", () => {
   it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("denies %s the office directory and admissions before mounting", async (role) => {
     readRoles.mockResolvedValue({ data: [{ role }], error: null }); currentModule = "parents";
     const page = render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Real parent directory" })).not.toBeInTheDocument();
-    page.unmount(); currentModule = "admissions"; render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    page.unmount(); replace.mockClear(); currentModule = "admissions"; render(<ModulePage />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Real student enrollment" })).not.toBeInTheDocument();
   });
 });
@@ -182,7 +182,7 @@ describe("real school settings route", () => {
   });
   it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("denies %s before mounting settings", async (role) => {
     currentModule = "settings"; readRoles.mockResolvedValue({ data: [{ role }], error: null }); render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Real school settings" })).not.toBeInTheDocument();
   });
 });
@@ -196,7 +196,7 @@ describe("official office attendance report route", () => {
   it.each(["teacher", "accountant", "reception_staff", "student", "parent"])("does not mount the office reader for %s", async (role) => {
     currentModule = "reports"; readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Official office attendance reports" })).not.toBeInTheDocument();
   });
 });
@@ -215,7 +215,7 @@ describe("school audit route", () => {
     currentModule = "audit-logs";
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/does not allow|No recognized role/);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(auditRender).not.toHaveBeenCalled();
   });
 });
@@ -236,7 +236,7 @@ describe("verified module authority", () => {
   ])("does not treat malformed role scope as authority ($role / $school_id)", async (row) => {
     readRoles.mockResolvedValue({ data: [row], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("No recognized role");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
   });
 
@@ -244,7 +244,7 @@ describe("verified module authority", () => {
     searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role: "parent", school_id: "other-school" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Family advance credit" })).not.toBeInTheDocument();
   });
 
@@ -253,7 +253,7 @@ describe("verified module authority", () => {
     await screen.findByRole("region", { name: "Office advance credit" });
     readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
     fireEvent.focus(window);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
   });
 
@@ -312,7 +312,7 @@ describe("verified module authority", () => {
     readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
     act(() => onAuthStateChange.mock.calls[0][0]("SIGNED_IN", { user: { id: "new-account" } }));
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     await act(async () => { finishOld({ data: [{ role: "school_admin" }], error: null }); await oldRead; });
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
   });
@@ -323,7 +323,7 @@ describe("verified module authority", () => {
     getUser.mockResolvedValue({ data: { user: null }, error: null });
     act(() => onAuthStateChange.mock.calls[0][0]("SIGNED_OUT", null));
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Please sign in");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login")); // signing out is not a way back to this page
     mounted.unmount();
     const calls = getUser.mock.calls.length;
     fireEvent.focus(window);
@@ -365,7 +365,7 @@ describe("advance-credit module access", () => {
   it.each(["teacher", "reception_staff"])("denies credit access to %s", async (role) => {
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Office advance credit" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Family advance credit" })).not.toBeInTheDocument();
   });
@@ -399,7 +399,7 @@ describe("guardian receipts route", () => {
     searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Family receipts" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Office finance workspace" })).not.toBeInTheDocument();
   });
@@ -407,7 +407,7 @@ describe("guardian receipts route", () => {
   it("does not grant a teacher staff receipt access when a parent role is also present", async () => {
     readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "teacher" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Family receipts" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Office finance workspace" })).not.toBeInTheDocument();
     expect(canAccessModule("teacher", "invoices")).toBe(false);
@@ -439,7 +439,7 @@ describe("student leave request route", () => {
   it.each(["teacher", "accountant", "reception_staff"])("denies %s access to student leave requests", async (role) => {
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
   });
 
@@ -455,7 +455,7 @@ describe("student leave request route", () => {
   it("does not turn a mixed teacher and guardian account into a leave reviewer by default", async () => {
     readRoles.mockResolvedValue({ data: [{ role: "teacher" }, { role: "parent" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
   });
 
@@ -470,7 +470,7 @@ describe("student leave request route", () => {
     searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role: "school_admin" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Student leave workspace" })).not.toBeInTheDocument();
   });
 
@@ -506,7 +506,7 @@ describe("timetable route", () => {
   it.each(["accountant", "reception_staff"])("does not expose timetable editing to %s", async (role) => {
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Timetable workspace" })).not.toBeInTheDocument();
   });
 
@@ -525,7 +525,7 @@ describe("timetable route", () => {
     searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Timetable workspace" })).not.toBeInTheDocument();
   });
 
@@ -570,7 +570,7 @@ describe("teaching assignment route", () => {
   it("keeps parents outside the assignment-management route", async () => {
     readRoles.mockResolvedValue({ data: [{ role: "parent" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Teaching assignment workspace" })).not.toBeInTheDocument();
   });
 
@@ -598,7 +598,7 @@ describe("academic authoring entry routes", () => {
     currentModule = moduleName;
     readRoles.mockResolvedValue({ data: [{ role: dbRole }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: `Academic workspace ${moduleName}` })).not.toBeInTheDocument();
   });
 
@@ -637,15 +637,15 @@ describe("guardian attendance route", () => {
     readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
 
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
   });
 
-  it("keeps the main staff role when the parent role is returned first", async () => {
+  it("keeps the main staff role when the parent role is returned first and sends it to the dashboard", async () => {
     readRoles.mockResolvedValue({ data: [{ role: "parent" }, { role: "accountant" }], error: null });
 
     render(<ModulePage />);
-    expect(await screen.findByRole("main", { name: "finance shell" })).toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Family attendance register" })).not.toBeInTheDocument();
   });
 
@@ -683,7 +683,7 @@ describe("guardian contact route", () => {
     searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role: "student" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Guardian contact settings" })).not.toBeInTheDocument();
   });
 });
@@ -702,7 +702,7 @@ describe("published assessment result routes", () => {
   it.each(["accountant", "reception_staff"])("does not give %s publication access", async (role) => {
     readRoles.mockResolvedValue({ data: [{ role }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Your role does not allow access");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
     expect(screen.queryByRole("region", { name: "Result publication workspace" })).not.toBeInTheDocument();
   });
 
@@ -727,7 +727,7 @@ describe("published assessment result routes", () => {
     currentModule = module; searchParams.set("view", "guardian");
     readRoles.mockResolvedValue({ data: [{ role: "teacher" }], error: null });
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("requires a linked guardian account");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
   it.each([["teacher", "Teacher raw assessment workspace"], ["school_admin", "Admin raw assessment workspace"]])("keeps %s existing results report separate", async (role, label) => {

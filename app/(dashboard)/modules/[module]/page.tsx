@@ -1,15 +1,17 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import Link from "next/link";
+import { BrandLogo } from "@/components/ui/brand-logo";
 import { WorkspaceSkeleton } from "@/components/ui/skeleton";
 import { createClient } from "@/lib/supabase/client";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 import { AcademicWorkspace } from "@/components/academic/academic-workspace";
 import { AppShell } from "@/components/layout/app-shell";
-import { canAccessModule, resolveModuleRole } from "@/lib/modules";
+import { canAccessModule, modules, resolveModuleRole } from "@/lib/modules";
 import type { UiRole } from "@/lib/auth/roles";
 import { readActiveSchoolAccess, SchoolAccessDeniedError } from "@/lib/auth/access";
-import { mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
+import { loginPath, mfaPath, StaffMfaRequiredError } from "@/lib/auth/staff-mfa";
 import { TeacherModuleView } from "@/components/teacher/teacher-views";
 import { TeacherAcademicActivityWorkspace } from "@/components/academic/teacher-activity-workspace";
 import { AdminModulePlaceholder } from "@/components/admin/admin-module-placeholder";
@@ -87,6 +89,7 @@ function ModuleContent() {
     let generation = 0;
     let currentUserId: string | null = null;
     let authTimer: ReturnType<typeof setTimeout> | undefined;
+    const modulePath = `/modules/${moduleName}${searchParams.size ? `?${searchParams.toString()}` : ""}`;
     // quiet: re-verify behind the page already shown (e.g. returning to the tab); a failed read keeps it,
     // a definite "no" still clears it.
     const loadRole = async (quiet = false) => {
@@ -98,7 +101,8 @@ function ModuleContent() {
         if (!isCurrent()) return;
         if (!verified) {
           currentUserId = null;
-          setAccess({ key: accessKey, role: null, userId: null, error: "Please sign in to access this module." });
+          setAccess(null);
+          router.replace(loginPath(modulePath));
           return;
         }
         currentUserId = verified.userId;
@@ -106,6 +110,12 @@ function ModuleContent() {
         const role = scopedRole
           ? roles.some((row) => row.role === scopedRole && row.school_id === verified.profileSchoolId) ? scopedRole : null
           : resolveModuleRole(roles, verified.profileSchoolId, moduleName);
+        if (!role || !canAccessModule(role, moduleName)) {
+          // No role for this module, or a deep link meant for another role: open the account's role-based home.
+          setAccess(null);
+          router.replace("/dashboard");
+          return;
+        }
         setAccess({
           key: accessKey,
           role,
@@ -113,17 +123,12 @@ function ModuleContent() {
           notificationSchoolId: moduleName === "notifications" && roles.some((row) =>
             row.school_id === verified.profileSchoolId && (row.role === "school_admin" || row.role === "principal"))
             ? verified.profileSchoolId : null,
-          error: role ? null : guardianView
-            ? "This view requires a linked guardian account."
-            : exactHomework ? "This homework link requires a student account."
-              : exactPayment ? "This payment link requires a student account."
-                : exactFee ? "This fee link requires a student account."
-                  : studentExamView ? "This exam view requires a student account." : "No recognized role is assigned to this login.",
+          error: null,
         });
       } catch (error) {
         if (isCurrent() && error instanceof StaffMfaRequiredError) {
           setAccess(null);
-          router.replace(mfaPath(`/modules/${moduleName}${searchParams.size ? `?${searchParams.toString()}` : ""}`));
+          router.replace(mfaPath(modulePath));
           return;
         }
         if (isCurrent() && !(quiet && currentUserId && !(error instanceof SchoolAccessDeniedError))) setAccess({
@@ -139,7 +144,15 @@ function ModuleContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active || event === "INITIAL_SESSION") return;
       generation += 1;
-      const sameUser = event !== "SIGNED_OUT" && !!currentUserId && session?.user.id === currentUserId;
+      if (event === "SIGNED_OUT") {
+        // Signing out is not a way back to this page: go to a clean sign-in.
+        currentUserId = null;
+        setAccess(null);
+        clearTimeout(authTimer);
+        router.replace("/login");
+        return;
+      }
+      const sameUser = !!currentUserId && session?.user.id === currentUserId;
       if (!sameUser) {
         currentUserId = session?.user.id ?? null;
         setAccess(null);
@@ -159,28 +172,33 @@ function ModuleContent() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [accessKey, exactFee, exactHomework, exactPayment, guardianView, moduleName, router, scopedRole, searchParams, studentExamView]);
+  }, [accessKey, moduleName, router, scopedRole, searchParams]);
 
+  // Unknown slugs get the app 404; "result-report" is the legacy alias canAccessModule maps to "results".
+  if (moduleName !== "result-report" && !modules.some((module) => module.key === moduleName)) notFound();
   if (!access || access.key !== accessKey) return <ModuleLoading />;
   if (access.error || !access.role || !access.userId) {
+    // Same frame as app/not-found.tsx: a failed access check gets a calm page with a way forward.
     return (
-      <main className="min-h-screen bg-[var(--bg)] p-6">
-        <div role="alert" className="mx-auto max-w-2xl rounded-2xl border border-red-500/30 bg-[var(--surface)] p-6 text-sm text-red-600">
-          {access.error ?? "Your role does not allow access to this module."}
+      <div className="not-found-page">
+        <div className="not-found-frame">
+          <header className="login-brand not-found-brand">
+            <BrandLogo size={40} />
+            <div><p className="login-brand-name">SMS</p><p className="login-brand-caption">School Management System</p></div>
+          </header>
+          <main className="not-found-main">
+            <h1 className="not-found-title">We couldn’t open this page</h1>
+            <p role="alert" className="not-found-text">{access.error ?? "Your access could not be verified."}</p>
+            <div className="not-found-actions">
+              <button type="button" className="login-submit" onClick={() => window.location.reload()}>Try again</button>
+              <Link href="/login" className="login-google">Return to sign in</Link>
+            </div>
+          </main>
         </div>
-      </main>
+      </div>
     );
   }
   const verifiedUserId = access.userId;
-  if (!canAccessModule(access.role, moduleName)) {
-    return (
-      <AppShell key={access.userId} userId={access.userId} role={access.role}>
-        <div role="alert" className="rounded-2xl border border-red-500/30 bg-[var(--surface)] p-6 text-sm text-red-600">
-          Your role does not allow access to this module.
-        </div>
-      </AppShell>
-    );
-  }
 
   if ((moduleName === "published-results" || ((access.role === "parent" || access.role === "student")
     && (moduleName === "results" || moduleName === "result-report")))

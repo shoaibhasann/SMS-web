@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ModulePage from "../app/(dashboard)/modules/[module]/page";
@@ -101,7 +101,8 @@ describe("exact fee payment links", () => {
     roleAccess("school_admin", "student");
     query.set("view", "guardian");
     render(<ModulePage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("This view requires a linked guardian account.");
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith("/dashboard"));
+    expect(screen.queryByRole("main", { name: /workspace$/ })).not.toBeInTheDocument();
     expect(loadPayment).not.toHaveBeenCalled();
   });
 
