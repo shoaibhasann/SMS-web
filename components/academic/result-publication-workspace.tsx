@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type Ref } from "react";
 import Link from "next/link";
 import { Check, FileCheck2, Printer, RefreshCw, Send, X } from "lucide-react";
 import { loadFamilyStudents, rememberFamilyChild, restoreFamilyChild, type FamilyStudent } from "@/lib/attendance/family";
@@ -20,6 +20,7 @@ type Client = ReturnType<typeof createClient>;
 type Role = "teacher" | "admin" | "principal" | "parent" | "student";
 type Load<T> = { data: T; error?: never } | { data?: never; error: string };
 type Notice = { error: boolean; text: string };
+type TeacherPreview = { kind: "source"; source: PublicationPreview } | { kind: "pending" };
 type SchoolAccess = Awaited<ReturnType<typeof loadSchoolManagementAccess>>;
 const button = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50";
 const primary = `${button} border-transparent bg-[var(--primary)] text-white dark:text-slate-950`;
@@ -61,13 +62,14 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
   const [attempt, setAttempt] = useState(0), [selected, setSelected] = useState("");
   const [candidates, setCandidates] = useState<{ attempt: number; value: Load<PublicationMetadata[]> }>();
   const [previewRefresh, setPreviewRefresh] = useState(0), [listRefresh, setListRefresh] = useState(0);
-  const [preview, setPreview] = useState<{ key: string; value: Load<PublicationPreview> }>();
+  const [preview, setPreview] = useState<{ key: string; value: Load<TeacherPreview> }>();
   const [saving, setSaving] = useState(false), [detailBusy, setDetailBusy] = useState(false), [notice, setNotice] = useState<Notice>();
-  const [sentToken, setSentToken] = useState("");
+  const requestsHeading = useRef<HTMLHeadingElement>(null);
   const alive = useAlive(), inFlight = useRef(false), request = useRef<{ payload: string; id: string } | null>(null);
   const currentCandidates = candidates?.attempt === attempt ? candidates.value : undefined;
   const selectedId = currentCandidates?.data?.some((row) => row.assessment_id === selected) ? selected : "";
   const key = `${selectedId}:${previewRefresh}`, currentPreview = preview?.key === key ? preview.value : undefined;
+  const source = currentPreview?.data?.kind === "source" ? currentPreview.data.source : undefined;
   useEffect(() => {
     let active = true;
     listPublicationCandidates(client).then((data) => {
@@ -80,12 +82,38 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
   useEffect(() => {
     if (!selectedId) return;
     let active = true;
-    previewPublication(client, selectedId).then((data) => { if (active) setPreview({ key, value: { data } }); },
-      (error: unknown) => { if (active) setPreview({ key, value: { error: errorText(error, "The source preview could not be loaded. Refresh to try again.") } }); });
+    async function loadPreview() {
+      try {
+        for (let offset = 0; active; offset += publicationPageSize) {
+          const page = await listResultSubmissions(client, null, "pending", offset);
+          if (!active) return;
+          if (page.rows.some((row) => row.assessment_id === selectedId)) {
+            setPreview({ key, value: { data: { kind: "pending" } } });
+            return;
+          }
+          if (offset + page.rows.length >= page.total_count) break;
+          if (page.rows.length !== publicationPageSize) throw new Error("The request list changed while loading.");
+        }
+        const source = await previewPublication(client, selectedId);
+        if (active) setPreview({ key, value: { data: { kind: "source", source } } });
+      } catch (error) {
+        if (active) setPreview({ key, value: { error: errorText(error, "The publication status and source preview could not be checked. Refresh assessments to try again.") } });
+      }
+    }
+    void loadPreview();
     return () => { active = false; };
   }, [client, key, selectedId]);
+  useEffect(() => {
+    if (!listRefresh) return;
+    const heading = requestsHeading.current;
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView?.({ block: "start" });
+  }, [listRefresh]);
+  function refreshPreview() {
+    setPreviewRefresh((value) => value + 1);
+    setNotice(undefined);
+  }
   async function submit() {
-    const source = currentPreview?.data;
     if (!source?.can_submit || inFlight.current || detailBusy) return;
     const payload = JSON.stringify([source.metadata.assessment_id, source.source_token]);
     inFlight.current = true; setSaving(true); setNotice(undefined);
@@ -93,7 +121,9 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
       if (request.current?.payload !== payload) request.current = { payload, id: crypto.randomUUID() };
       await requestPublication(client, source.metadata.assessment_id, source.source_token, request.current.id);
       if (!alive.current) return;
-      request.current = null; setSentToken(payload); setListRefresh((value) => value + 1);
+      request.current = null;
+      setPreview({ key, value: { data: { kind: "pending" } } });
+      setListRefresh((value) => value + 1);
       setNotice({ error: false, text: "Publication requested. This snapshot stays private until an independent school reviewer publishes it." });
     } catch (error) { if (alive.current) setNotice({ error: true, text: errorText(error, "The request could not be confirmed. Retry the same preview or refresh saved requests.") }); }
     finally { inFlight.current = false; if (alive.current) setSaving(false); }
@@ -104,22 +134,23 @@ function TeacherPublications({ client, userId }: { client: Client; userId: strin
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div className={`${field} sm:max-w-2xl sm:flex-1`}><label htmlFor="publication-assessment">Assessment</label>
         <select id="publication-assessment" className="field" value={selectedId} disabled={busy || !currentCandidates?.data} onChange={(event) => { setSelected(event.target.value); setNotice(undefined); }}>
           <option value="">Choose assessment</option>{currentCandidates?.data?.map((row) => <option key={row.assessment_id} value={row.assessment_id}>{row.name} · {row.class_name}{row.section_name ? ` / ${row.section_name}` : " / Whole class"} · {row.subject_name}</option>)}</select></div>
-        <button type="button" className={button} disabled={busy || !currentCandidates} onClick={() => setAttempt((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh assessments</button></div>
-      {notice && <Message notice={notice} />}
+        <button type="button" className={button} disabled={busy || !currentCandidates} onClick={() => { setAttempt((value) => value + 1); refreshPreview(); }}><RefreshCw size={15} aria-hidden="true" />Refresh assessments</button></div>
+      {notice?.error && <Message notice={notice} />}
       {!currentCandidates ? <LoadingState variant="list" className="text-sm muted">Loading your assessments…</LoadingState> : currentCandidates.error ? <ErrorMessage text={currentCandidates.error} />
         : !currentCandidates.data?.length ? <p className="text-sm muted">No current assigned assessments are available. Enter marks through Exam / Marks first.</p>
           : !selectedId ? <p className="text-sm muted">Choose an assessment to preview its complete roster.</p>
             : !currentPreview ? <LoadingState variant="list" className="text-sm muted">Loading the complete source preview…</LoadingState>
-              : currentPreview.error ? <ErrorMessage text={currentPreview.error} /> : currentPreview.data && <>
-                <SourceHeading source={currentPreview.data.metadata} />
-                {currentPreview.data.issues.length > 0 && <div role="alert" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200"><p className="font-semibold">Not ready for publication</p><ul className="mt-2 list-disc space-y-1 pl-5">{currentPreview.data.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
-                <PupilSnapshot pupils={currentPreview.data.pupils} maximum={currentPreview.data.metadata.maximum_marks} />
-                <p className="text-xs leading-relaxed muted">Review every pupil and score. Missing marks are unmarked; a score of zero is valid. Preview refresh is explicit and does not publish anything.</p>
-                <div className="flex flex-wrap gap-3"><button type="button" className={primary} disabled={busy || !currentPreview.data.can_submit || sentToken === JSON.stringify([selectedId, currentPreview.data.source_token])} onClick={() => void submit()}><Send size={16} aria-hidden="true" />{saving ? "Requesting publication…" : "Request publication"}</button>
-                  <button type="button" className={button} disabled={busy} onClick={() => { setPreviewRefresh((value) => value + 1); setNotice(undefined); }}><RefreshCw size={15} aria-hidden="true" />Refresh source preview</button></div>
-              </>}
+              : currentPreview.error ? <ErrorMessage text={currentPreview.error} /> : source ? <>
+                <SourceHeading source={source.metadata} />
+                {source.issues.length > 0 && <div role="alert" className="rounded-xl bg-amber-500/10 p-4 text-sm text-amber-900 dark:text-amber-200"><p className="font-semibold">Not ready for publication</p><ul className="mt-2 list-disc space-y-1 pl-5">{source.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
+                <PupilSnapshot pupils={source.pupils} maximum={source.metadata.maximum_marks} />
+                <p className="text-xs leading-relaxed muted">Review every pupil and score. Missing marks are unmarked; a score of zero is valid.</p>
+                <div className="flex flex-wrap gap-3"><button type="button" className={primary} disabled={busy || !source.can_submit} onClick={() => void submit()}><Send size={16} aria-hidden="true" />{saving ? "Requesting publication…" : "Request publication"}</button>
+                  <button type="button" className={button} disabled={busy} onClick={refreshPreview}><RefreshCw size={15} aria-hidden="true" />Refresh source preview</button></div>
+              </> : <p className="text-sm muted">This assessment is pending review. Track its status in My publication requests below.</p>}
     </section>
-    <SubmissionList client={client} schoolId={null} userId={userId} teacher externalRefresh={listRefresh} externalBusy={saving} onBusyChange={setDetailBusy} onChanged={() => { setSentToken(""); setPreviewRefresh((value) => value + 1); }} />
+    <SubmissionList key={listRefresh} client={client} schoolId={null} userId={userId} teacher externalBusy={saving}
+      headingRef={requestsHeading} notice={notice?.error === false ? notice : undefined} onBusyChange={setDetailBusy} onRefresh={refreshPreview} />
   </>;
 }
 
@@ -142,14 +173,14 @@ function OfficeResults({ client, userId }: { client: Client; userId: string }) {
   </>;
 }
 
-function SubmissionList({ client, schoolId, userId, teacher = false, externalRefresh = 0, externalBusy = false, onBusyChange, onChanged }: {
-  client: Client; schoolId: string | null; userId: string; teacher?: boolean; externalRefresh?: number; externalBusy?: boolean;
-  onBusyChange: (busy: boolean) => void; onChanged?: () => void;
+function SubmissionList({ client, schoolId, userId, teacher = false, externalBusy = false, headingRef, notice, onBusyChange, onRefresh }: {
+  client: Client; schoolId: string | null; userId: string; teacher?: boolean; externalBusy?: boolean;
+  headingRef?: Ref<HTMLHeadingElement>; notice?: Notice; onBusyChange: (busy: boolean) => void; onRefresh?: () => void;
 }) {
   const [status, setStatus] = useState<PublicationStatus | "">(teacher ? "" : "pending"), [page, setPage] = useState(0), [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState<{ key: string; value: Load<PublicationPage<PublicationSummary>> }>();
   const [selected, setSelected] = useState(""), [detailBusy, setDetailBusy] = useState(false), [detailRefresh, setDetailRefresh] = useState(0);
-  const key = `${schoolId}:${status}:${page}:${refresh}:${externalRefresh}`, current = result?.key === key ? result.value : undefined;
+  const key = `${schoolId}:${status}:${page}:${refresh}`, current = result?.key === key ? result.value : undefined;
   useEffect(() => {
     let active = true;
     listResultSubmissions(client, schoolId, status || null, page * publicationPageSize).then((data) => { if (active) setResult({ key, value: { data } }); },
@@ -160,14 +191,15 @@ function SubmissionList({ client, schoolId, userId, teacher = false, externalRef
   function close() { setSelected(""); lock(false); }
   const busy = externalBusy || detailBusy;
   return <section className="space-y-5" aria-label={teacher ? "My publication requests" : "Result publication review"}>
-    <div className="card space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-bold">{teacher ? "My publication requests" : "Result publication requests"}</h2><button type="button" className={button} disabled={externalBusy} onClick={() => setRefresh((value) => value + 1)}><RefreshCw size={15} aria-hidden="true" />Refresh requests</button></div>
+    <div className="card space-y-4 p-5"><div className="flex flex-wrap items-center justify-between gap-3"><h2 ref={headingRef} tabIndex={headingRef ? -1 : undefined} className="scroll-mt-24 text-lg font-bold">{teacher ? "My publication requests" : "Result publication requests"}</h2><button type="button" className={button} disabled={externalBusy} onClick={() => { setRefresh((value) => value + 1); onRefresh?.(); }}><RefreshCw size={15} aria-hidden="true" />Refresh requests</button></div>
+      {notice && <Message notice={notice} />}
       <div className={`${field} max-w-xs`}><label htmlFor="publication-status">Request status</label><select id="publication-status" className="field" value={status} disabled={busy} onChange={(event) => { setStatus(event.target.value as PublicationStatus | ""); setPage(0); }}><option value="">All requests</option><option value="pending">Pending review</option><option value="published">Published</option><option value="rejected">Rejected</option><option value="cancelled">Cancelled</option></select></div>
       {!current ? <LoadingState variant="table" className="text-sm muted">Loading saved publication requests…</LoadingState> : current.error ? <ErrorMessage text={current.error} />
         : !current.data?.rows.length ? <p className="text-sm muted">No publication requests on this page.</p> : <ul className="divide-y divide-[var(--border)]">{current.data.rows.map((row) => <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><h3 className="break-words font-semibold">{row.metadata.name}</h3><p className="mt-1 text-xs leading-relaxed muted">{row.metadata.class_name}{row.metadata.section_name && ` / ${row.metadata.section_name}`} · {row.metadata.subject_name} · {row.metadata.academic_year_name}</p><p className="mt-1 text-xs muted">Requested by {row.requester_name} · {times.format(new Date(row.requested_at))} IST</p></div><div className="flex flex-wrap items-center gap-3"><Status status={row.status} revision={row.revision} /><button type="button" className={button} disabled={busy} onClick={() => { setSelected(row.id); setDetailRefresh((value) => value + 1); }}>Open result snapshot</button></div></li>)}</ul>}
       {current?.data && <Pagination page={page} total={current.data.total_count} count={current.data.rows.length} busy={busy} onPage={setPage} />}
     </div>
     {selected && <SubmissionDetail key={selected} client={client} submissionId={selected} refresh={detailRefresh} userId={userId} teacher={teacher}
-      pendingFallback={teacher && current?.data?.rows.some((row) => row.id === selected && row.status === "pending") === true} disabled={externalBusy} onBusyChange={lock} onClose={close} onChanged={() => { setRefresh((value) => value + 1); setDetailRefresh((value) => value + 1); onChanged?.(); }} />}
+      pendingFallback={teacher && current?.data?.rows.some((row) => row.id === selected && row.status === "pending") === true} disabled={externalBusy} onBusyChange={lock} onClose={close} onChanged={() => { setRefresh((value) => value + 1); setDetailRefresh((value) => value + 1); onRefresh?.(); }} />}
   </section>;
 }
 

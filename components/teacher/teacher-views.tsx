@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronUp, KeyRound, ShieldCheck } from "lucide-react";
+import { ArrowRight, Check, ChevronDown, ChevronUp, ClipboardList, KeyRound, RotateCcw, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import {
   getCurrentTeacherAssignments,
@@ -67,10 +67,6 @@ function AssessmentStatus({ status }: { status: AssessmentRecord["status"] }) {
   return <span className={`badge ${status === "completed" ? "text-success" : "text-warning"}`}>{status === "completed" ? "Completed" : "Scheduled"}</span>;
 }
 
-function assessmentLabel(assessment: AssessmentRecord, assignments: TeachingAssignment[]) {
-  return `${assessment.name} · ${assessmentScopeLabel(assessment, assignments)} · ${assessmentDate(assessment.assessment_date)}`;
-}
-
 function assessmentScopeLabel(assessment: AssessmentRecord, assignments: TeachingAssignment[]) {
   const assignment = assignments.find((item) =>
     item.class_id === assessment.class_id &&
@@ -84,8 +80,12 @@ function assessmentScopeLabel(assessment: AssessmentRecord, assignments: Teachin
 function ExamScheduleView() {
   const recordsVersion = useRef(0);
   const marksSaving = useRef(false);
+  const marksDialog = useRef<HTMLDialogElement>(null);
   const marksHeading = useRef<HTMLHeadingElement>(null);
-  const [marksNavigation, setMarksNavigation] = useState(0);
+  const marksTrigger = useRef<HTMLButtonElement>(null);
+  const [marksEditorId, setMarksEditorId] = useState("");
+  const [marksError, setMarksError] = useState("");
+  const [marksMessage, setMarksMessage] = useState("");
   const [rosterReload, setRosterReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -131,15 +131,21 @@ function ExamScheduleView() {
   const unavailableDraft = marksDirty && roster && !records.some((record) => record.id === roster.assessmentId) ? roster : null;
   const marksScopeChanged = Boolean(currentRoster && currentRoster.scope !== rosterScope);
   const rosterLoading = Boolean(assessmentId) && !currentRoster;
+  const showMarksEditor = Boolean(assessmentId && marksEditorId === assessmentId);
 
   useEffect(() => {
-    if (!marksNavigation) return;
-    const heading = marksHeading.current;
-    heading?.focus({ preventScroll: true });
-    heading?.scrollIntoView?.({ block: "start", behavior: "instant" });
-  }, [marksNavigation]);
+    const dialog = marksDialog.current;
+    if (showMarksEditor && dialog && !dialog.open) {
+      dialog.showModal();
+      marksHeading.current?.focus();
+    } else if (!showMarksEditor && dialog?.open) {
+      dialog.close();
+      marksTrigger.current?.focus({ preventScroll: true });
+    }
+  }, [showMarksEditor]);
 
   const setMarks = (update: (current: MarkDraft) => MarkDraft) => {
+    setMarksMessage("");
     setRoster((current) => current?.assessmentId === assessmentId ? { ...current, marks: update(current.marks) } : current);
   };
   const reloadMarks = async () => {
@@ -147,15 +153,15 @@ function ExamScheduleView() {
     marksSaving.current = true;
     setSaving(true);
     setRoster(null);
-    setError("");
-    setMessage("");
+    setMarksError("");
+    setMarksMessage("");
     try {
       const loaded = await loadRecords();
       if (loaded && !loaded.some((record) => record.id === assessmentId)) setError("The selected assessment is no longer available. Choose an available assessment.");
       setRosterReload((value) => value + 1);
     } catch (loadError) {
       setRoster({ assessmentId, scope: rosterScope, students: [], marks: {}, baseline: [], expectedAssessmentUpdatedAt: assessmentUpdatedAt, requiresReload: true });
-      setError(errorText(loadError, "The assessment could not be refreshed. Retry reloading before entering marks."));
+      setMarksError(errorText(loadError, "The assessment could not be refreshed. Retry reloading before entering marks."));
     } finally {
       marksSaving.current = false;
       setSaving(false);
@@ -206,6 +212,7 @@ function ExamScheduleView() {
     setSubjects(subjectRows ?? []);
     setRecords(loaded);
     setSelectedAssessmentId((selected) => loaded.some((assessment) => assessment.id === selected) ? selected : "");
+    setMarksEditorId((selected) => loaded.some((assessment) => assessment.id === selected) ? selected : "");
     return loaded;
   }, []);
 
@@ -287,7 +294,7 @@ function ExamScheduleView() {
           setRoster((current) => current?.assessmentId === assessmentId && markDraftHasChanges(current.students, current.marks, current.baseline)
             ? { ...current, requiresReload: true }
             : { assessmentId, scope: rosterScope, students: [], marks: {}, baseline: [], expectedAssessmentUpdatedAt: assessmentUpdatedAt, requiresReload: true });
-          setError(errorText(loadError, "Students and marks could not be loaded completely."));
+          setMarksError(errorText(loadError, "Students and marks could not be loaded completely."));
         }
       }
     };
@@ -482,25 +489,25 @@ function ExamScheduleView() {
   const saveMarks = async () => {
     if (marksSaving.current || saving) return;
     if (!selectedAssessment || selectedAssessment.teacher_id !== teacherId || !currentRoster) {
-      setError("Only the teacher who created this assessment can enter or update its marks.");
+      setMarksError("Only the teacher who created this assessment can enter or update its marks.");
       return;
     }
     if (marksScopeChanged || currentRoster.requiresReload) {
-      setError("Assessment data changed or a previous save was not confirmed. Discard and reload before saving; your draft is retained.");
+      setMarksError("Assessment data changed or a previous save was not confirmed. Discard and reload before saving; your draft is retained.");
       return;
     }
     let changes;
     try {
       changes = markChanges(students, marks, currentRoster.baseline, Number(selectedAssessment.maximum_marks));
     } catch (validationError) {
-      setError(errorText(validationError, "Check the entered marks."));
+      setMarksError(errorText(validationError, "Check the entered marks."));
       return;
     }
-    if (!changes.length) { setMessage("No mark changes to save."); return; }
+    if (!changes.length) { setMarksMessage("No mark changes to save."); return; }
     marksSaving.current = true;
     setSaving(true);
-    setError("");
-    setMessage("");
+    setMarksError("");
+    setMarksMessage("");
     try {
       const result = await saveChangedMarks(createClient(), selectedAssessment.id, currentRoster.expectedAssessmentUpdatedAt, changes);
       setRoster((current) => {
@@ -509,10 +516,10 @@ function ExamScheduleView() {
         for (const mark of result.saved) baseline.set(mark.student_id, mark);
         return { ...current, baseline: [...baseline.values()], requiresReload: result.failed.length > 0 };
       });
-      if (result.saved.length) setMessage(`${result.saved.length} changed mark${result.saved.length === 1 ? "" : "s"} saved.`);
-      if (result.failed.length) setError(`${result.failed.length} mark${result.failed.length === 1 ? " was" : "s were"} not confirmed. ${result.failed[0].message}`);
+      if (result.saved.length) setMarksMessage(`${result.saved.length} changed mark${result.saved.length === 1 ? "" : "s"} saved.`);
+      if (result.failed.length) setMarksError(`${result.failed.length} mark${result.failed.length === 1 ? " was" : "s were"} not confirmed. ${result.failed[0].message}`);
     } catch (saveError) {
-      setError(errorText(saveError, "Marks could not be confirmed. Your draft is retained; discard and reload before retrying."));
+      setMarksError(errorText(saveError, "Marks could not be confirmed. Your draft is retained; discard and reload before retrying."));
       setRoster((current) => current?.scope === rosterScope ? { ...current, requiresReload: true } : current);
     } finally {
       marksSaving.current = false;
@@ -658,7 +665,7 @@ function ExamScheduleView() {
                   <button type="button" aria-expanded={expandedAssessmentId === assessment.id} onClick={() => setExpandedAssessmentId((current) => current === assessment.id ? "" : assessment.id)} className="flex w-full items-center justify-between gap-4 rounded-xl p-3 text-left hover:bg-[var(--surface-2)]">
                     <span>
                       <span className="block font-semibold">{assessment.name}</span>
-                      <span className="mt-1 block text-xs muted">{assessmentLabel(assessment, assignments)} · Maximum {assessment.maximum_marks}</span>
+                      <span className="mt-1 block text-xs muted">{assessmentScopeLabel(assessment, assignments)} · {assessmentDate(assessment.assessment_date)} · Maximum {assessment.maximum_marks}</span>
                     </span>
                     <span className="flex shrink-0 items-center gap-2 text-xs font-semibold text-blue-700 dark:text-blue-300">
                       {expandedAssessmentId === assessment.id ? "Close" : "Open"}
@@ -676,11 +683,16 @@ function ExamScheduleView() {
                         <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs muted">Instructions</dt><dd className="mt-1 whitespace-pre-wrap font-medium">{assessment.description || "—"}</dd></div>
                       </dl>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        <button type="button" onClick={() => {
+                        <button type="button" aria-haspopup="dialog" onClick={(event) => {
+                          marksTrigger.current = event.currentTarget;
+                          if (assessment.id !== assessmentId) {
+                            setMarksError("");
+                            setMarksMessage("");
+                          }
                           setSelectedAssessmentId(assessment.id);
-                          setExpandedAssessmentId(assessment.id);
-                          setMarksNavigation((request) => request + 1);
-                        }} disabled={saving || (marksDirty && assessment.id !== assessmentId)} className="inline-flex min-h-11 items-center justify-center rounded-lg gradient px-4 py-2 text-sm font-semibold disabled:opacity-50">Enter Marks</button>
+                          setMarksEditorId(assessment.id);
+                        }} disabled={saving || (marksDirty && assessment.id !== assessmentId)} className="btn btn-primary">{assessment.teacher_id === teacherId ? "Enter Marks" : "View marks"}</button>
+                        {marksDirty && assessment.id === assessmentId && <span className="self-center text-xs font-medium text-warning">Unsaved marks</span>}
                         {assessment.teacher_id === teacherId && <>
                           <button type="button" onClick={() => editAssessment(assessment)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold">Edit</button>
                           <button type="button" disabled={saving} onClick={() => setPendingDeleteAssessment(assessment)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-danger/30 px-4 py-2 text-sm font-semibold text-danger disabled:opacity-50">Delete</button>
@@ -691,59 +703,123 @@ function ExamScheduleView() {
                 </article>
               ))}
             </div>
-            {selectedAssessment && expandedAssessmentId === selectedAssessment.id && (
-              <>
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] p-4 text-sm">
-                  <h3 ref={marksHeading} tabIndex={-1} className="scroll-mt-24"><b>{selectedAssessment.name}</b> · {assessmentDate(selectedAssessment.assessment_date)} · Maximum {selectedAssessment.maximum_marks}</h3>
+          </>
+        )}
+      </section>
+      <dialog
+        ref={marksDialog}
+        aria-labelledby="exam-marks-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!saving) setMarksEditorId("");
+        }}
+        className="m-auto h-dvh max-h-none w-full max-w-none overflow-hidden bg-[var(--surface)] text-[var(--text)] backdrop:bg-slate-950/65 backdrop:backdrop-blur-[3px] md:h-auto md:w-[min(66rem,calc(100vw-3rem))] md:rounded-2xl md:border md:border-[var(--border)] md:shadow-2xl"
+      >
+        {showMarksEditor && selectedAssessment && (
+          <div className="grid h-full grid-rows-[auto_minmax(0,1fr)_auto] md:h-auto md:max-h-[calc(100dvh-3rem)]">
+            <header className="flex items-start gap-3 border-b border-[var(--border)] px-4 py-4 sm:gap-4 sm:px-6 sm:py-5">
+              <div className="hidden size-11 shrink-0 items-center justify-center rounded-xl bg-[var(--surface-2)] text-[var(--primary)] sm:flex">
+                <ClipboardList size={21} aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold muted">Marks entry</p>
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h2 ref={marksHeading} tabIndex={-1} id="exam-marks-title" className="max-w-full text-xl font-bold tracking-tight [overflow-wrap:anywhere] sm:text-2xl">{selectedAssessment.name}</h2>
                   <AssessmentStatus status={selectedAssessment.status} />
                 </div>
-                {selectedAssessment.description && <p className="text-sm muted">{selectedAssessment.description}</p>}
-                {selectedAssessment.teacher_id !== teacherId && <p className="text-sm muted">This assessment belongs to another teacher. Marks are view-only.</p>}
-                {marksScopeChanged && <p role="alert" className="text-sm text-danger">The assessment context changed. Your draft is retained; discard and reload before saving.</p>}
-                {marksDirty && <p className="text-sm muted">Unsaved marks are retained until you save or explicitly discard them. Saved scores cannot be cleared here.</p>}
-                {rosterLoading ? <LoadingState variant="table" className="text-sm muted">Loading students and marks...</LoadingState> : students.length === 0 ? <p className="text-sm muted">No enrolled students found for this class and section.</p> : (
+                <p className="mt-1.5 text-sm muted [overflow-wrap:anywhere]">
+                  {assessmentScopeLabel(selectedAssessment, assignments)} · <time dateTime={selectedAssessment.assessment_date}>{assessmentDate(selectedAssessment.assessment_date)}</time>
+                </p>
+              </div>
+              <button type="button" disabled={saving} aria-label="Close marks editor" onClick={() => setMarksEditorId("")} className="btn btn-secondary size-11 shrink-0 p-0">
+                <X size={19} aria-hidden="true" />
+              </button>
+            </header>
+
+            <div className="min-h-0 overflow-y-auto overscroll-contain px-4 py-5 sm:px-6">
+              {selectedAssessment.description && <details className="mb-4 rounded-xl border border-[var(--border)] bg-[var(--surface-2)] px-3 text-sm">
+                <summary className="cursor-pointer py-3 font-semibold">Exam instructions</summary>
+                <p className="whitespace-pre-wrap pb-3 muted [overflow-wrap:anywhere]">{selectedAssessment.description}</p>
+              </details>}
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <h3 className="text-sm font-semibold">Student marks</h3>
+                {!rosterLoading && !currentRoster?.requiresReload && <p className="text-xs tabular-nums muted">
+                  {students.filter((student) => marks[student.id]?.value?.trim()).length} of {students.length} scores entered
+                </p>}
+              </div>
+              {selectedAssessment.teacher_id !== teacherId && <p className="mb-3 text-sm muted">View only · Marks are managed by the assessment creator.</p>}
+              {rosterLoading ? <LoadingState variant="table" className="text-sm muted">Loading students and marks...</LoadingState>
+                : students.length === 0 ? <p className="rounded-xl border border-[var(--border)] bg-[var(--surface-2)] p-4 text-sm muted">
+                  {currentRoster?.requiresReload ? "Reload marks to try again." : "No enrolled students found for this class and section."}
+                </p> : (
                   <>
-                    <div className="hidden overflow-x-auto md:block">
-                      <table className="w-full min-w-[760px] text-left text-sm">
-                        <thead className="border-b border-[var(--border)] text-xs muted"><tr>{["Student", "Roll No.", "Admission No.", "Marks", "Remarks"].map((heading) => <th key={heading} scope="col" className="p-3">{heading}</th>)}</tr></thead>
+                    <div className="hidden rounded-xl border border-[var(--border)] md:block">
+                      <table className="w-full table-fixed text-left text-sm">
+                        <thead className="border-b border-[var(--border)] bg-[var(--surface-2)] text-xs muted">
+                          <tr>
+                            <th scope="col" className="w-[35%] rounded-tl-xl px-4 py-3">Student</th>
+                            <th scope="col" className="w-[11%] px-3 py-3">Roll No.</th>
+                            <th scope="col" className="w-[19%] px-3 py-3">Marks <span className="font-normal">/ {selectedAssessment.maximum_marks}</span></th>
+                            <th scope="col" className="rounded-tr-xl px-3 py-3">Remarks</th>
+                          </tr>
+                        </thead>
                         <tbody className="divide-y divide-[var(--border)]">
                           {students.map((student) => (
-                            <tr key={student.id}>
-                              <td className="p-3 font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</td>
-                              <td className="p-3">{student.roll_no ?? "—"}</td>
-                              <td className="p-3">{student.admission_no ?? "—"}</td>
-                              <td className="p-3">{marksInput(student, "field w-32")}</td>
-                              <td className="p-3">{remarksInput(student)}</td>
+                            <tr key={student.id} className="transition-colors focus-within:bg-[color-mix(in_srgb,var(--primary)_5%,var(--surface))]">
+                              <td className="px-4 py-3">
+                                <p className="font-semibold [overflow-wrap:anywhere]">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</p>
+                                {student.admission_no && <p className="mt-0.5 text-xs muted [overflow-wrap:anywhere]">{student.admission_no}</p>}
+                              </td>
+                              <td className="px-3 py-3 tabular-nums muted">{student.roll_no ?? "—"}</td>
+                              <td className="px-3 py-3">{marksInput(student, "field min-h-11 w-full max-w-32 tabular-nums")}</td>
+                              <td className="py-3 pl-3 pr-4">{remarksInput(student)}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                    <ul aria-label="Student marks" className="divide-y divide-[var(--border)] md:hidden">
+                    <ul aria-label="Student marks" className="divide-y divide-[var(--border)] rounded-xl border border-[var(--border)] md:hidden">
                       {students.map((student) => (
-                        <li key={student.id} className="space-y-3 py-4">
+                        <li key={student.id} className="space-y-3 p-3">
                           <div>
-                            <p className="font-semibold">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</p>
-                            <p className="mt-1 text-xs muted">Roll {student.roll_no ?? "—"} · Admission {student.admission_no ?? "—"}</p>
+                            <p className="text-sm font-semibold [overflow-wrap:anywhere]">{[student.first_name, student.middle_name, student.last_name].filter(Boolean).join(" ")}</p>
+                            <p className="mt-1 text-xs muted [overflow-wrap:anywhere]">Roll {student.roll_no ?? "—"} · Admission {student.admission_no ?? "—"}</p>
                           </div>
-                          <div className="grid grid-cols-[minmax(0,7rem)_1fr] gap-3">
-                            <label className="block text-xs font-semibold"><span className="block muted">Marks (max {selectedAssessment.maximum_marks})</span>{marksInput(student, "field w-full")}</label>
-                            <label className="block text-xs font-semibold"><span className="block muted">Remarks</span>{remarksInput(student)}</label>
+                          <div className="grid grid-cols-[minmax(0,6.25rem)_minmax(0,1fr)] gap-3">
+                            <label className="block text-xs font-semibold"><span className="mb-1 block muted">Marks (max {selectedAssessment.maximum_marks})</span>{marksInput(student, "field w-full tabular-nums")}</label>
+                            <label className="block text-xs font-semibold"><span className="mb-1 block muted">Remarks</span>{remarksInput(student)}</label>
                           </div>
                         </li>
                       ))}
                     </ul>
                   </>
                 )}
-                <div className="flex flex-wrap gap-3">
-                  {selectedAssessment.teacher_id === teacherId && <button type="button" disabled={saving || !students.length || !marksDirty || marksScopeChanged || currentRoster?.requiresReload} onClick={() => void saveMarks()} className="rounded-xl gradient px-5 py-3 text-sm font-bold disabled:opacity-50">{saving ? "Saving..." : "Save Marks"}</button>}
-                  <button type="button" disabled={saving} onClick={() => void reloadMarks()} className="rounded-xl border border-[var(--border)] px-4 py-3 text-sm font-semibold disabled:opacity-50">{marksDirty ? "Discard changes and reload marks" : "Reload marks"}</button>
+            </div>
+
+            <footer className="space-y-2 border-t border-[var(--border)] bg-[var(--surface)] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6">
+              {marksScopeChanged && <p role="alert" className="text-sm text-danger">The assessment context changed. Your draft is retained; discard and reload before saving.</p>}
+              {marksError && <p role="alert" className="text-sm text-danger">{marksError}</p>}
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                  {marksMessage ? <span role="status" className="inline-flex items-center gap-1.5 font-semibold text-success"><Check size={17} aria-hidden="true" />{marksMessage}</span>
+                    : marksDirty && <span className="font-medium text-warning">Unsaved changes</span>}
+                  {marksMessage && !marksDirty && !marksError && <Link href="/modules/published-results" className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[var(--primary)] hover:underline">
+                    Result publication <ArrowRight size={15} aria-hidden="true" />
+                  </Link>}
                 </div>
-              </>
-            )}
-          </>
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <button type="button" disabled={saving} onClick={() => void reloadMarks()} className="btn btn-secondary">
+                    <RotateCcw size={15} aria-hidden="true" />{marksDirty ? "Discard changes and reload marks" : "Reload marks"}
+                  </button>
+                  {selectedAssessment.teacher_id === teacherId && <button type="button" disabled={saving || !students.length || !marksDirty || marksScopeChanged || currentRoster?.requiresReload} onClick={() => void saveMarks()} className="btn btn-primary">
+                    {saving ? "Saving..." : "Save Marks"}
+                  </button>}
+                </div>
+              </div>
+            </footer>
+          </div>
         )}
-      </section>
+      </dialog>
       {pendingDeleteAssessment && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4">
           <section role="alertdialog" aria-modal="true" aria-labelledby="delete-assessment-title" aria-describedby="delete-assessment-body" onKeyDown={(event) => { if (event.key === "Escape" && !saving) setPendingDeleteAssessment(null); }} className="w-full max-w-md rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 shadow-2xl">

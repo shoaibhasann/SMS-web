@@ -1,11 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ResultPublicationWorkspace } from "@/components/academic/result-publication-workspace";
 import { loadFamilyStudents, type FamilyStudent } from "@/lib/attendance/family";
 import { loadSchoolManagementAccess } from "@/lib/attendance/repository";
 import type { PublicationDetail } from "@/lib/result-publication";
-import { familyResult, resultDetail, resultPreview, resultSummary, resultToken, resultUuid } from "./result-publication-fixture";
+import { familyResult, resultDetail, resultMetadata, resultPreview, resultSummary, resultToken, resultUuid } from "./result-publication-fixture";
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), getUser: vi.fn(), listener: (() => {}) as (event: string, session: { user: { id: string } } | null) => void }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ rpc: mocks.rpc, auth: { getUser: mocks.getUser,
@@ -67,11 +67,45 @@ beforeEach(() => {
 
 describe("independent result publication UI", () => {
   it("previews all pupils including zero and requests a private result snapshot that survives refresh", async () => {
-    const saved = store(); render(<ResultPublicationWorkspace role="teacher" userId="teacher" />); const user = userEvent.setup();
+    const saved = store(); const view = render(<ResultPublicationWorkspace role="teacher" userId="teacher" />); const user = userEvent.setup();
     await screen.findByText("0 / 100"); expect(screen.getByLabelText("Assessment", { exact: true })).toHaveAccessibleName("Assessment");
-    await user.click(screen.getByRole("button", { name: "Request publication" })); await screen.findByText(/Publication requested/);
-    expect(saved.submissions).toHaveLength(1); expect(screen.getByRole("button", { name: "Request publication" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Refresh requests" })); expect((await screen.findAllByText("Pending review")).length).toBeGreaterThan(1);
+    await user.selectOptions(screen.getByLabelText("Request status"), "rejected");
+    await user.click(screen.getByRole("button", { name: "Request publication" }));
+    const requests = within(screen.getByRole("region", { name: "My publication requests" }));
+    await requests.findByText(/Publication requested/);
+    expect(requests.getByRole("heading", { name: "My publication requests" })).toHaveFocus();
+    expect(requests.getByLabelText("Request status")).toHaveValue("");
+    expect(await requests.findByRole("listitem")).toHaveTextContent("Pending review");
+    expect(saved.submissions).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Request publication" })).not.toBeInTheDocument();
+    expect(screen.queryByText("0 / 100")).not.toBeInTheDocument();
+
+    view.unmount();
+    render(<ResultPublicationWorkspace role="teacher" userId="teacher" />);
+    await screen.findByText(/This assessment is pending review/);
+    expect(screen.queryByRole("button", { name: "Request publication" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Refresh requests" }));
+    await screen.findByText(/This assessment is pending review/);
+    expect(screen.queryByText("0 / 100")).not.toBeInTheDocument();
+
+    saved.submissions[0] = published();
+    saved.changeSource();
+    await user.click(screen.getByRole("button", { name: "Refresh requests" }));
+    expect(await screen.findByRole("button", { name: "Request publication" })).toBeEnabled();
+  });
+  it("checks past the first page before offering to publish a source", async () => {
+    const others = Array.from({ length: 50 }, (_, index) => {
+      const assessmentId = `other-assessment-${index}`;
+      return resultDetail({ id: resultUuid(index + 2), assessment_id: assessmentId, snapshot: {
+        metadata: resultMetadata({ assessment_id: assessmentId }), pupils: [],
+      } });
+    });
+    store([...others, resultDetail()]);
+    render(<ResultPublicationWorkspace role="teacher" userId="teacher" />);
+
+    await screen.findByText(/This assessment is pending review/);
+    expect(mocks.rpc).toHaveBeenCalledWith("list_assessment_result_submissions", { p_school_id: null, p_status: "pending", p_offset: 50 });
+    expect(screen.queryByRole("button", { name: "Request publication" })).not.toBeInTheDocument();
   });
   it("retries a lost request acknowledgement with the same source and intent", async () => {
     const saved = store(); saved.loseRequest(); render(<ResultPublicationWorkspace role="teacher" userId="teacher" />); const user = userEvent.setup();
