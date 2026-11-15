@@ -84,6 +84,8 @@ function assessmentScopeLabel(assessment: AssessmentRecord, assignments: Teachin
 function ExamScheduleView() {
   const recordsVersion = useRef(0);
   const marksSaving = useRef(false);
+  const marksHeading = useRef<HTMLHeadingElement>(null);
+  const [marksNavigation, setMarksNavigation] = useState(0);
   const [rosterReload, setRosterReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,6 +131,14 @@ function ExamScheduleView() {
   const unavailableDraft = marksDirty && roster && !records.some((record) => record.id === roster.assessmentId) ? roster : null;
   const marksScopeChanged = Boolean(currentRoster && currentRoster.scope !== rosterScope);
   const rosterLoading = Boolean(assessmentId) && !currentRoster;
+
+  useEffect(() => {
+    if (!marksNavigation) return;
+    const heading = marksHeading.current;
+    heading?.focus({ preventScroll: true });
+    heading?.scrollIntoView?.({ block: "start", behavior: "instant" });
+  }, [marksNavigation]);
+
   const setMarks = (update: (current: MarkDraft) => MarkDraft) => {
     setRoster((current) => current?.assessmentId === assessmentId ? { ...current, marks: update(current.marks) } : current);
   };
@@ -669,6 +679,7 @@ function ExamScheduleView() {
                         <button type="button" onClick={() => {
                           setSelectedAssessmentId(assessment.id);
                           setExpandedAssessmentId(assessment.id);
+                          setMarksNavigation((request) => request + 1);
                         }} disabled={saving || (marksDirty && assessment.id !== assessmentId)} className="inline-flex min-h-11 items-center justify-center rounded-lg gradient px-4 py-2 text-sm font-semibold disabled:opacity-50">Enter Marks</button>
                         {assessment.teacher_id === teacherId && <>
                           <button type="button" onClick={() => editAssessment(assessment)} className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[var(--border)] px-4 py-2 text-sm font-semibold">Edit</button>
@@ -683,7 +694,7 @@ function ExamScheduleView() {
             {selectedAssessment && expandedAssessmentId === selectedAssessment.id && (
               <>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] p-4 text-sm">
-                  <div><b>{selectedAssessment.name}</b> · {assessmentDate(selectedAssessment.assessment_date)} · Maximum {selectedAssessment.maximum_marks}</div>
+                  <h3 ref={marksHeading} tabIndex={-1} className="scroll-mt-24"><b>{selectedAssessment.name}</b> · {assessmentDate(selectedAssessment.assessment_date)} · Maximum {selectedAssessment.maximum_marks}</h3>
                   <AssessmentStatus status={selectedAssessment.status} />
                 </div>
                 {selectedAssessment.description && <p className="text-sm muted">{selectedAssessment.description}</p>}
