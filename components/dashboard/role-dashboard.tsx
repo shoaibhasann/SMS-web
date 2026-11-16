@@ -1507,7 +1507,7 @@ function AdminDashboard({ schoolId, userId, role, schoolRoles }: { schoolId: str
   const countValue = (value: number | null) => dashboardLoading ? "—" : value ?? "—";
 
   return (
-    <div className="dashboard-role-flow space-y-6">
+    <div className={`dashboard-role-flow space-y-6${principal ? " dashboard-principal" : ""}`}>
       <DashboardGreeting eyebrow={role === "principal" ? "School leadership" : "School administration"}
         title={role === "principal" ? "Principal Dashboard" : "School Admin Dashboard"}
         description="A clear picture of your school, from daily attendance to learning and collections."

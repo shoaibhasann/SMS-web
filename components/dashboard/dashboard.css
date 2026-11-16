@@ -176,6 +176,31 @@
 .dark .dashboard-actions a:nth-child(4) .dashboard-action-icon { background: #3a3020; color: #e5c18b; }
 .dark .dashboard-panel, .dark .dashboard-identity, .dark .dashboard-metric { box-shadow: none; }
 
+.sms-dashboard .dashboard-principal > .dashboard-greeting {
+  --greeting-blue: color-mix(in srgb, var(--primary) 78%, #14275c);
+  --greeting-violet: color-mix(in srgb, var(--primary-2) 73%, #281851);
+  border-color: rgb(155 176 255 / 28%);
+  background:
+    linear-gradient(90deg, #111c3e, rgb(17 28 62 / 72%) 36%, transparent 73%),
+    radial-gradient(ellipse 36% 145% at 91% 119%, rgb(192 193 255 / 31%), transparent 69%),
+    radial-gradient(ellipse 60% 153% at 104% 108%, var(--greeting-blue), transparent 83%),
+    radial-gradient(ellipse 54% 146% at 76% -40%, var(--greeting-violet), transparent 85%),
+    linear-gradient(112deg, #172650, #2b215d);
+  box-shadow: 0 8px 22px rgb(18 29 67 / 12%);
+}
+.dashboard-principal > .dashboard-greeting h1 { color: #fff; }
+.dashboard-principal > .dashboard-greeting .dashboard-eyebrow { color: #c0d1ff; }
+.dashboard-principal > .dashboard-greeting .dashboard-description { color: #dbe5fc; }
+.dashboard-principal > .dashboard-greeting :is(.dashboard-date, .dashboard-refresh) {
+  border-color: rgb(215 225 255 / 30%);
+  background: rgb(12 21 52 / 48%);
+  color: #f4f7ff;
+}
+.dashboard-principal > .dashboard-greeting .dashboard-refresh:enabled:hover { background: rgb(12 21 52 / 66%); }
+.dashboard-principal > .dashboard-greeting .dashboard-primary { background: #f3f6ff; color: #253a8d; }
+.dashboard-principal > .dashboard-greeting .dashboard-primary:hover { background: #e1e9ff; }
+.dashboard-principal > .dashboard-greeting :is(.dashboard-primary, .dashboard-refresh):focus-visible { outline-color: #e1e9ff; }
+
 .sms-dashboard .dashboard-metrics-five > .dashboard-metric {
   --metric-shade: #172e85;
   --metric-accent: #347af1;
