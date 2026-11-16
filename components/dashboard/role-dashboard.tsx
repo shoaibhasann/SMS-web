@@ -1517,7 +1517,7 @@ function AdminDashboard({ schoolId, userId, role, schoolRoles }: { schoolId: str
       {dashboardError && <div role="alert" className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300">{dashboardError}</div>}
       <section aria-label="School Overview" className="dashboard-metrics dashboard-metrics-five">
         <DashboardMetric label="Total Students" value={countValue(overview.students)} context="All retained student records" icon={Users} featured loading={dashboardLoading} />
-        <DashboardMetric label="Total Teachers" value={countValue(overview.teachers)} context="Retained school staff" icon={UserRound} tone="violet" loading={dashboardLoading} />
+        <DashboardMetric label="Total Teachers" value={countValue(overview.teachers)} context="Retained school staff" icon={GraduationCap} tone="violet" loading={dashboardLoading} />
         <DashboardMetric label="Today's Attendance" value={countValue(overview.attendanceToday)} context="Saved school-day records" icon={CalendarCheck} tone="green" loading={dashboardLoading} />
         <DashboardMetric label="Absent Students" value={countValue(overview.absentToday)} context="Marked absent today" icon={UserRound} tone="rose" loading={dashboardLoading} />
         <DashboardMetric label="This Month Collection" value={dashboardLoading ? "—" : overview.monthCollection === null ? "Unavailable" : formatFeeMoney(overview.monthCollection)} context="Net recorded collections" icon={IndianRupee} tone="amber" loading={dashboardLoading} />
